@@ -588,7 +588,15 @@
     
     
     
-    /* AMOUNT CHIPS (SVG) */
+
+
+
+
+    /* ===========================
+           AMOUNT CHIPS (SVG)
+     =========================== */
+
+ 
     .bet-amounts{
       display:flex; justify-content:center; gap:10px;
       padding:6px 6px 10px;
@@ -597,13 +605,66 @@
       background:var(--panel);
       border:1px solid var(--border);
       border-radius:12px;
-      padding:8px;
+      padding: 10px 12px;
       transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 64px;
     }
-    .amount-btn img{ 
-      width:36px; 
-      height:36px; 
+    
+    .amount-icon{ 
+      width: 20px; 
+      height: 20px;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      flex-shrink: 0;
     }
+    
+    .amount-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      transition: opacity 0.2s ease;
+    }
+    
+    .amount-btn:active{ 
+      transform: translateY(1px); 
+    }
+    
+    .amount-btn.active{ 
+      border-color: rgba(0,166,255,.6); 
+      box-shadow:0 0 0 3px var(--accent-ghost); 
+    }
+    
+    .amount-btn.active .amount-value {
+      color: var(--accent);
+    }
+    
+    /* 🔥 Анимация смены валюты на кнопках */
+    .amount-btn.currency-switching .amount-icon,
+    .amount-btn.currency-switching .amount-value {
+      animation: currencySwitchBtn 0.3s ease;
+    }
+    
+    @keyframes currencySwitchBtn {
+      0% { 
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+      50% { 
+        opacity: 0;
+        transform: scale(0.8) rotate(-15deg);
+      }
+      100% { 
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+   
     .amount-btn:active{ 
       transform: translateY(1px); 
     }
@@ -613,34 +674,67 @@
     }
         
     
+
+
+
+
     
-              /* Actions */
-    .bet-actions{
-      display:flex; 
-      justify-content:center; 
-      gap:12px; 
-      padding:0 6px 8px;
-    }
-    .action-btn{
-      background:var(--panel); 
-      border:1px solid var(--border);
-      padding:10px; 
-      border-radius:12px;
-      transition: transform .12s ease, background .15s;
-    }
-    .action-btn:hover{ 
-      background:#162031; 
-    }
-    .action-btn:active{ 
-      transform: translateY(1px); 
-    }
-    .action-btn img{ 
-      width:20px; 
-      height:20px; 
-    }
-           
-    
-    
+                                  
+                                  /* Контейнер: кнопка очистки + суммы */
+                      .bet-controls {
+                        position: relative;
+                        padding: 6px 6px 10px;
+                      }
+
+                      /* Кнопка очистки - маленькая, слева */
+                      .clear-bets-btn {
+                        position: absolute;
+                        left: 10px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        width: 40px;
+                        height: 40px;
+                        background: rgba(255, 77, 79, 0.1);
+                        border: 1px solid rgba(255, 77, 79, 0.25);
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: all .2s ease;
+                        z-index: 2;
+                      }
+
+                      .clear-bets-btn:hover {
+                        background: rgba(255, 77, 79, 0.15);
+                        border-color: rgba(255, 77, 79, 0.4);
+                        transform: translateY(-50%) scale(1.05);
+                      }
+
+                      .clear-bets-btn:active {
+                        transform: translateY(-50%) scale(0.95);
+                      }
+
+                      .clear-bets-btn img {
+                        width: 18px;
+                        height: 18px;
+                        filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
+                        opacity: 0.9;
+                      }
+
+                      .clear-bets-btn:hover img {
+                        opacity: 1;
+                        filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
+                      }
+
+                      /* Суммы - центрированы */
+                      .bet-amounts {
+                        display: flex;
+                        justify-content: center;
+                        gap: 10px;
+                        padding: 6px 50px 0; /* Отступы слева/справа для кнопки очистки */
+                      }
+
     
                     /* Bet grid (tickets) */
         .bet-grid{

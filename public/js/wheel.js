@@ -1,7 +1,7 @@
-// wheel.js - TEST MODE VERSION - Тестовый режим без проверки баланса
+// wheel.js - FINAL VERSION - Perfect currency sync + history only on wheel page
 
 /* ===== CONFIG ===== */
-const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ - ставки без проверки баланса
+const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
 
 const WHEEL_ORDER = [
   'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
@@ -32,7 +32,7 @@ const LABELS = {
 
 /* ===== DOM refs ===== */
 let canvas, ctx, DPR = 1;
-let userBalance = { ton: 0, stars: 0 }; // Баланс (не используется в TEST_MODE)
+let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
 
@@ -80,7 +80,7 @@ function preloadImages() {
     })
   ).then(() => {
     imagesLoaded = true;
-    console.log('All wheel images loaded');
+    console.log('[Wheel] ✅ All images loaded');
   });
 }
 
@@ -96,9 +96,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if (!canvas) return;
 
-  // 🔥 ТЕСТОВЫЙ РЕЖИМ - показываем уведомление
+  // 🔥 TEST MODE notification
   if (TEST_MODE) {
-    console.log('🧪 TEST MODE ACTIVE - Unlimited betting enabled');
+    console.log('[Wheel] 🧪 TEST MODE ACTIVE');
     showTestModeNotification();
   }
 
@@ -109,6 +109,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   initBettingUI();
 
+  // 🔥 SYNC: Загружаем валюту из системы
+  setTimeout(() => {
+    syncWithCurrencySystem();
+  }, 150);
+
   lastTs = performance.now();
   rafId = requestAnimationFrame(tick);
 
@@ -118,77 +123,98 @@ window.addEventListener('DOMContentLoaded', async () => {
     prepareCanvas();
     drawWheel(currentAngle);
   });
+  
+  // 🔥 HISTORY: Показываем только на странице Wheel
+  checkHistoryVisibility();
 });
 
-/* ===== 🔥 НОВАЯ ФУНКЦИЯ - Уведомление о тестовом режиме ===== */
-function showTestModeNotification() {
-  const existing = document.getElementById('test-mode-toast');
-  if (existing) return;
+/* ===== 🔥 CURRENCY SYNC ===== */
+function syncWithCurrencySystem() {
+  if (!window.WildTimeCurrency) {
+    console.warn('[Wheel] ⚠️ Currency system not ready yet');
+    return;
+  }
+
+  const savedCurrency = window.WildTimeCurrency.current;
+  console.log('[Wheel] 🔄 Syncing with currency system:', savedCurrency);
   
-  const toast = document.createElement('div');
-  toast.id = 'test-mode-toast';
-  toast.style.cssText = `
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.1));
-    backdrop-filter: blur(16px) saturate(180%);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 16px;
-    padding: 12px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #fbbf24;
-    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
-    animation: testModeSlideIn 0.5s ease forwards;
-    pointer-events: none;
-  `;
-  toast.textContent = '🧪 Test Mode: Unlimited Balance';
+  currentCurrency = savedCurrency;
   
-  if (!document.getElementById('test-mode-animations')) {
-    const style = document.createElement('style');
-    style.id = 'test-mode-animations';
-    style.textContent = `
-      @keyframes testModeSlideIn {
-        from { 
-          opacity: 0;
-          transform: translateX(-50%) translateY(-20px);
-        }
-        to { 
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
+  // Обновляем кнопки ставок
+  updateAmountButtonsUI(savedCurrency);
+  
+  console.log('[Wheel] ✅ Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
+}
+
+function updateAmountButtonsUI(currency) {
+  console.log('[Wheel] 💰 Updating bet buttons for:', currency);
+  
+  if (currency === 'ton') {
+    const tonAmounts = [0.1, 0.5, 1, 2.5];
+    amountBtns.forEach((btn, index) => {
+      if (index < tonAmounts.length) {
+        const amount = tonAmounts[index];
+        btn.dataset.amount = amount;
+        btn.innerHTML = `
+          <img src="/icons/ton.svg" alt="" class="amount-icon" />
+          <span class="amount-value">${amount}</span>
+        `;
       }
-    `;
-    document.head.appendChild(style);
+    });
+    
+    // Активируем первую кнопку
+    const firstBtn = amountBtns[0];
+    if (firstBtn) {
+      firstBtn.classList.add('active');
+      currentAmount = 0.1;
+    }
+    
+  } else {
+    const starsAmounts = [1, 5, 10, 25];
+    amountBtns.forEach((btn, index) => {
+      if (index < starsAmounts.length) {
+        const amount = starsAmounts[index];
+        btn.dataset.amount = amount;
+        btn.innerHTML = `
+          <img src="/icons/stars.svg" alt="" class="amount-icon" />
+          <span class="amount-value">${amount}</span>
+        `;
+      }
+    });
+    
+    // Активируем первую кнопку
+    const firstBtn = amountBtns[0];
+    if (firstBtn) {
+      firstBtn.classList.add('active');
+      currentAmount = 1;
+    }
   }
   
-  document.body.appendChild(toast);
-  
-  // Убираем через 5 секунд
-  setTimeout(() => {
-    toast.style.animation = 'testModeSlideIn 0.3s ease reverse forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 5000);
+  console.log('[Wheel] ✅ Buttons updated, currentAmount:', currentAmount);
 }
+
+// Экспортируем функцию для switch.js
+window.updateCurrentAmount = function(amount) {
+  currentAmount = amount;
+  console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
+};
 
 /* ===== Betting UI ===== */
 function initBettingUI(){
-  const active = amountBtns.find(b => b.classList.contains('active'));
-  if (active) currentAmount = parseFloat(active.dataset.amount || '0.5');
-
+  // Обработчики кнопок сумм
   amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       if (phase !== 'betting') return;
+      
       amountBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentAmount = parseFloat(btn.dataset.amount);
+      
+      console.log('[Wheel] 🎯 Amount selected:', currentAmount, currentCurrency);
     });
   });
 
-  // 🔥 Слушаем обновление баланса (только для отображения, не для проверки)
+  // 🔥 Слушаем события баланса
   window.addEventListener('balance:loaded', (e) => {
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
@@ -209,15 +235,17 @@ function initBettingUI(){
     }
   });
 
-  // Слушаем смену валюты
+  // 🔥 Слушаем смену валюты
   window.addEventListener('currency:changed', (e) => {
     if (e.detail && e.detail.currency) {
-      currentCurrency = e.detail.currency;
-      console.log('[Wheel] Currency changed to:', currentCurrency);
+      const newCurrency = e.detail.currency;
+      console.log('[Wheel] 🔄 Currency changed to:', newCurrency);
+      currentCurrency = newCurrency;
+      updateAmountButtonsUI(newCurrency);
     }
   });
 
-  // 🔥 ОБНОВЛЕННЫЙ обработчик ставок - БЕЗ проверки баланса в TEST_MODE
+  // 🔥 Обработчик ставок - БЕЗ проверки баланса в TEST_MODE
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
       if (phase !== 'betting') return;
@@ -225,21 +253,19 @@ function initBettingUI(){
       const seg = tile.dataset.seg;
       const cur = betsMap.get(seg) || 0;
       
-      // 🔥 ПРОВЕРКА БАЛАНСА ОТКЛЮЧЕНА В ТЕСТОВОМ РЕЖИМЕ
+      // 🔥 Проверка баланса ОТКЛЮЧЕНА в тестовом режиме
       if (!TEST_MODE) {
         const balance = userBalance[currentCurrency] || 0;
         
         if (balance < currentAmount) {
-          // ❌ Недостаточно средств
           tile.classList.add('insufficient-balance');
           setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
-          
           showInsufficientBalanceNotification();
           return;
         }
       }
       
-      // ✅ Добавляем ставку (в тестовом режиме всегда разрешено)
+      // ✅ Добавляем ставку
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
@@ -260,49 +286,13 @@ function initBettingUI(){
     });
   });
 
-  const undoBtn = document.querySelector('[data-action="undo"]');
+  // Очистка ставок
   const clearBtn = document.querySelector('[data-action="clear"]');
-
-  if (undoBtn) {
-    undoBtn.addEventListener('click', () => {
-      if (phase !== 'betting') return;
-      const lastSeg = Array.from(betsMap.keys()).pop();
-      if (lastSeg) {
-        const cur = betsMap.get(lastSeg) || 0;
-        const next = Math.max(0, cur - currentAmount);
-        if (next > 0) {
-          betsMap.set(lastSeg, next);
-          updateBadge(lastSeg, next);
-        } else {
-          betsMap.delete(lastSeg);
-          updateBadge(lastSeg, 0);
-        }
-      }
-    });
-  }
-
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       if (phase !== 'betting') return;
       clearBets();
     });
-  }
-}
-
-function updateBadge(seg, amount) {
-  const tile = Array.from(betTiles).find(t => t.dataset.seg === seg);
-  if (!tile) return;
-  
-  const badge = tile.querySelector('.bet-badge');
-  if (badge) {
-    if (amount > 0) {
-      badge.textContent = amount;
-      badge.hidden = false;
-      tile.classList.add('has-bet');
-    } else {
-      badge.hidden = true;
-      tile.classList.remove('has-bet');
-    }
   }
 }
 
@@ -417,55 +407,45 @@ function tick(ts){
     currentAngle = decel.start + (decel.end - decel.start) * eased;
 
     if (t >= 1){
-  currentAngle = decel.end;
-  const typeFinished = decel.resultType;
-  const resolveFn = decel.resolve;
-  decel = null;
+      currentAngle = decel.end;
+      const typeFinished = decel.resultType;
+      const resolveFn = decel.resolve;
+      decel = null;
 
-  phase = 'betting';
-  omega = IDLE_OMEGA;
-  setBetPanel(true);
+      phase = 'betting';
+      omega = IDLE_OMEGA;
+      setBetPanel(true);
 
-  // Проверяем результат раунда
-  if (typeFinished) {
-    checkBetsAndShowResult(typeFinished);
-    
-    // 🎰 ПРОВЕРКА НА БОНУС 50&50
-    if (typeFinished === '50&50') {
-      // Запускаем бонус через 3 секунды после показа результата
-      setTimeout(async () => {
-        console.log('[Wheel] 🎰 Starting 50&50 bonus...');
+      if (typeFinished) {
+        checkBetsAndShowResult(typeFinished);
         
-        // Получаем ставку на 50&50
-        const betOn5050 = betsMap.get('50&50') || 0;
-        
-        // Запускаем бонус
-        if (window.start5050Bonus) {
-          await window.start5050Bonus(betOn5050);
+        if (typeFinished === '50&50') {
+          setTimeout(async () => {
+            console.log('[Wheel] 🎰 Starting 50&50 bonus...');
+            const betOn5050 = betsMap.get('50&50') || 0;
+            
+            if (window.start5050Bonus) {
+              await window.start5050Bonus(betOn5050);
+            }
+            
+            pushHistory(typeFinished);
+            clearBets();
+            startCountdown(9);
+          }, 3000);
         } else {
-          console.error('[Wheel] ❌ Bonus 50&50 not loaded!');
+          setTimeout(() => {
+            pushHistory(typeFinished);
+            clearBets();
+            startCountdown(9);
+          }, 3000);
         }
-        
-        // После бонуса продолжаем как обычно
-        pushHistory(typeFinished);
+      } else {
         clearBets();
         startCountdown(9);
-      }, 3000);
-    } else {
-      // Обычный результат - продолжаем через 3 секунды
-      setTimeout(() => {
-        pushHistory(typeFinished);
-        clearBets();
-        startCountdown(9);
-      }, 3000);
-    }
-  } else {
-    clearBets();
-    startCountdown(9);
-  }
+      }
 
-  if (resolveFn) resolveFn();
-}
+      if (resolveFn) resolveFn();
+    }
   } else if (phase === 'betting' || phase === 'accelerate') {
     currentAngle += omega * dt;
   }
@@ -478,8 +458,21 @@ function tick(ts){
 function checkBetsAndShowResult(resultType) {
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
+  const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
+  
+  if (isBonusRound) {
+    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
+    showBonusNotification(resultType);
+    
+    setTimeout(() => {
+      checkBonusTrigger(resultType);
+    }, 2000);
+    
+    return;
+  }
+  
   if (totalBets <= 0) {
-    console.log('No bets placed - skipping notification');
+    console.log('[Wheel] No bets placed');
     return;
   }
 
@@ -489,7 +482,7 @@ function checkBetsAndShowResult(resultType) {
     const multiplier = getMultiplier(resultType);
     const winAmount = betOnResult * multiplier;
     
-    console.log('🎉 WIN!', {
+    console.log('[Wheel] 🎉 WIN!', {
       result: resultType,
       betAmount: betOnResult,
       multiplier,
@@ -500,7 +493,7 @@ function checkBetsAndShowResult(resultType) {
     
     showWinNotification(winAmount);
   } else {
-    console.log('😔 LOSS', {
+    console.log('[Wheel] 😔 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
       totalLost: totalBets,
@@ -550,8 +543,7 @@ function showWinNotification(winAmount) {
     color: #10b981;
     box-shadow: 
       0 12px 32px rgba(16, 185, 129, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
     animation: winJellyIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
     text-shadow: 0 2px 12px rgba(16, 185, 129, 0.4);
     letter-spacing: 0.5px;
@@ -583,20 +575,6 @@ function showWinNotification(winAmount) {
           opacity: 1;
         }
       }
-      @keyframes winJellyOut {
-        0% { 
-          transform: translateX(-50%) translateY(0) scale(1);
-          opacity: 1;
-        }
-        20% {
-          transform: translateX(-50%) translateY(0) scale(1.05);
-          opacity: 1;
-        }
-        100% { 
-          transform: translateX(-50%) translateY(-80px) scale(0.7);
-          opacity: 0;
-        }
-      }
     `;
     document.head.appendChild(style);
   }
@@ -622,59 +600,17 @@ function showInsufficientBalanceNotification() {
     transform: translateX(-50%) translateY(-80px);
     z-index: 10000;
     background: linear-gradient(135deg, rgba(127, 29, 29, 0.15), rgba(153, 27, 27, 0.1));
-    backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px);
     border: 1px solid rgba(185, 28, 28, 0.2);
     border-radius: 18px;
     padding: 14px 24px;
     font-size: 14px;
     font-weight: 600;
     color: #ef4444;
-    box-shadow: 0 10px 30px rgba(127, 29, 29, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     animation: insufficientJellyIn 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
     pointer-events: none;
-    text-shadow: 0 1px 8px rgba(239, 68, 68, 0.3);
-    letter-spacing: 0.3px;
-    white-space: nowrap;
   `;
   toast.textContent = 'Insufficient balance';
-  
-  if (!document.getElementById('insufficient-animations')) {
-    const style = document.createElement('style');
-    style.id = 'insufficient-animations';
-    style.textContent = `
-      @keyframes insufficientJellyIn {
-        0% { 
-          transform: translateX(-50%) translateY(-80px) scale(0.4);
-          opacity: 0;
-        }
-        50% { 
-          transform: translateX(-50%) translateY(0) scale(1.06);
-          opacity: 1;
-        }
-        65% { 
-          transform: translateX(-50%) translateY(0) scale(0.96);
-        }
-        80% { 
-          transform: translateX(-50%) translateY(0) scale(1.02);
-        }
-        100% { 
-          transform: translateX(-50%) translateY(0) scale(1);
-          opacity: 1;
-        }
-      }
-      @keyframes insufficientJellyOut {
-        0% { 
-          transform: translateX(-50%) translateY(0) scale(1);
-          opacity: 1;
-        }
-        100% { 
-          transform: translateX(-50%) translateY(-60px) scale(0.85);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
   
   document.body.appendChild(toast);
   
@@ -684,21 +620,98 @@ function showInsufficientBalanceNotification() {
   }, 2000);
 }
 
+function showBonusNotification(bonusType) {
+  const existing = document.getElementById('bonus-trigger-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'bonus-trigger-toast';
+  
+  toast.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    z-index: 9999;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(219, 39, 119, 0.95));
+    backdrop-filter: blur(16px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 24px;
+    padding: 30px 50px;
+    font-size: 48px;
+    font-weight: 900;
+    color: white;
+    animation: bonusTrigger 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    text-align: center;
+  `;
+  
+  toast.innerHTML = `
+    <div style="margin-bottom: 10px;">${bonusType}</div>
+    <div style="font-size: 18px; font-weight: 600;">Bonus Round</div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'bonusTriggerOut 0.5s ease forwards';
+    setTimeout(() => toast.remove(), 500);
+  }, 1500);
+}
+
+function checkBonusTrigger(resultType) {
+  console.log('[Wheel] Checking bonus trigger for:', resultType);
+  
+  if (resultType === '50&50') {
+    console.log('[Wheel] 🎰 Triggering 50&50 bonus!');
+    setTimeout(() => {
+      if (window.Bonus5050) {
+        window.Bonus5050.start();
+      }
+    }, 1500);
+  }
+}
+
+function showTestModeNotification() {
+  const existing = document.getElementById('test-mode-toast');
+  if (existing) return;
+  
+  const toast = document.createElement('div');
+  toast.id = 'test-mode-toast';
+  toast.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.1));
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 16px;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fbbf24;
+    animation: testModeSlideIn 0.5s ease forwards;
+    pointer-events: none;
+  `;
+  toast.textContent = '🧪 Test Mode: Unlimited Balance';
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'testModeSlideIn 0.3s ease reverse forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
 /* ===== Countdown ===== */
 let cInt = null;
 let isCountdownActive = false;
 
 function startCountdown(sec=9){
-  if (!countdownBox || !countNumEl) {
-    console.warn('Countdown elements not found');
-    return;
-  }
-  if (isCountdownActive) {
-    console.log('Countdown already active, skipping');
-    return;
-  }
+  if (!countdownBox || !countNumEl) return;
+  if (isCountdownActive) return;
 
-  console.log('Starting countdown:', sec);
   stopCountdown();
   isCountdownActive = true;
   phase = 'betting';
@@ -711,7 +724,6 @@ function startCountdown(sec=9){
 
   cInt = setInterval(async () => {
     left--;
-    console.log('Countdown:', left);
     
     if (left >= 0) {
       countNumEl.textContent = String(left);
@@ -721,7 +733,6 @@ function startCountdown(sec=9){
     }
     
     if (left <= 0) {
-      console.log('Countdown finished, starting spin');
       stopCountdown();
 
       phase = 'accelerate';
@@ -729,17 +740,11 @@ function startCountdown(sec=9){
       
       try {
         await accelerateTo(FAST_OMEGA, 1200);
-        console.log('Acceleration complete');
-
         const { sliceIndex, type } = await fetchRoundOutcome();
-        console.log('Round outcome:', { sliceIndex, type });
-
         const dur = 5000 + Math.floor(Math.random()*2000);
-        console.log('Starting deceleration, duration:', dur);
         await decelerateToSlice(sliceIndex, dur, 4, type);
-        console.log('Deceleration complete');
       } catch (error) {
-        console.error('Error during spin:', error);
+        console.error('[Wheel] Error during spin:', error);
         phase = 'betting';
         omega = IDLE_OMEGA;
         setBetPanel(true);
@@ -752,7 +757,6 @@ function startCountdown(sec=9){
 
 function stopCountdown(){
   if (cInt) {
-    console.log('Stopping countdown');
     clearInterval(cInt);
     cInt = null;
   }
@@ -762,7 +766,6 @@ function stopCountdown(){
 /* ===== Accel/Decel ===== */
 function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
   return new Promise(res=>{
-    console.log('Accelerating from', omega, 'to', targetOmega);
     const start = omega;
     const t0 = performance.now();
     
@@ -776,7 +779,6 @@ function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
         requestAnimationFrame(step);
       } else {
         omega = targetOmega;
-        console.log('Acceleration done, omega:', omega);
         res();
       }
     };
@@ -785,8 +787,6 @@ function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
 }
 
 function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=null){
-  console.log('Decelerating to slice:', sliceIndex, 'type:', typeForHistory);
-  
   return new Promise(resolve=>{
     const normalizedCurrent = currentAngle % (2 * Math.PI);
     const sliceCenter = sliceIndex * SLICE_ANGLE + SLICE_ANGLE / 2;
@@ -797,15 +797,6 @@ function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=nul
     while (deltaToTarget < -Math.PI) deltaToTarget += 2 * Math.PI;
     
     const endAngle = currentAngle + deltaToTarget + extraTurns * 2 * Math.PI;
-    
-    console.log('Deceleration params:', {
-      currentAngle,
-      normalizedCurrent,
-      sliceCenter,
-      deltaToTarget,
-      endAngle,
-      totalRotation: endAngle - currentAngle
-    });
     
     decel = { 
       start: currentAngle, 
@@ -830,35 +821,27 @@ async function fetchRoundOutcome(){
     });
     
     if (!r.ok) {
-      console.error('Server returned error:', r.status);
+      console.error('[Wheel] Server returned error:', r.status);
       throw new Error('Server error');
     }
     
     const data = await r.json();
-    console.log('Server response:', data);
     
     if (data?.ok && typeof data.sliceIndex === 'number' && data.type) {
       return data;
     }
     
-    console.warn('Invalid server response, using fallback');
     throw new Error('Invalid response');
   } catch(e) {
-    console.warn('Failed to fetch round outcome, using local fallback:', e);
+    console.warn('[Wheel] Failed to fetch round, using fallback:', e);
   }
   
   const sliceIndex = Math.floor(Math.random() * SLICE_COUNT);
   const type = WHEEL_ORDER[sliceIndex];
-  console.log('Local fallback result:', { sliceIndex, type });
   return { sliceIndex, type, ok: true };
 }
 
 /* ===== Helpers ===== */
-function normalizeAngle(a){
-  while (a <= -Math.PI) a += 2*Math.PI;
-  while (a > Math.PI)   a -= 2*Math.PI;
-  return a;
-}
 function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInQuad(t){ return t*t; }
 
@@ -878,9 +861,42 @@ function setBetPanel(enable){
   }
 }
 
-/* ===== History & Clear bets ===== */
+/* ===== 🔥 HISTORY - ONLY ON WHEEL PAGE ===== */
+function checkHistoryVisibility() {
+  const wheelPage = document.getElementById('wheelPage');
+  const historySection = document.querySelector('.history');
+  
+  if (!historySection) return;
+  
+  // Создаем observer для отслеживания видимости страницы колеса
+  const observer = new MutationObserver(() => {
+    const isWheelActive = wheelPage?.classList.contains('page-active');
+    
+    if (isWheelActive) {
+      historySection.style.display = 'block';
+    } else {
+      historySection.style.display = 'none';
+    }
+  });
+  
+  // Наблюдаем за изменениями класса
+  if (wheelPage) {
+    observer.observe(wheelPage, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  }
+  
+  // Начальная проверка
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  historySection.style.display = isWheelActive ? 'block' : 'none';
+  
+  console.log('[Wheel] 📜 History visibility tracking enabled');
+}
+
 function pushHistory(typeKey){
   if (!historyList) return;
+  
   const item = document.createElement('div');
   item.className = 'history-item';
   item.textContent = LABELS[typeKey] || typeKey;
@@ -891,6 +907,7 @@ function pushHistory(typeKey){
   item.style.font='600 12px/1 mf,system-ui,sans-serif';
   item.style.marginRight='6px';
   item.style.flexShrink='0';
+  
   historyList.prepend(item);
   
   const all = historyList.querySelectorAll('.history-item');
@@ -898,7 +915,7 @@ function pushHistory(typeKey){
 }
 
 function clearBets(){
-  console.log('Clearing all bets');
+  console.log('[Wheel] 🧹 Clearing all bets');
   betsMap.clear();
   betTiles.forEach(tile=>{
     const badge = tile.querySelector('.bet-badge');
@@ -910,187 +927,133 @@ function clearBets(){
   });
 }
 
-function hasBets() {
-  const total = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-  return total > 0;
+/* ===== Export для других модулей ===== */
+window.WheelGame = {
+  getCurrentCurrency: () => currentCurrency,
+  getCurrentAmount: () => currentAmount,
+  hasBets: () => {
+    const total = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+    return total > 0;
+  },
+  clearBets: clearBets
+};
 
 
 
 
 
-
-
-
-
-
-
-/* ===== ИНТЕГРАЦИЯ БОНУСОВ ===== */
-
-// Проверка выпадения бонуса
-function checkBonusTrigger(resultType) {
-  console.log('[Wheel] Checking bonus trigger for:', resultType);
-  
-  // Если выпал бонус 50&50
-  if (resultType === '50&50') {
-    console.log('[Wheel] 🎰 Triggering 50&50 bonus!');
-    
-    // Запускаем бонус после задержки
-    setTimeout(() => {
-      if (window.Bonus5050) {
-        window.Bonus5050.start();
-      } else {
-        console.error('[Wheel] ❌ Bonus5050 module not loaded!');
+/* ===== Inject Animation Styles ===== */
+if (!document.getElementById('wheel-animations')) {
+  const style = document.createElement('style');
+  style.id = 'wheel-animations';
+  style.textContent = `
+    /* Win notification */
+    @keyframes winJellyOut {
+      0% { 
+        transform: translateX(-50%) translateY(0) scale(1);
+        opacity: 1;
       }
-    }, 1500);
-  }
-  
-  // Если выпал Loot Rush
-  if (resultType === 'Loot Rush') {
-    console.log('[Wheel] 🎁 Triggering Loot Rush bonus!');
-    // TODO: Добавим позже
-  }
-  
-  // Если выпал Wild Time
-  if (resultType === 'Wild Time') {
-    console.log('[Wheel] 🔥 Triggering Wild Time bonus!');
-    // TODO: Добавим позже
-  }
-}
-
-// ====== ОБНОВИ ФУНКЦИЮ checkBetsAndShowResult ======
-// Найди эту функцию и замени на:
-
-function checkBetsAndShowResult(resultType) {
-  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-  
-  // 🔥 ПРОВЕРКА БОНУСА
-  const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
-  
-  if (isBonusRound) {
-    console.log('🎰 BONUS ROUND!', resultType);
+      100% { 
+        transform: translateX(-50%) translateY(-80px) scale(0.7);
+        opacity: 0;
+      }
+    }
     
-    // Показываем уведомление о бонусе
-    showBonusNotification(resultType);
+    /* Insufficient balance */
+    @keyframes insufficientJellyIn {
+      0% { 
+        transform: translateX(-50%) translateY(-80px) scale(0.4);
+        opacity: 0;
+      }
+      50% { 
+        transform: translateX(-50%) translateY(0) scale(1.06);
+        opacity: 1;
+      }
+      65% { 
+        transform: translateX(-50%) translateY(0) scale(0.96);
+      }
+      80% { 
+        transform: translateX(-50%) translateY(0) scale(1.02);
+      }
+      100% { 
+        transform: translateX(-50%) translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
     
-    // Запускаем бонус
-    setTimeout(() => {
-      checkBonusTrigger(resultType);
-    }, 2000);
+    @keyframes insufficientJellyOut {
+      0% { 
+        transform: translateX(-50%) translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% { 
+        transform: translateX(-50%) translateY(-60px) scale(0.85);
+        opacity: 0;
+      }
+    }
     
-    return;
-  }
-  
-  // Обычный раунд
-  if (totalBets <= 0) {
-    console.log('No bets placed - skipping notification');
-    return;
-  }
-
-  const betOnResult = betsMap.get(resultType) || 0;
-  
-  if (betOnResult > 0) {
-    const multiplier = getMultiplier(resultType);
-    const winAmount = betOnResult * multiplier;
+    /* Bonus trigger */
+    @keyframes bonusTrigger {
+      0% { 
+        transform: translate(-50%, -50%) scale(0) rotate(-180deg);
+        opacity: 0;
+      }
+      50% { 
+        transform: translate(-50%, -50%) scale(1.15) rotate(10deg);
+        opacity: 1;
+      }
+      70% {
+        transform: translate(-50%, -50%) scale(0.95) rotate(-5deg);
+      }
+      85% {
+        transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+      }
+      100% { 
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 1;
+      }
+    }
     
-    console.log('🎉 WIN!', {
-      result: resultType,
-      betAmount: betOnResult,
-      multiplier,
-      winAmount,
-      totalBets,
-      testMode: TEST_MODE
-    });
+    @keyframes bonusTriggerOut {
+      0% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+      100% { 
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+      }
+    }
     
-    showWinNotification(winAmount);
-  } else {
-    console.log('😔 LOSS', {
-      result: resultType,
-      yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
-      totalLost: totalBets,
-      testMode: TEST_MODE
-    });
-  }
-}
-
-// ====== НОВАЯ ФУНКЦИЯ - Уведомление о бонусе ======
-function showBonusNotification(bonusType) {
-  const existing = document.getElementById('bonus-trigger-toast');
-  if (existing) existing.remove();
-  
-  const toast = document.createElement('div');
-  toast.id = 'bonus-trigger-toast';
-  
-  toast.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0);
-    z-index: 9999;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(219, 39, 119, 0.95));
-    backdrop-filter: blur(16px) saturate(180%);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 24px;
-    padding: 30px 50px;
-    font-size: 48px;
-    font-weight: 900;
-    color: white;
-    box-shadow: 
-      0 20px 60px rgba(168, 85, 247, 0.6),
-      inset 0 2px 0 rgba(255, 255, 255, 0.2);
-    animation: bonusTrigger 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    text-align: center;
+    /* Test mode notification */
+    @keyframes testModeSlideIn {
+      from { 
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+      }
+      to { 
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+    
+    /* History visibility transition */
+    .history {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    .history[style*="display: none"] {
+      opacity: 0;
+      transform: translateY(-10px);
+      pointer-events: none;
+    }
+    
+    .history[style*="display: block"] {
+      opacity: 1;
+      transform: translateY(0);
+    }
   `;
-  
-  toast.innerHTML = `
-    <div style="margin-bottom: 10px;">${bonusType}</div>
-    <div style="font-size: 18px; font-weight: 600; opacity: 0.9;">Bonus Round</div>
-  `;
-  
-  if (!document.getElementById('bonus-trigger-animations')) {
-    const style = document.createElement('style');
-    style.id = 'bonus-trigger-animations';
-    style.textContent = `
-      @keyframes bonusTrigger {
-        0% { 
-          transform: translate(-50%, -50%) scale(0) rotate(-180deg);
-          opacity: 0;
-        }
-        50% { 
-          transform: translate(-50%, -50%) scale(1.15) rotate(10deg);
-          opacity: 1;
-        }
-        70% {
-          transform: translate(-50%, -50%) scale(0.95) rotate(-5deg);
-        }
-        85% {
-          transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
-        }
-        100% { 
-          transform: translate(-50%, -50%) scale(1) rotate(0deg);
-          opacity: 1;
-        }
-      }
-      
-      @keyframes bonusTriggerOut {
-        0% { 
-          transform: translate(-50%, -50%) scale(1);
-          opacity: 1;
-        }
-        100% { 
-          transform: translate(-50%, -50%) scale(1.5);
-          opacity: 0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'bonusTriggerOut 0.5s ease forwards';
-    setTimeout(() => toast.remove(), 500);
-  }, 1500);
+  document.head.appendChild(style);
 }
-}
+
+console.log('[Wheel] ✅ Module loaded');
