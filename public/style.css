@@ -17,8 +17,41 @@
       }
 
       *{ box-sizing:border-box; }
-      html,body{ height:100%; margin:0; }
+      
+      /* 🔥 ИСПРАВЛЕНИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */
+      html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        overscroll-behavior: none;
+      }
+      
+      html, body { 
+        height: 100%; 
+        margin: 0;
+        padding: 0;
+      }
+      
       body{
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh; /* Dynamic viewport height */
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+        
+        /* 🔥 Поддержка безопасных зон (iPhone notch) */
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
+        
         background:
           radial-gradient(1200px 600px at 50% -220px, #152033 0%, var(--bg) 55%),
           linear-gradient(180deg, var(--bg-2), var(--bg));
@@ -26,6 +59,12 @@
         font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
         -webkit-font-smoothing:antialiased;
         -moz-osx-font-smoothing:grayscale;
+        
+        /* Убираем подсветку при тапе */
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
       }
 
       @font-face{
@@ -56,13 +95,30 @@
           outline-offset:2px; 
         }
      
-        /* APP WRAPPER*/
+        /* APP WRAPPER */
         .app{
           max-width: 430px;
+          width: 100%;
           margin: 0 auto;
           min-height: 100dvh;
+          height: 100%;
           padding-bottom: 90px; /* bottom nav */
-          position:relative;
+          padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+          position: relative;
+          overflow-y: auto;
+          overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
+        }
+        
+        /* 🔥 Дополнительные исправления для мобильных */
+        @media (max-width: 768px) {
+          body {
+            min-height: -webkit-fill-available;
+          }
+          
+          .app {
+            min-height: -webkit-fill-available;
+          }
         }
         
         
@@ -4098,6 +4154,3 @@
     transform: translateX(-4px); 
   }
 }
-
-
-

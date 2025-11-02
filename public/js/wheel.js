@@ -58,6 +58,9 @@ let currentAmount = 0.5;
 let currentCurrency = 'ton';
 let lastRoundResult = null;
 
+// 🔥 NEW: Флаг блокировки ставок до завершения раунда
+let bettingLocked = false;
+
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
 let imagesLoaded = false;
@@ -248,6 +251,14 @@ function initBettingUI(){
   // 🔥 Обработчик ставок - БЕЗ проверки баланса в TEST_MODE
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
+      // 🔥 БЛОКИРОВКА: нельзя ставить пока результат не появился в истории
+      if (bettingLocked) {
+        console.log('[Wheel] ⛔ Betting locked - waiting for history update');
+        tile.classList.add('insufficient-balance');
+        setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
+        return;
+      }
+      
       if (phase !== 'betting') return;
       
       const seg = tile.dataset.seg;
@@ -408,6 +419,7 @@ function tick(ts){
 
     if (t >= 1){
       currentAngle = decel.end;
+      bettingLocked = true; // 🔥 Блокируем ставки до появления в истории
       const typeFinished = decel.resultType;
       const resolveFn = decel.resolve;
       decel = null;
@@ -516,6 +528,15 @@ function getMultiplier(type) {
 }
 
 function showWinNotification(winAmount) {
+  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
+    return;
+  }
+  
   const existing = document.getElementById('win-toast');
   if (existing) existing.remove();
   
@@ -588,6 +609,15 @@ function showWinNotification(winAmount) {
 }
 
 function showInsufficientBalanceNotification() {
+  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Insufficient balance notification skipped - not on wheel page');
+    return;
+  }
+  
   const existing = document.getElementById('insufficient-balance-toast');
   if (existing) existing.remove();
   
@@ -621,6 +651,15 @@ function showInsufficientBalanceNotification() {
 }
 
 function showBonusNotification(bonusType) {
+  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Bonus notification skipped - not on wheel page');
+    return;
+  }
+  
   const existing = document.getElementById('bonus-trigger-toast');
   if (existing) existing.remove();
   
@@ -912,6 +951,10 @@ function pushHistory(typeKey){
   
   const all = historyList.querySelectorAll('.history-item');
   if (all.length > 20) all[all.length-1].remove();
+  
+  // 🔥 Разблокируем ставки после добавления в историю
+  bettingLocked = false;
+  console.log('[Wheel] ✅ Betting unlocked - history updated');
 }
 
 function clearBets(){
@@ -937,10 +980,6 @@ window.WheelGame = {
   },
   clearBets: clearBets
 };
-
-
-
-
 
 /* ===== Inject Animation Styles ===== */
 if (!document.getElementById('wheel-animations')) {
