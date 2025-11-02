@@ -1,6 +1,76 @@
 /*============================================
               THEME & RESET 
       ============================================*/
+      /* ============================================
+   ANDROID FIX - FULL WIDTH
+   ============================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  position: fixed;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  height: 100vh;
+  height: 100dvh;
+  
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  
+  margin: 0 !important;
+  padding: 0 !important;
+  
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  
+  background:
+    radial-gradient(1200px 600px at 50% -220px, #152033 0%, #0d0e0f 55%),
+    linear-gradient(180deg, #0f141c, #0d0e0f);
+  background-size: 100% 100%;
+  background-position: center;
+  background-attachment: fixed;
+  
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100%;
+  
+  margin: 0 auto;
+  padding: 0;
+  padding-bottom: 80px;
+  
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
       :root{
         --bg:#0d0e0f;
         --bg-2:#0f141c;
