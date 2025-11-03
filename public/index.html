@@ -2,998 +2,962 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  
-  <!-- CRITICAL: Правильный viewport для Android без пустоты -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
-  
-  <!-- Android theme color -->
-  <meta name="theme-color" content="#0d0e0f">
-  
-  <!-- Prevent iOS scaling -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  
-  <title>Wild Time</title>
+  <title>Wild Gift</title>
 
-  <!-- TonConnect UI -->
+  <!-- TonConnect UI (библиотека, без инициализации здесь) -->
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-  
   <!-- Telegram Web App SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Предзагрузка шрифта (если используешь mf) -->
+  <link rel="preload" href="/fonts/mf.woff2" as="font" type="font/woff2" crossorigin>
+
   <!-- Стили проекта -->
   <link rel="stylesheet" href="/style.css" />
-  
-  <style>
-    /* 🔥 INLINE CRITICAL CSS для мгновенной загрузки */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    html, body {
-      width: 100%;
-      max-width: 100%;
-      height: 100%;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow-x: hidden;
-      position: fixed;
-      overscroll-behavior: none;
-    }
-    
-    body {
-      background: #0d0e0f;
-      -webkit-tap-highlight-color: transparent;
-      -webkit-text-size-adjust: 100%;
-    }
-  </style>
 </head>
-
-    
 <body>
-  <!-- Splash Screen с фоновым изображением -->
-  <div id="splash" class="splash">
-    <!-- Фоновое изображение - замените на своё -->
-    <div class="splash__background">
-      <img src="/images/splashbackgroung.jpg" alt="" class="splash__bg-image">
-    </div>
-    
-    <!-- Затемняющий оверлей -->
-    <div class="splash__overlay"></div>
-    
-    <!-- Контент по центру -->
-    <div class="splash__center">
-      <div class="splash__brandRow">
-        <img src="/images/logo.png" alt="WildGift" class="splash__logo">
-        <div class="splash__brand">WildGift</div>
-      </div>
-  
-      <div class="splash__progress">
-        <div class="splash__bar">
-          <div class="splash__bar-fill" id="splash-fill"></div>
-        </div>
-        <!-- Процент скрыт по умолчанию -->
-        <div class="splash__percent" id="splash-percent" hidden>0%</div>
-      </div>
-    </div>
+<!-- Splash Screen с фоновым изображением -->
+<div id="splash" class="splash">
+  <!-- Фоновое изображение - замените на своё -->
+  <div class="splash__background">
+    <img src="/images/splashbackgroung.jpg" alt="" class="splash__bg-image">
   </div>
   
-    <div class="app">
+  <!-- Затемняющий оверлей -->
+  <div class="splash__overlay"></div>
   
-     <!-- ===== TOP BAR ===== -->
-  <header class="topbar" role="banner">
-    <!-- Пилюля профиля (аватар + имя) -->
-    <button id="userPill" class="pill pill--user" type="button" aria-label="Open profile">
-      <img id="userAvatar" class="pill-avatar" src="/images/avatar-default.png" alt="" />
-      <span id="userName" class="pill-username">Guest</span>
-    </button>
-  
-    <!-- TON/Stars баланс (открывает депозит) -->
-    <div class="balance">
-      <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
-        <!-- 🔥 Динамическая иконка валюты (TON или Stars) -->
-        <img 
-          id="pillCurrencyIcon" 
-          src="/icons/ton.svg" 
-          alt="Currency" 
-          class="pill-icon"
-          style="transition: opacity 0.15s ease, transform 0.15s ease;"
-        />
-        <span id="tonAmount">0.00</span>
-        <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
-      </button>
+  <!-- Контент по центру -->
+  <div class="splash__center">
+    <div class="splash__brandRow">
+      <img src="/images/logo.png" alt="WildGift" class="splash__logo">
+      <div class="splash__brand">WildGift</div>
     </div>
-  </header>
-  
-      <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
-      <section class="history wheel-only" aria-label="Last results">
-        <div id="historyList" class="history-list">
-          <!-- пример элемента истории с иконкой:
-          <div class="history-item">
-            <img src="/images/history/1x_small.png" alt="1x" />
-          </div>
-          -->
-        </div>
-      </section>
-  
-      <!-- ===== WHEEL PAGE ===== -->
-      <main id="wheelPage" class="page page-active">
-        <section class="wheel" aria-label="Wheel">
-          <canvas id="wheelCanvas" width="420" height="420" aria-label="Wheel canvas"></canvas>
-          <div id="pointer" class="pointer" aria-hidden="true">▼</div>
-          <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true">
-            <span id="countNum">9</span>
-          </div>
-        </section>
-  
-        <!-- ===== BET OVERLAY ===== -->
-        <section id="betOverlay" class="bet-overlay" aria-label="Betting panel">
-          <div class="bet-controls">
-            <!-- Кнопка очистки слева -->
-            <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
-              <img src="/icons/clear.svg" alt="" />
-            </button>
-            
-            <!-- Суммы (центрированы) -->
-            <div class="bet-amounts" aria-label="Bet amount">
-              <button class="amount-btn" data-amount="0.1">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
-                <span class="amount-value">0.1</span>
-              </button>
-              <button class="amount-btn" data-amount="0.5">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
-                <span class="amount-value">0.5</span>
-              </button>
-              <button class="amount-btn" data-amount="1">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
-                <span class="amount-value">1</span>
-              </button>
-              <button class="amount-btn" data-amount="2.5">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
-                <span class="amount-value">2.5</span>
-              </button>
-            </div>
-          </div>
-  
-           
-        
-  
-          <!-- Сетка лотов (большие картинки) -->
-          <div class="bet-grid" role="grid" aria-label="Select segment">
-            <!-- ряд 1 -->
-            <button class="bet-tile muted" role="gridcell" data-seg="1x">
-              <img class="bet-img" src="/images/bets/1x.png" alt="1x" />
-              <span class="bet-badge" data-badge-for="1x" hidden>0</span>
-            </button>
-            <button class="bet-tile muted" role="gridcell" data-seg="3x">
-              <img class="bet-img" src="/images/bets/3x.png" alt="3x" />
-              <span class="bet-badge" data-badge-for="3x" hidden>0</span>
-            </button>
-            <!-- ряд 2 -->
-            <button class="bet-tile muted" role="gridcell" data-seg="7x">
-              <img class="bet-img" src="/images/bets/7x.png" alt="7x" />
-              <span class="bet-badge" data-badge-for="7x" hidden>0</span>
-            </button>
-            <button class="bet-tile muted" role="gridcell" data-seg="11x">
-              <img class="bet-img" src="/images/bets/11x.png" alt="11x" />
-              <span class="bet-badge" data-badge-for="11x" hidden>0</span>
-            </button>
-            <!-- ряд 3 (бонусы) -->
-            <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
-              <img class="bet-img" src="/images/bets/50-50.png" alt="50&50" />
-              <span class="bet-badge" data-badge-for="50&50" hidden>0</span>
-            </button>
-            <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
-              <img class="bet-img" src="/images/bets/loot.png" alt="Loot Rush" />
-              <span class="bet-badge" data-badge-for="Loot Rush" hidden>0</span>
-            </button>
-            <!-- ряд 4 (широкий бонус) -->
-            <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
-              <img class="bet-img" src="/images/bets/wild.png" alt="Wild Time" />
-              <span class="bet-badge" data-badge-for="Wild Time" hidden>0</span>
-            </button>
-          </div>
-        </section>
-      </main>
-  
-  
-  
-  
-     <!-- ===== CASES PAGE ===== -->
-     <main id="casesPage" class="page">
-      <!-- Filter tabs -->
-      <div class="cases-filter">
-        <button class="filter-tab active" data-filter="all">All</button>
-        <button class="filter-tab" data-filter="limited">Limited</button>
-        <button class="filter-tab" data-filter="rare">Rare</button>
+
+    <div class="splash__progress">
+      <div class="splash__bar">
+        <div class="splash__bar-fill" id="splash-fill"></div>
       </div>
-  
-      <section class="cases" aria-label="Cases">
-        <div class="cases-grid" id="casesGrid">
-          <!-- Cases будут генерироваться через JS -->
+      <!-- Процент скрыт по умолчанию -->
+      <div class="splash__percent" id="splash-percent" hidden>0%</div>
+    </div>
+  </div>
+</div>
+
+  <div class="app">
+
+   <!-- ===== TOP BAR ===== -->
+<header class="topbar" role="banner">
+  <!-- Пилюля профиля (аватар + имя) -->
+  <button id="userPill" class="pill pill--user" type="button" aria-label="Open profile">
+    <img id="userAvatar" class="pill-avatar" src="/images/avatar-default.png" alt="" />
+    <span id="userName" class="pill-username">Guest</span>
+  </button>
+
+  <!-- TON/Stars баланс (открывает депозит) -->
+  <div class="balance">
+    <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
+      <!-- 🔥 Динамическая иконка валюты (TON или Stars) -->
+      <img 
+        id="pillCurrencyIcon" 
+        src="/icons/ton.svg" 
+        alt="Currency" 
+        class="pill-icon"
+        style="transition: opacity 0.15s ease, transform 0.15s ease;"
+      />
+      <span id="tonAmount">0.00</span>
+      <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
+    </button>
+  </div>
+</header>
+
+    <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
+    <section class="history wheel-only" aria-label="Last results">
+      <div id="historyList" class="history-list">
+        <!-- пример элемента истории с иконкой:
+        <div class="history-item">
+          <img src="/images/history/1x_small.png" alt="1x" />
+        </div>
+        -->
+      </div>
+    </section>
+
+    <!-- ===== WHEEL PAGE ===== -->
+    <main id="wheelPage" class="page page-active">
+      <section class="wheel" aria-label="Wheel">
+        <canvas id="wheelCanvas" width="420" height="420" aria-label="Wheel canvas"></canvas>
+        <div id="pointer" class="pointer" aria-hidden="true">▼</div>
+        <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true">
+          <span id="countNum">9</span>
         </div>
       </section>
-    </main>
-  
-    <!-- ===== CASE DETAIL PAGE ===== -->
-    <main id="caseDetailPage" class="page">
-      <button id="caseBackBtn" class="back-btn" aria-label="Back to cases">
-        <svg viewBox="0 0 24 24" class="back-icon">
-          <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none"/>
-        </svg>
-        <span>Back</span>
-      </button>
-  
-      <section class="case-detail">
-        <div class="case-detail__hero">
-          <img id="caseDetailImage" src="/images/cases/case-01.png" alt="" class="case-detail__image" />
-          <div class="case-detail__glow"></div>
-          
-          <!-- Progress indicator -->
-          <div id="caseProgress" class="case-progress">
-            <div class="case-progress__bar">
-              <div class="case-progress__fill"></div>
-            </div>
-            <div class="case-progress__text">
-              <span id="progressCurrent">0</span> / <span id="progressTotal">0</span>
-            </div>
-          </div>
-        </div>
-  
-        <div class="case-detail__info">
-          <div class="case-detail__header">
-            <h2 id="caseDetailTitle" class="case-detail__title">Case Name</h2>
-            <span id="caseDetailRarity" class="case-rarity-badge">Limited</span>
-          </div>
-          
-          <p id="caseDetailDescription" class="case-detail__description">
-            Description of the case
-          </p>
-          
-          <div class="case-detail__stats">
-            <div class="stat-item">
-              <span class="stat-label">Price</span>
-              <div class="stat-value">
-                <img src="/icons/stars.svg" alt="" class="stat-icon" />
-                <span id="caseDetailPrice">0</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Total Opened</span>
-              <div class="stat-value">
-                <span id="caseTotalOpened">0</span>
-              </div>
-            </div>
-          </div>
-        </div>
-  
-        <!-- Action buttons -->
-        <div class="case-actions">
-          <button id="openCaseBtn" class="btn btn--primary btn--large">
-            <span class="btn__text">Open for 0 ⭐</span>
+
+      <!-- ===== BET OVERLAY ===== -->
+      <section id="betOverlay" class="bet-overlay" aria-label="Betting panel">
+        <div class="bet-controls">
+          <!-- Кнопка очистки слева -->
+          <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
+            <img src="/icons/clear.svg" alt="" />
           </button>
           
-          <button id="viewRewardsBtn" class="btn btn--ghost btn--large">
-            <span class="btn__text">View All Rewards</span>
-          </button>
+          <!-- Суммы (центрированы) -->
+          <div class="bet-amounts" aria-label="Bet amount">
+            <button class="amount-btn" data-amount="0.1">
+              <img src="/icons/ton.svg" alt="" class="amount-icon" />
+              <span class="amount-value">0.1</span>
+            </button>
+            <button class="amount-btn" data-amount="0.5">
+              <img src="/icons/ton.svg" alt="" class="amount-icon" />
+              <span class="amount-value">0.5</span>
+            </button>
+            <button class="amount-btn" data-amount="1">
+              <img src="/icons/ton.svg" alt="" class="amount-icon" />
+              <span class="amount-value">1</span>
+            </button>
+            <button class="amount-btn" data-amount="2.5">
+              <img src="/icons/ton.svg" alt="" class="amount-icon" />
+              <span class="amount-value">2.5</span>
+            </button>
+          </div>
         </div>
-  
-        <!-- Rewards section -->
-        <div id="caseRewards" class="case-rewards">
-          <h3 class="case-rewards__title">
-            <span>Main Prize</span>
-          </h3>
-          <div id="mainPrize" class="main-prize">
-            <!-- Главный приз -->
-          </div>
-  
-          <h3 class="case-rewards__title">
-            <span>Other prizes</span>
-          </h3>
-          <div id="caseRewardsList" class="case-rewards__list">
-            <!-- Остальные призы -->
-          </div>
-        </div>
-      </section>
-    </main>
-  
-      <!-- ===== INVENTORY PAGE ===== -->
-      <main id="inventoryPage" class="page">
-        <section class="inventory" aria-label="Inventory">
-          <h2>Inventory</h2>
-          <div class="inventory-grid">
-            <!-- Плейсхолдеры предметов -->
-            <div class="inv-card">
-              <img src="/images/inventory/item-01.png" alt="Item 1" class="inv-img" />
-              <div class="inv-title">Item 1</div>
-            </div>
-            <div class="inv-card">
-              <img src="/images/inventory/item-02.png" alt="Item 2" class="inv-img" />
-              <div class="inv-title">Item 2</div>
-            </div>
-            <div class="inv-card">
-              <img src="/images/inventory/item-03.png" alt="Item 3" class="inv-img" />
-              <div class="inv-title">Item 3</div>
-            </div>
-          </div>
-        </section>
-      </main>
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+         
       
-  <!-- ===== PROFILE PAGE - REDESIGNED ===== -->
-  <main id="profilePage" class="page">
-    <section class="profile-card">
-      <!-- Аватар + имя -->
-      <img id="profileAvatar" class="profile-ava" src="/images/avatar-default.png" alt="" />
-      <h2 id="profileName" class="profile-name">User</h2>
-      <p id="profileHandle" class="profile-handle">@username</p>
-  
-      <!-- Переключатель валюты -->
-      <div class="currency-switch">
-        <button class="curr-btn curr-btn--active" data-currency="ton">
-          <img src="/icons/ton.svg" alt="" class="curr-icon">
-          <span>TON</span>
-        </button>
-        <button class="curr-btn" data-currency="stars">
-          <img src="/icons/stars.svg" alt="" class="curr-icon">
-          <span>Stars</span>
-        </button>
-      </div>
-  
-  
-  
-      <!-- Кошелёк TON - компактная карточка -->
-      <div class="wallet-card" id="walletCard">
-        <div class="wallet-card__header">
-          <div class="wallet-card__icon">
-            <img src="/icons/ton.svg" alt="" width="24" height="24">
-          </div>
-          <div class="wallet-card__info">
-            <div class="wallet-card__label">TON Wallet</div>
-            <div id="walletCardStatus" class="wallet-card__status">Not connected</div>
-          </div>
-          <button id="walletCardToggle" class="wallet-card__toggle" type="button" aria-label="Toggle wallet details">
-            <svg class="wallet-card__chevron" viewBox="0 0 24 24" width="20" height="20">
-              <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
-            </svg>
+
+        <!-- Сетка лотов (большие картинки) -->
+        <div class="bet-grid" role="grid" aria-label="Select segment">
+          <!-- ряд 1 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="1x">
+            <img class="bet-img" src="/images/bets/1x.png" alt="1x" />
+            <span class="bet-badge" data-badge-for="1x" hidden>0</span>
+          </button>
+          <button class="bet-tile muted" role="gridcell" data-seg="3x">
+            <img class="bet-img" src="/images/bets/3x.png" alt="3x" />
+            <span class="bet-badge" data-badge-for="3x" hidden>0</span>
+          </button>
+          <!-- ряд 2 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="7x">
+            <img class="bet-img" src="/images/bets/7x.png" alt="7x" />
+            <span class="bet-badge" data-badge-for="7x" hidden>0</span>
+          </button>
+          <button class="bet-tile muted" role="gridcell" data-seg="11x">
+            <img class="bet-img" src="/images/bets/11x.png" alt="11x" />
+            <span class="bet-badge" data-badge-for="11x" hidden>0</span>
+          </button>
+          <!-- ряд 3 (бонусы) -->
+          <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
+            <img class="bet-img" src="/images/bets/50-50.png" alt="50&50" />
+            <span class="bet-badge" data-badge-for="50&50" hidden>0</span>
+          </button>
+          <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
+            <img class="bet-img" src="/images/bets/loot.png" alt="Loot Rush" />
+            <span class="bet-badge" data-badge-for="Loot Rush" hidden>0</span>
+          </button>
+          <!-- ряд 4 (широкий бонус) -->
+          <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
+            <img class="bet-img" src="/images/bets/wild.png" alt="Wild Time" />
+            <span class="bet-badge" data-badge-for="Wild Time" hidden>0</span>
           </button>
         </div>
-  
-        <!-- Детали кошелька (скрыты по умолчанию) -->
-        <div id="walletCardDetails" class="wallet-card__details" hidden>
-          <div class="wallet-card__address" id="walletCardAddress">—</div>
-          
-          <div class="wallet-card__actions">
-            <button id="walletCardCopy" class="btn-action btn-action--secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/>
-              </svg>
-              Copy
-            </button>
-            <button id="walletCardDisconnect" class="btn-action btn-action--danger">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-              Disconnect
-            </button>
-          </div>
-        </div>
+      </section>
+    </main>
+
+
+
+
+   <!-- ===== CASES PAGE ===== -->
+   <main id="casesPage" class="page">
+    <!-- Filter tabs -->
+    <div class="cases-filter">
+      <button class="filter-tab active" data-filter="all">All</button>
+      <button class="filter-tab" data-filter="limited">Limited</button>
+      <button class="filter-tab" data-filter="rare">Rare</button>
+    </div>
+
+    <section class="cases" aria-label="Cases">
+      <div class="cases-grid" id="casesGrid">
+        <!-- Cases будут генерироваться через JS -->
       </div>
-  
-      <!-- Quick Actions -->
-      <div class="profile-actions">
-        <button class="profile-action-btn" data-action="deposit">
-          <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span class="profile-action-label">Deposit</span>
-        </button>
-        
-        <button class="profile-action-btn" data-action="history">
-          <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span class="profile-action-label">History</span>
-        </button>
-        
-        <button class="profile-action-btn" data-action="settings">
-          <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 1v6m0 6v10M23 12h-6m-6 0H1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <span class="profile-action-label">Settings</span>
-        </button>
-      </div>
-  
     </section>
   </main>
-  
-  <style>
-  /* ============================================
-     PROFILE PAGE - REDESIGNED STYLES
-     ============================================ */
-  
-  .profile-card {
-    max-width: 430px;
-    margin: 0 auto;
-    padding: 24px 16px 100px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
+
+  <!-- ===== CASE DETAIL PAGE ===== -->
+  <main id="caseDetailPage" class="page">
+    <button id="caseBackBtn" class="back-btn" aria-label="Back to cases">
+      <svg viewBox="0 0 24 24" class="back-icon">
+        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none"/>
+      </svg>
+      <span>Back</span>
+    </button>
+
+    <section class="case-detail">
+      <div class="case-detail__hero">
+        <img id="caseDetailImage" src="/images/cases/case-01.png" alt="" class="case-detail__image" />
+        <div class="case-detail__glow"></div>
+        
+        <!-- Progress indicator -->
+        <div id="caseProgress" class="case-progress">
+          <div class="case-progress__bar">
+            <div class="case-progress__fill"></div>
+          </div>
+          <div class="case-progress__text">
+            <span id="progressCurrent">0</span> / <span id="progressTotal">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="case-detail__info">
+        <div class="case-detail__header">
+          <h2 id="caseDetailTitle" class="case-detail__title">Case Name</h2>
+          <span id="caseDetailRarity" class="case-rarity-badge">Limited</span>
+        </div>
+        
+        <p id="caseDetailDescription" class="case-detail__description">
+          Description of the case
+        </p>
+        
+        <div class="case-detail__stats">
+          <div class="stat-item">
+            <span class="stat-label">Price</span>
+            <div class="stat-value">
+              <img src="/icons/stars.svg" alt="" class="stat-icon" />
+              <span id="caseDetailPrice">0</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total Opened</span>
+            <div class="stat-value">
+              <span id="caseTotalOpened">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="case-actions">
+        <button id="openCaseBtn" class="btn btn--primary btn--large">
+          <span class="btn__text">Open for 0 ⭐</span>
+        </button>
+        
+        <button id="viewRewardsBtn" class="btn btn--ghost btn--large">
+          <span class="btn__text">View All Rewards</span>
+        </button>
+      </div>
+
+      <!-- Rewards section -->
+      <div id="caseRewards" class="case-rewards">
+        <h3 class="case-rewards__title">
+          <span>Main Prize</span>
+        </h3>
+        <div id="mainPrize" class="main-prize">
+          <!-- Главный приз -->
+        </div>
+
+        <h3 class="case-rewards__title">
+          <span>Other prizes</span>
+        </h3>
+        <div id="caseRewardsList" class="case-rewards__list">
+          <!-- Остальные призы -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+    <!-- ===== INVENTORY PAGE ===== -->
+    <main id="inventoryPage" class="page">
+      <section class="inventory" aria-label="Inventory">
+        <h2>Inventory</h2>
+        <div class="inventory-grid">
+          <!-- Плейсхолдеры предметов -->
+          <div class="inv-card">
+            <img src="/images/inventory/item-01.png" alt="Item 1" class="inv-img" />
+            <div class="inv-title">Item 1</div>
+          </div>
+          <div class="inv-card">
+            <img src="/images/inventory/item-02.png" alt="Item 2" class="inv-img" />
+            <div class="inv-title">Item 2</div>
+          </div>
+          <div class="inv-card">
+            <img src="/images/inventory/item-03.png" alt="Item 3" class="inv-img" />
+            <div class="inv-title">Item 3</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+
+
+
+
+
+
+
+    
+<!-- ===== PROFILE PAGE - REDESIGNED ===== -->
+<main id="profilePage" class="page">
+  <section class="profile-card">
+    <!-- Аватар + имя -->
+    <img id="profileAvatar" class="profile-ava" src="/images/avatar-default.png" alt="" />
+    <h2 id="profileName" class="profile-name">User</h2>
+    <p id="profileHandle" class="profile-handle">@username</p>
+
+    <!-- Переключатель валюты -->
+    <div class="currency-switch">
+      <button class="curr-btn curr-btn--active" data-currency="ton">
+        <img src="/icons/ton.svg" alt="" class="curr-icon">
+        <span>TON</span>
+      </button>
+      <button class="curr-btn" data-currency="stars">
+        <img src="/icons/stars.svg" alt="" class="curr-icon">
+        <span>Stars</span>
+      </button>
+    </div>
+
+
+
+    <!-- Кошелёк TON - компактная карточка -->
+    <div class="wallet-card" id="walletCard">
+      <div class="wallet-card__header">
+        <div class="wallet-card__icon">
+          <img src="/icons/ton.svg" alt="" width="24" height="24">
+        </div>
+        <div class="wallet-card__info">
+          <div class="wallet-card__label">TON Wallet</div>
+          <div id="walletCardStatus" class="wallet-card__status">Not connected</div>
+        </div>
+        <button id="walletCardToggle" class="wallet-card__toggle" type="button" aria-label="Toggle wallet details">
+          <svg class="wallet-card__chevron" viewBox="0 0 24 24" width="20" height="20">
+            <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Детали кошелька (скрыты по умолчанию) -->
+      <div id="walletCardDetails" class="wallet-card__details" hidden>
+        <div class="wallet-card__address" id="walletCardAddress">—</div>
+        
+        <div class="wallet-card__actions">
+          <button id="walletCardCopy" class="btn-action btn-action--secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/>
+            </svg>
+            Copy
+          </button>
+          <button id="walletCardDisconnect" class="btn-action btn-action--danger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Disconnect
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="profile-actions">
+      <button class="profile-action-btn" data-action="deposit">
+        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="profile-action-label">Deposit</span>
+      </button>
+      
+      <button class="profile-action-btn" data-action="history">
+        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="profile-action-label">History</span>
+      </button>
+      
+      <button class="profile-action-btn" data-action="settings">
+        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+          <path d="M12 1v6m0 6v10M23 12h-6m-6 0H1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span class="profile-action-label">Settings</span>
+      </button>
+    </div>
+
+  </section>
+</main>
+
+<style>
+/* ============================================
+   PROFILE PAGE - REDESIGNED STYLES
+   ============================================ */
+
+.profile-card {
+  max-width: 430px;
+  margin: 0 auto;
+  padding: 24px 16px 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Аватар */
+.profile-ava {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid rgba(0, 166, 255, 0.3);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.6),
+    0 0 0 8px rgba(0, 166, 255, 0.1),
+    inset 0 2px 6px rgba(255, 255, 255, 0.1);
+  transition: all .3s ease;
+  cursor: default;
+}
+
+.profile-name {
+  margin: 16px 0 4px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.4px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.profile-handle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #8da1b8;
+  font-weight: 500;
+  opacity: 0.9;
+  text-align: center;
+}
+
+/* ============================================
+   BALANCE DISPLAY
+   ============================================ */
+
+.profile-balance {
+  width: 100%;
+  max-width: 340px;
+  padding: 24px 20px;
+  background: linear-gradient(135deg, var(--panel), var(--card));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  text-align: center;
+  margin-top: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.profile-balance__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.profile-balance__amount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.profile-balance__icon {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
+  animation: iconPulse 3s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
   }
-  
-  /* Аватар */
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 16px rgba(0, 166, 255, 0.6));
+  }
+}
+
+/* ============================================
+   WALLET CARD - FIXED ANIMATION
+   ============================================ */
+
+.wallet-card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.wallet-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wallet-card__header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.wallet-card__header:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wallet-card__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 166, 255, 0.15);
+  border-radius: 12px;
+}
+
+.wallet-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wallet-card__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.wallet-card__status {
+  font-size: 13px;
+  color: var(--muted);
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wallet-card__toggle {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wallet-card__toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.wallet-card__chevron {
+  transition: transform 0.3s ease;
+}
+
+.wallet-card__toggle.open .wallet-card__chevron {
+  transform: rotate(180deg);
+}
+
+/* Детали - FIXED: убраны прыжки */
+.wallet-card__details {
+  /* Убираем max-height для плавной анимации */
+  overflow: hidden;
+  transition: opacity 0.3s ease, max-height 0.3s ease;
+  opacity: 0;
+  max-height: 0;
+}
+
+.wallet-card__details:not([hidden]) {
+  opacity: 1;
+  max-height: 200px;
+  padding: 0 16px 16px;
+}
+
+.wallet-card__address {
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  user-select: text;
+}
+
+.wallet-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-action svg {
+  flex-shrink: 0;
+}
+
+.btn-action:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
+}
+
+.btn-action:active {
+  transform: translateY(0);
+}
+
+.btn-action--secondary {
+  border-color: rgba(0, 166, 255, 0.3);
+  color: var(--accent);
+}
+
+.btn-action--secondary:hover {
+  background: rgba(0, 166, 255, 0.1);
+  border-color: rgba(0, 166, 255, 0.5);
+}
+
+.btn-action--danger {
+  border-color: rgba(255, 77, 79, 0.3);
+  color: var(--danger);
+}
+
+.btn-action--danger:hover {
+  background: rgba(255, 77, 79, 0.1);
+  border-color: rgba(255, 77, 79, 0.5);
+}
+
+/* ============================================
+   PROFILE ACTIONS
+   ============================================ */
+
+.profile-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.profile-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-action-btn:hover {
+  background: var(--card);
+  border-color: rgba(0, 166, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
+}
+
+.profile-action-btn:active {
+  transform: translateY(0);
+}
+
+.profile-action-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.profile-action-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+
+/* ============================================
+   АДАПТИВНОСТЬ
+   ============================================ */
+
+@media (max-width: 380px) {
   .profile-ava {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 4px solid rgba(0, 166, 255, 0.3);
-    box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.6),
-      0 0 0 8px rgba(0, 166, 255, 0.1),
-      inset 0 2px 6px rgba(255, 255, 255, 0.1);
-    transition: all .3s ease;
-    cursor: default;
+    width: 100px;
+    height: 100px;
+    border-width: 3px;
   }
   
   .profile-name {
-    margin: 16px 0 4px;
-    font-size: 24px;
-    font-weight: 800;
-    color: #ffffff;
-    letter-spacing: 0.4px;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    text-align: center;
-  }
-  
-  .profile-handle {
-    margin: 0 0 8px;
-    font-size: 14px;
-    color: #8da1b8;
-    font-weight: 500;
-    opacity: 0.9;
-    text-align: center;
-  }
-  
-  /* ============================================
-     BALANCE DISPLAY
-     ============================================ */
-  
-  .profile-balance {
-    width: 100%;
-    max-width: 340px;
-    padding: 24px 20px;
-    background: linear-gradient(135deg, var(--panel), var(--card));
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    text-align: center;
-    margin-top: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  }
-  
-  .profile-balance__label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 12px;
+    font-size: 20px;
   }
   
   .profile-balance__amount {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    font-size: 40px;
-    font-weight: 800;
-    color: var(--accent);
-    line-height: 1;
+    font-size: 32px;
   }
   
   .profile-balance__icon {
-    width: 40px;
-    height: 40px;
-    filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
-    animation: iconPulse 3s ease-in-out infinite;
-  }
-  
-  @keyframes iconPulse {
-    0%, 100% {
-      transform: scale(1);
-      filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
-    }
-    50% {
-      transform: scale(1.05);
-      filter: drop-shadow(0 0 16px rgba(0, 166, 255, 0.6));
-    }
-  }
-  
-  /* ============================================
-     WALLET CARD - FIXED ANIMATION
-     ============================================ */
-  
-  .wallet-card {
-    width: 100%;
-    max-width: 340px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-    transition: all 0.3s ease;
-  }
-  
-  .wallet-card__header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  .wallet-card__header:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-  
-  .wallet-card__header:active {
-    background: rgba(255, 255, 255, 0.05);
-  }
-  
-  .wallet-card__icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 166, 255, 0.15);
-    border-radius: 12px;
-  }
-  
-  .wallet-card__info {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .wallet-card__label {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 2px;
-  }
-  
-  .wallet-card__status {
-    font-size: 13px;
-    color: var(--muted);
-    font-family: 'Courier New', monospace;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .wallet-card__toggle {
-    flex-shrink: 0;
     width: 32px;
     height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
   }
-  
-  .wallet-card__toggle:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text);
-  }
-  
-  .wallet-card__chevron {
-    transition: transform 0.3s ease;
-  }
-  
-  .wallet-card__toggle.open .wallet-card__chevron {
-    transform: rotate(180deg);
-  }
-  
-  /* Детали - FIXED: убраны прыжки */
-  .wallet-card__details {
-    /* Убираем max-height для плавной анимации */
-    overflow: hidden;
-    transition: opacity 0.3s ease, max-height 0.3s ease;
-    opacity: 0;
-    max-height: 0;
-  }
-  
-  .wallet-card__details:not([hidden]) {
-    opacity: 1;
-    max-height: 200px;
-    padding: 0 16px 16px;
-  }
-  
-  .wallet-card__address {
-    padding: 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    word-break: break-all;
-    line-height: 1.5;
-    margin-bottom: 12px;
-    user-select: text;
-  }
-  
-  .wallet-card__actions {
-    display: flex;
-    gap: 8px;
-  }
-  
-  .btn-action {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 16px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  .btn-action svg {
-    flex-shrink: 0;
-  }
-  
-  .btn-action:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-1px);
-  }
-  
-  .btn-action:active {
-    transform: translateY(0);
-  }
-  
-  .btn-action--secondary {
-    border-color: rgba(0, 166, 255, 0.3);
-    color: var(--accent);
-  }
-  
-  .btn-action--secondary:hover {
-    background: rgba(0, 166, 255, 0.1);
-    border-color: rgba(0, 166, 255, 0.5);
-  }
-  
-  .btn-action--danger {
-    border-color: rgba(255, 77, 79, 0.3);
-    color: var(--danger);
-  }
-  
-  .btn-action--danger:hover {
-    background: rgba(255, 77, 79, 0.1);
-    border-color: rgba(255, 77, 79, 0.5);
-  }
-  
-  /* ============================================
-     PROFILE ACTIONS
-     ============================================ */
   
   .profile-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    width: 100%;
-    max-width: 340px;
+    gap: 10px;
   }
   
   .profile-action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 12px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  .profile-action-btn:hover {
-    background: var(--card);
-    border-color: rgba(0, 166, 255, 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
-  }
-  
-  .profile-action-btn:active {
-    transform: translateY(0);
-  }
-  
-  .profile-action-icon {
-    color: var(--accent);
-    flex-shrink: 0;
+    padding: 14px 10px;
   }
   
   .profile-action-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text);
-    text-align: center;
+    font-size: 11px;
   }
-  
-  /* ============================================
-     АДАПТИВНОСТЬ
-     ============================================ */
-  
-  @media (max-width: 380px) {
-    .profile-ava {
-      width: 100px;
-      height: 100px;
-      border-width: 3px;
-    }
-    
-    .profile-name {
-      font-size: 20px;
-    }
-    
-    .profile-balance__amount {
-      font-size: 32px;
-    }
-    
-    .profile-balance__icon {
-      width: 32px;
-      height: 32px;
-    }
-    
-    .profile-actions {
-      gap: 10px;
-    }
-    
-    .profile-action-btn {
-      padding: 14px 10px;
-    }
-    
-    .profile-action-label {
-      font-size: 11px;
-    }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-card,
+  .wallet-card__details,
+  .wallet-card__chevron,
+  .btn-action,
+  .profile-action-btn,
+  .profile-balance__icon {
+    animation: none;
+    transition: none;
   }
-  
-  /* ============================================
-     ACCESSIBILITY
-     ============================================ */
-  
-  @media (prefers-reduced-motion: reduce) {
-    .wallet-card,
-    .wallet-card__details,
-    .wallet-card__chevron,
-    .btn-action,
-    .profile-action-btn,
-    .profile-balance__icon {
-      animation: none;
-      transition: none;
-    }
-  }
-  </style>
-  
-  
-  
-  
-  
-      <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
-      <nav class="bottom-nav" role="navigation" aria-label="Bottom navigation">
-        <button class="nav-item active" data-target="wheelPage" aria-label="Wheel">
-          <img src="/icons/wheel.svg" alt="" class="nav-icon" />
-          <span class="nav-label">Wheel</span>
-        </button>
-        <button class="nav-item" data-target="casesPage" aria-label="Cases">
-          <img src="/icons/cases.svg" alt="" class="nav-icon" />
-          <span class="nav-label">Cases</span>
-        </button>
-        <button class="nav-item" data-target="inventoryPage" aria-label="Inventory">
-          <img src="/icons/inventory.svg" alt="" class="nav-icon" />
-          <span class="nav-label">Inventory</span>
-        </button>
-        <button class="nav-item" data-target="profilePage" aria-label="Profile">
-          <img src="/icons/profile.svg" alt="" class="nav-icon" />
-          <span class="nav-label">Profile</span>
-        </button>
-      </nav>
-  
-  
-  
-  <!-- ===== OPENING ANIMATION OVERLAY ===== -->
-  <div id="openingOverlay" class="opening-overlay" hidden>
-    <div class="opening-content">
-      <div id="openingReel" class="opening-reel">
-        <!-- Призы генерируются через JS -->
-      </div>
-    </div>
-  </div>
-  
-  <!-- ===== RESULT MODAL ===== -->
-  <div id="resultModal" class="result-modal" hidden>
-    <div class="result-modal__backdrop"></div>
-    <div class="result-modal__content">
-      <button id="resultClose" class="result-modal__close" aria-label="Close">×</button>
-      
-      <div class="result-confetti"></div>
-      
-      <div class="result-gift">
-        <div class="result-gift__image">
-          <div id="resultGiftIcon" class="result-gift__icon">🎁</div>
-        </div>
-        <h3 id="resultGiftName" class="result-gift__name">Gift Name</h3>
-        <div id="resultGiftValue" class="result-gift__value">
-          <img src="/icons/stars.svg" alt="" />
-          <span>0</span>
-        </div>
-      </div>
-      
-      <button id="resultOpenAnother" class="btn btn--primary btn--large">
-        <span class="btn__text">🎁 Try Again</span>
+}
+</style>
+
+
+
+
+
+    <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
+    <nav class="bottom-nav" role="navigation" aria-label="Bottom navigation">
+      <button class="nav-item active" data-target="wheelPage" aria-label="Wheel">
+        <img src="/icons/wheel.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Wheel</span>
       </button>
-    </div>
-  </div>
-  
-  
-  
-  
-  
-  
-  
-  
-  <!-- ============================================
-       DEPOSIT POPUPS - КОМПАКТНАЯ ВЕРСИЯ
-       ============================================ -->
-  
-  <!-- TON Deposit Popup -->
-  <div id="tonDepositPopup" class="deposit-popup">
-    <div class="deposit-popup__backdrop"></div>
-    <div class="deposit-popup__content deposit-popup__content--compact">
-      <button class="deposit-popup__close" id="tonPopupClose" aria-label="Close">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+      <button class="nav-item" data-target="casesPage" aria-label="Cases">
+        <img src="/icons/cases.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Cases</span>
       </button>
-      
-      <h2 class="deposit-popup__title">Top up TON Balance</h2>
-      
-      <!-- Уведомление об ошибке -->
-      <div id="tonErrorNotification" class="error-notification" hidden>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="error-text">Minimum deposit: 0.1 TON</span>
-      </div>
-      
-      <!-- Поле ввода суммы -->
-      <div class="deposit-popup__input-group">
-        <label class="deposit-popup__label">Amount to deposit</label>
-        <div class="deposit-popup__input-wrapper" id="tonInputWrapper">
-          <img src="/icons/ton.svg" alt="TON" class="deposit-popup__input-icon">
-          <input 
-            type="text" 
-            id="tonAmountInput" 
-            class="deposit-popup__input" 
-            placeholder="0.00" 
-            inputmode="decimal"
-            autocomplete="off"
-          >
-          <span class="deposit-popup__input-currency">TON</span>
-        </div>
-      </div>
-      
-      <!-- Баланс кошелька -->
-      <div class="deposit-popup__wallet-info">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="deposit-popup__wallet-icon">
-          <path d="M21 8V6C21 4.9 20.1 4 19 4H5C3.9 4 3 4.9 3 6V18C3 19.1 3.9 20 5 20H19C20.1 20 21 19.1 21 18V16M19 8H15C13.9 8 13 8.9 13 10V14C13 15.1 13.9 16 15 16H19M17 12H17.01" stroke="currentColor" stroke-width="2"/>
-        </svg>
-        <span id="tonWalletBalance">—</span>
-      </div>
-      
-      <div class="deposit-popup__divider"></div>
-      
-      <button id="btnConnectTonWallet" class="deposit-popup__button">Connect Wallet</button>
-      <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit TON</button>
-    </div>
-  </div>
-  
-  <!-- Stars Purchase Popup -->
-  <div id="starsDepositPopup" class="deposit-popup">
-    <div class="deposit-popup__backdrop"></div>
-    <div class="deposit-popup__content deposit-popup__content--compact">
-      <button class="deposit-popup__close" id="starsPopupClose" aria-label="Close">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+      <button class="nav-item" data-target="inventoryPage" aria-label="Inventory">
+        <img src="/icons/inventory.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Inventory</span>
       </button>
-      
-      <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
-      
-      <!-- Уведомление об ошибке -->
-      <div id="starsErrorNotification" class="error-notification" hidden>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-          <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="error-text">Minimum purchase: 1 ⭐</span>
-      </div>
-      
-      <!-- Поле ввода суммы -->
-      <div class="deposit-popup__input-group">
-        <label class="deposit-popup__label">Amount to buy</label>
-        <div class="deposit-popup__input-wrapper" id="starsInputWrapper">
-          <img src="/icons/stars.svg" alt="" class="deposit-popup__input-icon deposit-popup__input-icon--stars">
-          <input 
-            type="text" 
-            id="starsAmountInput" 
-            class="deposit-popup__input"
-            placeholder="0"
-            inputmode="numeric"
-            autocomplete="off"
-          >
-          <span class="deposit-popup__input-currency">Stars</span>
-        </div>
-      </div>
-      
-      <div class="deposit-popup__divider"></div>
-      
-      <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
+      <button class="nav-item" data-target="profilePage" aria-label="Profile">
+        <img src="/icons/profile.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Profile</span>
+      </button>
+    </nav>
+
+
+
+<!-- ===== OPENING ANIMATION OVERLAY ===== -->
+<div id="openingOverlay" class="opening-overlay" hidden>
+  <div class="opening-content">
+    <div id="openingReel" class="opening-reel">
+      <!-- Призы генерируются через JS -->
     </div>
   </div>
-  
-  
-  
-    <!-- Скрипты проекта -->
-   
-    <script src="js/splash.js" defer></script>
-    <script src="/js/app.js" defer></script>
-    <script src="/js/tondep.js" defer></script>
-    <script src="/js/starsdep.js" defer></script>
-    <script src="/js/wheel.js" defer></script>
-    <script src="/js/switch.js" defer></script>
-    <script src="/js/cases.js" defer></script>
-    <script src="/js/profile.js" defer></script>
-    <script src="/js/validation.js" defer></script>
-    <script src="/js/balance-live.js" defer></script> 
-    <script src="/js/bonus-5050.js" defer></script>
-  
-  
-  
-  
-  
-  
-  
+</div>
+
+<!-- ===== RESULT MODAL ===== -->
+<div id="resultModal" class="result-modal" hidden>
+  <div class="result-modal__backdrop"></div>
+  <div class="result-modal__content">
+    <button id="resultClose" class="result-modal__close" aria-label="Close">×</button>
     
-  </body>
+    <div class="result-confetti"></div>
+    
+    <div class="result-gift">
+      <div class="result-gift__image">
+        <div id="resultGiftIcon" class="result-gift__icon">🎁</div>
+      </div>
+      <h3 id="resultGiftName" class="result-gift__name">Gift Name</h3>
+      <div id="resultGiftValue" class="result-gift__value">
+        <img src="/icons/stars.svg" alt="" />
+        <span>0</span>
+      </div>
+    </div>
+    
+    <button id="resultOpenAnother" class="btn btn--primary btn--large">
+      <span class="btn__text">🎁 Try Again</span>
+    </button>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+<!-- ============================================
+     DEPOSIT POPUPS - КОМПАКТНАЯ ВЕРСИЯ
+     ============================================ -->
+
+<!-- TON Deposit Popup -->
+<div id="tonDepositPopup" class="deposit-popup">
+  <div class="deposit-popup__backdrop"></div>
+  <div class="deposit-popup__content deposit-popup__content--compact">
+    <button class="deposit-popup__close" id="tonPopupClose" aria-label="Close">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    
+    <h2 class="deposit-popup__title">Top up TON Balance</h2>
+    
+    <!-- Уведомление об ошибке -->
+    <div id="tonErrorNotification" class="error-notification" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="error-text">Minimum deposit: 0.1 TON</span>
+    </div>
+    
+    <!-- Поле ввода суммы -->
+    <div class="deposit-popup__input-group">
+      <label class="deposit-popup__label">Amount to deposit</label>
+      <div class="deposit-popup__input-wrapper" id="tonInputWrapper">
+        <img src="/icons/ton.svg" alt="TON" class="deposit-popup__input-icon">
+        <input 
+          type="text" 
+          id="tonAmountInput" 
+          class="deposit-popup__input" 
+          placeholder="0.00" 
+          inputmode="decimal"
+          autocomplete="off"
+        >
+        <span class="deposit-popup__input-currency">TON</span>
+      </div>
+    </div>
+    
+    <!-- Баланс кошелька -->
+    <div class="deposit-popup__wallet-info">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="deposit-popup__wallet-icon">
+        <path d="M21 8V6C21 4.9 20.1 4 19 4H5C3.9 4 3 4.9 3 6V18C3 19.1 3.9 20 5 20H19C20.1 20 21 19.1 21 18V16M19 8H15C13.9 8 13 8.9 13 10V14C13 15.1 13.9 16 15 16H19M17 12H17.01" stroke="currentColor" stroke-width="2"/>
+      </svg>
+      <span id="tonWalletBalance">—</span>
+    </div>
+    
+    <div class="deposit-popup__divider"></div>
+    
+    <button id="btnConnectTonWallet" class="deposit-popup__button">Connect Wallet</button>
+    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit TON</button>
+  </div>
+</div>
+
+<!-- Stars Purchase Popup -->
+<div id="starsDepositPopup" class="deposit-popup">
+  <div class="deposit-popup__backdrop"></div>
+  <div class="deposit-popup__content deposit-popup__content--compact">
+    <button class="deposit-popup__close" id="starsPopupClose" aria-label="Close">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    
+    <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
+    
+    <!-- Уведомление об ошибке -->
+    <div id="starsErrorNotification" class="error-notification" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="error-text">Minimum purchase: 1 ⭐</span>
+    </div>
+    
+    <!-- Поле ввода суммы -->
+    <div class="deposit-popup__input-group">
+      <label class="deposit-popup__label">Amount to buy</label>
+      <div class="deposit-popup__input-wrapper" id="starsInputWrapper">
+        <img src="/icons/stars.svg" alt="" class="deposit-popup__input-icon deposit-popup__input-icon--stars">
+        <input 
+          type="text" 
+          id="starsAmountInput" 
+          class="deposit-popup__input"
+          placeholder="0"
+          inputmode="numeric"
+          autocomplete="off"
+        >
+        <span class="deposit-popup__input-currency">Stars</span>
+      </div>
+    </div>
+    
+    <div class="deposit-popup__divider"></div>
+    
+    <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
+  </div>
+</div>
+
+
+
+  <!-- Скрипты проекта -->
+ 
+  <script src="js/splash.js" defer></script>
+  <script src="/js/app.js" defer></script>
+  <script src="/js/tondep.js" defer></script>
+  <script src="/js/starsdep.js" defer></script>
+  <script src="/js/wheel.js" defer></script>
+  <script src="/js/switch.js" defer></script>
+  <script src="/js/cases.js" defer></script>
+  <script src="/js/profile.js" defer></script>
+  <script src="/js/validation.js" defer></script>
+  <script src="/js/balance-live.js" defer></script> 
+  <script src="/js/bonus-5050.js" defer></script>
+
+
+
+
+
+
+
+  
+</body>
 </html>
