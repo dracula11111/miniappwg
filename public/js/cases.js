@@ -1,322 +1,238 @@
 /**
- * cases.js - Cases System (TEST VERSION)
- * 3 тестовых кейса со стоимостью 0 звёзд
+ * cases.js - CS:GO Style Case Opening System
+ * 🔥 FIXED VERSION
+ * - Постоянная анимация барабана с призами
+ * - Плавная остановка при открытии кейса
  */
 
 (function() {
   'use strict';
 
-  // ================== TELEGRAM GIFTS DATA ==================
-  const TELEGRAM_GIFTS = {
-    // Common gifts
-    green_star: { name: 'Green Star', emoji: '⭐', value: 15, rarity: 'common' },
-    christmas_tree: { name: 'Christmas Tree', emoji: '🎄', value: 15, rarity: 'common' },
-    gift_box: { name: 'Gift Box', emoji: '🎁', value: 25, rarity: 'common' },
-    champagne: { name: 'Champagne', emoji: '🍾', value: 50, rarity: 'common' },
-    
-    // Rare gifts
-    diamond: { name: 'Diamond', emoji: '💎', value: 100, rarity: 'rare' },
-    letter: { name: 'Love Letter', emoji: '💌', value: 310, rarity: 'rare' },
-    clover: { name: 'Four-leaf Clover', emoji: '🍀', value: 440, rarity: 'rare' },
-    rocket: { name: 'Rocket', emoji: '🚀', value: 480, rarity: 'rare' },
-    
-    // Epic gifts
-    crystal: { name: 'Crystal', emoji: '🔮', value: 810, rarity: 'epic' },
-    teddy_bear: { name: 'Teddy Bear', emoji: '🧸', value: 1500, rarity: 'epic' },
-    gold_bars: { name: 'Gold Bars', emoji: '🏆', value: 999, rarity: 'epic' },
-    peach: { name: 'Juicy Peach', emoji: '🍑', value: 1499, rarity: 'epic' }
-  };
+  // ================== GIFT DATA ==================
+  const GIFTS = [
+    { id: 1, name: 'Delicious Cake', emoji: '�', stars: 25, ton: 0.025, rarity: 'common' },
+    { id: 2, name: 'Green Star', emoji: '⭐', stars: 50, ton: 0.05, rarity: 'common' },
+    { id: 3, name: 'Blue Star', emoji: '🌟', stars: 75, ton: 0.075, rarity: 'common' },
+    { id: 4, name: 'Red Heart', emoji: '❤️', stars: 100, ton: 0.1, rarity: 'uncommon' },
+    { id: 5, name: 'Pig', emoji: '🐷', stars: 150, ton: 0.15, rarity: 'uncommon' },
+    { id: 6, name: 'Ghost', emoji: '👻', stars: 200, ton: 0.2, rarity: 'uncommon' },
+    { id: 7, name: 'Red Gift', emoji: '🎁', stars: 250, ton: 0.25, rarity: 'rare' },
+    { id: 8, name: 'Champagne', emoji: '🾾', stars: 300, ton: 0.3, rarity: 'rare' },
+    { id: 9, name: 'Tropical Fish', emoji: '🐠', stars: 400, ton: 0.4, rarity: 'rare' },
+    { id: 10, name: 'Crystal Ball', emoji: '🔮', stars: 500, ton: 0.5, rarity: 'epic' },
+    { id: 11, name: 'Elephant', emoji: '🐘', stars: 750, ton: 0.75, rarity: 'epic' },
+    { id: 12, name: 'Teddy Bear', emoji: '🧸', stars: 1000, ton: 1.0, rarity: 'legendary' },
+    { id: 13, name: 'Squirrel', emoji: '🐿️', stars: 2500, ton: 2.5, rarity: 'legendary' }
+  ];
 
-  // ================== TEST CASES DATA ==================
-  const CASES_DATA = {
-    1: {
-      id: 1,
-      name: 'Starter Pack',
-      price: 0, // FREE для тестирования
-      image: '/images/cases/case-01.png',
-      description: 'Perfect for testing! Try your luck with common gifts.',
-      rewards: [
-        { gift: 'green_star', chance: 40.0 },
-        { gift: 'christmas_tree', chance: 30.0 },
-        { gift: 'gift_box', chance: 20.0 },
-        { gift: 'champagne', chance: 8.0 },
-        { gift: 'diamond', chance: 2.0 }
-      ]
-    },
-    2: {
-      id: 2,
-      name: 'Lucky Box',
-      price: 0, // FREE для тестирования
-      image: '/images/cases/case-02.png',
-      description: 'Test your luck with rare rewards!',
-      rewards: [
-        { gift: 'champagne', chance: 30.0 },
-        { gift: 'diamond', chance: 25.0 },
-        { gift: 'letter', chance: 20.0 },
-        { gift: 'rocket', chance: 15.0 },
-        { gift: 'crystal', chance: 8.0 },
-        { gift: 'teddy_bear', chance: 2.0 }
-      ]
-    },
-    3: {
-      id: 3,
-      name: 'Epic Chest',
-      price: 0, // FREE для тестирования
-      image: '/images/cases/case-03.png',
-      description: 'Maximum luck! Epic gifts await!',
-      rewards: [
-        { gift: 'diamond', chance: 30.0 },
-        { gift: 'rocket', chance: 25.0 },
-        { gift: 'crystal', chance: 20.0 },
-        { gift: 'clover', chance: 15.0 },
-        { gift: 'gold_bars', chance: 7.0 },
-        { gift: 'teddy_bear', chance: 3.0 }
-      ]
-    }
+  const RARITY_COLORS = {
+    common: '#6b7280',
+    uncommon: '#3b82f6',
+    rare: '#8b5cf6',
+    epic: '#ec4899',
+    legendary: '#fbbf24'
   };
 
   // ================== STATE ==================
-  let currentCaseId = null;
-  let userInventory = [];
-  let userStats = {
-    casesOpened: 0,
-    giftsWon: 0,
-    totalValue: 0,
-    recentOpenings: []
-  };
-  
+  let currentCurrency = 'stars';
+  let isOpening = false;
+  const casePrice = { ton: 0, stars: 0 };
+
   const tg = window.Telegram?.WebApp;
 
   // ================== INIT ==================
   function init() {
-    console.log('[Cases] Initializing cases system...');
+    console.log('[Cases] Initializing CS:GO style case opening...');
     
-    loadUserData();
+    syncCurrency();
+    renderCasePage();
     attachEventListeners();
-    updateInventoryDisplay();
     
-    console.log('[Cases] Cases system ready');
+    console.log('[Cases] Case opening system ready');
+  }
+
+  // ================== SYNC CURRENCY ==================
+  function syncCurrency() {
+    if (window.WildTimeCurrency) {
+      currentCurrency = window.WildTimeCurrency.current;
+    }
+
+    window.addEventListener('currency:changed', (e) => {
+      currentCurrency = e.detail.currency;
+      updatePriceDisplay();
+    });
+  }
+
+  // ================== RENDER ==================
+  function renderCasePage() {
+    const casesPage = document.getElementById('casesPage');
+    if (!casesPage) return;
+
+    casesPage.innerHTML = `
+      <div class="case-opening-page">
+        <div class="case-header">
+          <h1 class="case-title">🎁 Gift Case</h1>
+          <p class="case-subtitle">
+            Open for <span id="casePriceDisplay">${casePrice.stars} ⭐</span>
+          </p>
+        </div>
+
+        <div class="reel-container">
+          <div class="reel-pointer">▼</div>
+          <div class="reel" id="caseReel"></div>
+        </div>
+
+        <div class="open-btn-container">
+          <button class="case-open-btn" id="caseOpenBtn">
+            Open Case (<span id="btnPriceDisplay">${casePrice.stars} ⭐</span>)
+          </button>
+        </div>
+
+        <div class="gifts-grid">
+          ${GIFTS.map(gift => `
+            <div class="gift-card" style="border-color: ${RARITY_COLORS[gift.rarity]}">
+              <div class="gift-card-emoji">${gift.emoji}</div>
+              <div class="gift-card-name">${gift.name}</div>
+              <div class="gift-card-value" data-gift-id="${gift.id}">
+                ${currentCurrency === 'ton' ? gift.ton + ' TON' : gift.stars + ' ⭐'}
+              </div>
+              <div class="gift-card-rarity" style="color: ${RARITY_COLORS[gift.rarity]}">
+                ${gift.rarity}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    updatePriceDisplay();
+    // 🔥 Запуск постоянной анимации барабана
+    initReelAnimation();
+  }
+
+  function updatePriceDisplay() {
+    const priceDisplay = document.getElementById('casePriceDisplay');
+    const btnPriceDisplay = document.getElementById('btnPriceDisplay');
+    
+    const price = casePrice[currentCurrency];
+    const symbol = currentCurrency === 'ton' ? 'TON' : '⭐';
+    
+    if (priceDisplay) {
+      priceDisplay.textContent = `${price} ${symbol}`;
+    }
+    
+    if (btnPriceDisplay) {
+      btnPriceDisplay.textContent = `${price} ${symbol}`;
+    }
+
+    // Update gift cards
+    GIFTS.forEach(gift => {
+      const valueEl = document.querySelector(`[data-gift-id="${gift.id}"]`);
+      if (valueEl) {
+        valueEl.textContent = currentCurrency === 'ton' 
+          ? `${gift.ton} TON` 
+          : `${gift.stars} ⭐`;
+      }
+    });
   }
 
   // ================== EVENT LISTENERS ==================
   function attachEventListeners() {
-    // Клики по карточкам кейсов
-    const caseCards = document.querySelectorAll('.case-card[data-case-id]');
-    caseCards.forEach(card => {
-      card.addEventListener('click', (e) => {
-        e.preventDefault();
-        const caseId = parseInt(card.dataset.caseId);
-        openCaseDetail(caseId);
-      });
-    });
-
-    // Кнопка "Назад"
-    const backBtn = document.getElementById('caseBackBtn');
-    if (backBtn) {
-      backBtn.addEventListener('click', closeCaseDetail);
-    }
-
-    // Кнопка "Открыть кейс"
-    const openBtn = document.getElementById('openCaseBtn');
+    const openBtn = document.getElementById('caseOpenBtn');
     if (openBtn) {
       openBtn.addEventListener('click', handleOpenCase);
     }
   }
 
-  // ================== NAVIGATION ==================
-  function openCaseDetail(caseId) {
-    const caseData = CASES_DATA[caseId];
-    if (!caseData) {
-      console.error('[Cases] Case not found:', caseId);
-      return;
-    }
+  // 🔥 ================== ПОСТОЯННАЯ АНИМАЦИЯ БАРАБАНА ==================
+  function initReelAnimation() {
+    const reel = document.getElementById('caseReel');
+    if (!reel) return;
 
-    currentCaseId = caseId;
-    console.log('[Cases] Opening case detail:', caseData.name);
-
-    updateCaseDetailContent(caseData);
-
-    const casesPage = document.getElementById('casesPage');
-    const detailPage = document.getElementById('caseDetailPage');
+    // Генерируем достаточно предметов для бесшовной прокрутки
+    const items = [];
     
-    if (casesPage) casesPage.classList.remove('page-active');
-    if (detailPage) detailPage.classList.add('page-active');
-
-    if (tg?.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred('light');
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function closeCaseDetail() {
-    console.log('[Cases] Closing case detail');
-
-    const casesPage = document.getElementById('casesPage');
-    const detailPage = document.getElementById('caseDetailPage');
-    
-    if (detailPage) detailPage.classList.remove('page-active');
-    if (casesPage) casesPage.classList.add('page-active');
-
-    currentCaseId = null;
-
-    if (tg?.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred('light');
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  // ================== CONTENT UPDATE ==================
-  function updateCaseDetailContent(caseData) {
-    // Обновляем изображение
-    const image = document.getElementById('caseDetailImage');
-    if (image) {
-      image.src = caseData.image;
-      image.alt = caseData.name;
-      image.onerror = () => {
-        // Если изображения нет, показываем плейсхолдер
-        image.style.display = 'none';
-        image.parentElement.style.background = 'linear-gradient(135deg, #00a6ff22, #0d68c322)';
-      };
-    }
-
-    // Обновляем заголовок
-    const title = document.getElementById('caseDetailTitle');
-    if (title) {
-      title.textContent = caseData.name;
-    }
-
-    // Обновляем описание
-    const description = document.getElementById('caseDetailDescription');
-    if (description) {
-      description.textContent = caseData.description;
-    }
-
-    // Обновляем цену (FREE для тестирования)
-    const price = document.getElementById('caseDetailPrice');
-    if (price) {
-      price.textContent = caseData.price === 0 ? 'FREE' : caseData.price;
-    }
-
-    const openPrice = document.getElementById('openCasePrice');
-    if (openPrice) {
-      openPrice.textContent = caseData.price === 0 ? 'FREE' : caseData.price;
-    }
-
-    // Генерируем список наград
-    const rewardsList = document.getElementById('caseRewardsList');
-    if (rewardsList) {
-      rewardsList.innerHTML = '';
-      
-      caseData.rewards.forEach(reward => {
-        const gift = TELEGRAM_GIFTS[reward.gift];
-        const rewardItem = createRewardItem(gift, reward.chance);
-        rewardsList.appendChild(rewardItem);
+    // Дублируем список призов 4 раза для длинного барабана
+    for (let i = 0; i < 4; i++) {
+      GIFTS.forEach(gift => {
+        items.push(gift);
       });
     }
-  }
 
-  function createRewardItem(gift, chance) {
-    const item = document.createElement('div');
-    item.className = 'reward-item';
-    
-    item.innerHTML = `
-      <div class="reward-item__image">
-        <div class="reward-item__emoji">${gift.emoji}</div>
-        <div class="reward-item__rarity reward-item__rarity--${gift.rarity}"></div>
-      </div>
-      <div class="reward-item__info">
-        <div class="reward-item__name">${gift.name}</div>
-        <div class="reward-item__value">
-          <img src="/icons/stars.svg" alt="" class="reward-value-icon" />
-          <span>${gift.value}</span>
+    // Рендерим предметы
+    reel.innerHTML = items.map((gift, index) => {
+      const value = currentCurrency === 'ton' ? `${gift.ton} TON` : `${gift.stars} ⭐`;
+      return `
+        <div class="reel-item" data-index="${index}" style="border-color: ${RARITY_COLORS[gift.rarity]}">
+          <div class="reel-item-emoji">${gift.emoji}</div>
+          <div class="reel-item-name">${gift.name}</div>
+          <div class="reel-item-value">${value}</div>
         </div>
-      </div>
-      <div class="reward-item__chance">${chance.toFixed(1)}%</div>
-    `;
-    
-    return item;
+      `;
+    }).join('');
+
+    console.log('[Cases] 🎰 Reel animation initialized with', items.length, 'items');
   }
 
   // ================== OPEN CASE ==================
   async function handleOpenCase() {
-    if (!currentCaseId) {
-      console.error('[Cases] No case selected');
+    if (isOpening) return;
+
+    const price = casePrice[currentCurrency];
+    const balance = window.WildTimeCurrency?.balance?.[currentCurrency] || 0;
+
+    console.log('[Cases] Opening case. Price:', price, 'Balance:', balance);
+
+    // Check balance
+    if (balance < price) {
+      const msg = `Insufficient balance. You need ${price} ${currentCurrency === 'ton' ? 'TON' : '⭐'}`;
+      if (tg?.showAlert) {
+        tg.showAlert(msg);
+      } else {
+        alert(msg);
+      }
+      
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('error');
+      }
       return;
     }
 
-    const caseData = CASES_DATA[currentCaseId];
-    console.log('[Cases] Opening case:', caseData.name);
+    isOpening = true;
 
-    // Для тестирования проверка баланса отключена (цена = 0)
-    if (caseData.price > 0) {
-      const balance = window.WildTimeCurrency?.balance?.stars || 0;
-      if (balance < caseData.price) {
-        if (tg?.showAlert) {
-          tg.showAlert('Insufficient balance. Please buy Stars first.');
-        } else {
-          alert('Insufficient balance. Please buy Stars first.');
-        }
-        
-        if (tg?.HapticFeedback) {
-          tg.HapticFeedback.notificationOccurred('error');
-        }
-        return;
-      }
+    const openBtn = document.getElementById('caseOpenBtn');
+    if (openBtn) {
+      openBtn.disabled = true;
+      openBtn.textContent = 'Opening...';
     }
 
-    // Haptic feedback
     if (tg?.HapticFeedback) {
       tg.HapticFeedback.impactOccurred('medium');
     }
 
     try {
-      // Выбираем случайный подарок
-      const wonGift = selectRandomGift(caseData);
-      
-      console.log('[Cases] Won gift:', wonGift);
+      // Select winner
+      const winner = selectWinner();
+      console.log('[Cases] Winner:', winner);
 
-      // Обновляем баланс (только если цена > 0)
-      if (caseData.price > 0 && window.WildTimeCurrency) {
-        const balance = window.WildTimeCurrency.balance.stars;
-        const newBalance = balance - caseData.price;
-        window.WildTimeCurrency.setBalance('stars', newBalance);
+      // Animate
+      await animateReel(winner);
+
+      // Deduct balance
+      if (window.WildTimeCurrency) {
+        const newBalance = balance - price;
+        window.WildTimeCurrency.setBalance(currentCurrency, newBalance);
       }
 
-      // Добавляем в инвентарь
-      userInventory.push({
-        ...wonGift,
-        timestamp: Date.now(),
-        caseId: caseData.id,
-        caseName: caseData.name
-      });
-
-      // Обновляем статистику
-      userStats.casesOpened++;
-      userStats.giftsWon++;
-      userStats.totalValue += wonGift.value;
-      userStats.recentOpenings.unshift({
-        gift: wonGift,
-        caseName: caseData.name,
-        timestamp: Date.now()
-      });
-      if (userStats.recentOpenings.length > 10) {
-        userStats.recentOpenings.pop();
-      }
-
-      saveUserData();
-      updateInventoryDisplay();
-
-      // Показываем результат
-      showResult(wonGift, caseData);
+      // Show result
+      showResult(winner);
 
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('success');
       }
 
     } catch (error) {
-      console.error('[Cases] Error opening case:', error);
+      console.error('[Cases] Error:', error);
       
       if (tg?.showAlert) {
         tg.showAlert('Failed to open case. Please try again.');
@@ -327,162 +243,172 @@
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.notificationOccurred('error');
       }
+    } finally {
+      isOpening = false;
+      
+      if (openBtn) {
+        openBtn.disabled = false;
+        const price = casePrice[currentCurrency];
+        const symbol = currentCurrency === 'ton' ? 'TON' : '⭐';
+        openBtn.innerHTML = `Open Case (<span id="btnPriceDisplay">${price} ${symbol}</span>)`;
+      }
     }
   }
 
-  function selectRandomGift(caseData) {
+  // ================== SELECT WINNER ==================
+  function selectWinner() {
     // Weighted random selection
-    const totalChance = caseData.rewards.reduce((sum, r) => sum + r.chance, 0);
-    let random = Math.random() * totalChance;
+    const weights = {
+      common: 50,
+      uncommon: 30,
+      rare: 15,
+      epic: 4,
+      legendary: 1
+    };
 
-    for (const reward of caseData.rewards) {
-      random -= reward.chance;
-      if (random <= 0) {
-        const gift = TELEGRAM_GIFTS[reward.gift];
-        return { ...gift, key: reward.gift };
-      }
-    }
+    const weightedGifts = GIFTS.flatMap(gift => 
+      Array(weights[gift.rarity] || 1).fill(gift)
+    );
 
-    // Fallback
-    const fallbackGift = TELEGRAM_GIFTS[caseData.rewards[0].gift];
-    return { ...fallbackGift, key: caseData.rewards[0].gift };
+    return weightedGifts[Math.floor(Math.random() * weightedGifts.length)];
   }
 
-  function showResult(gift, caseData) {
-    // Используем Telegram popup если доступен
-    if (tg?.showPopup) {
-      tg.showPopup({
-        title: `${gift.emoji} Congratulations!`,
-        message: `You won ${gift.name} from ${caseData.name}!\nValue: ${gift.value} ⭐`,
-        buttons: [
-          { id: 'again', type: 'default', text: 'Open Another' },
-          { id: 'close', type: 'close', text: 'Close' }
-        ]
-      }, (buttonId) => {
-        if (buttonId === 'again') {
-          handleOpenCase();
-        }
-      });
-    } else {
-      // Fallback для браузера
-      const openAnother = confirm(
-        `🎉 Congratulations!\n\n` +
-        `You won: ${gift.emoji} ${gift.name}\n` +
-        `Value: ${gift.value} ⭐\n` +
-        `From: ${caseData.name}\n\n` +
-        `Open another case?`
-      );
+  // ================== ANIMATE REEL ==================
+  function animateReel(winner) {
+    return new Promise((resolve) => {
+      const reel = document.getElementById('caseReel');
+      if (!reel) {
+        resolve();
+        return;
+      }
+
+      // 🔥 Останавливаем постоянную анимацию
+      reel.classList.add('opening');
+
+      // Generate items
+      const items = [];
       
-      if (openAnother) {
-        handleOpenCase();
+      // Add 30 random items
+      for (let i = 0; i < 30; i++) {
+        items.push(GIFTS[Math.floor(Math.random() * GIFTS.length)]);
       }
-    }
-  }
-
-  // ================== INVENTORY ==================
-  function updateInventoryDisplay() {
-    const grid = document.getElementById('inventoryGrid');
-    if (!grid) return;
-
-    if (userInventory.length === 0) {
-      grid.innerHTML = `
-        <div class="inv-empty">
-          <div class="inv-empty__icon">🎁</div>
-          <div class="inv-empty__text">No gifts yet</div>
-          <div class="inv-empty__hint">Open cases to get gifts!</div>
-        </div>
-      `;
-      return;
-    }
-
-    grid.innerHTML = '';
-    
-    // Группируем подарки по типу
-    const groupedGifts = {};
-    userInventory.forEach(gift => {
-      if (!groupedGifts[gift.key]) {
-        groupedGifts[gift.key] = {
-          gift: gift,
-          count: 0
-        };
-      }
-      groupedGifts[gift.key].count++;
-    });
-
-    // Отображаем сгруппированные подарки
-    Object.values(groupedGifts).forEach(group => {
-      const card = document.createElement('div');
-      card.className = `inv-card inv-card--${group.gift.rarity}`;
-      card.innerHTML = `
-        <div class="inv-card__emoji">${group.gift.emoji}</div>
-        <div class="inv-card__name">${group.gift.name}</div>
-        <div class="inv-card__value">
-          <img src="/icons/stars.svg" alt="" class="inv-value-icon" />
-          <span>${group.gift.value}</span>
-        </div>
-        ${group.count > 1 ? `<div class="inv-card__count">x${group.count}</div>` : ''}
-      `;
-      grid.appendChild(card);
-    });
-
-    // Обновляем статистику инвентаря
-    const totalEl = document.getElementById('invTotal');
-    const valueEl = document.getElementById('invValue');
-    
-    if (totalEl) totalEl.textContent = userInventory.length;
-    if (valueEl) valueEl.textContent = userStats.totalValue;
-  }
-
-  // ================== STORAGE ==================
-  function saveUserData() {
-    try {
-      localStorage.setItem('wt-inventory', JSON.stringify(userInventory));
-      localStorage.setItem('wt-stats', JSON.stringify(userStats));
-      console.log('[Cases] Data saved');
-    } catch (e) {
-      console.warn('[Cases] Failed to save data:', e);
-    }
-  }
-
-  function loadUserData() {
-    try {
-      const savedInventory = localStorage.getItem('wt-inventory');
-      const savedStats = localStorage.getItem('wt-stats');
       
-      if (savedInventory) {
-        userInventory = JSON.parse(savedInventory);
-        console.log('[Cases] Loaded inventory:', userInventory.length, 'items');
+      // Add winner
+      items.push(winner);
+      
+      // Add 10 more random items
+      for (let i = 0; i < 10; i++) {
+        items.push(GIFTS[Math.floor(Math.random() * GIFTS.length)]);
       }
-      if (savedStats) {
-        userStats = JSON.parse(savedStats);
-        console.log('[Cases] Loaded stats:', userStats);
+
+      // Render items
+      reel.innerHTML = items.map((gift, index) => {
+        const value = currentCurrency === 'ton' ? `${gift.ton} TON` : `${gift.stars} ⭐`;
+        return `
+          <div class="reel-item" data-index="${index}" style="border-color: ${RARITY_COLORS[gift.rarity]}">
+            <div class="reel-item-emoji">${gift.emoji}</div>
+            <div class="reel-item-name">${gift.name}</div>
+            <div class="reel-item-value">${value}</div>
+          </div>
+        `;
+      }).join('');
+
+      // Calculate position
+      const itemWidth = 180; // 160px + 20px gap
+      const winnerIndex = 30;
+      const centerOffset = window.innerWidth / 2 - 90;
+      const finalPosition = -(winnerIndex * itemWidth) + centerOffset;
+
+      // Start animation
+      setTimeout(() => {
+        reel.style.transition = 'transform 4s cubic-bezier(0.25, 0.1, 0.25, 1)';
+        reel.style.transform = `translateX(${finalPosition}px)`;
+
+        // Wait for animation
+        setTimeout(() => {
+          // Highlight winner
+          const winnerEl = reel.children[winnerIndex];
+          if (winnerEl) {
+            winnerEl.classList.add('reel-item-winner');
+          }
+
+          setTimeout(() => {
+            resolve();
+          }, 500);
+        }, 4000);
+      }, 100);
+    });
+  }
+
+  // ================== SHOW RESULT ==================
+  function showResult(gift) {
+    const value = currentCurrency === 'ton' ? `${gift.ton} TON` : `${gift.stars} ⭐`;
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'case-result-modal';
+    modal.innerHTML = `
+      <div class="case-result-content">
+        <div class="case-result-confetti" id="caseConfetti"></div>
+        <h2 class="case-result-title">🎉 Congratulations!</h2>
+        <div class="case-result-emoji">${gift.emoji}</div>
+        <h3 class="case-result-name">${gift.name}</h3>
+        <div class="case-result-value">${value}</div>
+        <button class="case-result-btn" id="caseResultClose">Close</button>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Create confetti
+    createConfetti();
+
+    // Close handler
+    const closeBtn = document.getElementById('caseResultClose');
+    const handleClose = () => {
+      modal.remove();
+      resetReel();
+    };
+
+    closeBtn.addEventListener('click', handleClose);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        handleClose();
       }
-    } catch (e) {
-      console.warn('[Cases] Failed to load data:', e);
+    });
+  }
+
+  function createConfetti() {
+    const container = document.getElementById('caseConfetti');
+    if (!container) return;
+
+    const colors = ['#FFD700', '#00a6ff', '#ff6b6b', '#4ecdc4', '#a855f7'];
+    
+    for (let i = 0; i < 20; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'case-confetti';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDelay = Math.random() * 0.5 + 's';
+      piece.style.animationDuration = (Math.random() * 2 + 2) + 's';
+      container.appendChild(piece);
     }
   }
 
-  // ================== PUBLIC API ==================
-  window.WildTimeCases = {
-    openCase: openCaseDetail,
-    closeCase: closeCaseDetail,
-    getCurrentCase: () => currentCaseId,
-    getCaseData: (id) => CASES_DATA[id],
-    getInventory: () => [...userInventory],
-    getStats: () => ({ ...userStats }),
-    clearData: () => {
-      userInventory = [];
-      userStats = {
-        casesOpened: 0,
-        giftsWon: 0,
-        totalValue: 0,
-        recentOpenings: []
-      };
-      saveUserData();
-      updateInventoryDisplay();
-      console.log('[Cases] Data cleared');
+  function resetReel() {
+    const reel = document.getElementById('caseReel');
+    if (reel) {
+      // 🔥 Убираем класс opening и перезапускаем постоянную анимацию
+      reel.classList.remove('opening');
+      reel.style.transition = 'none';
+      reel.style.transform = '';
+      
+      // Перезапускаем постоянную анимацию
+      setTimeout(() => {
+        initReelAnimation();
+      }, 100);
     }
-  };
+  }
 
   // ================== AUTO-INIT ==================
   if (document.readyState === 'loading') {
@@ -490,5 +416,7 @@
   } else {
     init();
   }
+
+  console.log('[Cases] Module loaded');
 
 })();
