@@ -82,7 +82,9 @@
             url('/fonts/mf.woff') format('woff');
         font-weight:400; font-style:normal; font-display:swap;
       }
-      body{ font-family:'mf', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+      body{ 
+        font-family:'mf', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+       }
 
       img{ 
         display:block; 
@@ -95,8 +97,8 @@
         color:inherit; 
         background:none; 
         border:none;
-         padding:0; 
-         cursor:pointer;
+        padding:0; 
+        cursor:pointer;
          }
      
          :focus-visible{ 
@@ -129,8 +131,47 @@
             min-height: -webkit-fill-available;
           }
         }
-        
-        
+              /* ============================
+              TOPBAR (LOGO + PROFILE + BALANCE)
+              ============================ */
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; /* 3 колонки: левая, центр, правая */
+  align-items: center;
+  padding: 8px 12px;
+  height: 56px;
+  position: relative;
+  z-index: 50;
+}
+
+.pill--user {
+  justify-self: start; /* слева */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.logo-header {
+  grid-column: 2; /* центр */
+  justify-self: center;
+}
+
+.main-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+
+.balance {
+  justify-self: end; /* справа */
+}
+ 
         /* user pill sizes match TON pill */
         .pill.pill--user { justify-self: start; }
         .pill-avatar { width:22px; height:22px; border-radius:50%; object-fit:cover; }
