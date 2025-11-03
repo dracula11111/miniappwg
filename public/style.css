@@ -1,6 +1,10 @@
 /*============================================
               THEME & RESET 
       ============================================*/
+      /* UNIVERSAL MOBILE FIX - WORKS ON ALL PHONES */
+
+      
+      
       :root{
         --bg:#0d0e0f;
         --bg-2:#0f141c;
@@ -16,15 +20,20 @@
         --ok:#27c93f;
       }
 
-      *{ box-sizing:border-box; }
+      *{ 
+        box-sizing:border-box;
+        margin: 0;
+        padding: 0;
+      }
       
-      /* 🔥 ИСПРАВЛЕНИЯ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */
+      
       html {
         width: 100%;
         height: 100%;
         overflow: hidden;
         position: fixed;
         overscroll-behavior: none;
+
       }
       
       html, body { 
@@ -731,66 +740,103 @@
         
     
 
+          /* Контейнер: кнопка очистки + суммы */
+          .bet-controls {
+            position: relative;
+            padding: 6px 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
 
+          /* Кнопка очистки - маленькая, слева */
+          .clear-bets-btn {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 77, 79, 0.1);
+            border: 1px solid rgba(255, 77, 79, 0.25);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all .2s ease;
+            -webkit-tap-highlight-color: transparent;
+          }
 
+          .clear-bets-btn:hover {
+            background: rgba(255, 77, 79, 0.15);
+            border-color: rgba(255, 77, 79, 0.4);
+            transform: scale(1.05);
+          }
+
+          .clear-bets-btn:active {
+            transform: scale(0.95);
+          }
+
+          .clear-bets-btn img {
+            width: 18px;
+            height: 18px;
+            filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
+            opacity: 0.9;
+          }
+
+          .clear-bets-btn:hover img {
+            opacity: 1;
+            filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
+          }
+
+          /* Суммы - центрированы */
+          .bet-amounts {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+          }
+          
+          /* Адаптив для маленьких экранов */
+          @media (max-width: 380px) {
+            .bet-controls {
+              gap: 6px;
+              padding: 6px 4px 10px;
+            }
+            
+            .clear-bets-btn {
+              width: 36px;
+              height: 36px;
+            }
+            
+            .clear-bets-btn img {
+              width: 16px;
+              height: 16px;
+            }
+            
+            .bet-amounts {
+              gap: 6px;
+            }
+          }
+          
+          @media (max-width: 360px) {
+            .bet-controls {
+              gap: 4px;
+            }
+            
+            .clear-bets-btn {
+              width: 34px;
+              height: 34px;
+            }
+            
+            .bet-amounts {
+              gap: 4px;
+            }
+          }
 
     
                                   
-                                  /* Контейнер: кнопка очистки + суммы */
-                      .bet-controls {
-                        position: relative;
-                        padding: 6px 6px 10px;
-                      }
-
-                      /* Кнопка очистки - маленькая, слева */
-                      .clear-bets-btn {
-                        position: absolute;
-                        left: 10px;
-                        top: 50%;
-                        transform: translateY(-50%);
-                        width: 40px;
-                        height: 40px;
-                        background: rgba(255, 77, 79, 0.1);
-                        border: 1px solid rgba(255, 77, 79, 0.25);
-                        border-radius: 10px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        cursor: pointer;
-                        transition: all .2s ease;
-                        z-index: 2;
-                      }
-
-                      .clear-bets-btn:hover {
-                        background: rgba(255, 77, 79, 0.15);
-                        border-color: rgba(255, 77, 79, 0.4);
-                        transform: translateY(-50%) scale(1.05);
-                      }
-
-                      .clear-bets-btn:active {
-                        transform: translateY(-50%) scale(0.95);
-                      }
-
-                      .clear-bets-btn img {
-                        width: 18px;
-                        height: 18px;
-                        filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
-                        opacity: 0.9;
-                      }
-
-                      .clear-bets-btn:hover img {
-                        opacity: 1;
-                        filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
-                      }
-
-                      /* Суммы - центрированы */
-                      .bet-amounts {
-                        display: flex;
-                        justify-content: center;
-                        gap: 10px;
-                        padding: 6px 50px 0; /* Отступы слева/справа для кнопки очистки */
-                      }
-
+              
     
                     /* Bet grid (tickets) */
         .bet-grid{
