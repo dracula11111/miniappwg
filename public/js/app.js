@@ -56,3 +56,41 @@
     if(first) activatePage(first.id);
   }
 })();
+
+// Topbar behavior
+(function(){
+  const btnClose = document.getElementById('topClose');
+
+  btnClose?.addEventListener('click', function (e) {
+    e.preventDefault();
+    // If running inside Telegram WebApp
+    try {
+      if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.close === 'function') {
+        window.Telegram.WebApp.close();
+        return;
+      }
+    } catch(err){ /* ignore */ }
+
+    // Fallback: use Telegram postEvent proxy if available
+    try {
+      if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === 'function') {
+        window.TelegramWebviewProxy.postEvent('web_app_close');
+        return;
+      }
+    } catch(e){}
+
+    // Fallback: history back or hide app
+    if (window.history && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    const appEl = document.querySelector('.app') || document.querySelector('main');
+    if (appEl) appEl.style.display = 'none';
+  });
+
+  // Optional actions
+  document.getElementById('topCollapse')?.addEventListener('click', () => {
+    // example: toggle a class to collapse header or send event to webapp
+    try { window.Telegram?.WebApp?.toggle(); } catch(e){}
+  });
+})();
