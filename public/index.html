@@ -50,26 +50,48 @@
     <div class="logo-header">
       <img src="/images/logo.png" alt="Wild Gift" class="main-logo" />
     </div>
-   <!-- ===== TOP BAR ===== -->
-<header class="topbar" role="banner">
-
-
-  <!-- TON/Stars баланс (открывает депозит) -->
-  <div class="balance">
-    <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
-      <!-- 🔥 Динамическая иконка валюты (TON или Stars) -->
-      <img 
-        id="pillCurrencyIcon" 
-        src="/icons/ton.svg" 
-        alt="Currency" 
-        class="pill-icon"
-        style="transition: opacity 0.15s ease, transform 0.15s ease;"
-      />
-      <span id="tonAmount">0.00</span>
-      <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
-    </button>
-  </div>
-</header>
+  
+  
+  
+  
+    <!-- ===== TOP BAR ===== -->
+  <header class="topbar" role="banner">
+    <!-- Left controls -->
+    <div class="topbar__left">
+      <!-- User Avatar -->
+      <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="User profile">
+        <img 
+          id="userAvatarImg" 
+          src="/images/avatar-default.png" 
+          alt="User" 
+          class="avatar-btn__img"
+        />
+      </button>
+      
+      <!-- Burger Menu -->
+      <button id="burgerBtn" class="burger-btn" type="button" aria-label="Menu">
+        <span class="burger-btn__line"></span>
+        <span class="burger-btn__line"></span>
+        <span class="burger-btn__line"></span>
+      </button>
+    </div>
+  
+    <!-- TON/Stars баланс (открывает депозит) -->
+    <div class="balance">
+      <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
+        <!-- 🔥 Динамическая иконка валюты (TON или Stars) -->
+        <img 
+          id="pillCurrencyIcon" 
+          src="/icons/ton.svg" 
+          alt="Currency" 
+          class="pill-icon"
+          style="transition: opacity 0.15s ease, transform 0.15s ease;"
+        />
+        <span id="tonAmount">0.00</span>
+        <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
+      </button>     
+    </div>
+  </header>
 
     <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
     <section class="history wheel-only" aria-label="Last results">
@@ -119,6 +141,7 @@
               <span class="amount-value">2.5</span>
             </button>
           </div>
+         
         </div>
 
          
@@ -373,10 +396,9 @@
       </button>
       
       <button class="profile-action-btn" data-action="settings">
-        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-          <path d="M12 1v6m0 6v10M23 12h-6m-6 0H1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <div class="profile-action-icon-custom">
+          <img src="/images/ыуеештпы.png" alt="" class="profile-custom-icon" />
+        </div>
         <span class="profile-action-label">Settings</span>
       </button>
     </div>
@@ -384,389 +406,6 @@
   </section>
 </main>
 
-<style>
-/* ============================================
-   PROFILE PAGE - REDESIGNED STYLES
-   ============================================ */
-
-.profile-card {
-  max-width: 430px;
-  margin: 0 auto;
-  padding: 24px 16px 100px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-/* Аватар */
-.profile-ava {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 4px solid rgba(0, 166, 255, 0.3);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.6),
-    0 0 0 8px rgba(0, 166, 255, 0.1),
-    inset 0 2px 6px rgba(255, 255, 255, 0.1);
-  transition: all .3s ease;
-  cursor: default;
-}
-
-.profile-name {
-  margin: 16px 0 4px;
-  font-size: 24px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.4px;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  text-align: center;
-}
-
-.profile-handle {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: #8da1b8;
-  font-weight: 500;
-  opacity: 0.9;
-  text-align: center;
-}
-
-/* ============================================
-   BALANCE DISPLAY
-   ============================================ */
-
-.profile-balance {
-  width: 100%;
-  max-width: 340px;
-  padding: 24px 20px;
-  background: linear-gradient(135deg, var(--panel), var(--card));
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  text-align: center;
-  margin-top: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
-.profile-balance__label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-}
-
-.profile-balance__amount {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-size: 40px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
-}
-
-.profile-balance__icon {
-  width: 40px;
-  height: 40px;
-  filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
-  animation: iconPulse 3s ease-in-out infinite;
-}
-
-@keyframes iconPulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
-  }
-  50% {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 16px rgba(0, 166, 255, 0.6));
-  }
-}
-
-/* ============================================
-   WALLET CARD - FIXED ANIMATION
-   ============================================ */
-
-.wallet-card {
-  width: 100%;
-  max-width: 340px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.wallet-card__header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wallet-card__header:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.wallet-card__header:active {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.wallet-card__icon {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 166, 255, 0.15);
-  border-radius: 12px;
-}
-
-.wallet-card__info {
-  flex: 1;
-  min-width: 0;
-}
-
-.wallet-card__label {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 2px;
-}
-
-.wallet-card__status {
-  font-size: 13px;
-  color: var(--muted);
-  font-family: 'Courier New', monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wallet-card__toggle {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wallet-card__toggle:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text);
-}
-
-.wallet-card__chevron {
-  transition: transform 0.3s ease;
-}
-
-.wallet-card__toggle.open .wallet-card__chevron {
-  transform: rotate(180deg);
-}
-
-/* Детали - FIXED: убраны прыжки */
-.wallet-card__details {
-  /* Убираем max-height для плавной анимации */
-  overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
-  opacity: 0;
-  max-height: 0;
-}
-
-.wallet-card__details:not([hidden]) {
-  opacity: 1;
-  max-height: 200px;
-  padding: 0 16px 16px;
-}
-
-.wallet-card__address {
-  padding: 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: var(--muted);
-  word-break: break-all;
-  line-height: 1.5;
-  margin-bottom: 12px;
-  user-select: text;
-}
-
-.wallet-card__actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-action {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.btn-action svg {
-  flex-shrink: 0;
-}
-
-.btn-action:hover {
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateY(-1px);
-}
-
-.btn-action:active {
-  transform: translateY(0);
-}
-
-.btn-action--secondary {
-  border-color: rgba(0, 166, 255, 0.3);
-  color: var(--accent);
-}
-
-.btn-action--secondary:hover {
-  background: rgba(0, 166, 255, 0.1);
-  border-color: rgba(0, 166, 255, 0.5);
-}
-
-.btn-action--danger {
-  border-color: rgba(255, 77, 79, 0.3);
-  color: var(--danger);
-}
-
-.btn-action--danger:hover {
-  background: rgba(255, 77, 79, 0.1);
-  border-color: rgba(255, 77, 79, 0.5);
-}
-
-/* ============================================
-   PROFILE ACTIONS
-   ============================================ */
-
-.profile-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  width: 100%;
-  max-width: 340px;
-}
-
-.profile-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 12px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.profile-action-btn:hover {
-  background: var(--card);
-  border-color: rgba(0, 166, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
-}
-
-.profile-action-btn:active {
-  transform: translateY(0);
-}
-
-.profile-action-icon {
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.profile-action-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-  text-align: center;
-}
-
-/* ============================================
-   АДАПТИВНОСТЬ
-   ============================================ */
-
-@media (max-width: 380px) {
-  .profile-ava {
-    width: 100px;
-    height: 100px;
-    border-width: 3px;
-  }
-  
-  .profile-name {
-    font-size: 20px;
-  }
-  
-  .profile-balance__amount {
-    font-size: 32px;
-  }
-  
-  .profile-balance__icon {
-    width: 32px;
-    height: 32px;
-  }
-  
-  .profile-actions {
-    gap: 10px;
-  }
-  
-  .profile-action-btn {
-    padding: 14px 10px;
-  }
-  
-  .profile-action-label {
-    font-size: 11px;
-  }
-}
-
-/* ============================================
-   ACCESSIBILITY
-   ============================================ */
-
-@media (prefers-reduced-motion: reduce) {
-  .wallet-card,
-  .wallet-card__details,
-  .wallet-card__chevron,
-  .btn-action,
-  .profile-action-btn,
-  .profile-balance__icon {
-    animation: none;
-    transition: none;
-  }
-}
-</style>
 
 
 
@@ -935,13 +574,78 @@
     <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
   </div>
 </div>
+ <!-- ===== SETTINGS BOTTOM SHEET - COMPLETE VERSION ===== -->
+<!-- Замените этот блок в вашем index.html (между </div> bet-amounts и </div> bet-controls) -->
 
+<div id="settingsSheet" class="settings-sheet">
+  <div class="settings-sheet__backdrop"></div>
+  
+  <div class="settings-sheet__panel">
+    <div class="settings-sheet__handle"></div>
+    
+    <button id="settingsCloseBtn" class="settings-sheet__close" aria-label="Close settings">
+      ×
+    </button>
+    
+    <h2 class="settings-sheet__title">Settings</h2>
+    
+    <div class="settings-sheet__content">
+      
+      <!-- Language Item with PNG Flag -->
+      <div class="settings-item settings-item--clickable" id="languageSwitcher">
+        <div class="settings-item__icon">
+          <img 
+            src="/icons/english.webp" 
+            alt="English" 
+            class="settings-flag-img"
+          />
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">Language</div>
+          <div class="settings-item__value">English</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+      <!-- Support -->
+      <div class="settings-item settings-item--clickable">
+        <div class="settings-item__icon">
+          💬
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">Support</div>
+          <div class="settings-item__value">Get help</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+      <!-- About -->
+      <div class="settings-item settings-item--clickable">
+        <div class="settings-item__icon">
+          ℹ️
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">About</div>
+          <div class="settings-item__value">App info</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+    </div>
+  </div>
+</div>
 
 
   <!-- Скрипты проекта -->
  
   <script src="js/splash.js" defer></script>
-  <script src="/js/app.js" defer></script>
+  <script src="/js/app.js" defer></script> 
   <script src="/js/tondep.js" defer></script>
   <script src="/js/starsdep.js" defer></script>
   <script src="/js/wheel.js" defer></script>
@@ -951,6 +655,7 @@
   <script src="/js/validation.js" defer></script>
   <script src="/js/balance-live.js" defer></script> 
   <script src="/js/bonus-5050.js" defer></script>
+  <script src="/js/settings.js" defer></script>
 
 
 

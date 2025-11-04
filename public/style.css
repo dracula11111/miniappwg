@@ -108,6 +108,521 @@
           animation: logoFadeIn 0.6s ease-out;
         }
 
+       /* ============================================
+                TOPBAR WITH LEFT CONTROLS
+         ============================================ */
+
+         .topbar {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 14px;
+          gap: 12px;
+        }
+
+        .topbar__left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: 70px;
+        }
+
+        /* Avatar Button */
+        .avatar-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: var(--panel);
+          border: 1.5px solid rgba(0, 166, 255, 0.3);
+          padding: 0;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          -webkit-tap-highlight-color: transparent;
+          box-shadow: 
+            0 2px 8px rgba(0, 0, 0, 0.3),
+            0 0 0 2px rgba(0, 166, 255, 0.1);
+        }
+
+        .avatar-btn:hover {
+          transform: scale(1.05);
+          border-color: rgba(0, 166, 255, 0.5);
+          box-shadow: 
+            0 4px 12px rgba(0, 166, 255, 0.3),
+            0 0 0 2px rgba(0, 166, 255, 0.2);
+        }
+
+        .avatar-btn:active {
+          transform: scale(0.95);
+        }
+
+        .avatar-btn__img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        /* Burger Button */
+        .burger-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          background: var(--panel);
+          border: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          padding: 0;
+          -webkit-tap-highlight-color: transparent;
+          box-shadow: 
+            0 2px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .burger-btn:hover {
+          background: var(--card);
+          border-color: rgba(0, 166, 255, 0.3);
+          transform: translateY(-1px);
+          box-shadow: 
+            0 4px 12px rgba(0, 166, 255, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .burger-btn:active {
+          transform: translateY(0) scale(0.95);
+        }
+
+        .burger-btn__line {
+          width: 18px;
+          height: 2px;
+          background: var(--text);
+          border-radius: 2px;
+          transition: all 0.3s ease;
+        }
+
+        /* Burger animation when sheet is open */
+        .burger-btn.active .burger-btn__line:nth-child(1) {
+          transform: translateY(7px) rotate(45deg);
+        }
+
+        .burger-btn.active .burger-btn__line:nth-child(2) {
+          opacity: 0;
+          transform: translateX(-10px);
+        }
+
+        .burger-btn.active .burger-btn__line:nth-child(3) {
+          transform: translateY(-7px) rotate(-45deg);
+        }
+
+        /* Balance - stay on the right */
+        .balance {
+          margin-left: auto;
+        }
+
+        /* ============================================
+          SETTINGS BOTTOM SHEET
+          ============================================ */
+
+        .settings-sheet {
+          position: fixed;
+          inset: 0;
+          z-index: 4000;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .settings-sheet--open {
+          pointer-events: auto;
+          opacity: 1;
+        }
+
+        /* Backdrop */
+        .settings-sheet__backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .settings-sheet--open .settings-sheet__backdrop {
+          opacity: 1;
+        }
+
+        /* Panel */
+        .settings-sheet__panel {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: #1e2329;
+          border-radius: 24px 24px 0 0;
+          padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px);
+          max-height: 80vh;
+          overflow-y: auto;
+          transform: translateY(100%);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .settings-sheet--open .settings-sheet__panel {
+          transform: translateY(0);
+        }
+
+        /* Handle for swipe */
+        .settings-sheet__handle {
+          width: 40px;
+          height: 4px;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 999px;
+          margin: 0 auto 16px;
+          cursor: grab;
+        }
+
+        .settings-sheet__handle:active {
+          cursor: grabbing;
+        }
+
+        /* Close button */
+        .settings-sheet__close {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.08);
+          border: none;
+          color: rgba(255, 255, 255, 0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          padding: 0;
+          z-index: 1;
+        }
+
+        .settings-sheet__close:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .settings-sheet__close:active {
+          transform: scale(0.9);
+        }
+
+        /* Title */
+        .settings-sheet__title {
+          font-size: 24px;
+          font-weight: 800;
+          color: #ffffff;
+          margin: 0 0 24px 0;
+          text-align: center;
+          letter-spacing: 0.3px;
+        }
+
+        /* Content */
+        .settings-sheet__content {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        /* ============================================
+          SETTINGS ITEMS
+          ============================================ */
+
+        .settings-item {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px;
+          background: rgba(255, 255, 255, 0.03);
+          border-radius: 14px;
+          transition: all 0.2s ease;
+        }
+
+        .settings-item--clickable {
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .settings-item--clickable:hover {
+          background: rgba(255, 255, 255, 0.06);
+        }
+
+        .settings-item--clickable:active {
+          transform: scale(0.98);
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Icon */
+        .settings-item__icon {
+          font-size: 24px;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 166, 255, 0.1);
+          border-radius: 12px;
+          flex-shrink: 0;
+        }
+
+        /* Info */
+        .settings-item__info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .settings-item__label {
+          font-size: 15px;
+          font-weight: 600;
+          color: #ffffff;
+          margin-bottom: 2px;
+        }
+
+        .settings-item__value {
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Chevron */
+        .settings-item__chevron {
+          color: rgba(255, 255, 255, 0.3);
+          flex-shrink: 0;
+        }
+
+        /* ============================================
+          TOGGLE SWITCH
+          ============================================ */
+
+        .settings-toggle {
+          position: relative;
+          display: inline-block;
+          width: 48px;
+          height: 28px;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+
+        .settings-toggle input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+
+        .settings-toggle__slider {
+          position: absolute;
+          inset: 0;
+          background: rgba(255, 255, 255, 0.15);
+          border-radius: 28px;
+          transition: all 0.3s ease;
+        }
+
+        .settings-toggle__slider::before {
+          content: "";
+          position: absolute;
+          height: 22px;
+          width: 22px;
+          left: 3px;
+          bottom: 3px;
+          background: #ffffff;
+          border-radius: 50%;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .settings-toggle input:checked + .settings-toggle__slider {
+          background: linear-gradient(135deg, #00a6ff, #0d68c3);
+        }
+
+        .settings-toggle input:checked + .settings-toggle__slider::before {
+          transform: translateX(20px);
+        }
+
+        .settings-toggle:active .settings-toggle__slider::before {
+          width: 26px;
+        }
+
+        /* ============================================
+          SWIPE DETECTION
+          ============================================ */
+
+        .settings-sheet__panel.swiping {
+          transition: none;
+        }
+
+        /* ============================================
+          RESPONSIVE
+          ============================================ */
+
+        @media (max-width: 380px) {
+          .topbar {
+            padding: 10px 12px;
+          }
+          
+          .topbar__left {
+            gap: 8px;
+          }
+          
+          .avatar-btn,
+          .burger-btn {
+            width: 36px;
+            height: 36px;
+          }
+          
+          .burger-btn__line {
+            width: 16px;
+          }
+          
+          .settings-sheet__title {
+            font-size: 20px;
+          }
+          
+          .settings-item {
+            padding: 14px;
+          }
+          
+          .settings-item__icon {
+            font-size: 20px;
+            width: 36px;
+            height: 36px;
+          }
+        }
+
+        @media (max-height: 600px) {
+          .settings-sheet__panel {
+            max-height: 85vh;
+          }
+          
+          .settings-sheet__title {
+            margin-bottom: 16px;
+          }
+        }
+       /* ============================================
+          FLAG ANIMATION FOR LANGUAGE SWITCHER
+          ============================================ */
+
+        /* Settings Icon Container */
+        .settings-item__icon {
+          font-size: 24px;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 166, 255, 0.1);
+          border-radius: 12px;
+          flex-shrink: 0;
+          overflow: hidden; /* Important for animation */
+          position: relative;
+        }
+
+        /* Flag Image */
+        .settings-flag-img {
+          width: 24px;
+          height: 24px;
+          object-fit: contain;
+          display: block;
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          will-change: transform;
+        }
+
+        /* Flag Switching Animation */
+        .settings-flag-img.flag-switching {
+          animation: flagSwitch 0.3s ease;
+        }
+
+        @keyframes flagSwitch {
+          0% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(-30px) scale(0.7);
+            opacity: 0;
+          }
+          51% {
+            transform: translateY(30px) scale(0.7);
+            opacity: 0;
+          }
+          100% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
+
+        /* Smooth hover effect */
+        .settings-item--clickable:hover .settings-flag-img {
+          transform: scale(1.1);
+        }
+
+        /* Active state */
+        .settings-item--clickable:active .settings-flag-img {
+          transform: scale(0.95);
+        }
+
+        /* ============================================
+          RESPONSIVE
+          ============================================ */
+
+        @media (max-width: 380px) {
+          .settings-flag-img {
+            width: 20px;
+            height: 20px;
+          }
+        }
+
+        /* ============================================
+          ACCESSIBILITY
+          ============================================ */
+
+        @media (prefers-reduced-motion: reduce) {
+          .settings-flag-img,
+          .settings-flag-img.flag-switching {
+            animation: none;
+            transition: none;
+          }
+        }
+
+        /* ============================================
+          ACCESSIBILITY
+          ============================================ */
+
+        @media (prefers-reduced-motion: reduce) {
+          .settings-sheet,
+          .settings-sheet__backdrop,
+          .settings-sheet__panel,
+          .burger-btn__line,
+          .settings-toggle__slider,
+          .settings-toggle__slider::before {
+            transition: none;
+          }
+        }
+
+        @media (prefers-contrast: high) {
+          .avatar-btn {
+            border-width: 2px;
+          }
+          
+          .burger-btn {
+            border-width: 2px;
+          }
+          
+          .settings-item {
+            border: 1px solid rgba(255, 255, 255, 0.15);
+          }
+        }
+
         /* RIGHT BALANCE PILL */
         .balance {
           position: absolute;
@@ -161,7 +676,7 @@
     .history{
       padding: 6px 8px;
       padding-top: 10px;
-      margin-top: 80px;
+      margin-top: 1px;
     }
     .history-list{
       display: flex;
@@ -1937,717 +2452,391 @@
 
 
         
+
         
      
+/* ============================================
+   PROFILE PAGE - REDESIGNED STYLES
+   ============================================ */
 
-                                      /* ===========================
-                                              PROFILE PAGE
-                                      =========================== */
-.profile-card {
-  max-width: 430px;
-  margin: 0 auto;
-  padding: 18px 16px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-/* Аватар */
-.profile-ava {
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid rgba(0,166,255,.25);
-  box-shadow:
-    0 10px 30px rgba(0,0,0,.5),
-    0 0 0 6px rgba(0,166,255,.08),
-    inset 0 2px 4px rgba(255,255,255,.1);
-  transition: transform .3s ease, box-shadow .3s ease;
-}
-.profile-ava:hover {
-  transform: scale(1.05);
-  box-shadow:
-    0 14px 40px rgba(0,166,255,.35),
-    0 0 0 6px rgba(0,166,255,.15),
-    inset 0 2px 4px rgba(255,255,255,.15);
-}
-
-.profile-name {
-  margin: 10px 0 2px;
-  font-size: 20px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: .3px;
-}
-
-.profile-handle {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: #8da1b8;
-  font-weight: 500;
-}
-
-/* ===== CURRENCY SWITCHER ===== */
-.currency-switch {
-  display: flex;
-  gap: 8px;
-  padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  margin-bottom: 6px;
-  position: relative;
-  overflow: hidden;
-}
-
-.currency-switch::before {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(0,166,255,.15), rgba(13,104,195,.15));
-  transform: translateX(var(--switch-x, 0));
-  transition: transform .3s cubic-bezier(.4,0,.2,1);
-  pointer-events: none;
-}
-
-.currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
-  --switch-x: calc(100% + 4px);
-}
-
-.curr-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 12px;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-weight: 700;
-  font-size: 14px;
-  transition: color .3s ease, transform .15s ease;
-  cursor: pointer;
-  z-index: 1;
-}
-
-.curr-btn:active {
-  transform: scale(.95);
-}
-
-.curr-btn--active {
-  color: var(--accent);
-}
-
-.curr-icon {
-  width: 18px;
-  height: 18px;
-  opacity: .8;
-  transition: opacity .3s ease;
-}
-
-.curr-btn--active .curr-icon {
-  opacity: 1;
-}
-
-/* Wallet pill */
-.wallet-pill {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: linear-gradient(180deg, #1a1f2a 0%, #151922 100%);
-  color: #e9eef6;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
-  position: relative;
-  transition: transform .15s ease;
-}
-
-.wallet-pill:active {
-  transform: translateY(1px);
-}
-
-.wallet-pill .icon-16 {
-  width: 20px;
-  height: 20px;
-}
-
-#profileWallet {
-  flex: 1;
-  font-weight: 800;
-  font-size: 14px;
-  letter-spacing: .2px;
-  text-align: left;
-}
-
-.wallet-pill .chev {
-  width: 20px;
-  height: 20px;
-  opacity: .7;
-  transition: transform .2s ease;
-}
-
-.wallet-pill .chev path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.wallet-pill.open .chev {
-  transform: rotate(180deg);
-}
-
-/* Wallet details */
-.wallet-details {
-  width: 100%;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: #141821;
-  box-shadow: 0 8px 24px rgba(0,0,0,.35);
-  animation: slideDown .25s ease;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
+   .profile-card {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 24px 16px 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.wallet-full {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  color: #cfe0ff;
-  word-break: break-all;
-  background: #0f141d;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 10px;
-  padding: 10px;
-  user-select: text;
-}
-
-.wallet-details .row {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.btn {
-  flex: 1;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: #10151d;
-  color: #e9eef6;
-  font-weight: 800;
-  transition: transform .15s ease;
-}
-
-.btn:active {
-  transform: translateY(1px);
-}
-
-.btn-danger {
-  border-color: rgba(255,107,107,.35);
-  color: #ff6b6b;
-}
-
-/* ===== STATISTICS ===== */
-.profile-stats {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.stat-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 10px;
-  text-align: center;
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,166,255,.15);
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 900;
-  color: var(--accent);
-  margin-bottom: 4px;
-  letter-spacing: .3px;
-}
-
-.stat-label {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-}
-
-/* ===== TRANSACTIONS ===== */
-.profile-section {
-  width: 100%;
-  margin-top: 16px;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #ffffff;
-  margin-bottom: 12px;
-  padding-left: 2px;
-}
-
-.tx-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tx-empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 14px;
-  background: var(--card);
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-}
-
-.tx-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: transform .15s ease, box-shadow .15s ease;
-}
-
-.tx-item:active {
-  transform: scale(.98);
-}
-
-.tx-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 900;
-  flex-shrink: 0;
-}
-
-.tx-icon--win {
-  background: rgba(39,201,63,.15);
-  color: var(--ok);
-}
-
-.tx-icon--loss {
-  background: rgba(255,77,79,.15);
-  color: var(--danger);
-}
-
-.tx-info {
-  flex: 1;
-}
-
-.tx-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #ffffff;
-  margin-bottom: 2px;
-}
-
-.tx-time {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.tx-amount {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: .2px;
-}
-
-/* Адаптив */
-@media (max-width: 380px) {
+  
+  /* ÐÐ²Ð°Ñ‚Ð°Ñ€ */
   .profile-ava {
-    width: 96px;
-    height: 96px;
-  }
-  .profile-stats {
-    gap: 8px;
-  }
-  .stat-card {
-    padding: 12px 8px;
-  }
-}
-/* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ПРОФИЛЯ ===== */
-
-/* Улучшенная пилюля пользователя в topbar */
-.pill.pill--user {
-  cursor: pointer;
-  justify-self: start;
-  transition: all .2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.pill.pill--user:hover {
-  background: var(--card);
-  border-color: var(--accent);
-  transform: translateY(-1px);
-}
-
-.pill.pill--user:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.pill-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1.5px solid rgba(0, 166, 255, 0.3);
-  box-shadow: 0 0 8px rgba(0, 166, 255, 0.15);
-}
-
-.pill-username {
-  max-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 700;
-  font-size: 13px;
-}
-
-/* Профиль - улучшенный аватар */
-.profile-ava {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 4px solid rgba(0, 166, 255, 0.3);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.6),
-    0 0 0 8px rgba(0, 166, 255, 0.1),
-    inset 0 2px 6px rgba(255, 255, 255, 0.1);
-  transition: all .3s ease;
-  cursor: pointer;
-}
-
-.profile-ava:hover {
-  transform: scale(1.06);
-  border-color: rgba(0, 166, 255, 0.5);
-  box-shadow:
-    0 16px 48px rgba(0, 166, 255, 0.4),
-    0 0 0 8px rgba(0, 166, 255, 0.18),
-    inset 0 2px 6px rgba(255, 255, 255, 0.15);
-}
-
-/* Имя пользователя */
-.profile-name {
-  margin: 12px 0 4px;
-  font-size: 22px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.4px;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.profile-handle {
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: #8da1b8;
-  font-weight: 500;
-  opacity: 0.9;
-}
-
-/* Кошелек пилюля */
-.wallet-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  max-width: 320px;
-  padding: 12px 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  transition: all .2s ease;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.wallet-pill:hover {
-  background: var(--card);
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 
-    0 6px 16px rgba(0, 166, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.wallet-pill:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.wallet-pill .icon-16 {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.wallet-pill span {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  text-align: left;
-  font-family: 'Courier New', monospace;
-}
-
-.wallet-pill .chev {
-  width: 18px;
-  height: 18px;
-  stroke: var(--muted);
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transition: transform .3s ease;
-}
-
-/* Детали кошелька */
-.wallet-details {
-  width: 100%;
-  max-width: 320px;
-  margin-top: 8px;
-  padding: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  animation: slideDown .25s ease;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.wallet-full {
-  padding: 10px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--muted);
-  word-break: break-all;
-  margin-bottom: 10px;
-  font-family: 'Courier New', monospace;
-  line-height: 1.4;
-}
-
-.wallet-details .row {
-  display: flex;
-  gap: 8px;
-}
-
-.wallet-details .btn {
-  flex: 1;
-  padding: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  border-radius: 10px;
-  transition: all .2s ease;
-}
-
-.wallet-details .btn:hover {
-  transform: translateY(-1px);
-}
-
-.wallet-details .btn:active {
-  transform: translateY(0) scale(0.97);
-}
-
-.btn-danger {
-  background: rgba(255, 77, 79, 0.12);
-  border: 1px solid rgba(255, 77, 79, 0.3);
-  color: var(--danger);
-}
-
-.btn-danger:hover {
-  background: rgba(255, 77, 79, 0.18);
-  border-color: var(--danger);
-}
-
-/* Статистика профиля */
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  width: 100%;
-  max-width: 340px;
-  margin-top: 8px;
-}
-
-.stat-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 10px;
-  text-align: center;
-  transition: all .2s ease;
-}
-
-.stat-card:hover {
-  background: var(--card);
-  border-color: rgba(0, 166, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--accent);
-  margin-bottom: 4px;
-  text-shadow: 0 0 10px rgba(0, 166, 255, 0.3);
-}
-
-.stat-label {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Секция профиля (транзакции и т.д.) */
-.profile-section {
-  width: 100%;
-  max-width: 340px;
-  margin-top: 16px;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text);
-  margin: 0 0 10px;
-  padding: 0 4px;
-  letter-spacing: 0.3px;
-}
-
-.tx-list {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px;
-  min-height: 80px;
-}
-
-.tx-empty {
-  text-align: center;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 20px;
-}
-
-/* Адаптивность */
-@media (max-width: 380px) {
-  .profile-ava {
-    width: 100px;
-    height: 100px;
-    border-width: 3px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid rgba(0, 166, 255, 0.3);
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.6),
+      0 0 0 8px rgba(0, 166, 255, 0.1),
+      inset 0 2px 6px rgba(255, 255, 255, 0.1);
+    transition: all .3s ease;
+    cursor: default;
   }
   
   .profile-name {
-    font-size: 20px;
+    margin: 16px 0 4px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.4px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    text-align: center;
   }
   
   .profile-handle {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #8da1b8;
+    font-weight: 500;
+    opacity: 0.9;
+    text-align: center;
+  }
+  
+  /* ============================================
+     BALANCE DISPLAY
+     ============================================ */
+  
+  .profile-balance {
+    width: 100%;
+    max-width: 340px;
+    padding: 24px 20px;
+    background: linear-gradient(135deg, var(--panel), var(--card));
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    text-align: center;
+    margin-top: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  }
+  
+  .profile-balance__label {
     font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
   }
   
-  .wallet-pill {
-    padding: 10px 14px;
+  .profile-balance__amount {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
   }
   
-  .wallet-pill span {
+  .profile-balance__icon {
+    width: 40px;
+    height: 40px;
+    filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
+    animation: iconPulse 3s ease-in-out infinite;
+  }
+  
+  @keyframes iconPulse {
+    0%, 100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
+    }
+    50% {
+      transform: scale(1.05);
+      filter: drop-shadow(0 0 16px rgba(0, 166, 255, 0.6));
+    }
+  }
+  
+  /* ============================================
+     WALLET CARD - FIXED ANIMATION
+     ============================================ */
+  
+  .wallet-card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .wallet-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .wallet-card__header:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  
+  .wallet-card__header:active {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .wallet-card__icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 166, 255, 0.15);
+    border-radius: 12px;
+  }
+  
+  .wallet-card__info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .wallet-card__label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  
+  .wallet-card__status {
     font-size: 13px;
+    color: var(--muted);
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
-  .profile-stats {
+  .wallet-card__toggle {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .wallet-card__toggle:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+  }
+  
+  .wallet-card__chevron {
+    transition: transform 0.3s ease;
+  }
+  
+  .wallet-card__toggle.open .wallet-card__chevron {
+    transform: rotate(180deg);
+  }
+  
+  /* Ð”ÐµÑ‚Ð°Ð»Ð¸ - FIXED: ÑƒÐ±Ñ€Ð°Ð½Ñ‹ Ð¿Ñ€Ñ‹Ð¶ÐºÐ¸ */
+  .wallet-card__details {
+    /* Ð£Ð±Ð¸Ñ€Ð°ÐµÐ¼ max-height Ð´Ð»Ñ Ð¿Ð»Ð°Ð²Ð½Ð¾Ð¹ Ð°Ð½Ð¸Ð¼Ð°Ñ†Ð¸Ð¸ */
+    overflow: hidden;
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+    opacity: 0;
+    max-height: 0;
+  }
+  
+  .wallet-card__details:not([hidden]) {
+    opacity: 1;
+    max-height: 200px;
+    padding: 0 16px 16px;
+  }
+  
+  .wallet-card__address {
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    user-select: text;
+  }
+  
+  .wallet-card__actions {
+    display: flex;
     gap: 8px;
   }
   
-  .stat-card {
-    padding: 12px 8px;
+  .btn-action {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
-  .stat-value {
-    font-size: 18px;
+  .btn-action svg {
+    flex-shrink: 0;
   }
   
-  .stat-label {
-    font-size: 10px;
+  .btn-action:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
   }
-}
-
-/* Поддержка темной темы Telegram */
-@media (prefers-color-scheme: dark) {
-  .profile-ava {
-    box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.8),
-      0 0 0 8px rgba(0, 166, 255, 0.12),
-      inset 0 2px 6px rgba(255, 255, 255, 0.08);
+  
+  .btn-action:active {
+    transform: translateY(0);
   }
-}
+  
+  .btn-action--secondary {
+    border-color: rgba(0, 166, 255, 0.3);
+    color: var(--accent);
+  }
+  
+  .btn-action--secondary:hover {
+    background: rgba(0, 166, 255, 0.1);
+    border-color: rgba(0, 166, 255, 0.5);
+  }
+  
+  .btn-action--danger {
+    border-color: rgba(255, 77, 79, 0.3);
+    color: var(--danger);
+  }
+  
+  .btn-action--danger:hover {
+    background: rgba(255, 77, 79, 0.1);
+    border-color: rgba(255, 77, 79, 0.5);
+  }
+  
+  /* ============================================
+     PROFILE ACTIONS
+     ============================================ */
+  
+  .profile-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 340px;
+  }
+  
+  .profile-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .profile-action-btn:hover {
+    background: var(--card);
+    border-color: rgba(0, 166, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
+  }
+  
+  .profile-action-btn:active {
+    transform: translateY(0);
+  }
+  
+  .profile-action-icon {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  
+  .profile-action-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+  }
+  
+  /* ============================================
+     boah
+     ============================================ */
+  
+  @media (max-width: 380px) {
+    .profile-ava {
+      width: 100px;
+      height: 100px;
+      border-width: 3px;
+    }
+    
+    .profile-name {
+      font-size: 20px;
+    }
+    
+    .profile-balance__amount {
+      font-size: 32px;
+    }
+    
+    .profile-balance__icon {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .profile-actions {
+      gap: 10px;
+    }
+    
+    .profile-action-btn {
+      padding: 14px 10px;
+    }
+    
+    .profile-action-label {
+      font-size: 11px;
+    }
+  }
 
-/* Монопространственный шрифт для адресов */
-.mono {
-  font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-  font-size: 11px;
-  letter-spacing: -0.2px;
-}
-
-
-
-
-
-
+  
+  /* ============================================
+     ACCESSIBILITY
+     ============================================ */
+  
+  @media (prefers-reduced-motion: reduce) {
+    .wallet-card,
+    .wallet-card__details,
+    .wallet-card__chevron,
+    .btn-action,
+    .profile-action-btn,
+    .profile-balance__icon {
+      animation: none;
+      transition: none;
+    }
+  }
 
 
 
@@ -2816,9 +3005,9 @@
 
 
       /* ============================================
-   DEPOSIT POPUPS - ИСПРАВЛЕННАЯ ВЕРСИЯ
-   Убраны прыжки при открытии
-   ============================================ */
+      DEPOSIT POPUPS - ИСПРАВЛЕННАЯ ВЕРСИЯ
+      Убраны прыжки при открытии
+      ============================================ */
 
 .deposit-popup {
   position: fixed;
