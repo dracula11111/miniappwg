@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, minimal-ui">
-  <title>Wild Gift</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>Wild Time</title>
 
   <!-- TonConnect UI (библиотека, без инициализации здесь) -->
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
@@ -17,7 +17,6 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  
 <!-- Splash Screen с фоновым изображением -->
 <div id="splash" class="splash">
   <!-- Фоновое изображение - замените на своё -->
@@ -46,20 +45,14 @@
 </div>
 
   <div class="app">
-    <div class="app" id="appRoot">
-      <!-- ===== LOGO HEADER ===== -->
-      <div class="logo-header">
-        <img src="images/logo/logo.png" alt="Wild Time" class="main-logo" />
-      </div>
     
-      <!-- ===== TOP BAR ===== -->
-      <header class="topbar" role="banner" aria-label="Верхняя панель">
+    
+    <div class="logo-header">
+      <img src="/images/logo.png" alt="Wild Gift" class="main-logo" />
+    </div>
+   <!-- ===== TOP BAR ===== -->
+<header class="topbar" role="banner">
 
-  <!-- Пилюля профиля (аватар + имя) -->
-  <button id="userPill" class="pill pill--user" type="button" aria-label="Open profile">
-    <img id="userAvatar" class="pill-avatar" src="/images/avatar-default.png" alt="" />
-    <span id="userName" class="pill-username">Guest</span>
-  </button>
 
   <!-- TON/Stars баланс (открывает депозит) -->
   <div class="balance">
