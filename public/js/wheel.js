@@ -1,4 +1,4 @@
-// wheel.js - FINAL VERSION - Perfect currency sync + history only on wheel page
+// wheel.js - FINAL VERSION - Separate images for wheel and bets
 
 /* ===== CONFIG ===== */
 const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
@@ -19,10 +19,15 @@ const COLORS = {
   'Wild Time': { fill: '#c5161d', text: '#fff' }
 };
 
+// 🔥 НОВОЕ: Раздельные пути для изображений (ВСЕ сегменты)
 const IMAGES = {
-  '50&50'    : '/images/bets/50-50.png',
-  'Loot Rush': '/images/bets/loot.png',
-  'Wild Time': '/images/bets/wild.png'
+  '1x'       : '/images/wheel/1x.png',
+  '3x'       : '/images/wheel/3x.png',
+  '7x'       : '/images/wheel/7x.png',
+  '11x'      : '/images/wheel/11x.png',
+  '50&50'    : '/images/wheel/50-50.png',
+  'Loot Rush': '/images/wheel/loot.png',
+  'Wild Time': '/images/wheel/wild.png'
 };
 
 const LABELS = { 
@@ -83,7 +88,7 @@ function preloadImages() {
     })
   ).then(() => {
     imagesLoaded = true;
-    console.log('[Wheel] ✅ All images loaded');
+    console.log('[Wheel] ✅ All wheel images loaded from /images/wheel/');
   });
 }
 
@@ -347,6 +352,7 @@ function drawWheel(angle=0){
     ctx.arc(0,0,R,a0,a1,false);
     ctx.closePath();
     
+    // 🔥 НОВОЕ: Если есть изображение - показываем только его, без цвета и текста
     if (imagesLoaded && loadedImages.has(key)) {
       const img = loadedImages.get(key);
       
@@ -356,8 +362,9 @@ function drawWheel(angle=0){
       const mid = a0 + SLICE_ANGLE/2;
       ctx.rotate(mid);
       
-      const imgWidth = R * 1.2;
-      const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.2;
+      // 🎯 Оптимальный размер для заполнения сегмента
+      const imgWidth = R * 1.15;
+      const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.4;
       
       ctx.drawImage(
         img, 
@@ -366,34 +373,32 @@ function drawWheel(angle=0){
       );
       
       ctx.restore();
-      
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = col.fill;
-      ctx.fill();
-      ctx.globalAlpha = 1;
     } else {
+      // Fallback: если нет изображения - показываем цветной сегмент с текстом
       ctx.fillStyle = col.fill; 
       ctx.fill();
+      
+      const mid = a0 + SLICE_ANGLE/2;
+      ctx.rotate(mid);
+      ctx.textAlign='right';
+      ctx.textBaseline='middle';
+      ctx.fillStyle = col.text;
+      ctx.font='bold 16px mf, system-ui, sans-serif';
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(LABELS[key] || key, R-16, 0);
+      ctx.shadowBlur = 0;
     }
 
+    // Граница сегмента (всегда)
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(255,255,255,.2)';
     ctx.stroke();
-
-    const mid = a0 + SLICE_ANGLE/2;
-    ctx.rotate(mid);
-    ctx.textAlign='right';
-    ctx.textBaseline='middle';
-    ctx.fillStyle = col.text;
-    ctx.font='bold 16px mf, system-ui, sans-serif';
-    ctx.shadowColor = 'rgba(0,0,0,0.8)';
-    ctx.shadowBlur = 4;
-    ctx.fillText(LABELS[key] || key, R-16, 0);
-    ctx.shadowBlur = 0;
     
     ctx.restore();
   }
 
+  // Центральный круг
   ctx.beginPath(); 
   ctx.arc(0,0,20,0,2*Math.PI);
   ctx.fillStyle='#121212'; 
@@ -505,7 +510,7 @@ function checkBetsAndShowResult(resultType) {
     
     showWinNotification(winAmount);
   } else {
-    console.log('[Wheel] 😔 LOSS', {
+    console.log('[Wheel] 😢 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
       totalLost: totalBets,
@@ -1095,4 +1100,4 @@ if (!document.getElementById('wheel-animations')) {
   document.head.appendChild(style);
 }
 
-console.log('[Wheel] ✅ Module loaded');
+console.log('[Wheel] ✅ Module loaded - Images from /images/wheel/');
