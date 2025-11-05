@@ -88,7 +88,7 @@
         /* LOGO MID */
         .logo-header {
           position: absolute;
-          margin-top: 22px;
+          margin-top: 25px;
           top: calc(var(--safe-top) + 22px); /* было +12px, теперь ниже на 10px */
           left: 50%;
           transform: translateX(-50%);
@@ -365,41 +365,93 @@
         }
 
         /* Icon */
-        .settings-item__icon {
-          font-size: 24px;
-          width: 40px;
-          height: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0, 166, 255, 0.1);
-          border-radius: 12px;
-          flex-shrink: 0;
-        }
+        /* ==========================
+   Settings icons (about / support)
+   ========================== */
 
-        /* Info */
-        .settings-item__info {
-          flex: 1;
-          min-width: 0;
-        }
+/* Контейнер иконки (в index.html: .settings-item__icon) */
+.settings-item__icon {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  transition: background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+}
 
-        .settings-item__label {
-          font-size: 15px;
-          font-weight: 600;
-          color: #ffffff;
-          margin-bottom: 2px;
-        }
+/* Общая картинка-иконка (файлы SVG в <img> с классом .settings-icon-img) */
+.settings-icon-img,
+.settings-item__icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease, color 0.18s ease;
+  /* Если ваш SVG использует stroke/currentColor — это поможет перекрашивать */
+  color: var(--muted);
+  filter: none;
+}
 
-        .settings-item__value {
-          font-size: 13px;
-          color: rgba(255, 255, 255, 0.5);
-        }
+/* Default look (muted) */
+.settings-item__icon .settings-icon-img,
+.settings-item__icon svg {
+  opacity: 0.95;
+  color: var(--muted);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+}
 
-        /* Chevron */
-        .settings-item__chevron {
-          color: rgba(255, 255, 255, 0.3);
-          flex-shrink: 0;
-        }
+/* Hover / active state for clickable items */
+.settings-item--clickable:hover .settings-item__icon {
+  background: linear-gradient(180deg, rgba(0,166,255,0.06), rgba(13,104,195,0.03));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,166,255,0.08);
+}
+.settings-item--clickable:hover .settings-item__icon .settings-icon-img,
+.settings-item--clickable:hover .settings-item__icon svg {
+  transform: translateY(-1px) scale(1.05);
+  color: var(--accent); /* переменная из вашего файла (голубой) */
+  filter: drop-shadow(0 4px 14px rgba(0,166,255,0.18));
+}
+
+/* Focus (keyboard accessible) */
+.settings-item__icon:focus-within,
+.settings-item__icon:focus {
+  outline: 2px solid rgba(0,166,255,0.18);
+  outline-offset: 2px;
+}
+
+/* Специальные модификаторы — к ним можно привязать разные цвета/эффекты */
+.settings-icon-img--about,
+.settings-item__icon--about svg {
+  color: #9ae6ff; /* светлый голубой — для About */
+  filter: drop-shadow(0 2px 8px rgba(10,150,220,0.12));
+}
+
+.settings-icon-img--support,
+.settings-item__icon--support svg {
+  color: #ffd27a; /* тёплый жёлтый — для Support (полезно выделить) */
+  filter: drop-shadow(0 2px 8px rgba(255,200,90,0.12));
+}
+
+/* Small-screen tweak */
+@media (max-width: 380px) {
+  .settings-item__icon { width:40px; height:40px; }
+  .settings-icon-img, .settings-item__icon svg { width:20px; height:20px; }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .settings-item__icon,
+  .settings-icon-img,
+  .settings-item__icon svg {
+    transition: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
 
         /* ============================================
           TOGGLE SWITCH
