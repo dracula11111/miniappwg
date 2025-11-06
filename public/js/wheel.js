@@ -1209,7 +1209,258 @@ if (!document.getElementById('wheel-animations')) {
   `;
   document.head.appendChild(style);
 }
+// wheel.js - BONUS FIXED VERSION
 
+/* ===== 🔥 BONUS 50/50 INTEGRATION ===== */
+window.start5050Bonus = async function(betAmount) {
+  console.log('[Wheel] 🎰 Starting 50/50 bonus with bet:', betAmount);
+  
+  const overlay = document.getElementById('bonus5050Overlay');
+  const container = document.getElementById('bonus5050Container');
+  
+  if (!overlay || !container) {
+    console.error('[Wheel] ❌ Bonus overlay not found!');
+    return;
+  }
+  
+  // Show overlay
+  overlay.style.display = 'flex';
+  
+  // Create bonus instance
+  const bonus = new Bonus5050(container, {
+    introPngUrl: '/images/bets/50-50.png',
+    boomSvgUrl: '/images/boom.webp',
+    onComplete: (result) => {
+      console.log('[Wheel] 🎰 Bonus completed with result:', result);
+      
+      // Calculate win
+      if (result && betAmount > 0) {
+        const multiplier = parseFloat(result.replace('x', ''));
+        const winAmount = betAmount * multiplier;
+        
+        console.log('[Wheel] 💰 Bonus win:', winAmount);
+        
+        // Add win in test mode
+        if (window.WheelGame && window.WheelGame.addWinAmount) {
+          window.WheelGame.addWinAmount(winAmount, window.WheelGame.getCurrentCurrency());
+        }
+        
+        // Show win notification
+        setTimeout(() => {
+          showWinNotification(winAmount);
+        }, 500);
+      }
+      
+      // Hide overlay
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        container.innerHTML = '';
+      }, 1000);
+    }
+  });
+  
+  // Start bonus
+  await bonus.start();
+};
+
+// Export functions for bonus
+window.WheelGame = window.WheelGame || {};
+window.WheelGame.addWinAmount = function(amount, currency) {
+  if (window.TEST_MODE) {
+    if (currency === 'ton') {
+      window.userBalance.ton += amount;
+    } else {
+      window.userBalance.stars += amount;
+    }
+    
+    // Update UI
+    window.dispatchEvent(new CustomEvent('balance:update', {
+      detail: { 
+        ton: window.userBalance.ton, 
+        stars: window.userBalance.stars,
+        _testMode: true
+      }
+    }));
+  }
+};
+
+window.WheelGame.getCurrentCurrency = function() {
+  return window.currentCurrency || 'ton';
+};
+
+console.log('[Wheel] ✅ Bonus integration ready');
+
+// wheel.js - NOTIFICATION FUNCTIONS - Telegram Style
+
+/* ===== 🔥 WIN NOTIFICATION - CLEAN STYLE ===== */
+function showWinNotification(winAmount) {
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
+    return;
+  }
+  
+  const existing = document.getElementById('win-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'win-toast';
+  
+  const formattedAmount = currentCurrency === 'stars' 
+    ? Math.round(winAmount) 
+    : winAmount.toFixed(2);
+  
+  const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  
+  toast.innerHTML = `
+    <span>+${formattedAmount}</span>
+    <img src="${iconSrc}" style="width: 22px; height: 22px;" />
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'winSlideUp 0.4s ease forwards';
+    setTimeout(() => toast.remove(), 400);
+  }, 2500);
+}
+
+/* ===== 🔥 INSUFFICIENT BALANCE - CLEAN ===== */
+function showInsufficientBalanceNotification() {
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) return;
+  
+  const existing = document.getElementById('insufficient-balance-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'insufficient-balance-toast';
+  toast.textContent = 'Insufficient balance';
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'errorFadeOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
+}
+
+/* ===== 🔥 BONUS NOTIFICATION - CLEAN ===== */
+function showBonusNotification(bonusType) {
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) return;
+  
+  const existing = document.getElementById('bonus-trigger-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'bonus-trigger-toast';
+  
+  toast.innerHTML = `
+    <div>${bonusType}</div>
+    <div>Bonus Round</div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'bonusFadeOut 0.4s ease forwards';
+    setTimeout(() => toast.remove(), 400);
+  }, 1500);
+}
+
+/* ===== 🔥 TEST MODE NOTIFICATION ===== */
+function showTestModeNotification() {
+  const existing = document.getElementById('test-mode-toast');
+  if (existing) return;
+  
+  const toast = document.createElement('div');
+  toast.id = 'test-mode-toast';
+  toast.textContent = '🧪 Test Mode: Unlimited Balance';
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+/* ===== 🔥 CHECK BETS AND SHOW RESULT - SIMPLIFIED ===== */
+function checkBetsAndShowResult(resultType) {
+  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+  
+  const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
+  
+  if (isBonusRound) {
+    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
+    showBonusNotification(resultType);
+    
+    // Trigger bonus after notification
+    if (resultType === '50&50') {
+      setTimeout(() => {
+        const betOn5050 = betsMap.get('50&50') || 0;
+        if (window.start5050Bonus) {
+          window.start5050Bonus(betOn5050);
+        }
+      }, 2000);
+    }
+    
+    return;
+  }
+  
+  if (totalBets <= 0) {
+    console.log('[Wheel] No bets placed');
+    return;
+  }
+
+  const betOnResult = betsMap.get(resultType) || 0;
+  
+  if (betOnResult > 0) {
+    const multiplier = getMultiplier(resultType);
+    const winAmount = betOnResult * multiplier;
+    
+    console.log('[Wheel] 🎉 WIN!', {
+      result: resultType,
+      betAmount: betOnResult,
+      multiplier,
+      winAmount,
+      testMode: TEST_MODE
+    });
+    
+    // Add win to balance in test mode
+    if (TEST_MODE) {
+      addWinAmount(winAmount, currentCurrency);
+    }
+    
+    // Show clean notification
+    showWinNotification(winAmount);
+  } else {
+    console.log('[Wheel] Loss - no win message shown');
+  }
+}
+
+/* ===== 🔥 MULTIPLIER HELPER ===== */
+function getMultiplier(type) {
+  const multipliers = {
+    '1x': 1,
+    '3x': 3,
+    '7x': 7,
+    '11x': 11,
+    '50&50': 2,
+    'Loot Rush': 5,
+    'Wild Time': 10
+  };
+  return multipliers[type] || 1;
+}
+
+console.log('[Wheel] ✅ Notification functions loaded');
 
 
 console.log('[Wheel] ✅ Module loaded - Images from /images/wheel/');
