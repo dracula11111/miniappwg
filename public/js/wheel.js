@@ -1,4 +1,4 @@
-// wheel.js - FINAL VERSION - Separate images for wheel and bets
+// wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
 const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
@@ -19,7 +19,6 @@ const COLORS = {
   'Wild Time': { fill: '#c5161d', text: '#fff' }
 };
 
-// 🔥 НОВОЕ: Раздельные пути для изображений (ВСЕ сегменты)
 const IMAGES = {
   '1x'       : '/images/wheel/1x.png',
   '3x'       : '/images/wheel/3x.png',
@@ -62,9 +61,98 @@ const betsMap = new Map();
 let currentAmount = 0.5;
 let currentCurrency = 'ton';
 let lastRoundResult = null;
-
-// 🔥 NEW: Флаг блокировки ставок до завершения раунда
 let bettingLocked = false;
+
+/* ===== 🔥 TEST MODE BALANCE ===== */
+function initTestModeBalance() {
+  if (!TEST_MODE) return;
+  
+  console.log('[Wheel] 🧪 Initializing test mode with 999 TON and 999 Stars');
+  
+  userBalance.ton = 999;
+  userBalance.stars = 999;
+  
+  // Update currency system
+  if (window.WildTimeCurrency) {
+    window.WildTimeCurrency.setBalance('ton', 999);
+    window.WildTimeCurrency.setBalance('stars', 999);
+  }
+  
+  // Update deposit modules
+  if (window.WTTonDeposit) {
+    window.WTTonDeposit.setBalance(999);
+  }
+  if (window.WTStarsDeposit) {
+    window.WTStarsDeposit.setBalance(999);
+  }
+  
+  // Dispatch event
+  window.dispatchEvent(new CustomEvent('balance:update', {
+    detail: { ton: 999, stars: 999 }
+  }));
+  
+  console.log('[Wheel] ✅ Test balance set:', userBalance);
+}
+
+/* ===== 🔥 DEDUCT BET AMOUNT ===== */
+function deductBetAmount(amount, currency) {
+  if (!TEST_MODE) return;
+  
+  console.log('[Wheel] 💸 Deducting bet:', amount, currency);
+  
+  if (currency === 'ton') {
+    userBalance.ton = Math.max(0, userBalance.ton - amount);
+  } else {
+    userBalance.stars = Math.max(0, userBalance.stars - amount);
+  }
+  
+  updateTestBalance();
+}
+
+/* ===== 🔥 ADD WIN AMOUNT ===== */
+function addWinAmount(amount, currency) {
+  if (!TEST_MODE) return;
+  
+  console.log('[Wheel] 💰 Adding win:', amount, currency);
+  
+  if (currency === 'ton') {
+    userBalance.ton += amount;
+  } else {
+    userBalance.stars += amount;
+  }
+  
+  updateTestBalance();
+}
+
+/* ===== 🔥 UPDATE TEST BALANCE UI ===== */
+function updateTestBalance() {
+  if (!TEST_MODE) return;
+  
+  // Update currency system
+  if (window.WildTimeCurrency) {
+    window.WildTimeCurrency.setBalance('ton', userBalance.ton);
+    window.WildTimeCurrency.setBalance('stars', userBalance.stars);
+  }
+  
+  // Update deposit modules
+  if (window.WTTonDeposit) {
+    window.WTTonDeposit.setBalance(userBalance.ton);
+  }
+  if (window.WTStarsDeposit) {
+    window.WTStarsDeposit.setBalance(userBalance.stars);
+  }
+  
+  // Dispatch event
+  window.dispatchEvent(new CustomEvent('balance:update', {
+    detail: { 
+      ton: userBalance.ton, 
+      stars: userBalance.stars,
+      _testMode: true
+    }
+  }));
+  
+  console.log('[Wheel] 📊 Test balance updated:', userBalance);
+}
 
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
@@ -88,7 +176,7 @@ function preloadImages() {
     })
   ).then(() => {
     imagesLoaded = true;
-    console.log('[Wheel] ✅ All wheel images loaded from /images/wheel/');
+    console.log('[Wheel] ✅ All wheel images loaded');
   });
 }
 
@@ -104,10 +192,15 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if (!canvas) return;
 
-  // 🔥 TEST MODE notification
+  // 🔥 TEST MODE INIT
   if (TEST_MODE) {
     console.log('[Wheel] 🧪 TEST MODE ACTIVE');
     showTestModeNotification();
+    
+    // Initialize test balance
+    setTimeout(() => {
+      initTestModeBalance();
+    }, 500);
   }
 
   await preloadImages();
@@ -117,7 +210,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   initBettingUI();
 
-  // 🔥 SYNC: Загружаем валюту из системы
+  // Sync with currency system
   setTimeout(() => {
     syncWithCurrencySystem();
   }, 150);
@@ -132,11 +225,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     drawWheel(currentAngle);
   });
   
-  // 🔥 HISTORY: Показываем только на странице Wheel
   checkHistoryVisibility();
 });
 
-/* ===== 🔥 CURRENCY SYNC ===== */
+/* ===== CURRENCY SYNC ===== */
 function syncWithCurrencySystem() {
   if (!window.WildTimeCurrency) {
     console.warn('[Wheel] ⚠️ Currency system not ready yet');
@@ -147,8 +239,6 @@ function syncWithCurrencySystem() {
   console.log('[Wheel] 🔄 Syncing with currency system:', savedCurrency);
   
   currentCurrency = savedCurrency;
-  
-  // Обновляем кнопки ставок
   updateAmountButtonsUI(savedCurrency);
   
   console.log('[Wheel] ✅ Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
@@ -170,7 +260,6 @@ function updateAmountButtonsUI(currency) {
       }
     });
     
-    // Активируем первую кнопку
     const firstBtn = amountBtns[0];
     if (firstBtn) {
       firstBtn.classList.add('active');
@@ -190,7 +279,6 @@ function updateAmountButtonsUI(currency) {
       }
     });
     
-    // Активируем первую кнопку
     const firstBtn = amountBtns[0];
     if (firstBtn) {
       firstBtn.classList.add('active');
@@ -201,7 +289,6 @@ function updateAmountButtonsUI(currency) {
   console.log('[Wheel] ✅ Buttons updated, currentAmount:', currentAmount);
 }
 
-// Экспортируем функцию для switch.js
 window.updateCurrentAmount = function(amount) {
   currentAmount = amount;
   console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
@@ -209,7 +296,7 @@ window.updateCurrentAmount = function(amount) {
 
 /* ===== Betting UI ===== */
 function initBettingUI(){
-  // Обработчики кнопок сумм
+  // Amount buttons
   amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       if (phase !== 'betting') return;
@@ -222,28 +309,28 @@ function initBettingUI(){
     });
   });
 
-  // 🔥 Слушаем события баланса
+  // Balance events
   window.addEventListener('balance:loaded', (e) => {
+    if (TEST_MODE) return; // Skip in test mode
+    
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
       userBalance.stars = e.detail.stars || 0;
-      if (!TEST_MODE) {
-        console.log('[Wheel] Balance loaded:', userBalance);
-      }
+      console.log('[Wheel] Balance loaded:', userBalance);
     }
   });
 
   window.addEventListener('balance:update', (e) => {
+    if (TEST_MODE && !e.detail._testMode) return; // Skip external updates in test mode
+    
     if (e.detail) {
       if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
       if (e.detail.stars !== undefined) userBalance.stars = e.detail.stars;
-      if (!TEST_MODE) {
-        console.log('[Wheel] Balance updated:', userBalance);
-      }
+      console.log('[Wheel] Balance updated:', userBalance);
     }
   });
 
-  // 🔥 Слушаем смену валюты
+  // Currency change
   window.addEventListener('currency:changed', (e) => {
     if (e.detail && e.detail.currency) {
       const newCurrency = e.detail.currency;
@@ -253,10 +340,9 @@ function initBettingUI(){
     }
   });
 
-  // 🔥 Обработчик ставок - БЕЗ проверки баланса в TEST_MODE
+  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
-      // 🔥 БЛОКИРОВКА: нельзя ставить пока результат не появился в истории
       if (bettingLocked) {
         console.log('[Wheel] ⛔ Betting locked - waiting for history update');
         tile.classList.add('insufficient-balance');
@@ -269,23 +355,26 @@ function initBettingUI(){
       const seg = tile.dataset.seg;
       const cur = betsMap.get(seg) || 0;
       
-      // 🔥 Проверка баланса ОТКЛЮЧЕНА в тестовом режиме
-      if (!TEST_MODE) {
-        const balance = userBalance[currentCurrency] || 0;
-        
-        if (balance < currentAmount) {
-          tile.classList.add('insufficient-balance');
-          setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
-          showInsufficientBalanceNotification();
-          return;
-        }
+      // 🔥 Balance check (works in test mode too!)
+      const balance = userBalance[currentCurrency] || 0;
+      
+      if (balance < currentAmount) {
+        tile.classList.add('insufficient-balance');
+        setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+        showInsufficientBalanceNotification();
+        return;
       }
       
-      // ✅ Добавляем ставку
+      // ✅ Add bet
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
       betsMap.set(seg, next);
+
+      // 🔥 Deduct balance immediately in test mode
+      if (TEST_MODE) {
+        deductBetAmount(currentAmount, currentCurrency);
+      }
 
       let badge = tile.querySelector('.bet-badge');
       if (!badge) {
@@ -302,11 +391,21 @@ function initBettingUI(){
     });
   });
 
-  // Очистка ставок
+  // Clear bets
   const clearBtn = document.querySelector('[data-action="clear"]');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       if (phase !== 'betting') return;
+      
+      // 🔥 Refund bets in test mode
+      if (TEST_MODE) {
+        const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+        if (totalBets > 0) {
+          addWinAmount(totalBets, currentCurrency);
+          console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
+        }
+      }
+      
       clearBets();
     });
   }
@@ -352,7 +451,6 @@ function drawWheel(angle=0){
     ctx.arc(0,0,R,a0,a1,false);
     ctx.closePath();
     
-    // 🔥 НОВОЕ: Если есть изображение - показываем только его, без цвета и текста
     if (imagesLoaded && loadedImages.has(key)) {
       const img = loadedImages.get(key);
       
@@ -362,7 +460,6 @@ function drawWheel(angle=0){
       const mid = a0 + SLICE_ANGLE/2;
       ctx.rotate(mid);
       
-      // 🎯 Оптимальный размер для заполнения сегмента
       const imgWidth = R * 1.15;
       const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.4;
       
@@ -374,7 +471,6 @@ function drawWheel(angle=0){
       
       ctx.restore();
     } else {
-      // Fallback: если нет изображения - показываем цветной сегмент с текстом
       ctx.fillStyle = col.fill; 
       ctx.fill();
       
@@ -390,7 +486,6 @@ function drawWheel(angle=0){
       ctx.shadowBlur = 0;
     }
 
-    // Граница сегмента (всегда)
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'rgba(255,255,255,.2)';
     ctx.stroke();
@@ -398,7 +493,6 @@ function drawWheel(angle=0){
     ctx.restore();
   }
 
-  // Центральный круг
   ctx.beginPath(); 
   ctx.arc(0,0,20,0,2*Math.PI);
   ctx.fillStyle='#121212'; 
@@ -424,7 +518,7 @@ function tick(ts){
 
     if (t >= 1){
       currentAngle = decel.end;
-      bettingLocked = true; // 🔥 Блокируем ставки до появления в истории
+      bettingLocked = true;
       const typeFinished = decel.resultType;
       const resolveFn = decel.resolve;
       decel = null;
@@ -471,7 +565,7 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
-/* ===== Проверка ставок и показ результата ===== */
+/* ===== Check bets and show result ===== */
 function checkBetsAndShowResult(resultType) {
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
@@ -508,6 +602,11 @@ function checkBetsAndShowResult(resultType) {
       testMode: TEST_MODE
     });
     
+    // 🔥 Add win to balance in test mode
+    if (TEST_MODE) {
+      addWinAmount(winAmount, currentCurrency);
+    }
+    
     showWinNotification(winAmount);
   } else {
     console.log('[Wheel] 😢 LOSS', {
@@ -532,8 +631,11 @@ function getMultiplier(type) {
   return multipliers[type] || 1;
 }
 
+
+
+
+  
 function showWinNotification(winAmount) {
-  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
   const wheelPage = document.getElementById('wheelPage');
   const isWheelActive = wheelPage?.classList.contains('page-active');
   
@@ -548,14 +650,13 @@ function showWinNotification(winAmount) {
   const toast = document.createElement('div');
   toast.id = 'win-toast';
   
-  const currencySymbol = currentCurrency === 'ton' ? 'TON' : '⭐';
   const formattedAmount = currentCurrency === 'stars' 
     ? Math.round(winAmount) 
     : winAmount.toFixed(2);
   
   toast.style.cssText = `
     position: fixed;
-    top: 20px;
+    top: 120px;
     left: 50%;
     transform: translateX(-50%) translateY(-100px);
     z-index: 10000;
@@ -573,9 +674,18 @@ function showWinNotification(winAmount) {
     animation: winJellyIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
     text-shadow: 0 2px 12px rgba(16, 185, 129, 0.4);
     letter-spacing: 0.5px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   `;
   
-  toast.textContent = `+${formattedAmount} ${currencySymbol}`;
+  const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  
+  toast.innerHTML = `
+    <span>+${formattedAmount}</span>
+    <img src="${iconSrc}" style="width: 24px; height: 24px;" />
+  `;
   
   if (!document.getElementById('win-animations')) {
     const style = document.createElement('style');
@@ -614,7 +724,6 @@ function showWinNotification(winAmount) {
 }
 
 function showInsufficientBalanceNotification() {
-  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
   const wheelPage = document.getElementById('wheelPage');
   const isWheelActive = wheelPage?.classList.contains('page-active');
   
@@ -628,9 +737,11 @@ function showInsufficientBalanceNotification() {
   
   const toast = document.createElement('div');
   toast.id = 'insufficient-balance-toast';
+  
+  // 🔥 FIXED: Lowered position for fullscreen mode
   toast.style.cssText = `
     position: fixed;
-    top: 20px;
+    top: 120px;
     left: 50%;
     transform: translateX(-50%) translateY(-80px);
     z-index: 10000;
@@ -656,7 +767,6 @@ function showInsufficientBalanceNotification() {
 }
 
 function showBonusNotification(bonusType) {
-  // 🔥 ПРОВЕРКА: показываем уведомление ТОЛЬКО на странице wheel
   const wheelPage = document.getElementById('wheelPage');
   const isWheelActive = wheelPage?.classList.contains('page-active');
   
@@ -1099,5 +1209,7 @@ if (!document.getElementById('wheel-animations')) {
   `;
   document.head.appendChild(style);
 }
+
+
 
 console.log('[Wheel] ✅ Module loaded - Images from /images/wheel/');
