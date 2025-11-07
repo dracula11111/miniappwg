@@ -4407,31 +4407,7 @@
 }
 
 
-/* ============================================
-       TELEGRAM-STYLE BONUS OVERLAY
-       ============================================ */
-    
-       #bonus5050Overlay {
-        position: fixed;
-        inset: 0;
-        z-index: 10000;
-        background: rgba(0, 0, 0, 0.95);
-        backdrop-filter: blur(20px);
-        display: none;
-        align-items: center;
-        justify-content: center;
-      }
-      
-      #bonus5050Container {
-        position: relative;
-        width: 100%;
-        max-width: 430px;
-        height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      
+
       /* ============================================
          WIN NOTIFICATION - TELEGRAM STYLE
          ============================================ */

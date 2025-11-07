@@ -575,9 +575,16 @@ function checkBetsAndShowResult(resultType) {
     console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
     showBonusNotification(resultType);
     
-    setTimeout(() => {
-      checkBonusTrigger(resultType);
-    }, 2000);
+    // Запускаем бонус 50/50 если он выпал
+    if (resultType === '50&50') {
+      setTimeout(() => {
+        const betOn5050 = betsMap.get('50&50') || 0;
+        if (window.start5050Bonus) {
+          window.start5050Bonus(betOn5050);
+        }
+      }, 2000);
+    }
+    
     
     return;
   }
@@ -812,18 +819,6 @@ function showBonusNotification(bonusType) {
   }, 1500);
 }
 
-function checkBonusTrigger(resultType) {
-  console.log('[Wheel] Checking bonus trigger for:', resultType);
-  
-  if (resultType === '50&50') {
-    console.log('[Wheel] 🎰 Triggering 50&50 bonus!');
-    setTimeout(() => {
-      if (window.Bonus5050) {
-        window.Bonus5050.start();
-      }
-    }, 1500);
-  }
-}
 
 function showTestModeNotification() {
   const existing = document.getElementById('test-mode-toast');
@@ -1211,55 +1206,48 @@ if (!document.getElementById('wheel-animations')) {
 }
 // wheel.js - BONUS FIXED VERSION
 
-/* ===== 🔥 BONUS 50/50 INTEGRATION ===== */
+// 🔁 ЗАМЕНИ функцию start5050Bonus полностью на эту версию
 window.start5050Bonus = async function(betAmount) {
   console.log('[Wheel] 🎰 Starting 50/50 bonus with bet:', betAmount);
-  
-  const overlay = document.getElementById('bonus5050Overlay');
+
+  const overlay   = document.getElementById('bonus5050Overlay');
   const container = document.getElementById('bonus5050Container');
-  
+
   if (!overlay || !container) {
     console.error('[Wheel] ❌ Bonus overlay not found!');
     return;
   }
-  
-  // Show overlay
+
+  // показать оверлей
   overlay.style.display = 'flex';
-  
-  // Create bonus instance
+
+  // создать инстанс бонуса
   const bonus = new Bonus5050(container, {
     introPngUrl: '/images/bets/50-50.png',
-    boomSvgUrl: '/images/boom.webp',
-    onComplete: (result) => {
-      console.log('[Wheel] 🎰 Bonus completed with result:', result);
-      
-      // Calculate win
-      if (result && betAmount > 0) {
-        const multiplier = parseFloat(result.replace('x', ''));
-        const winAmount = betAmount * multiplier;
-        
-        console.log('[Wheel] 💰 Bonus win:', winAmount);
-        
-        // Add win in test mode
+    boomSvgUrl:  '/images/boom.webp',
+    // ВАЖНО: onComplete вызывается ПОСЛЕ того, как бонус сам спрятал overlay
+    onComplete: (resultStr) => {
+      console.log('[Wheel] 🎯 Bonus completed:', resultStr);
+
+      if (resultStr && betAmount > 0) {
+        const mult = parseFloat(String(resultStr).replace('x','')) || 0;
+        const winAmount = betAmount * mult;
+
+        // тестовый баланс
         if (window.WheelGame && window.WheelGame.addWinAmount) {
           window.WheelGame.addWinAmount(winAmount, window.WheelGame.getCurrentCurrency());
         }
-        
-        // Show win notification
-        setTimeout(() => {
-          showWinNotification(winAmount);
-        }, 500);
+
+        // показать уведомление — ТОЛЬКО СЕЙЧАС (оверлей уже скрыт самим бонусом)
+        showWinNotification(winAmount);
       }
-      
-      // Hide overlay
-      setTimeout(() => {
-        overlay.style.display = 'none';
-        container.innerHTML = '';
-      }, 1000);
+
+      // контейнер почистим на всякий, overlay уже скрыт самим бонусом
+      container.innerHTML = '';
     }
   });
-  
-  // Start bonus
+
+  // поехали
   await bonus.start();
 };
 
@@ -1393,59 +1381,6 @@ function showTestModeNotification() {
 }
 
 /* ===== 🔥 CHECK BETS AND SHOW RESULT - SIMPLIFIED ===== */
-function checkBetsAndShowResult(resultType) {
-  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-  
-  const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
-  
-  if (isBonusRound) {
-    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
-    showBonusNotification(resultType);
-    
-    // Trigger bonus after notification
-    if (resultType === '50&50') {
-      setTimeout(() => {
-        const betOn5050 = betsMap.get('50&50') || 0;
-        if (window.start5050Bonus) {
-          window.start5050Bonus(betOn5050);
-        }
-      }, 2000);
-    }
-    
-    return;
-  }
-  
-  if (totalBets <= 0) {
-    console.log('[Wheel] No bets placed');
-    return;
-  }
-
-  const betOnResult = betsMap.get(resultType) || 0;
-  
-  if (betOnResult > 0) {
-    const multiplier = getMultiplier(resultType);
-    const winAmount = betOnResult * multiplier;
-    
-    console.log('[Wheel] 🎉 WIN!', {
-      result: resultType,
-      betAmount: betOnResult,
-      multiplier,
-      winAmount,
-      testMode: TEST_MODE
-    });
-    
-    // Add win to balance in test mode
-    if (TEST_MODE) {
-      addWinAmount(winAmount, currentCurrency);
-    }
-    
-    // Show clean notification
-    showWinNotification(winAmount);
-  } else {
-    console.log('[Wheel] Loss - no win message shown');
-  }
-}
-
 /* ===== 🔥 MULTIPLIER HELPER ===== */
 function getMultiplier(type) {
   const multipliers = {
@@ -1461,6 +1396,4 @@ function getMultiplier(type) {
 }
 
 console.log('[Wheel] ✅ Notification functions loaded');
-
-
-console.log('[Wheel] ✅ Module loaded - Images from /images/wheel/');
+console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
