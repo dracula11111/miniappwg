@@ -3,6 +3,211 @@
 /* ===== CONFIG ===== */
 const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
 
+// ===== ЭКСПОРТ ДЛЯ АДМИН-ПАНЕЛИ =====
+// Делаем TEST_MODE доступным глобально
+window.TEST_MODE = typeof TEST_MODE !== 'undefined' ? TEST_MODE : false;
+
+// Если TEST_MODE включен, экспортируем дополнительные функции
+if (window.TEST_MODE) {
+  console.log('[Wheel] 🔧 TEST MODE ACTIVE - Exporting admin functions');
+  
+  // Создаем глобальный объект для админских функций
+  window.WheelAdmin = {
+    // Текущие параметры
+    getCurrentState: function() {
+      return {
+        testMode: window.TEST_MODE,
+        balance: window.userBalance || { ton: 0, stars: 0 },
+        currency: window.currentCurrency || 'ton',
+        phase: window.phase || 'unknown',
+        omega: window.omega || 0
+      };
+    },
+    
+    // Принудительное выпадение сегмента
+    forceNextSegment: function(segmentName) {
+      window.forcedNextSegment = segmentName;
+      console.log('[WheelAdmin] Next segment forced to:', segmentName);
+    },
+    
+    // Сброс принудительного выпадения
+    clearForcedSegment: function() {
+      window.forcedNextSegment = null;
+      console.log('[WheelAdmin] Forced segment cleared');
+    },
+    
+    // Изменение скорости колеса
+    setWheelSpeed: function(speed) {
+      if (speed === 'fast') {
+        window.omega = 9.0;
+      } else if (speed === 'slow') {
+        window.omega = 0.35;
+      } else {
+        window.omega = parseFloat(speed) || 0.35;
+      }
+      console.log('[WheelAdmin] Wheel speed set to:', window.omega);
+    },
+    
+    // Мгновенная остановка колеса
+    stopWheel: function() {
+      window.omega = 0;
+      window.phase = 'betting';
+      console.log('[WheelAdmin] Wheel stopped');
+    },
+    
+    // Запуск нового раунда
+    startNewRound: function() {
+      if (window.startCountdown) {
+        window.startCountdown(9);
+        console.log('[WheelAdmin] New round started');
+      }
+    },
+    
+    // Симуляция выпадения сегмента
+    simulateSegmentWin: function(segmentName, betAmount = 1) {
+      console.log('[WheelAdmin] Simulating win for:', segmentName, 'with bet:', betAmount);
+      
+      // Отправляем событие выпадения
+      window.dispatchEvent(new CustomEvent('wheel:landed', {
+        detail: {
+          segment: segmentName,
+          betAmount: betAmount,
+          isSimulated: true
+        }
+      }));
+      
+      // Обрабатываем в зависимости от типа сегмента
+      const multipliers = {
+        '1x': 1,
+        '3x': 3,
+        '7x': 7,
+        '11x': 11
+      };
+      
+      if (multipliers[segmentName]) {
+        // Обычный множитель
+        const winAmount = betAmount * multipliers[segmentName];
+        
+        if (window.showWinNotification) {
+          window.showWinNotification(winAmount);
+        }
+        
+        // Добавляем к балансу
+        if (window.TEST_MODE && window.addWinAmount) {
+          window.addWinAmount(winAmount, window.currentCurrency || 'ton');
+        }
+        
+      } else if (segmentName === '50&50') {
+        // Запуск бонуса 50/50
+        if (window.start5050Bonus) {
+          window.start5050Bonus(betAmount);
+        }
+      } else if (segmentName === 'Loot Rush') {
+        // Бонус Loot Rush (заглушка)
+        console.log('[WheelAdmin] Loot Rush bonus not implemented yet');
+        if (window.showBonusNotification) {
+          window.showBonusNotification('Loot Rush');
+        }
+      } else if (segmentName === 'Wild Time') {
+        // Бонус Wild Time (заглушка)
+        console.log('[WheelAdmin] Wild Time bonus not implemented yet');
+        if (window.showBonusNotification) {
+          window.showBonusNotification('Wild Time');
+        }
+      }
+      
+      // Добавляем в историю
+      this.addToHistory(segmentName);
+    },
+    
+    // Добавление в историю
+    addToHistory: function(segmentName) {
+      const historyList = document.getElementById('historyList');
+      if (!historyList) return;
+      
+      const historyItem = document.createElement('div');
+      historyItem.className = 'history-item';
+      
+      const historyIcons = {
+        '1x': '/images/history/1x_small.png',
+        '3x': '/images/history/3x_small.png',
+        '7x': '/images/history/7x_small.png',
+        '11x': '/images/history/11x_small.png',
+        '50&50': '/images/history/50-50_small.png',
+        'Loot Rush': '/images/history/loot_small.png',
+        'Wild Time': '/images/history/wild_small.png'
+      };
+      
+      historyItem.innerHTML = `<img src="${historyIcons[segmentName] || '/images/history/1x_small.png'}" alt="${segmentName}" />`;
+      historyList.insertBefore(historyItem, historyList.firstChild);
+      
+      // Ограничиваем историю 10 элементами
+      while (historyList.children.length > 10) {
+        historyList.removeChild(historyList.lastChild);
+      }
+    },
+    
+    // Сброс баланса
+    resetBalance: function() {
+      if (window.TEST_MODE) {
+        window.userBalance = { ton: 999, stars: 999 };
+        
+        if (window.WildTimeCurrency) {
+          window.WildTimeCurrency.setBalance('ton', 999);
+          window.WildTimeCurrency.setBalance('stars', 999);
+        }
+        
+        if (window.updateTestBalance) {
+          window.updateTestBalance();
+        }
+        
+        console.log('[WheelAdmin] Balance reset to 999');
+      }
+    },
+    
+    // Очистка истории
+    clearHistory: function() {
+      const historyList = document.getElementById('historyList');
+      if (historyList) {
+        historyList.innerHTML = '';
+        console.log('[WheelAdmin] History cleared');
+      }
+    },
+    
+    // Переключение валюты
+    switchCurrency: function() {
+      if (window.WildTimeCurrency) {
+        const current = window.WildTimeCurrency.current;
+        const newCurrency = current === 'ton' ? 'stars' : 'ton';
+        window.WildTimeCurrency.switch(newCurrency);
+        console.log('[WheelAdmin] Currency switched to:', newCurrency);
+      }
+    }
+  };
+  
+  // Экспортируем глобальные переменные для админ-панели
+  window.addEventListener('DOMContentLoaded', () => {
+    // Делаем переменные доступными глобально после инициализации
+    setTimeout(() => {
+      if (typeof userBalance !== 'undefined') window.userBalance = userBalance;
+      if (typeof currentCurrency !== 'undefined') window.currentCurrency = currentCurrency;
+      if (typeof omega !== 'undefined') window.omega = omega;
+      if (typeof phase !== 'undefined') window.phase = phase;
+      if (typeof currentAngle !== 'undefined') window.currentAngle = currentAngle;
+      if (typeof addWinAmount !== 'undefined') window.addWinAmount = addWinAmount;
+      if (typeof showWinNotification !== 'undefined') window.showWinNotification = showWinNotification;
+      if (typeof showBonusNotification !== 'undefined') window.showBonusNotification = showBonusNotification;
+      if (typeof start5050Bonus !== 'undefined') window.start5050Bonus = start5050Bonus;
+      if (typeof startCountdown !== 'undefined') window.startCountdown = startCountdown;
+      if (typeof updateTestBalance !== 'undefined') window.updateTestBalance = updateTestBalance;
+      
+      console.log('[WheelAdmin] ✅ Admin functions exported successfully');
+    }, 1000);
+  });
+}
+
+// ===== КОНЕЦ ПАТЧА =====
+
 const WHEEL_ORDER = [
   'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
   '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
@@ -565,30 +770,57 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
+
+
+
+
 /* ===== Check bets and show result ===== */
+/* ===== 🔥 FIXED: Check bets and show result ===== */
 function checkBetsAndShowResult(resultType) {
-  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+  // 1️⃣ Проверяем, что мы на странице колеса
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
   
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Not on wheel page, skipping result processing');
+    return;
+  }
+
+  const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
   
+  // 2️⃣ БОНУСНЫЕ РАУНДЫ - ТОЛЬКО если есть ставка!
   if (isBonusRound) {
-    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
-    showBonusNotification(resultType);
+    const betOnBonus = betsMap.get(resultType) || 0;
     
-    // Запускаем бонус 50/50 если он выпал
-    if (resultType === '50&50') {
-      setTimeout(() => {
-        const betOn5050 = betsMap.get('50&50') || 0;
-        if (window.start5050Bonus) {
-          window.start5050Bonus(betOn5050);
-        }
-      }, 2000);
+    // 🔥 КРИТИЧНО: Проверяем наличие ставки
+    if (betOnBonus <= 0) {
+      console.log(`[Wheel] ❌ No bet on ${resultType}, skipping bonus`);
+      return; // НЕ запускаем бонус если не ставили!
     }
     
+    console.log(`[Wheel] 🎰 BONUS ROUND! ${resultType} with bet: ${betOnBonus}`);
+    showBonusNotification(resultType);
+    
+    // Запускаем соответствующий бонус
+    if (resultType === '50&50') {
+      setTimeout(() => {
+        if (window.start5050Bonus) {
+          window.start5050Bonus(betOnBonus);
+        }
+      }, 2000);
+    } else if (resultType === 'Loot Rush') {
+      console.log('[Wheel] Loot Rush bonus not implemented yet');
+      // TODO: Добавить позже
+    } else if (resultType === 'Wild Time') {
+      console.log('[Wheel] Wild Time bonus not implemented yet');
+      // TODO: Добавить позже
+    }
     
     return;
   }
   
+  // 3️⃣ ОБЫЧНЫЕ МНОЖИТЕЛИ (1x, 3x, 7x, 11x)
   if (totalBets <= 0) {
     console.log('[Wheel] No bets placed');
     return;
@@ -597,6 +829,7 @@ function checkBetsAndShowResult(resultType) {
   const betOnResult = betsMap.get(resultType) || 0;
   
   if (betOnResult > 0) {
+    // Выиграл
     const multiplier = getMultiplier(resultType);
     const winAmount = betOnResult * multiplier;
     
@@ -616,6 +849,7 @@ function checkBetsAndShowResult(resultType) {
     
     showWinNotification(winAmount);
   } else {
+    // Проиграл
     console.log('[Wheel] 😢 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
@@ -624,6 +858,37 @@ function checkBetsAndShowResult(resultType) {
     });
   }
 }
+
+/* ===== 🔥 FIXED: Bonus notification - ONLY on wheel page ===== */
+function showBonusNotification(bonusType) {
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Bonus notification skipped - not on wheel page');
+    return;
+  }
+  
+  const existing = document.getElementById('bonus-trigger-toast');
+  if (existing) existing.remove();
+  
+  const toast = document.createElement('div');
+  toast.id = 'bonus-trigger-toast';
+  
+  toast.innerHTML = `
+    <div>${bonusType}</div>
+    <div>Bonus Round</div>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'bonusFadeOut 0.4s ease forwards';
+    setTimeout(() => toast.remove(), 400);
+  }, 1500);
+}
+
+
 
 function getMultiplier(type) {
   const multipliers = {
