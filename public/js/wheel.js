@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
+const TEST_MODE =  true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
 
 // ===== ЭКСПОРТ ДЛЯ АДМИН-ПАНЕЛИ =====
 // Делаем TEST_MODE доступным глобально
@@ -770,57 +770,30 @@ function tick(ts){
   rafId = requestAnimationFrame(tick);
 }
 
-
-
-
-
 /* ===== Check bets and show result ===== */
-/* ===== 🔥 FIXED: Check bets and show result ===== */
 function checkBetsAndShowResult(resultType) {
-  // 1️⃣ Проверяем, что мы на странице колеса
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
-    console.log('[Wheel] ⚠️ Not on wheel page, skipping result processing');
-    return;
-  }
-
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+  
   const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
   
-  // 2️⃣ БОНУСНЫЕ РАУНДЫ - ТОЛЬКО если есть ставка!
   if (isBonusRound) {
-    const betOnBonus = betsMap.get(resultType) || 0;
-    
-    // 🔥 КРИТИЧНО: Проверяем наличие ставки
-    if (betOnBonus <= 0) {
-      console.log(`[Wheel] ❌ No bet on ${resultType}, skipping bonus`);
-      return; // НЕ запускаем бонус если не ставили!
-    }
-    
-    console.log(`[Wheel] 🎰 BONUS ROUND! ${resultType} with bet: ${betOnBonus}`);
+    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
     showBonusNotification(resultType);
     
-    // Запускаем соответствующий бонус
+    // Запускаем бонус 50/50 если он выпал
     if (resultType === '50&50') {
       setTimeout(() => {
+        const betOn5050 = betsMap.get('50&50') || 0;
         if (window.start5050Bonus) {
-          window.start5050Bonus(betOnBonus);
+          window.start5050Bonus(betOn5050);
         }
       }, 2000);
-    } else if (resultType === 'Loot Rush') {
-      console.log('[Wheel] Loot Rush bonus not implemented yet');
-      // TODO: Добавить позже
-    } else if (resultType === 'Wild Time') {
-      console.log('[Wheel] Wild Time bonus not implemented yet');
-      // TODO: Добавить позже
     }
+    
     
     return;
   }
   
-  // 3️⃣ ОБЫЧНЫЕ МНОЖИТЕЛИ (1x, 3x, 7x, 11x)
   if (totalBets <= 0) {
     console.log('[Wheel] No bets placed');
     return;
@@ -829,7 +802,6 @@ function checkBetsAndShowResult(resultType) {
   const betOnResult = betsMap.get(resultType) || 0;
   
   if (betOnResult > 0) {
-    // Выиграл
     const multiplier = getMultiplier(resultType);
     const winAmount = betOnResult * multiplier;
     
@@ -849,7 +821,6 @@ function checkBetsAndShowResult(resultType) {
     
     showWinNotification(winAmount);
   } else {
-    // Проиграл
     console.log('[Wheel] 😢 LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
@@ -858,37 +829,6 @@ function checkBetsAndShowResult(resultType) {
     });
   }
 }
-
-/* ===== 🔥 FIXED: Bonus notification - ONLY on wheel page ===== */
-function showBonusNotification(bonusType) {
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
-    console.log('[Wheel] ⚠️ Bonus notification skipped - not on wheel page');
-    return;
-  }
-  
-  const existing = document.getElementById('bonus-trigger-toast');
-  if (existing) existing.remove();
-  
-  const toast = document.createElement('div');
-  toast.id = 'bonus-trigger-toast';
-  
-  toast.innerHTML = `
-    <div>${bonusType}</div>
-    <div>Bonus Round</div>
-  `;
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'bonusFadeOut 0.4s ease forwards';
-    setTimeout(() => toast.remove(), 400);
-  }, 1500);
-}
-
-
 
 function getMultiplier(type) {
   const multipliers = {

@@ -185,128 +185,71 @@
       </section>
     </main>
 
-
-
-
-   <!-- ===== CASES PAGE ===== -->
-   <main id="casesPage" class="page">
-    <!-- Filter tabs -->
-    <div class="cases-filter">
-      <button class="filter-tab active" data-filter="all">All</button>
-      <button class="filter-tab" data-filter="limited">Limited</button>
-      <button class="filter-tab" data-filter="rare">Rare</button>
-    </div>
-
-    <section class="cases" aria-label="Cases">
-      <div class="cases-grid" id="casesGrid">
-        <!-- Cases будут генерироваться через JS -->
-      </div>
-    </section>
-  </main>
-
-  <!-- ===== CASE DETAIL PAGE ===== -->
-  <main id="caseDetailPage" class="page">
-    <button id="caseBackBtn" class="back-btn" aria-label="Back to cases">
-      <svg viewBox="0 0 24 24" class="back-icon">
-        <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none"/>
-      </svg>
-      <span>Back</span>
-    </button>
-
-    <section class="case-detail">
-      <div class="case-detail__hero">
-        <img id="caseDetailImage" src="/images/cases/case-01.png" alt="" class="case-detail__image" />
-        <div class="case-detail__glow"></div>
-        
-        <!-- Progress indicator -->
-        <div id="caseProgress" class="case-progress">
-          <div class="case-progress__bar">
-            <div class="case-progress__fill"></div>
-          </div>
-          <div class="case-progress__text">
-            <span id="progressCurrent">0</span> / <span id="progressTotal">0</span>
-          </div>
-        </div>
+    <!-- ===== CASES PAGE ===== -->
+    <main id="casesPage" class="page">
+      <!-- Filter tabs -->
+      <div class="cases-filter">
+        <button class="filter-tab active" data-filter="all">All</button>
+        <button class="filter-tab" data-filter="limited">Limited</button>
+        <button class="filter-tab" data-filter="rare">Rare</button>
       </div>
 
-      <div class="case-detail__info">
-        <div class="case-detail__header">
-          <h2 id="caseDetailTitle" class="case-detail__title">Case Name</h2>
-          <span id="caseDetailRarity" class="case-rarity-badge">Limited</span>
-        </div>
-        
-        <p id="caseDetailDescription" class="case-detail__description">
-          Description of the case
-        </p>
-        
-        <div class="case-detail__stats">
-          <div class="stat-item">
-            <span class="stat-label">Price</span>
-            <div class="stat-value">
-              <img src="/icons/stars.svg" alt="" class="stat-icon" />
-              <span id="caseDetailPrice">0</span>
-            </div>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Opened</span>
-            <div class="stat-value">
-              <span id="caseTotalOpened">0</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="case-actions">
-        <button id="openCaseBtn" class="btn btn--primary btn--large">
-          <span class="btn__text">Open for 0 ⭐</span>
-        </button>
-        
-        <button id="viewRewardsBtn" class="btn btn--ghost btn--large">
-          <span class="btn__text">View All Rewards</span>
-        </button>
-      </div>
-
-      <!-- Rewards section -->
-      <div id="caseRewards" class="case-rewards">
-        <h3 class="case-rewards__title">
-          <span>Main Prize</span>
-        </h3>
-        <div id="mainPrize" class="main-prize">
-          <!-- Главный приз -->
-        </div>
-
-        <h3 class="case-rewards__title">
-          <span>Other prizes</span>
-        </h3>
-        <div id="caseRewardsList" class="case-rewards__list">
-          <!-- Остальные призы -->
-        </div>
-      </div>
-    </section>
-  </main>
-
-    <!-- ===== INVENTORY PAGE ===== -->
-    <main id="inventoryPage" class="page">
-      <section class="inventory" aria-label="Inventory">
-        <h2>Inventory</h2>
-        <div class="inventory-grid">
-          <!-- Плейсхолдеры предметов -->
-          <div class="inv-card">
-            <img src="/images/inventory/item-01.png" alt="Item 1" class="inv-img" />
-            <div class="inv-title">Item 1</div>
-          </div>
-          <div class="inv-card">
-            <img src="/images/inventory/item-02.png" alt="Item 2" class="inv-img" />
-            <div class="inv-title">Item 2</div>
-          </div>
-          <div class="inv-card">
-            <img src="/images/inventory/item-03.png" alt="Item 3" class="inv-img" />
-            <div class="inv-title">Item 3</div>
-          </div>
+      <section class="cases" aria-label="Cases">
+        <div class="cases-grid" id="casesGrid">
+          <!-- Cases будут генерироваться через JS -->
         </div>
       </section>
     </main>
+
+
+
+<!-- ===== CASE BOTTOM SHEET (80vh) ===== -->
+<div id="caseBottomSheet" class="case-bottom-sheet">
+  <div class="case-overlay" id="caseOverlay"></div>
+  
+  <div class="case-sheet-panel">
+    <!-- Header -->
+    <div class="case-sheet-header">
+      <h2 id="caseSheetTitle">Case 1</h2>
+      <button class="case-sheet-close" id="caseSheetClose">×</button>
+    </div>
+
+    <!-- Carousels Container -->
+    <div class="case-carousels-section">
+      <div id="caseCarouselsWrapper" class="case-carousels-wrapper">
+        <!-- Карусели генерируются JS -->
+      </div>
+    </div>
+
+    <!-- Count Switch (1/2/3) -->
+    <div class="case-count-section">
+      <div id="caseCountSwitch" class="case-count-switch">
+        <button class="case-count-btn active" data-count="1">1</button>
+        <button class="case-count-btn" data-count="2">2</button>
+        <button class="case-count-btn" data-count="3">3</button>
+      </div>
+    </div>
+
+    <!-- Contents (scrollable) -->
+    <div class="case-contents-section">
+      <h3 class="case-contents-title">Contents</h3>
+      <div id="caseContentsGrid" class="case-contents-grid">
+        <!-- Айтемы генерируются JS -->
+      </div>
+    </div>
+
+    <!-- Fixed Bottom Button -->
+    <div class="case-bottom-button">
+      <button id="caseOpenBtn" class="case-open-btn">
+        <span>Open</span>
+        <span class="case-open-price">
+          <span id="casePrice">0.01</span>
+          <img id="caseCurrencyIcon" src="/icons/ton.svg" alt="TON">
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
 
 
 
