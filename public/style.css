@@ -2262,8 +2262,45 @@ body.case-sheet-open .case-sheet-panel{
   transition: transform .18s ease;
 }
 
+/* ===== CASES: Claim bar under carousels ===== */
+.case-claim-bar{
+  padding: 10px 14px 6px;
+}
 
+.case-claim-btn{
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  font-weight: 900;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+  -webkit-tap-highlight-color: transparent;
+}
 
+.case-claim-btn:active{ transform: translateY(1px); }
+
+.case-claim-btn__icon{
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.case-claim-btn__amount{
+  font-variant-numeric: tabular-nums;
+}
+
+.case-claim-btn.loading{
+  opacity: 0.8;
+  pointer-events: none;
+}
 
 
 
@@ -2416,30 +2453,13 @@ body.case-sheet-open .case-sheet-panel{
     background: rgba(255, 255, 255, 0.05);
   }
   
-/* Wallet icon: круглое + приятный фон */
-.wallet-card__icon{
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 999px; /* круг */
-  display: flex;
-  align-items: center;
-  justify-content: center;
 
-  /* более “дорогой” фон под твой accent */
-  background: radial-gradient(120% 120% at 30% 20%, rgba(0,166,255,0.35) 0%, rgba(0,166,255,0.10) 45%, rgba(0,0,0,0) 70%),
-              linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-  border: 1px solid rgba(0,166,255,0.28);
-  box-shadow:
-    0 10px 20px rgba(0, 166, 255, 0.10),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
 
 /* чтобы картинка внутри выглядела аккуратно */
 .wallet-card__icon img{
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
+  width: 36px;
+  height: 36px;
+
   border-radius: 6px; /* мягко, если PNG с углами */
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
 }
@@ -2580,6 +2600,66 @@ body.case-sheet-open .case-sheet-panel{
     border-color: rgba(255, 77, 79, 0.5);
   }
   
+  
+  
+/* ============================================
+   PROFILE INVENTORY PANEL (separate)
+   ============================================ */
+
+   .profile-invpanel{
+    width: 100%;
+    max-width: 340px;        /* чтобы совпадало с wallet-card */
+    margin: 16px auto 0;     /* отдельный блок, не “приклеен” */
+    padding: 10px 14px 18px; /* меньше сверху */
+    border-radius: 18px;
+  
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  
+    text-align: center;
+  }
+  
+  .profile-invpanel__title{
+    color: rgba(255,255,255,0.95);
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    margin: 0;              /* убираем верхний/нижний margin */
+    padding-top: 0;         /* на всякий */
+    margin-bottom: 10px;    /* только вниз */
+  }
+  
+  .profile-invpanel__icon{
+    display: flex;
+    justify-content: center;
+    margin: 6px 0 10px;
+  }
+  
+  .profile-invpanel__img{
+    width: 72px;
+    height: 72px;
+    display: block;
+    object-fit: contain;
+  
+    filter: drop-shadow(0 10px 24px rgba(0,0,0,0.45));
+    animation: invFloat 2.6s ease-in-out infinite;
+    transform-origin: 50% 60%;
+  }
+  
+  .profile-invpanel__text{
+    color: rgba(255,255,255,0.82);
+    font-weight: 700;
+    font-size: 14px;
+  }
+  
+  @keyframes invFloat{
+    0%   { transform: translateY(0) scale(1); }
+    50%  { transform: translateY(-6px) scale(1.02); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  
+
   /* ============================================
      PROFILE ACTIONS
      ============================================ */
@@ -2734,6 +2814,19 @@ body.case-sheet-open .case-sheet-panel{
               background: rgba(0, 166, 255, 0.1);
               box-shadow: inset 0 0 0 1px rgba(0, 166, 255, 0.22);
             }
+            /* Bottom nav: profile avatar вместо svg */
+              .nav-avatar{
+                width: 24px;
+                height: 24px;
+                border-radius: 999px;
+                object-fit: cover;
+                display: block;
+                border: 1px solid rgba(255,255,255,0.14);
+              }
+              .bottom-nav .nav-item.active .nav-avatar{
+                border-color: rgba(0,166,255,0.55);
+              }
+              
 
             /* иконки — поменьше */
             .nav-icon {

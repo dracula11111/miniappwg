@@ -737,144 +737,138 @@
     }
   }
 
-  // ====== WIN OVERLAY HELPERS ======
-  function ensureWinOverlay() {
-    let el = document.getElementById('caseWinOverlay');
-    if (el) return el;
 
-    el = document.createElement('div');
-    el.id = 'caseWinOverlay';
-    el.className = 'case-win-overlay';
-    el.innerHTML = `
-      <div class="case-win-card" role="dialog" aria-live="polite">
-        <div class="case-win-media" id="caseWinMedia"></div>
-        <div class="case-win-value" id="caseWinValue"></div>
-      </div>
-    `;
-    document.body.appendChild(el);
-    return el;
+// ====== CLAIM BAR (under carousels) ======
+function ensureClaimBar() {
+  let bar = document.getElementById('caseClaimBar');
+  if (bar) return bar;
+
+  // Вставляем сразу под блоком каруселей
+  const section = document.querySelector('.case-carousels-section');
+  if (!section) return null;
+
+  bar = document.createElement('div');
+  bar.id = 'caseClaimBar';
+  bar.className = 'case-claim-bar';
+  bar.hidden = true;
+
+  bar.innerHTML = `
+    <button id="caseClaimBtn" class="case-claim-btn" type="button">
+      <span class="case-claim-btn__label">Claim</span>
+      <span class="case-claim-btn__amount" id="caseClaimAmount">0</span>
+      <img class="case-claim-btn__icon" id="caseClaimIcon" src="/icons/ton.svg" alt="">
+    </button>
+  `;
+
+  // Вставим после секции каруселей
+  section.insertAdjacentElement('afterend', bar);
+  return bar;
+}
+
+function hideClaimBar() {
+  const bar = document.getElementById('caseClaimBar');
+  if (!bar) return;
+  bar.hidden = true;
+
+  const btn = document.getElementById('caseClaimBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.classList.remove('loading');
   }
+}
 
-  // ====== SHOW RESULT ======
-  function showResult(currency) {
-    // Get winning items from carousels
-    const wonItems = carousels.map(c => c.winningItem).filter(Boolean);
-    const count = wonItems.length;
 
-    console.log('[Cases] 🎉 Won items:', wonItems.map(i => i.id));
+// ====== SHOW RESULT (Claim button under carousels) ======
+function showResult(currency) {
+  const tg = window.Telegram?.WebApp;
+  const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
+  const initData = tg?.initData || "";
 
-    // Calculate total value in the current currency (locked for this spin)
-    const totalValue = wonItems.reduce((sum, item) => sum + (item.price?.[currency] || 0), 0);
-    const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  const wonItems = carousels.map(c => c.winningItem).filter(Boolean);
+  const totalValueRaw = wonItems.reduce((sum, item) => sum + (item.price?.[currency] || 0), 0);
 
-    // Render result panel
-    const overlayEl = ensureWinOverlay();
-    const mediaEl = overlayEl.querySelector('#caseWinMedia');
-    const valueEl = overlayEl.querySelector('#caseWinValue');
+  // Нормализуем сумму
+  const totalValue =
+    currency === 'stars'
+      ? Math.max(0, Math.round(totalValueRaw))
+      : Math.max(0, +(+totalValueRaw).toFixed(2));
 
-    if (!mediaEl || !valueEl) return;
+  const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
 
-    if (!count) {
-      mediaEl.innerHTML = '';
-      valueEl.innerHTML = '';
-      overlayEl.classList.add('show');
-      return;
-    }
+  const bar = ensureClaimBar();
+  if (!bar) return Promise.resolve();
 
-    if (count === 1) {
-      const item = wonItems[0];
-      mediaEl.innerHTML = `
-        <div class="case-win-single">
-          <div class="case-win-gift">
-            <div class="case-win-gift__bg"></div>
-            <img src="/images/gifts/${item.icon}" alt="${item.id}">
-          </div>
-        </div>
-      `;
+  const btn = bar.querySelector('#caseClaimBtn');
+  const amountEl = bar.querySelector('#caseClaimAmount');
+  const iconEl = bar.querySelector('#caseClaimIcon');
 
-      valueEl.innerHTML = `
-        <div class="case-win-total">
-          <span class="case-win-plus">+${formatAmount(currency, totalValue)}</span>
-          <img class="case-win-icon" src="${icon}" alt="${currency}">
-        </div>
-      `;
-    } else if (count === 2) {
-      mediaEl.innerHTML = `
-        <div class="case-win-double">
-          ${wonItems.map((item, idx) => `
-            <div class="case-win-tile">
-              <div class="case-win-label">Gift ${idx + 1}</div>
-              <div class="case-win-gift">
-                <div class="case-win-gift__bg"></div>
-                <img src="/images/gifts/${item.icon}" alt="${item.id}">
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
+  if (!btn || !amountEl || !iconEl) return Promise.resolve();
 
-      valueEl.innerHTML = `
-        <div class="case-win-total">
-          <span class="case-win-plus">+${formatAmount(currency, totalValue)}</span>
-          <img class="case-win-icon" src="${icon}" alt="${currency}">
-        </div>
-      `;
-    } else {
-      // Three or more cases: Grid layout + total value below
-      const displayItems = wonItems.slice(0, 3);
-      mediaEl.innerHTML = `
-        <div class="case-win-triple">
-          ${displayItems.map((item, idx) => `
-            <div class="case-win-tile">
-              <div class="case-win-label">Gift ${idx + 1}</div>
-              <div class="case-win-gift">
-                <div class="case-win-gift__bg"></div>
-                <img src="/images/gifts/${item.icon}" alt="${item.id}">
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
+  iconEl.src = icon;
+  amountEl.textContent = formatAmount(currency, totalValue);
 
-      if (count > 3) {
-        mediaEl.insertAdjacentHTML('beforeend', `<div class="case-win-more">+${count - 3} more gifts</div>`);
+  bar.hidden = false;
+
+  // Не даём открыть ещё раз пока не заклеймили
+  openBtn.disabled = true;
+  openBtn.style.opacity = '0.6';
+
+  return new Promise((resolve) => {
+    const onClaim = async () => {
+      btn.disabled = true;
+      btn.classList.add('loading');
+
+      try {
+        if (!isDemoMode) {
+          // 1) моментально начисляем в UI
+          applyBalanceDelta(currency, totalValue);
+
+          // 2) сохраняем на сервере (чтобы после перезагрузки не пропало)
+          const depositId = `casewin_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+          await fetch('/api/deposit-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: totalValue,
+              currency,
+              userId: tgUserId,
+              initData,
+              timestamp: Date.now(),
+              depositId,
+              type: 'case_win'
+            })
+          }).catch(() => {});
+        }
+
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      } finally {
+        // прячем кнопку
+        bar.hidden = true;
+
+        // Reset carousels back to idle
+        carousels.forEach((carousel) => {
+          carousel.element.classList.remove('cases-finished');
+          resetCarouselToIdleFromCurrent(carousel);
+        });
+
+        startIdleAnimation();
+
+        // возвращаем Open
+        openBtn.disabled = false;
+        openBtn.style.opacity = '1';
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.removeEventListener('click', onClaim);
+
+        resolve();
       }
+    };
 
-      valueEl.innerHTML = `
-        <div class="case-win-total">
-          <span class="case-win-plus">+${formatAmount(currency, totalValue)}</span>
-          <img class="case-win-icon" src="${icon}" alt="${currency}">
-        </div>
-      `;
-    }
-
-    overlayEl.classList.add('show');
-
-    // Auto close + balance update AFTER close (skip for demo)
-    return new Promise(resolve => {
-      setTimeout(() => {
-        overlayEl.classList.add('hide');
-        overlayEl.classList.remove('show');
-
-        setTimeout(() => {
-          overlayEl.classList.remove('hide');
-
-          if (!isDemoMode) {
-            applyBalanceDelta(currency, totalValue);
-          }
-
-          // Reset carousels to idle (без резкой смены "линии")
-          carousels.forEach((carousel) => {
-            carousel.element.classList.remove('cases-finished');
-            resetCarouselToIdleFromCurrent(carousel);
-          });
-
-          startIdleAnimation();
-          resolve();
-        }, 400);
-      }, 3000);
-    });
-  }
+    btn.addEventListener('click', onClaim, { once: true });
+  });
+}
 
   // ====== CURRENCY CHANGE LISTENER ======
   window.addEventListener('currency:changed', (e) => {

@@ -334,31 +334,19 @@
   </div>
 </div>
 
+<!-- Inventory panel (separate, bottom of Profile page) -->
+<section class="profile-invpanel" id="profileInventoryPanel">
+  <div class="profile-invpanel__title">Inventory</div>
 
-    <!-- Quick Actions -->
-    <div class="profile-actions">
-      <button class="profile-action-btn" data-action="deposit">
-        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="profile-action-label">Deposit</span>
-      </button>
-      
-      <button class="profile-action-btn" data-action="history">
-        <svg class="profile-action-icon" viewBox="0 0 24 24" width="24" height="24">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-          <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <span class="profile-action-label">History</span>
-      </button>
-      
-      <button class="profile-action-btn" data-action="settings">
-        <div class="profile-action-icon-custom">
-          <img src="/images/settings.svg" alt="" class="profile-custom-icon" />
-        </div>
-        <span class="profile-action-label">Settings</span>
-      </button>
-    </div>
+  <div class="profile-invpanel__icon" aria-hidden="true">
+    <img class="profile-invpanel__img" src="/icons/search.webp" alt="">
+  </div>
+
+  <div class="profile-invpanel__text">No gifts yet.</div>
+</section>
+
+
+
 
   </section>
 </main>
@@ -378,14 +366,13 @@
         <img src="/icons/cases.svg" alt="" class="nav-icon" />
         <span class="nav-label">Cases</span>
       </button>
-      <button class="nav-item" data-target="inventoryPage" aria-label="Inventory">
-        <img src="/icons/inventory.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Inventory</span>
-      </button>
+     
+      
       <button class="nav-item" data-target="profilePage" aria-label="Profile">
-        <img src="/icons/profile.svg" alt="" class="nav-icon" />
+        <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
         <span class="nav-label">Profile</span>
       </button>
+      
     </nav>
 
 
