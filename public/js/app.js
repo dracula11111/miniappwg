@@ -37,6 +37,23 @@
     const pg = document.getElementById(id);
     if(pg) pg.classList.add("page-active");
 
+    // выставляем класс страницы на body (для page-specific CSS)
+    // пример: wheelPage -> body.page-wheel
+    try {
+      const body = document.body;
+      // удаляем старые page-* классы
+      body.className = body.className
+        .split(/\s+/)
+        .filter(c => c && !c.startsWith('page-'))
+        .join(' ');
+
+      const pageKey = String(id)
+        .replace(/Page$/,'')
+        .replace(/Page/i,'')
+        .toLowerCase();
+      body.classList.add(`page-${pageKey}`);
+    } catch {}
+
     document.querySelectorAll(".bottom-nav .nav-item").forEach(i=>i.classList.remove("active"));
     document.querySelector(`.bottom-nav .nav-item[data-target="${id}"]`)?.classList.add("active");
 

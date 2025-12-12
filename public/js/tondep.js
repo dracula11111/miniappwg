@@ -215,6 +215,14 @@
     console.log('[TON] 💰 Balance set:', platformBalance.toFixed(2));
   }
 
+  function setConnectBtnState(state, disabled) {
+  if (!btnConnect) return;
+  const textEl = btnConnect.querySelector('.wt-connect-wallet__text');
+  if (textEl) textEl.textContent = state;
+  else btnConnect.textContent = state;
+  btnConnect.disabled = !!disabled;
+}
+
   // ====== CONNECT ======
   btnConnect?.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -222,15 +230,13 @@
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
     
     try {
-      btnConnect.textContent = 'Connecting...';
-      btnConnect.disabled = true;
+      setConnectBtnState('Connecting…', true);
       await tc.openModal();
     } catch (err) {
       console.error('[TON] ❌ Connect error:', err);
       if (tg?.showAlert) tg.showAlert('Failed to connect wallet');
     } finally {
-      btnConnect.textContent = 'Connect Wallet';
-      btnConnect.disabled = false;
+      setConnectBtnState('Connect Wallet', false);
     }
   });
 

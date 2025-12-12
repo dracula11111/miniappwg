@@ -314,7 +314,10 @@ function deductBetAmount(amount, currency) {
   updateTestBalance();
 }
 
-/* ===== 🔥 ADD WIN AMOUNT ===== */
+
+
+
+/* =====  ADD WIN AMOUNT ===== */
 function addWinAmount(amount, currency) {
   if (!TEST_MODE) return;
   
@@ -329,7 +332,10 @@ function addWinAmount(amount, currency) {
   updateTestBalance();
 }
 
-/* ===== 🔥 UPDATE TEST BALANCE UI ===== */
+
+
+
+/* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
   if (!TEST_MODE) return;
   
@@ -359,6 +365,8 @@ function updateTestBalance() {
   console.log('[Wheel] 📊 Test balance updated:', userBalance);
 }
 
+
+
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
 let imagesLoaded = false;
@@ -385,6 +393,8 @@ function preloadImages() {
   });
 }
 
+
+
 /* ===== Init ===== */
 window.addEventListener('DOMContentLoaded', async () => {
   canvas       = document.getElementById('wheelCanvas');
@@ -396,6 +406,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   betTiles     = Array.from(document.querySelectorAll('.bet-tile'));
 
   if (!canvas) return;
+
+
 
   // 🔥 TEST MODE INIT
   if (TEST_MODE) {
@@ -432,6 +444,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   
   checkHistoryVisibility();
 });
+
+
+
 
 /* ===== CURRENCY SYNC ===== */
 function syncWithCurrencySystem() {
@@ -499,6 +514,8 @@ window.updateCurrentAmount = function(amount) {
   console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
 };
 
+
+
 /* ===== Betting UI ===== */
 function initBettingUI(){
   // Amount buttons
@@ -513,6 +530,9 @@ function initBettingUI(){
       console.log('[Wheel] 🎯 Amount selected:', currentAmount, currentCurrency);
     });
   });
+
+
+
 
   // Balance events
   window.addEventListener('balance:loaded', (e) => {
@@ -535,6 +555,9 @@ function initBettingUI(){
     }
   });
 
+
+
+
   // Currency change
   window.addEventListener('currency:changed', (e) => {
     if (e.detail && e.detail.currency) {
@@ -544,6 +567,9 @@ function initBettingUI(){
       updateAmountButtonsUI(newCurrency);
     }
   });
+
+
+
 
   // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
   betTiles.forEach(tile => {
@@ -570,6 +596,9 @@ function initBettingUI(){
         return;
       }
       
+
+
+
       // ✅ Add bet
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
@@ -596,6 +625,8 @@ function initBettingUI(){
     });
   });
 
+
+
   // Clear bets
   const clearBtn = document.querySelector('[data-action="clear"]');
   if (clearBtn) {
@@ -616,6 +647,9 @@ function initBettingUI(){
   }
 }
 
+
+
+
 /* ===== Canvas ===== */
 function prepareCanvas(){
   DPR = window.devicePixelRatio || 1;
@@ -626,6 +660,12 @@ function prepareCanvas(){
   ctx = canvas.getContext('2d');
   ctx.setTransform(DPR,0,0,DPR,0,0);
 }
+
+
+
+
+
+
 
 function drawWheel(angle=0){
   if (!ctx) return;
@@ -709,6 +749,12 @@ function drawWheel(angle=0){
   ctx.restore();
 }
 
+
+
+
+
+
+
 /* ===== Animation loop ===== */
 function tick(ts){
   if (!lastTs) lastTs = ts;
@@ -728,35 +774,46 @@ function tick(ts){
       const resolveFn = decel.resolve;
       decel = null;
 
-      phase = 'betting';
-      omega = IDLE_OMEGA;
-      setBetPanel(true);
+      // 🔥 NEW: Set to result_waiting instead of betting
+      phase = 'result_waiting';
+      omega = 0; // Keep wheel stopped
+      setBetPanel(false); // Keep panel disabled
 
       if (typeFinished) {
         checkBetsAndShowResult(typeFinished);
         
+        // 🔥 SPECIAL HANDLING FOR 50/50 BONUS
         if (typeFinished === '50&50') {
           setTimeout(async () => {
-            console.log('[Wheel] 🎰 Starting 50&50 bonus...');
+            console.log('[Wheel] 🎰 Starting 50/50 bonus...');
             const betOn5050 = betsMap.get('50&50') || 0;
             
             if (window.start5050Bonus) {
+              // 🔥 WAIT FOR BONUS COMPLETION
               await window.start5050Bonus(betOn5050);
             }
             
+            // 🔥 AFTER BONUS - CONTINUE NORMAL FLOW
             pushHistory(typeFinished);
             clearBets();
+            phase = 'betting';
+            omega = IDLE_OMEGA;
             startCountdown(9);
-          }, 3000);
+          }, 2000);
         } else {
+          // 🔥 NORMAL RESULT - NO BONUS
           setTimeout(() => {
             pushHistory(typeFinished);
             clearBets();
+            phase = 'betting';
+            omega = IDLE_OMEGA;
             startCountdown(9);
           }, 3000);
         }
       } else {
         clearBets();
+        phase = 'betting';
+        omega = IDLE_OMEGA;
         startCountdown(9);
       }
 
@@ -765,10 +822,20 @@ function tick(ts){
   } else if (phase === 'betting' || phase === 'accelerate') {
     currentAngle += omega * dt;
   }
+  // 🔥 NEW: Keep wheel frozen during result_waiting and bonus_waiting
+  else if (phase === 'result_waiting' || phase === 'bonus_waiting') {
+    // Do nothing - wheel stays at current angle
+  }
 
   drawWheel(currentAngle);
   rafId = requestAnimationFrame(tick);
 }
+
+
+
+
+
+
 
 /* ===== Check bets and show result ===== */
 function checkBetsAndShowResult(resultType) {
@@ -778,18 +845,20 @@ function checkBetsAndShowResult(resultType) {
   
   if (isBonusRound) {
     console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
-    showBonusNotification(resultType);
     
-    // Запускаем бонус 50/50 если он выпал
-    if (resultType === '50&50') {
-      setTimeout(() => {
-        const betOn5050 = betsMap.get('50&50') || 0;
-        if (window.start5050Bonus) {
-          window.start5050Bonus(betOn5050);
-        }
-      }, 2000);
+    //  ONLY SHOW NOTIFICATION IF ON WHEEL PAGE
+    const wheelPage = document.getElementById('wheelPage');
+    const isWheelActive = wheelPage?.classList.contains('page-active');
+    
+    if (isWheelActive) {
+      showBonusNotification(resultType);
     }
     
+    //  FOR 50/50 BONUS - WAIT FOR COMPLETION
+    // Bonus will be started from the decelerate completion handler
+    if (resultType === '50&50') {
+      return;
+    }
     
     return;
   }
@@ -829,7 +898,6 @@ function checkBetsAndShowResult(resultType) {
     });
   }
 }
-
 function getMultiplier(type) {
   const multipliers = {
     '1x': 1,
@@ -978,12 +1046,15 @@ function showInsufficientBalanceNotification() {
   }, 2000);
 }
 
+
+
 function showBonusNotification(bonusType) {
+  // 🔥 CHECK IF ON WHEEL PAGE
   const wheelPage = document.getElementById('wheelPage');
   const isWheelActive = wheelPage?.classList.contains('page-active');
   
   if (!isWheelActive) {
-    console.log('[Wheel] ⚠️ Bonus notification skipped - not on wheel page');
+    console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
     return;
   }
   
@@ -1409,20 +1480,48 @@ if (!document.getElementById('wheel-animations')) {
   `;
   document.head.appendChild(style);
 }
-// wheel.js - BONUS FIXED VERSION
+//  BONUS FIX
 
-// 🔁 ЗАМЕНИ функцию start5050Bonus полностью на эту версию
+// 
 window.start5050Bonus = async function(betAmount) {
   console.log('[Wheel] 🎰 Starting 50/50 bonus with bet:', betAmount);
+
+  // 🔥 CHECK IF ON WHEEL PAGE - DON'T START BONUS IF NOT
+  const wheelPage = document.getElementById('wheelPage');
+  const isWheelActive = wheelPage?.classList.contains('page-active');
+  
+  if (!isWheelActive) {
+    console.log('[Wheel] ⚠️ Bonus skipped - not on wheel page');
+    // Restore wheel state
+    if (typeof phase !== 'undefined') phase = 'betting';
+    if (typeof omega !== 'undefined') omega = IDLE_OMEGA;
+    return;
+  }
+
+  // 🔥 SET WHEEL TO BONUS WAITING STATE
+  if (typeof phase !== 'undefined') {
+    phase = 'bonus_waiting';
+    console.log('[Wheel] ⏸️ Phase set to bonus_waiting');
+  }
+  
+  if (typeof omega !== 'undefined') {
+    omega = 0;
+    console.log('[Wheel] 🛑 Omega set to 0');
+  }
 
   const overlay   = document.getElementById('bonus5050Overlay');
   const container = document.getElementById('bonus5050Container');
 
   if (!overlay || !container) {
     console.error('[Wheel] ❌ Bonus overlay not found!');
+    // 🔥 RESTORE WHEEL STATE ON ERROR
+    phase = 'betting';
+    omega = IDLE_OMEGA;
     return;
   }
 
+
+  
   // показать оверлей
   overlay.style.display = 'flex';
 
@@ -1430,7 +1529,6 @@ window.start5050Bonus = async function(betAmount) {
   const bonus = new Bonus5050(container, {
     introPngUrl: '/images/bets/50-50.png',
     boomSvgUrl:  '/images/boom.webp',
-    // ВАЖНО: onComplete вызывается ПОСЛЕ того, как бонус сам спрятал overlay
     onComplete: (resultStr) => {
       console.log('[Wheel] 🎯 Bonus completed:', resultStr);
 
@@ -1439,16 +1537,23 @@ window.start5050Bonus = async function(betAmount) {
         const winAmount = betAmount * mult;
 
         // тестовый баланс
-        if (window.WheelGame && window.WheelGame.addWinAmount) {
-          window.WheelGame.addWinAmount(winAmount, window.WheelGame.getCurrentCurrency());
+        if (TEST_MODE && typeof addWinAmount === 'function') {
+          addWinAmount(winAmount, currentCurrency);
         }
 
-        // показать уведомление — ТОЛЬКО СЕЙЧАС (оверлей уже скрыт самим бонусом)
-        showWinNotification(winAmount);
+        // показать уведомление
+        const wheelPage = document.getElementById('wheelPage');
+        const isWheelActive = wheelPage?.classList.contains('page-active');
+        
+        if (isWheelActive && typeof showWinNotification === 'function') {
+          showWinNotification(winAmount);
+        }
       }
 
-      // контейнер почистим на всякий, overlay уже скрыт самим бонусом
+      // контейнер почистим
       container.innerHTML = '';
+      
+      console.log('[Wheel] ✅ Bonus cleanup complete, wheel can resume');
     }
   });
 

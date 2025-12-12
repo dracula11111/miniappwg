@@ -18,9 +18,9 @@
         { id: 'gift4', icon: 'gift4.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
         { id: 'gift5', icon: 'gift5.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
         { id: 'gift6', icon: 'gift6.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift7', icon: 'gift7.png', price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
+        { id: 'gift7', icon: 'gift7.png', price: { ton: 0.46, stars: 50 }, rarity: 'rare' },
         { id: 'gift8', icon: 'gift8.png', price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
-        { id: 'gift9', icon: 'gift9.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
+        { id: 'gift9', icon: 'gift9.png', price: { ton: 0.23, stars: 25 }, rarity: 'common' },
         { id: 'gift10', icon: 'gift10.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
         { id: 'gift11', icon: 'gift11.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' }
       ]
