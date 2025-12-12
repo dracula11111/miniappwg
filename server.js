@@ -38,17 +38,15 @@ app.use(express.static(path.join(__dirname, "public"), {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ====== TonConnect manifest ======
-app.get("/tonconnect-manifest.json", (req, res) => {
-  const origin = process.env.PUBLIC_URL || baseUrlFrom(req);
+app.get('/tonconnect-manifest.json', (req, res) => {
+  const origin = `${req.protocol}://${req.get('host')}`;
 
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.json({
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).json({
     manifestVersion: 2,
-    name: "Wild Time",
+    name: 'Wild Gift',
     url: origin,
-    iconUrl: `${origin}/icons/app-icon.png`,
-    termsOfUseUrl: `${origin}/terms`,
-    privacyPolicyUrl: `${origin}/privacy`
+    iconUrl: `${origin}/icons/app-icon.png`
   });
 });
 
