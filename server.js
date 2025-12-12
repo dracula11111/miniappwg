@@ -39,15 +39,17 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ====== TonConnect manifest ======
 app.get("/tonconnect-manifest.json", (req, res) => {
+  const origin = process.env.PUBLIC_URL || baseUrlFrom(req);
+
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.send(JSON.stringify({
-    url: process.env.PUBLIC_URL || baseUrlFrom(req),
+  res.json({
+    manifestVersion: 2,
     name: "Wild Time",
-    iconUrl: `${process.env.PUBLIC_URL || baseUrlFrom(req)}/icons/app-icon.png`,
-    termsOfUseUrl: `${process.env.PUBLIC_URL || baseUrlFrom(req)}/terms`,
-    privacyPolicyUrl: `${process.env.PUBLIC_URL || baseUrlFrom(req)}/privacy`,
-    manifestVersion: 1
-  }));
+    url: origin,
+    iconUrl: `${origin}/icons/app-icon.png`,
+    termsOfUseUrl: `${origin}/terms`,
+    privacyPolicyUrl: `${origin}/privacy`
+  });
 });
 
 // ====== Telegram avatar proxy ======
