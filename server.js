@@ -163,7 +163,7 @@ app.post("/api/deposit-notification", async (req, res) => {
         console.log('[Deposit] ✅ TON balance updated:', { userId, amount, newBalance });
         
         // 🔥 BROADCAST BALANCE UPDATE
-        broadcastBalanceUpdate(userId, 'ton', newBalance);
+        broadcastBalanceUpdate(userId);
         
         // Send notification for deposits only
         if (amount > 0 && process.env.BOT_TOKEN) {
@@ -190,7 +190,7 @@ app.post("/api/deposit-notification", async (req, res) => {
         console.log('[Deposit] ✅ Stars balance updated:', { userId, amount, newBalance });
         
         // 🔥 BROADCAST BALANCE UPDATE
-        broadcastBalanceUpdate(userId, 'stars', newBalance);
+        broadcastBalanceUpdate(userId);
         
         // Send notification for deposits only
         if (amount > 0 && process.env.BOT_TOKEN) {
@@ -301,7 +301,7 @@ app.get("/api/balance/stream", (req, res) => {
 });
 
 // Function to broadcast balance updates
-function broadcastBalanceUpdate(userId, currency, newBalance) {
+function broadcastBalanceUpdate(userId) {
   const clients = balanceClients.get(String(userId));
   if (!clients || clients.size === 0) {
     console.log('[SSE] No clients to notify for user:', userId);
@@ -312,7 +312,7 @@ function broadcastBalanceUpdate(userId, currency, newBalance) {
   
   // Get full balance
   try {
-    const balance = db.getUserBalance(userId);
+    const balance = db.getUserBalance(parseInt(userId, 10));
     const data = JSON.stringify({
       type: 'balance',
       ton: parseFloat(balance.ton_balance) || 0,
@@ -355,136 +355,6 @@ function markDepositProcessed(identifier) {
     processedDeposits.set(identifier, Date.now());
   }
 }
-
-// ====== DEPOSIT NOTIFICATION ======
-app.post("/api/deposit-notification", async (req, res) => {
-  try {
-    const { amount, currency, userId, txHash, timestamp, initData, invoiceId } = req.body;
-    
-    const depositId = invoiceId || txHash || `${userId}_${currency}_${amount}_${timestamp}`;
-    
-    console.log('[Deposit] Notification received:', {
-      amount,
-      currency,
-      userId,
-      depositId: depositId?.substring(0, 20) + '...',
-      timestamp
-    });
-
-    // 🔥 CHECK FOR DUPLICATES
-    if (isDepositProcessed(depositId)) {
-      console.log('[Deposit] ⚠️ Duplicate detected, skipping:', depositId);
-      return res.json({ 
-        ok: true, 
-        message: 'Already processed',
-        duplicate: true
-      });
-    }
-
-    // Validation
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'User ID required' });
-    }
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ ok: false, error: 'Invalid amount' });
-    }
-
-    if (!currency || !['ton', 'stars'].includes(currency)) {
-      return res.status(400).json({ ok: false, error: 'Invalid currency' });
-    }
-
-    // Extract user data from initData
-    let user = null;
-    if (initData) {
-      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-      if (check.ok && check.params.user) {
-        try { 
-          user = JSON.parse(check.params.user);
-          db.saveUser(user);
-          console.log('[Deposit] User saved:', user.id);
-        } catch (err) {
-          console.error('[Deposit] Failed to parse user:', err);
-        }
-      }
-    }
-
-    // 🔥 MARK AS PROCESSED BEFORE UPDATING BALANCE
-    markDepositProcessed(depositId);
-
-    // Process deposit based on currency
-    try {
-      if (currency === 'ton') {
-        const newBalance = db.updateBalance(
-          userId,
-          'ton',
-          parseFloat(amount),
-          'deposit',
-          txHash ? `TON deposit ${txHash.substring(0, 10)}...` : 'TON deposit',
-          { txHash }
-        );
-        
-        console.log('[Deposit] ✅ TON balance updated:', { userId, newBalance });
-        
-        // 🔥 BROADCAST BALANCE UPDATE
-        broadcastBalanceUpdate(userId, 'ton', newBalance);
-        
-        // Send notification
-        if (process.env.BOT_TOKEN) {
-          await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
-        }
-        
-        return res.json({ 
-          ok: true, 
-          message: 'TON deposit processed',
-          newBalance: newBalance
-        });
-        
-      } else if (currency === 'stars') {
-        const newBalance = db.updateBalance(
-          userId,
-          'stars',
-          parseInt(amount),
-          'deposit',
-          'Stars payment',
-          { invoiceId: depositId }
-        );
-        
-        console.log('[Deposit] ✅ Stars balance updated:', { userId, newBalance });
-        
-        // 🔥 BROADCAST BALANCE UPDATE
-        broadcastBalanceUpdate(userId, 'stars', newBalance);
-        
-        return res.json({ 
-          ok: true, 
-          message: 'Stars deposit processed',
-          newBalance: newBalance
-        });
-      }
-      
-    } catch (err) {
-      console.error('[Deposit] Error updating balance:', err);
-      // Remove from processed if failed
-      processedDeposits.delete(depositId);
-      
-      return res.status(500).json({ 
-        ok: false, 
-        error: 'Failed to update balance',
-        details: err.message 
-      });
-    }
-
-  } catch (error) {
-    console.error('[Deposit] Error:', error);
-    res.status(500).json({ 
-      ok: false, 
-      error: error.message || 'Internal server error'
-    });
-  }
-});
-
-
-
 
 // ====== BALANCE API ======
 app.get("/api/balance", async (req, res) => {
@@ -878,7 +748,7 @@ app.post("/api/round/place-bet", async (req, res) => {
     db.saveUser(user);
 
     // Check balance
-    const balance = db.getUserBalance(userId);
+    const balance = db.getUserBalance(parseInt(userId, 10));
     const currentBalance = currency === 'ton' ? balance.ton_balance : balance.stars_balance;
 
     if (currentBalance < totalAmount) {
@@ -980,7 +850,7 @@ app.post("/api/test/give-balance", async (req, res) => {
     }
 
     if (ton || stars) {
-      broadcastBalanceUpdate(uid, 'ton', results.ton || 0);
+      broadcastBalanceUpdate(uid);
     }
 
     const finalBalance = db.getUserBalance(uid);
@@ -1032,12 +902,29 @@ app.post("/api/test/reset-balance", async (req, res) => {
 
     console.log('[TEST] 🔄 Resetting balance for user:', uid);
 
-    db.updateBalance(uid, 'ton', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
-    db.updateBalance(uid, 'stars', 0, 'test', '🧪 Balance reset', { test: true, reset: true });
+    // Reset to zero via deltas (updateBalance adds, so we subtract current)
+    const current = db.getUserBalance(uid);
+    const curTon = parseFloat(current.ton_balance) || 0;
+    const curStars = parseInt(current.stars_balance) || 0;
 
-    broadcastBalanceUpdate(uid, 'ton', 0);
+    if (curTon !== 0) {
+      db.updateBalance(uid, 'ton', -curTon, 'test', '🧪 Balance reset (TON→0)', { test: true, reset: true });
+    }
+    if (curStars !== 0) {
+      db.updateBalance(uid, 'stars', -curStars, 'test', '🧪 Balance reset (Stars→0)', { test: true, reset: true });
+    }
 
-    res.json({ ok: true, message: 'Balance reset to 0', balance: { ton: 0, stars: 0 } });
+    broadcastBalanceUpdate(uid);
+
+    const finalBalance = db.getUserBalance(uid);
+    res.json({
+      ok: true,
+      message: 'Balance reset to 0',
+      balance: {
+        ton: parseFloat(finalBalance.ton_balance) || 0,
+        stars: parseInt(finalBalance.stars_balance) || 0
+      }
+    });
   } catch (error) {
     console.error('[TEST] Error resetting balance:', error);
     res.status(500).json({ ok: false, error: error.message || 'Failed to reset balance' });
@@ -1100,7 +987,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       }
     }
 
-    broadcastBalanceUpdate(uid, 'ton', results.ton || 0);
+    broadcastBalanceUpdate(uid);
 
     const finalBalance = db.getUserBalance(uid);
     res.json({

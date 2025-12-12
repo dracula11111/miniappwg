@@ -127,16 +127,13 @@
     reconnectAttempts = 0;
   }
 
-  // ====== AUTO RECONNECT ON VISIBILITY CHANGE ======
+  // ====== VISIBILITY (Telegram WebView safe) ======
+  // In Telegram WebView visibilitychange can fire often (popups/overlays) — do NOT disconnect.
+  // Just try to reconnect when visible.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      console.log('[Balance Live] Page visible, reconnecting...');
-      if (!eventSource) {
-        connect();
-      }
-    } else {
-      console.log('[Balance Live] Page hidden, disconnecting...');
-      disconnect();
+      console.log('[Balance Live] Page visible, ensuring connection...');
+      if (!eventSource) connect();
     }
   });
 
@@ -145,7 +142,24 @@
     disconnect();
   });
 
-  // ====== AUTO CONNECT ======
+  
+  // ====== FALLBACK POLL (in case SSE is blocked in Telegram) ======
+  setInterval(async () => {
+    try {
+      if (eventSource) return;
+      const r = await fetch(`/api/balance?userId=${tgUserId}`, { cache: 'no-store' });
+      const j = await r.json();
+      if (j && j.ok) {
+        const ton = j.ton ?? 0;
+        const stars = j.stars ?? 0;
+        if (window.WildTimeCurrency) window.WildTimeCurrency.updateBalance({ ton, stars });
+        if (window.WTTonDeposit) window.WTTonDeposit.setBalance(ton);
+        if (window.WTStarsDeposit) window.WTStarsDeposit.setBalance(stars);
+      }
+    } catch (e) {}
+  }, 20000);
+
+// ====== AUTO CONNECT ======
   setTimeout(() => {
     connect();
   }, 1000); // Wait 1 second for other modules to initialize
