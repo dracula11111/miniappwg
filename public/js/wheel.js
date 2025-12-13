@@ -39,19 +39,19 @@ if (window.TEST_MODE) {
     // Изменение скорости колеса
     setWheelSpeed: function(speed) {
       if (speed === 'fast') {
-        window.omega = 9.0;
+        window.setOmega ? window.setOmega(9.0, { force: true }) : (window.omega = 9.0);
       } else if (speed === 'slow') {
-        window.omega = 0.35;
+        window.setOmega ? window.setOmega(0.35, { force: true }) : (window.omega = 0.35);
       } else {
-        window.omega = parseFloat(speed) || 0.35;
+        window.setOmega ? window.setOmega(parseFloat(speed) || 0.35, { force: true }) : (window.omega = parseFloat(speed) || 0.35);
       }
       console.log('[WheelAdmin] Wheel speed set to:', window.omega);
     },
     
     // Мгновенная остановка колеса
     stopWheel: function() {
-      window.omega = 0;
-      window.phase = 'betting';
+      window.setOmega ? window.setOmega(0, { force: true }) : (window.omega = 0);
+      window.setPhase ? window.setPhase('betting', { force: true }) : (window.phase = 'betting');
       console.log('[WheelAdmin] Wheel stopped');
     },
     
@@ -99,8 +99,13 @@ if (window.TEST_MODE) {
         
       } else if (segmentName === '50&50') {
         // Запуск бонуса 50/50
+        if (window.stopOnSegment) window.stopOnSegment('50&50');
+        else if (window.bonusLockStart) window.bonusLockStart();
+
         if (window.start5050Bonus) {
-          window.start5050Bonus(betAmount);
+          Promise.resolve(window.start5050Bonus(betAmount)).finally(() => {
+            if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+          });
         }
       } else if (segmentName === 'Loot Rush') {
         // Бонус Loot Rush (заглушка)
@@ -191,8 +196,8 @@ if (window.TEST_MODE) {
     setTimeout(() => {
       if (typeof userBalance !== 'undefined') window.userBalance = userBalance;
       if (typeof currentCurrency !== 'undefined') window.currentCurrency = currentCurrency;
-      if (typeof omega !== 'undefined') window.omega = omega;
-      if (typeof phase !== 'undefined') window.phase = phase;
+      if (typeof omega !== 'undefined') window.setOmega ? window.setOmega(omega, { force: true }) : (window.omega = omega);
+      if (typeof phase !== 'undefined') window.setPhase ? window.setPhase(phase, { force: true }) : (window.phase = phase);
       if (typeof currentAngle !== 'undefined') window.currentAngle = currentAngle;
       if (typeof addWinAmount !== 'undefined') window.addWinAmount = addWinAmount;
       if (typeof showWinNotification !== 'undefined') window.showWinNotification = showWinNotification;
@@ -260,6 +265,103 @@ let omega = IDLE_OMEGA;
 
 let phase = 'betting';
 let decel = null;
+/* ===== STATE HELPERS (single source of truth + bonus-safe setters) ===== */
+function setOmega(value, opts = {}) {
+  const { force = false } = opts;
+  if (window.__bonusLock?.active && !force) return;
+  omega = value;
+  window.omega = omega;
+}
+function setPhase(value, opts = {}) {
+  const { force = false } = opts;
+  if (window.__bonusLock?.active && !force && value !== 'bonus_waiting') return;
+  phase = value;
+  window.phase = phase;
+}
+
+// Keep window.* in sync initially
+window.omega = omega;
+window.phase = phase;
+window.setOmega = setOmega;
+window.setPhase = setPhase;
+
+/* ===== SNAP / STOP ON SEGMENT (for bonuses/admin/console) ===== */
+function __normAngle(a) {
+  const TAU = Math.PI * 2;
+  a = a % TAU;
+  return a < 0 ? a + TAU : a;
+}
+function __angleForSegmentAtPointer(segmentName) {
+  const idx = WHEEL_ORDER.indexOf(segmentName);
+  if (idx < 0) return null;
+  const segCenter = (idx + 0.5) * SLICE_ANGLE;
+  // Want: currentAngle + segCenter == POINTER_ANGLE  (mod 2π)
+  return __normAngle(POINTER_ANGLE - segCenter);
+}
+
+/**
+ * Hard stop the wheel on a given segment (snap angle + freeze).
+ * Returns true if segment exists.
+ */
+window.stopOnSegment = function stopOnSegment(segmentName) {
+  const a = __angleForSegmentAtPointer(segmentName);
+  if (a == null) {
+    console.warn('[Wheel] stopOnSegment: unknown segment', segmentName);
+    return false;
+  }
+
+  // Freeze wheel through bonus lock if present (uses setOmega/setPhase internally)
+  if (typeof window.bonusLockStart === 'function') {
+    window.bonusLockStart();
+  } else {
+    setOmega(0, { force: true });
+    setPhase('bonus_waiting', { force: true });
+  }
+
+  currentAngle = a;
+  window.currentAngle = currentAngle;
+
+  try { drawWheel(currentAngle); } catch (_) {}
+  console.log('[Wheel] ✅ Stopped on segment:', segmentName);
+  return true;
+};
+
+
+/* ===== BONUS LOCK (freeze wheel until bonus ends) ===== */
+window.__bonusLock = window.__bonusLock || { active: false, prevOmega: null, prevPhase: null };
+
+window.bonusLockStart = function bonusLockStart() {
+  if (window.__bonusLock.active) return;
+  window.__bonusLock.active = true;
+  window.__bonusLock.prevOmega = omega;
+  window.__bonusLock.prevPhase = phase;
+
+  // Hard freeze
+  setOmega(0, { force: true });
+  setPhase('bonus_waiting', { force: true });
+
+  if (typeof window.stopCountdown === 'function') {
+    try { window.stopCountdown(); } catch (_) {}
+  }
+
+  console.log('[Wheel] 🧊 Bonus lock ON');
+};
+
+window.bonusLockEnd = function bonusLockEnd(next = {}) {
+  if (!window.__bonusLock.active) return;
+  window.__bonusLock.active = false;
+
+  const restorePhase = (next.phase ?? 'betting');
+  const restoreOmega = (typeof next.omega === 'number' ? next.omega : IDLE_OMEGA);
+
+  setPhase(restorePhase, { force: true });
+  setOmega(restoreOmega, { force: true });
+
+  window.__bonusLock.prevOmega = null;
+  window.__bonusLock.prevPhase = null;
+
+  console.log('[Wheel] 🔥 Bonus lock OFF');
+};
 
 /* ===== Ставки ===== */
 const betsMap = new Map();
@@ -775,8 +877,8 @@ function tick(ts){
       decel = null;
 
       // 🔥 NEW: Set to result_waiting instead of betting
-      phase = 'result_waiting';
-      omega = 0; // Keep wheel stopped
+      setPhase('result_waiting');
+      setOmega(0); // Keep wheel stopped
       setBetPanel(false); // Keep panel disabled
 
       if (typeFinished) {
@@ -787,17 +889,22 @@ function tick(ts){
           setTimeout(async () => {
             console.log('[Wheel] 🎰 Starting 50/50 bonus...');
             const betOn5050 = betsMap.get('50&50') || 0;
-            
+
+            // 🧊 Freeze wheel until bonus resolves
+            if (window.bonusLockStart) window.bonusLockStart();
+
             if (window.start5050Bonus) {
               // 🔥 WAIT FOR BONUS COMPLETION
               await window.start5050Bonus(betOn5050);
             }
-            
-            // 🔥 AFTER BONUS - CONTINUE NORMAL FLOW
+
+            // 🔥 Bonus finished: unlock + continue normal flow
+            if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+
             pushHistory(typeFinished);
             clearBets();
-            phase = 'betting';
-            omega = IDLE_OMEGA;
+            setPhase('betting', { force: true });
+            setOmega(IDLE_OMEGA, { force: true });
             startCountdown(9);
           }, 2000);
         } else {
@@ -805,15 +912,15 @@ function tick(ts){
           setTimeout(() => {
             pushHistory(typeFinished);
             clearBets();
-            phase = 'betting';
-            omega = IDLE_OMEGA;
+            setPhase('betting');
+            setOmega(IDLE_OMEGA);
             startCountdown(9);
           }, 3000);
         }
       } else {
         clearBets();
-        phase = 'betting';
-        omega = IDLE_OMEGA;
+        setPhase('betting');
+        setOmega(IDLE_OMEGA);
         startCountdown(9);
       }
 
@@ -1139,8 +1246,8 @@ function startCountdown(sec=9){
 
   stopCountdown();
   isCountdownActive = true;
-  phase = 'betting';
-  omega = IDLE_OMEGA;
+  setPhase('betting');
+  setOmega(IDLE_OMEGA);
   setBetPanel(true);
 
   countdownBox.classList.add('visible');
@@ -1160,7 +1267,7 @@ function startCountdown(sec=9){
     if (left <= 0) {
       stopCountdown();
 
-      phase = 'accelerate';
+      setPhase('accelerate');
       setBetPanel(false);
       
       try {
@@ -1170,8 +1277,8 @@ function startCountdown(sec=9){
         await decelerateToSlice(sliceIndex, dur, 4, type);
       } catch (error) {
         console.error('[Wheel] Error during spin:', error);
-        phase = 'betting';
-        omega = IDLE_OMEGA;
+        setPhase('betting');
+        setOmega(IDLE_OMEGA);
         setBetPanel(true);
         isCountdownActive = false;
         startCountdown(9);
@@ -1198,12 +1305,12 @@ function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
       const elapsed = performance.now() - t0;
       const t = Math.min(1, elapsed / ms);
       const eased = easeInQuad(t);
-      omega = start + (targetOmega - start) * eased;
+      setOmega(start + (targetOmega - start) * eased);
       
       if (t < 1) {
         requestAnimationFrame(step);
       } else {
-        omega = targetOmega;
+        setOmega(targetOmega);
         res();
       }
     };
@@ -1215,27 +1322,77 @@ function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=nul
   return new Promise(resolve=>{
     const normalizedCurrent = currentAngle % (2 * Math.PI);
     const sliceCenter = sliceIndex * SLICE_ANGLE + SLICE_ANGLE / 2;
-    
+
     let deltaToTarget = POINTER_ANGLE - normalizedCurrent - sliceCenter;
-    
+
     while (deltaToTarget > Math.PI) deltaToTarget -= 2 * Math.PI;
     while (deltaToTarget < -Math.PI) deltaToTarget += 2 * Math.PI;
-    
+
     const endAngle = currentAngle + deltaToTarget + extraTurns * 2 * Math.PI;
-    
-    decel = { 
-      start: currentAngle, 
-      end: endAngle, 
-      t0: performance.now(), 
-      dur: ms, 
-      resolve, 
-      resultType: typeForHistory 
+
+    // ✅ ВАЖНО: реальный сектор по индексу колеса
+    const landedType = WHEEL_ORDER[sliceIndex];
+
+    decel = {
+      start: currentAngle,
+      end: endAngle,
+      t0: performance.now(),
+      dur: ms,
+      resolve,
+      resultType: landedType,      // ✅ вот это главное
+      serverType: typeForHistory,  // (опционально) что пришло с сервера
+      sliceIndex
     };
-    
-    phase = 'decelerate';
-    omega = 0;
+
+    setPhase('decelerate');
+    setOmega(0);
   });
 }
+
+/* ===== Manual bonus helper: stop ON 50&50 then run bonus ===== */
+function pickSliceIndexByLabel(label) {
+  const indices = [];
+  for (let i = 0; i < WHEEL_ORDER.length; i++) {
+    if (WHEEL_ORDER[i] === label) indices.push(i);
+  }
+  if (!indices.length) return 0;
+
+  // берём "ближайший" по углу (чтобы докрутка была логичной)
+  const normalizedCurrent = currentAngle % (2 * Math.PI);
+  let best = indices[0];
+  let bestAbs = Infinity;
+
+  for (const idx of indices) {
+    const sliceCenter = idx * SLICE_ANGLE + SLICE_ANGLE / 2;
+    let delta = POINTER_ANGLE - normalizedCurrent - sliceCenter;
+    while (delta > Math.PI) delta -= 2 * Math.PI;
+    while (delta < -Math.PI) delta += 2 * Math.PI;
+    const abs = Math.abs(delta);
+    if (abs < bestAbs) { bestAbs = abs; best = idx; }
+  }
+  return best;
+}
+
+window.run5050BonusManual = async function run5050BonusManual(betAmount = 0) {
+  // 1) докрутить колесо до 50&50
+  const idx = pickSliceIndexByLabel('50&50');
+
+  // короткая докрутка, чтобы было видно, что оно реально встало на сектор
+  await decelerateToSlice(idx, 1400, 1, '50&50');
+
+  // 2) заморозить и запустить бонус
+  if (window.bonusLockStart) window.bonusLockStart();
+
+  try {
+    if (window.start5050Bonus) {
+      await window.start5050Bonus(betAmount);
+    }
+  } finally {
+    // 3) вернуть колесо в обычный режим
+    if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+  }
+};
+
 
 /* ===== Server outcome ===== */
 async function fetchRoundOutcome(){
@@ -1482,84 +1639,7 @@ if (!document.getElementById('wheel-animations')) {
 }
 //  BONUS FIX
 
-// 
-window.start5050Bonus = async function(betAmount) {
-  console.log('[Wheel] 🎰 Starting 50/50 bonus with bet:', betAmount);
 
-  // 🔥 CHECK IF ON WHEEL PAGE - DON'T START BONUS IF NOT
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
-    console.log('[Wheel] ⚠️ Bonus skipped - not on wheel page');
-    // Restore wheel state
-    if (typeof phase !== 'undefined') phase = 'betting';
-    if (typeof omega !== 'undefined') omega = IDLE_OMEGA;
-    return;
-  }
-
-  // 🔥 SET WHEEL TO BONUS WAITING STATE
-  if (typeof phase !== 'undefined') {
-    phase = 'bonus_waiting';
-    console.log('[Wheel] ⏸️ Phase set to bonus_waiting');
-  }
-  
-  if (typeof omega !== 'undefined') {
-    omega = 0;
-    console.log('[Wheel] 🛑 Omega set to 0');
-  }
-
-  const overlay   = document.getElementById('bonus5050Overlay');
-  const container = document.getElementById('bonus5050Container');
-
-  if (!overlay || !container) {
-    console.error('[Wheel] ❌ Bonus overlay not found!');
-    // 🔥 RESTORE WHEEL STATE ON ERROR
-    phase = 'betting';
-    omega = IDLE_OMEGA;
-    return;
-  }
-
-
-  
-  // показать оверлей
-  overlay.style.display = 'flex';
-
-  // создать инстанс бонуса
-  const bonus = new Bonus5050(container, {
-    introPngUrl: '/images/bets/50-50.png',
-    boomSvgUrl:  '/images/boom.webp',
-    onComplete: (resultStr) => {
-      console.log('[Wheel] 🎯 Bonus completed:', resultStr);
-
-      if (resultStr && betAmount > 0) {
-        const mult = parseFloat(String(resultStr).replace('x','')) || 0;
-        const winAmount = betAmount * mult;
-
-        // тестовый баланс
-        if (TEST_MODE && typeof addWinAmount === 'function') {
-          addWinAmount(winAmount, currentCurrency);
-        }
-
-        // показать уведомление
-        const wheelPage = document.getElementById('wheelPage');
-        const isWheelActive = wheelPage?.classList.contains('page-active');
-        
-        if (isWheelActive && typeof showWinNotification === 'function') {
-          showWinNotification(winAmount);
-        }
-      }
-
-      // контейнер почистим
-      container.innerHTML = '';
-      
-      console.log('[Wheel] ✅ Bonus cleanup complete, wheel can resume');
-    }
-  });
-
-  // поехали
-  await bonus.start();
-};
 
 // Export functions for bonus
 window.WheelGame = window.WheelGame || {};
@@ -1704,6 +1784,75 @@ function getMultiplier(type) {
   };
   return multipliers[type] || 1;
 }
+
+
+// ===== 50/50 BONUS: make sure it can start from wheel =====
+(function () {
+  function ensureBonusOverlay() {
+    let overlay = document.getElementById('bonus5050Overlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'bonus5050Overlay';
+    overlay.className = 'bonus-overlay';
+    overlay.innerHTML = `
+      <div class="bonus-overlay__blur-backdrop"></div>
+      <div class="bonus-container"></div>
+    `;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureBonusClass() {
+    if (window.Bonus5050) return;
+
+    // попробуем самые частые пути
+    const candidates = ['/js/bonus-5050.js', '/public/js/bonus-5050.js', '/bonus-5050.js'];
+    for (const src of candidates) {
+      try {
+        await loadScriptOnce(src);
+        if (window.Bonus5050) return;
+      } catch (e) {}
+    }
+    throw new Error('Bonus5050 class not loaded (bonus-5050.js path wrong)');
+  }
+
+  // ✅ вот этого как раз не хватало на обычном флоу колеса
+  window.start5050Bonus = window.start5050Bonus || async function start5050Bonus(betAmount = 0) {
+    const overlay = ensureBonusOverlay();
+    const container = overlay.querySelector('.bonus-container') || overlay;
+
+    await ensureBonusClass();
+
+    return await new Promise((resolve) => {
+      const bonus = new window.Bonus5050(container, {
+        boomSrc: 'images/boom.webp',
+        particlesSrc: 'images/boomparticles.webp',
+        onComplete: (xStr) => {
+          // если хочешь начислять здесь — раскомментируй:
+          // const mult = parseFloat(String(xStr).replace('x',''));
+          // if (betAmount > 0 && Number.isFinite(mult) && typeof addWinAmount === 'function') {
+          //   addWinAmount(betAmount * mult, currentCurrency);
+          // }
+          resolve(xStr);
+        }
+      });
+      bonus.start();
+    });
+  };
+})();
 
 console.log('[Wheel] ✅ Notification functions loaded');
 console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');

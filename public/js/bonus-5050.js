@@ -1,450 +1,397 @@
-// bonus-5050.js — SLOT 50/50 (good vs bad reel)
-// Flow:
-// 1) Two reels spin down (slot-style). One reel has bad multipliers, one has good multipliers (side is random)
-// 2) They stop, then results slide out left/right showing (bad x) and (good x)
-// 3) Pause for user to see, then they fly into center + boom.webp
-// 4) One result survives -> onComplete('<mult>x')
+// public/js/bonus-5050.js - DUAL REELS + VS + slow collide + boom + particles + winner reveal
+// Exports: window.Bonus5050 (class) for wheel.js
 
-console.log('[Bonus5050] 📦 Loading SLOT 50/50 bonus module');
+console.log('[Bonus5050] 🎰 loaded (dual VS slow collide boom+particles v1)');
 
 class Bonus5050 {
   constructor(container, options = {}) {
     this.container = container;
     this.options = {
-      introPngUrl: options.introPngUrl || '',
-      boomSvgUrl: options.boomSvgUrl || '/images/boom.webp',
-      onComplete: options.onComplete || (() => {}),
-      ...options,
+      onComplete: typeof options.onComplete === 'function' ? options.onComplete : () => {},
+      durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 15,
+      boomSrc: options.boomSrc || 'images/boom.webp',
+      particlesSrc: options.particlesSrc || 'images/boomparticles.webp',
+      ...options
     };
 
-    this.bad = [1.5, 2, 3, 4];
-    this.good = [5, 7, 10, 15];
-
     this._running = false;
+    this._scrollY = 0;
+
+    // Pools
+    this.GOOD_XS = [5, 6, 7, 8, 9, 10, 12, 15];
+    this.BAD_XS  = [1.5, 2, 3, 4];
   }
+
+  _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+  _fmtX(v) { return `${Number.isInteger(v) ? v : String(v)}x`; }
+  _overlayEl() { return document.getElementById('bonus5050Overlay'); }
+
+  _lockScroll() {
+    this._scrollY = window.scrollY || 0;
+    document.documentElement.classList.add('bonus-active');
+    document.body.classList.add('bonus-active');
+    document.body.style.top = `-${this._scrollY}px`;
+  }
+
+  _unlockScroll() {
+    document.documentElement.classList.remove('bonus-active');
+    document.body.classList.remove('bonus-active');
+    const top = document.body.style.top;
+    document.body.style.top = '';
+    window.scrollTo(0, top ? -parseInt(top, 10) : this._scrollY);
+  }
+
+  _render() {
+    const bulbs = Array.from({ length: 9 }).map(() => `<span class="b5050-bulb"></span>`).join('');
+
+    this.container.innerHTML = `
+      <div class="b5050-cutscene">
+        <div class="b5050-machine" id="b5050Machine">
+          <div class="b5050-bulbs b5050-bulbs--top">${bulbs}</div>
+
+          <div class="b5050-dual" id="b5050Dual">
+            <div class="b5050-unit b5050-unit--good" id="b5050UnitGood">
+              <div class="b5050-unitframe">
+                <div class="b5050-pointer b5050-pointer--left" aria-hidden="true"></div>
+                <div class="b5050-pointer b5050-pointer--right" aria-hidden="true"></div>
+
+                <div class="b5050-window" id="b5050WindowGood">
+                  <div class="b5050-track" id="b5050TrackGood"></div>
+                  <div class="b5050-centerline" aria-hidden="true"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="b5050-vs" id="b5050VS" aria-hidden="true">VS</div>
+
+            <div class="b5050-unit b5050-unit--bad" id="b5050UnitBad">
+              <div class="b5050-unitframe">
+                <div class="b5050-pointer b5050-pointer--left" aria-hidden="true"></div>
+                <div class="b5050-pointer b5050-pointer--right" aria-hidden="true"></div>
+
+                <div class="b5050-window" id="b5050WindowBad">
+                  <div class="b5050-track" id="b5050TrackBad"></div>
+                  <div class="b5050-centerline" aria-hidden="true"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="b5050-result" id="b5050Result" aria-hidden="true"></div>
+          </div>
+
+          <div class="b5050-bulbs b5050-bulbs--bottom">${bulbs}</div>
+        </div>
+
+        <div class="b5050-timer" id="b5050Timer"></div>
+      </div>
+    `;
+
+    return {
+      machine: this.container.querySelector('#b5050Machine'),
+      dual: this.container.querySelector('#b5050Dual'),
+      vs: this.container.querySelector('#b5050VS'),
+      result: this.container.querySelector('#b5050Result'),
+      timer: this.container.querySelector('#b5050Timer'),
+      good: {
+        unit: this.container.querySelector('#b5050UnitGood'),
+        windowEl: this.container.querySelector('#b5050WindowGood'),
+        track: this.container.querySelector('#b5050TrackGood'),
+      },
+      bad: {
+        unit: this.container.querySelector('#b5050UnitBad'),
+        windowEl: this.container.querySelector('#b5050WindowBad'),
+        track: this.container.querySelector('#b5050TrackBad'),
+      }
+    };
+  }
+
+  async _countdown(timerEl, seconds) {
+    for (let t = seconds; t >= 1; t--) {
+      if (!this._running) return;
+      timerEl.textContent = String(t);
+      timerEl.classList.remove('pop');
+      void timerEl.offsetHeight;
+      timerEl.classList.add('pop');
+      await this._wait(1000);
+    }
+    timerEl.textContent = '';
+  }
+
+  _buildReel(stopValue, pool) {
+    const total = 50;
+    const stopIndex = 38;
+    const arr = [];
+    for (let i = 0; i < total; i++) arr.push(pool[i % pool.length]);
+    arr[stopIndex] = stopValue;
+    return { arr, stopIndex };
+  }
+
+  async _spinReel(reelUi, stopValue, pool, { durationMs = 6000 } = {}) {
+    const { track, windowEl } = reelUi;
+
+    const { arr, stopIndex } = this._buildReel(stopValue, pool);
+    track.innerHTML = arr.map(v => `<div class="b5050-cell">${this._fmtX(v)}</div>`).join('');
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const cells = Array.from(track.querySelectorAll('.b5050-cell'));
+    if (cells.length < 2) return stopValue;
+
+    const stride = Math.max(1, cells[1].offsetTop - cells[0].offsetTop);
+    const cellH = cells[0].getBoundingClientRect().height || 56;
+    const winH = windowEl.getBoundingClientRect().height || 150;
+    const centerOffset = (winH / 2) - (cellH / 2);
+    const finalY = Math.max(0, (stopIndex * stride) - centerOffset);
+
+    track.style.transform = 'translate3d(0,0,0)';
+
+    const a = track.animate(
+      [{ transform: 'translate3d(0,0,0)' }, { transform: `translate3d(0,-${finalY}px,0)` }],
+      { duration: durationMs, easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)', fill: 'forwards' }
+    );
+
+    await a.finished;
+    track.style.transform = `translate3d(0,-${finalY}px,0)`;
+
+    const landed = cells[stopIndex];
+    if (landed) landed.classList.add('is-win');
+
+    return stopValue;
+  }
+
+  _center(rect) {
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
+  _spawnFixedX(text, at, kind) {
+    const el = document.createElement('div');
+    el.className = `b5050-flyx b5050-flyx--${kind}`;
+    el.textContent = text;
+    el.style.left = `${at.x}px`;
+    el.style.top  = `${at.y}px`;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  async _holdThenCollide(ui, goodX, badX) {
+    const startGood = this._center(ui.good.windowEl.getBoundingClientRect());
+    const startBad  = this._center(ui.bad.windowEl.getBoundingClientRect());
+    const end       = this._center(ui.vs.getBoundingClientRect());
+  
+    // 1) показать два X (у тебя уже без панелей)
+    const xGood = this._spawnFixedX(this._fmtX(goodX), startGood, 'good');
+    const xBad  = this._spawnFixedX(this._fmtX(badX),  startBad,  'bad');
+  
+    // лёгкое "дыхание" пока висят
+    xGood.classList.add('b5050-flyx--idle');
+    xBad.classList.add('b5050-flyx--idle');
+  
+    // 2) повисеть 2 секунды
+    await this._wait(2000);
+  
+    // перед движением: убираем idle
+    xGood.classList.remove('b5050-flyx--idle');
+    xBad.classList.remove('b5050-flyx--idle');
+  
+    // 3) стартуем BOOM/частицы не сразу, а когда они уже поехали (приятнее)
+    const moveDuration = 950;
+    const boomAt = 520; // когда примерно "почти сошлись"
+  
+    // запланировать взрыв в процессе движения
+    const boomPromise = (async () => {
+      await this._wait(boomAt);
+      await this._boomWithParticles(ui); // взрыв + частицы + флэш
+    })();
+  
+    // 4) очень плавное сближение + красивый овершут
+    const animOne = (el, start, dir = 1) => {
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+  
+      return el.animate(
+        [
+          // старт
+          { transform: 'translate3d(-50%,-50%,0) scale(1) rotate(0deg)', opacity: 1, filter: 'blur(0px)' },
+  
+          // разгон (чуть наклоняем к центру)
+          { transform: `translate3d(calc(-50% + ${dx*0.70}px), calc(-50% + ${dy*0.70}px), 0) scale(1.10) rotate(${dir*6}deg)`,
+            opacity: 1, filter: 'blur(0.3px)', offset: 0.70 },
+  
+          // овершут в центр (как удар)
+          { transform: `translate3d(calc(-50% + ${dx}px), calc(-50% + ${dy}px), 0) scale(1.28) rotate(${dir*2}deg)`,
+            opacity: 1, filter: 'blur(0px)', offset: 0.92 },
+  
+          // оседание + исчезновение (чтобы не было видно "слипшихся")
+          { transform: `translate3d(calc(-50% + ${dx}px), calc(-50% + ${dy}px), 0) scale(0.92) rotate(0deg)`,
+            opacity: 0.0, filter: 'blur(0.6px)' }
+        ],
+        {
+          duration: moveDuration,
+          easing: 'cubic-bezier(0.16, 0.9, 0.14, 1)', // очень приятное "подсасывание"
+          fill: 'forwards'
+        }
+      ).finished;
+    };
+  
+    // лёгкая встряска в момент удара (почти в конце)
+    const shakePromise = (async () => {
+      await this._wait(Math.max(0, boomAt - 60));
+      ui.machine.classList.add('b5050-shake');
+      await this._wait(240);
+      ui.machine.classList.remove('b5050-shake');
+    })();
+  
+    await Promise.all([
+      animOne(xGood, startGood,  1),
+      animOne(xBad,  startBad,  -1),
+      shakePromise
+    ]);
+  
+    xGood.remove();
+    xBad.remove();
+  
+    // дождаться, чтобы fx успели красиво доиграть
+    await boomPromise;
+  }
+
+  
+  
+  async _boomWithParticles(ui) {
+    const end = this._center(ui.vs.getBoundingClientRect());
+  
+    // BOOM (center)
+    const boom = document.createElement('img');
+    boom.className = 'b5050-boom';
+    boom.src = this.options.boomSrc;
+    boom.alt = '';
+    boom.style.left = `${end.x}px`;
+    boom.style.top  = `${end.y}px`;
+    document.body.appendChild(boom);
+  
+    // PARTICLES (around)
+    const particleCount = 14; // ✅ больше частиц
+    const parts = [];
+  
+    for (let i = 0; i < particleCount; i++) {
+      const p = document.createElement('img');
+      p.className = 'b5050-particle';
+      p.src = this.options.particlesSrc;
+      p.alt = '';
+      p.style.left = `${end.x}px`;
+      p.style.top  = `${end.y}px`;
+  
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 140 + Math.random() * 190;
+      const dx = Math.cos(ang) * dist;
+      const dy = Math.sin(ang) * dist * 0.7;
+  
+      const size = 110 + Math.random() * 140;
+      p.style.width = `${size}px`;
+      p.style.height = `${size}px`;
+  
+      document.body.appendChild(p);
+      parts.push({ el: p, dx, dy });
+    }
+  
+    // запускаем boom сразу
+    boom.classList.add('is-on');
+  
+    // частицы стартуют сразу и летят наружу
+    const particleAnims = parts.map(({ el, dx, dy }) =>
+      el.animate(
+        [
+          { transform: 'translate3d(-50%,-50%,0) scale(0.45)', opacity: 0 },
+          { transform: 'translate3d(-50%,-50%,0) scale(1)', opacity: 1, offset: 0.18 },
+          { transform: `translate3d(calc(-50% + ${dx}px), calc(-50% + ${dy}px), 0) scale(1.05)`, opacity: 0 }
+        ],
+        { duration: 2900, easing: 'cubic-bezier(0.12, 0.9, 0.2, 1)', fill: 'forwards' }
+      ).finished
+    );
+  
+    // boom держим меньше (чтобы совпало с быстрым столкновением)
+    await this._wait(650);
+    boom.classList.add('is-off');
+  
+    await Promise.allSettled(particleAnims);
+  
+    for (const { el } of parts) el.remove();
+  
+    await this._wait(420);
+    boom.remove();
+  }
+  
 
   async start() {
     if (this._running) return;
     this._running = true;
 
-    // Stop wheel completely (existing behavior)
-    if (typeof window.omega !== 'undefined') window.omega = 0;
-    if (typeof window.phase !== 'undefined') window.phase = 'bonus_waiting';
-
-    const overlay = document.getElementById('bonus5050Overlay');
-    if (!overlay) {
-      console.error('[Bonus5050] ❌ Overlay not found!');
-      this.options.onComplete('2x');
+    const overlay = this._overlayEl();
+    if (!overlay || !this.container) {
       this._running = false;
+      this.options.onComplete('2x');
       return;
     }
 
     overlay.style.display = 'flex';
     overlay.classList.add('bonus-overlay--active');
 
-    this.renderUI();
+    this._lockScroll();
+    const ui = this._render();
 
-    // random side assignment
-    const goodOnLeft = Math.random() < 0.5;
-    const leftPool = goodOnLeft ? this.good : this.bad;
-    const rightPool = goodOnLeft ? this.bad : this.good;
+    // 50/50 winner side
+    const pickGood = Math.random() < 0.5;
 
-    const leftResult = leftPool[Math.floor(Math.random() * leftPool.length)];
-    const rightResult = rightPool[Math.floor(Math.random() * rightPool.length)];
+    const goodX = this.GOOD_XS[Math.floor(Math.random() * this.GOOD_XS.length)];
+    const badX  = this.BAD_XS[Math.floor(Math.random() * this.BAD_XS.length)];
+    const chosenX = pickGood ? goodX : badX;
 
-    // spin reels
-    await this.spinReel('left', leftPool, leftResult);
-    await this.spinReel('right', rightPool, rightResult);
+    // chosen glow (optional)
+    ui.good.unit.classList.toggle('is-picked', pickGood);
+    ui.bad.unit.classList.toggle('is-picked', !pickGood);
 
-    // show slide-out result pills (left = leftResult, right = rightResult)
-    await this.showResults(leftResult, rightResult, goodOnLeft);
+    const cdPromise = this._countdown(ui.timer, this.options.durationSec);
 
-    // pause so user can see
-    await this.wait(900);
+    try {
+      await this._wait(450);
 
-    // collide + boom + pick final
-    const finalMult = await this.collisionAndPick(leftResult, rightResult);
+      await Promise.all([
+        this._spinReel(ui.good, goodX, this.GOOD_XS, { durationMs: 6100 }),
+        this._spinReel(ui.bad,  badX,  this.BAD_XS,  { durationMs: 5850 })
+      ]);
 
-    // Hide overlay
-    overlay.classList.remove('bonus-overlay--active');
-    await this.wait(220);
-    overlay.style.display = 'none';
-    this.container.innerHTML = '';
+      // пауза чтобы увидеть оба выпавших
+      await this._wait(700);
 
-    // Restore wheel state (fallback idle omega)
-    if (typeof window.phase !== 'undefined') window.phase = 'betting';
-    if (typeof window.omega !== 'undefined' && window.omega === 0) window.omega = 0.35;
+      // (A) плавно убрать барабаны
+      ui.machine.classList.add('b5050-machine--collapse');
+      await this._wait(650); // дать CSS красиво отработать
 
-    this.options.onComplete(`${finalMult}x`);
+      await this._holdThenCollide(ui, goodX, badX);
 
-    this._running = false;
-  }
 
-  renderUI() {
-    this.container.innerHTML = `
-      <div class="b5050">
-        <div class="b5050__title">50 / 50</div>
+      // (D) winner reveal (как раньше)
+      ui.result.textContent = this._fmtX(chosenX);
+      ui.machine.classList.add('b5050-machine--result');
+      await this._wait(900);
 
-        <div class="b5050__reels">
-          <div class="b5050__reel" data-reel="left">
-            <div class="b5050__window"></div>
-            <div class="b5050__track" id="b5050TrackLeft"></div>
-          </div>
+      await cdPromise;
+    } catch (e) {
+      console.error('[Bonus5050] ❌ Error:', e);
+    } finally {
+      overlay.classList.add('bonus-overlay--leave');
+      await this._wait(260);
 
-          <div class="b5050__vs">VS</div>
+      overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+      overlay.style.display = 'none';
 
-          <div class="b5050__reel" data-reel="right">
-            <div class="b5050__window"></div>
-            <div class="b5050__track" id="b5050TrackRight"></div>
-          </div>
-        </div>
+      this.container.innerHTML = '';
+      this._unlockScroll();
+      this._running = false;
 
-        <div class="b5050__results">
-          <div class="b5050__pill b5050__pill--left" id="b5050PillLeft" hidden></div>
-          <div class="b5050__pill b5050__pill--right" id="b5050PillRight" hidden></div>
-        </div>
-
-        <div class="b5050__boom" id="b5050Boom" hidden>
-          <img src="${this.options.boomSvgUrl}" alt="boom">
-        </div>
-
-        <div class="b5050__final" id="b5050Final" hidden></div>
-        <div class="b5050__hint" id="b5050Hint">Spinning...</div>
-      </div>
-    `;
-  }
-
-  buildTrackHtml(pool) {
-    // repeat to allow deep scroll
-    const seq = [];
-    for (let i = 0; i < 22; i++) seq.push(pool[i % pool.length]);
-    return seq
-      .map(v => `<div class="b5050__cell">${this.formatX(v)}</div>`)
-      .join('');
-  }
-
-  async spinReel(side, pool, result) {
-    const track = document.getElementById(side === 'left' ? 'b5050TrackLeft' : 'b5050TrackRight');
-    if (!track) return;
-
-    track.innerHTML = this.buildTrackHtml(pool);
-
-    // Each cell is 54px (see CSS). Stop near bottom on the desired value.
-    const cellH = 54;
-    // find an index late in the list for smooth scroll
-    const baseIndex = 18;
-    const idxInPool = pool.indexOf(result);
-    const stopIndex = baseIndex + (idxInPool >= 0 ? idxInPool : 0);
-
-    // starting position
-    track.style.transition = 'none';
-    track.style.transform = `translateY(0px)`;
-    // force reflow
-    void track.offsetHeight;
-
-    // spin down
-    const distance = stopIndex * cellH;
-    track.style.transition = 'transform 1200ms cubic-bezier(.12,.82,.12,1)';
-    track.style.transform = `translateY(-${distance}px)`;
-
-    await this.wait(1250);
-  }
-
-  async showResults(leftResult, rightResult, goodOnLeft) {
-    const pillL = document.getElementById('b5050PillLeft');
-    const pillR = document.getElementById('b5050PillRight');
-    const hint = document.getElementById('b5050Hint');
-
-    if (!pillL || !pillR) return;
-
-    pillL.innerHTML = `
-      <span class="b5050__pillTag ${goodOnLeft ? 'is-good' : 'is-bad'}">${goodOnLeft ? 'GOOD' : 'BAD'}</span>
-      <span class="b5050__pillX">${this.formatX(leftResult)}</span>
-    `;
-    pillR.innerHTML = `
-      <span class="b5050__pillTag ${goodOnLeft ? 'is-bad' : 'is-good'}">${goodOnLeft ? 'BAD' : 'GOOD'}</span>
-      <span class="b5050__pillX">${this.formatX(rightResult)}</span>
-    `;
-
-    pillL.hidden = false;
-    pillR.hidden = false;
-
-    // animate slide-in
-    pillL.classList.remove('show');
-    pillR.classList.remove('show');
-    void pillL.offsetHeight;
-
-    pillL.classList.add('show');
-    pillR.classList.add('show');
-
-    if (hint) hint.textContent = 'Your multipliers:';
-    await this.wait(380);
-  }
-
-  async collisionAndPick(leftResult, rightResult) {
-    const pillL = document.getElementById('b5050PillLeft');
-    const pillR = document.getElementById('b5050PillRight');
-    const boom = document.getElementById('b5050Boom');
-    const final = document.getElementById('b5050Final');
-    const hint = document.getElementById('b5050Hint');
-
-    if (!pillL || !pillR || !boom || !final) return leftResult;
-
-    if (hint) hint.textContent = 'Deciding...';
-
-    // fly to center
-    pillL.classList.add('to-center');
-    pillR.classList.add('to-center');
-    await this.wait(380);
-
-    // boom
-    boom.hidden = false;
-    boom.classList.add('pop');
-    await this.wait(420);
-
-    // choose winner (50/50)
-    const pickLeft = Math.random() < 0.5;
-    const chosen = pickLeft ? leftResult : rightResult;
-
-    // hide losing pill
-    (pickLeft ? pillR : pillL).classList.add('fade-out');
-    await this.wait(220);
-
-    // show final in center
-    final.innerHTML = `${this.formatX(chosen)}`;
-    final.hidden = false;
-    final.classList.add('show');
-
-    if (hint) hint.textContent = 'Result:';
-
-    await this.wait(900);
-    return chosen;
-  }
-
-  formatX(v) {
-    // show 1.5x without trailing zeros
-    return `${Number.isInteger(v) ? v : v.toString()}x`;
-  }
-
-  wait(ms) {
-    return new Promise(r => setTimeout(r, ms));
+      this.options.onComplete(this._fmtX(chosenX));
+    }
   }
 }
 
 window.Bonus5050 = Bonus5050;
-console.log('[Bonus5050] ✅ SLOT 50/50 module ready');
-
-// ============================
-// Styles injected (self-contained)
-// ============================
-if (!document.getElementById('bonus5050-styles')) {
-  const style = document.createElement('style');
-  style.id = 'bonus5050-styles';
-  style.textContent = `
-    .bonus-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 9000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      transition: opacity 0.25s ease;
-      pointer-events: none;
-    }
-    .bonus-overlay--active { opacity: 1; pointer-events: auto; }
-    .bonus-overlay__blur-backdrop{
-      position:absolute; inset:0;
-      background: rgba(0,0,0,.82);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-    }
-    .bonus-container{ position:relative; z-index:1; width:min(360px, 92vw); }
-
-    .b5050{
-      width: 100%;
-      text-align:center;
-      color:#fff;
-      padding: 14px 12px 6px;
-    }
-    .b5050__title{
-      font-size: 40px;
-      font-weight: 900;
-      letter-spacing: 2px;
-      margin-bottom: 14px;
-      text-shadow: 0 0 24px rgba(255,255,255,.18);
-    }
-
-    .b5050__reels{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap: 14px;
-      margin-bottom: 14px;
-    }
-    .b5050__vs{
-      font-weight: 900;
-      opacity:.7;
-      letter-spacing: 2px;
-    }
-
-    .b5050__reel{
-      width: 126px;
-      height: 168px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.10);
-      box-shadow: 0 18px 50px rgba(0,0,0,.45);
-      overflow:hidden;
-      position:relative;
-    }
-    .b5050__window{
-      position:absolute; inset:0;
-      background:
-        linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,0) 34%, rgba(0,0,0,0) 66%, rgba(0,0,0,.65));
-      pointer-events:none;
-    }
-    .b5050__track{
-      padding: 8px 10px;
-      transform: translateY(0px);
-      will-change: transform;
-    }
-    .b5050__cell{
-      height: 54px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border-radius: 14px;
-      margin: 6px 0;
-      font-weight: 900;
-      font-size: 22px;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-
-    .b5050__results{
-      position: relative;
-      height: 56px;
-      margin: 4px 0 10px;
-    }
-    .b5050__pill{
-      position:absolute;
-      top: 0;
-      height: 52px;
-      width: 160px;
-      border-radius: 999px;
-      background: rgba(0,0,0,0.45);
-      border: 1px solid rgba(255,255,255,0.10);
-      display:flex;
-      align-items:center;
-      justify-content: space-between;
-      padding: 0 14px;
-      gap: 10px;
-      box-shadow: 0 14px 40px rgba(0,0,0,.45);
-      opacity: 0;
-      transform: translateY(10px);
-      transition: opacity .28s ease, transform .28s ease;
-    }
-    .b5050__pill.show{
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .b5050__pill--left{ left: 0; }
-    .b5050__pill--right{ right: 0; }
-
-    .b5050__pillTag{
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 1px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.12);
-    }
-    .b5050__pillTag.is-good{
-      background: rgba(0,166,255,0.18);
-      border-color: rgba(0,166,255,0.28);
-    }
-    .b5050__pillTag.is-bad{
-      background: rgba(255,77,79,0.16);
-      border-color: rgba(255,77,79,0.22);
-    }
-
-    .b5050__pillX{
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: .4px;
-    }
-
-    .b5050__pill.to-center{
-      left: 50% !important;
-      right: auto !important;
-      transform: translate(-50%, 0) scale(0.98);
-      transition: transform .34s cubic-bezier(.2,.8,.2,1), left .34s cubic-bezier(.2,.8,.2,1), right .34s cubic-bezier(.2,.8,.2,1);
-    }
-    .b5050__pill--right.to-center{
-      right: auto !important;
-      left: 50% !important;
-    }
-
-    .b5050__pill.fade-out{
-      opacity: 0 !important;
-      transform: translate(-50%, 0) scale(0.9) !important;
-      transition: opacity .22s ease, transform .22s ease;
-    }
-
-    .b5050__boom{
-      display:flex;
-      justify-content:center;
-      margin: 8px 0 6px;
-    }
-    .b5050__boom img{
-      width: 110px;
-      height: 110px;
-      object-fit: contain;
-      transform: scale(0.6);
-      opacity: 0;
-      transition: transform .18s ease, opacity .18s ease;
-      filter: drop-shadow(0 18px 40px rgba(0,0,0,.55));
-    }
-    .b5050__boom.pop img{
-      transform: scale(1);
-      opacity: 1;
-    }
-
-    .b5050__final{
-      font-size: 44px;
-      font-weight: 900;
-      margin-top: 2px;
-      opacity: 0;
-      transform: translateY(10px) scale(0.96);
-      transition: opacity .24s ease, transform .24s ease;
-      text-shadow: 0 0 30px rgba(0,166,255,0.18);
-    }
-    .b5050__final.show{
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-
-    .b5050__hint{
-      margin-top: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      opacity: .75;
-      letter-spacing: .4px;
-    }
-
-    @media (max-width: 380px){
-      .b5050__title{ font-size: 34px; }
-      .b5050__reel{ width: 118px; height: 160px; }
-      .b5050__pill{ width: 150px; }
-      .b5050__final{ font-size: 40px; }
-    }
-    @media (prefers-reduced-motion: reduce){
-      *{ animation:none !important; transition:none !important; }
-    }
-  `;
-  document.head.appendChild(style);
-  console.log('[Bonus5050] ✅ Styles injected');
-}
+console.log('[Bonus5050] ✅ Class exported to window.Bonus5050');

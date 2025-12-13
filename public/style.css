@@ -4504,4 +4504,704 @@ body.case-sheet-open .case-sheet-panel{
     height: 40px;
     font-size: 16px;
   }
+
+/* =========================================================
+   BONUS 50/50 — FULL CSS (CLEAN, NO DUPES)
+   Uses ONLY .b5050-pointer elements (from bonus-5050.js)
+   Paste at THE VERY END of style.css
+   ========================================================= */
+
+/* Lock scroll during cutscene */
+html.bonus-active,
+body.bonus-active{
+  height: 100%;
+  overflow: hidden;
+}
+body.bonus-active{
+  position: fixed;
+  left: 0; right: 0;
+}
+
+/* Overlay */
+#bonus5050Overlay.bonus-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: none; /* JS sets flex */
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+#bonus5050Overlay.bonus-overlay.bonus-overlay--active{
+  opacity: 1;
+  pointer-events: auto;
+}
+#bonus5050Overlay.bonus-overlay.bonus-overlay--leave{
+  opacity: 0;
+}
+
+/* Backdrop */
+#bonus5050Overlay .bonus-overlay__blur-backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(16px) brightness(0.75) saturate(0.9);
+  -webkit-backdrop-filter: blur(16px) brightness(0.75) saturate(0.9);
+}
+
+/* Container */
+#bonus5050Overlay .bonus-container{
+  position: relative;
+  z-index: 1;
+  width: min(420px, 92vw);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
+}
+#bonus5050Overlay.bonus-overlay--active .bonus-container{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+#bonus5050Overlay.bonus-overlay--leave .bonus-container{
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+/* Layout */
+.b5050-cutscene{
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Machine */
+.b5050-machine{
+  position: relative;
+  width: min(360px, 88vw);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Bulbs */
+.b5050-bulbs{
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+  margin: 10px 0;
+}
+.b5050-bulb{
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.16), 0 10px 22px rgba(0,0,0,0.35);
+  opacity: 0.9;
+}
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb{
+  animation: b5050Bulb 1200ms ease-in-out infinite;
+}
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(2){ animation-delay: 100ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(3){ animation-delay: 200ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(4){ animation-delay: 300ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(5){ animation-delay: 400ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(6){ animation-delay: 500ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(7){ animation-delay: 600ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(8){ animation-delay: 700ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(9){ animation-delay: 800ms; }
+@keyframes b5050Bulb{
+  0%{ opacity: .65; transform: scale(0.96); }
+  50%{ opacity: 1; transform: scale(1.03); }
+  100%{ opacity: .78; transform: scale(0.98); }
+}
+
+/* Gold frame */
+.b5050-frame{
+  position: relative;
+  padding: 14px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f3c35a 0%, #e0a62d 50%, #c98413 100%);
+  box-shadow: 0 22px 60px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.30);
+}
+
+/* =========================================================
+   POINTERS (FIXED): always point INSIDE the drum
+   Left  ▶  points RIGHT   (border-left)
+   Right ◀  points LEFT    (border-right)
+   ========================================================= */
+
+.b5050-pointer{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+
+  /* stable rendering */
+  will-change: transform;
+  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.45));
+}
+
+/* Left pointer: ▶ (to center) */
+.b5050-pointer--left{
+  left: 6px;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-left: 22px solid #d18a10;
+}
+
+/* Right pointer: ◀ (to center) */
+.b5050-pointer--right{
+  right: 6px;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-right: 22px solid #d18a10;
+}
+
+/* Inner dark cut (creates “notch” inside pointer) */
+.b5050-pointer--left::after,
+.b5050-pointer--right::after{
+  content: "";
+  position: absolute;
+  top: -14px;
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  opacity: .95;
+}
+
+/* cut follows direction */
+.b5050-pointer--left::after{
+  left: -19px; /* inside the triangle */
+  border-left: 18px solid #3a2a12;
+}
+.b5050-pointer--right::after{
+  right: -19px;
+  border-right: 18px solid #3a2a12;
+}
+
+/* Window (drum) */
+.b5050-window{
+  position: relative;
+  height: 190px;
+  border-radius: 16px;
+  overflow: hidden; /* IMPORTANT: cut the track only */
+  background: linear-gradient(180deg, #1a202c 0%, #0f1420 100%);
+  border: 2px solid rgba(0,0,0,0.35);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* Shading */
+.b5050-shade{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(0,0,0,0.55),
+    rgba(0,0,0,0) 34%,
+    rgba(0,0,0,0) 66%,
+    rgba(0,0,0,0.65)
+  );
+}
+
+/* Track */
+.b5050-track{
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  will-change: transform, opacity, filter;
+  transform: translate3d(0,0,0);
+  z-index: 1;
+}
+
+/* Cells */
+.b5050-cell{
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 900;
+  font-size: 42px;
+  letter-spacing: 0.5px;
+
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-shadow: 0 10px 24px rgba(0,0,0,0.45);
+}
+
+/* Highlight landed */
+.b5050-cell.is-win{
+  background: rgba(255, 208, 40, 0.16);
+  border-color: rgba(255, 162, 40, 0.75);
+  box-shadow: 0 0 24px rgba(255, 205, 40, 0.45), inset 0 0 0 1px rgba(255,255,255,0.10);
+  transform: scale(1.05);
+}
+
+/* Center line */
+.b5050-centerline{
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 999px;
+  z-index: 3;
+  pointer-events: none;
+
+  background: linear-gradient(90deg,
+    rgba(40,170,255,0) 0%,
+    rgba(255, 234, 40, 0.85) 20%,
+    rgba(255,255,255,0.95) 50%,
+    rgba(255, 165, 40, 0.85) 80%,
+    rgba(40,170,255,0) 100%
+  );
+  box-shadow: 0 0 18px rgba(40,170,255,0.35), 0 0 4px rgba(255,255,255,0.25);
+}
+
+/* Result big X */
+.b5050-result{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  font-size: 92px;
+  letter-spacing: 1px;
+  color: #fff;
+
+  text-shadow:
+    0 18px 40px rgba(0,0,0,0.55),
+    0 0 34px rgba(40,170,255,0.35);
+
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
+}
+
+/* Timer */
+.b5050-timer{
+  font-weight: 900;
+  font-size: 44px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 14px 28px rgba(0,0,0,0.45);
+  min-height: 44px;
+  text-align: center;
+}
+.b5050-timer.pop{
+  animation: b5050Pop 220ms ease;
+}
+@keyframes b5050Pop{
+  0%{ transform: scale(1); opacity: 0.9; }
+  60%{ transform: scale(1.10); opacity: 1; }
+  100%{ transform: scale(1); opacity: 1; }
+}
+
+/* =========================================================
+   RESULT MODE (works with b5050-machine--result from JS)
+   ========================================================= */
+.b5050-machine--result .b5050-bulbs,
+.b5050-machine--result .b5050-pointer,
+.b5050-machine--result .b5050-timer{
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.b5050-machine--result .b5050-centerline,
+.b5050-machine--result .b5050-shade{
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.b5050-machine--result .b5050-track{
+  opacity: 0;
+  filter: blur(2px);
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+.b5050-machine--result .b5050-frame{
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  transition: background 240ms ease, box-shadow 240ms ease, padding 240ms ease;
+}
+
+.b5050-machine--result .b5050-window{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  height: 180px;
+  transition: background 240ms ease, box-shadow 240ms ease, border 240ms ease;
+}
+
+.b5050-machine--result .b5050-result{
+  opacity: 1;
+  transform: scale(1);
+}
+/* ===== 50/50 DUAL REELS ADDON ===== */
+.b5050-windows{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* два барабана чуть меньше высотой */
+.b5050-window{
+  height: 150px;
+  position: relative;
+}
+
+/* подсветка выбранного барабана */
+.b5050-window.is-picked{
+  box-shadow:
+    0 0 0 2px rgba(255, 200, 40, 0.45),
+    0 0 28px rgba(255, 200, 40, 0.25),
+    inset 0 0 0 1px rgba(255,255,255,0.10);
+}
+
+
+/* ячейка на НЕ выбранном барабане (тускло) */
+.b5050-cell.is-dim{
+  opacity: 0.45;
+  filter: saturate(0.7) brightness(0.95);
+}
+
+/* ячейка на выбранном (победном) барабане */
+.b5050-cell.is-picked{
+  box-shadow:
+    0 0 26px rgba(255,205,40,0.45),
+    inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+
+/* ===== 50/50: two separate drums + VS gap (classic reveal) ===== */
+
+/* на всякий — отключаем старые псевдо-стрелки, если они где-то остались */
+.b5050-window::before,
+.b5050-window::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* вертикальная компоновка: барабан / VS / барабан */
+.b5050-dual{
+  position: relative;
+  width: min(360px, 88vw);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;              /* расстояние между блоками */
+}
+
+/* отдельный блок-барабан (НЕ соединены рамкой) */
+.b5050-unit{ position: relative; }
+.b5050-unitframe{
+  position: relative;
+  padding: 12px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f3c35a 0%, #e0a62d 50%, #c98413 100%);
+  box-shadow: 0 22px 60px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.30);
+}
+
+/* окно барабана */
+.b5050-window{
+  position: relative;
+  height: 150px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1a202c 0%, #0f1420 100%);
+  border: 2px solid rgba(0,0,0,0.35);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* VS просто текстом посередине */
+.b5050-vs{
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  letter-spacing: 2px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.9);
+
+  opacity: 0.9;
+}
+
+/* стрелки (стабильно смотрят внутрь) */
+.b5050-pointer{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0; height: 0;
+  pointer-events: none;
+  z-index: 5;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
+}
+
+
+/* выбранный барабан */
+.b5050-unit.is-picked .b5050-window{
+  box-shadow:
+    0 0 0 2px rgba(255, 200, 40, 0.38),
+    0 0 30px rgba(255, 200, 40, 0.18),
+    inset 0 0 0 1px rgba(255,255,255,0.10);
+}
+
+/* центр-линия */
+.b5050-centerline{
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 999px;
+  z-index: 3;
+  pointer-events: none;
+
+  background: linear-gradient(90deg,
+    rgba(40,170,255,0) 0%,
+    rgba(255, 234, 40, 0.85) 20%,
+    rgba(255,255,255,0.95) 50%,
+    rgba(255, 165, 40, 0.85) 80%,
+    rgba(40,170,255,0) 100%
+  );
+  box-shadow: 0 0 18px rgba(40,170,255,0.35), 0 0 4px rgba(255,255,255,0.25);
+}
+
+/* результат поверх всего dual-блока */
+.b5050-result{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  font-size: 92px;
+  letter-spacing: 1px;
+  color: #fff;
+
+  text-shadow: 0 18px 40px rgba(0,0,0,0.55), 0 0 34px rgba(40,170,255,0.35);
+
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
+}
+/* убрать белые "светлячки" на этапе исчезновения барабанов */
+.b5050-machine--collapse .b5050-bulbs{
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.b5050-machine--collapse .b5050-bulb{
+  animation: none !important; /* стопаем мерцание */
+}
+
+
+/* classic reveal: убираем барабаны и VS, показываем X */
+.b5050-machine--result .b5050-unit,
+.b5050-machine--result .b5050-vs{
+  opacity: 0;
+  transform: translateY(-6px) scale(0.985);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.b5050-machine--result .b5050-result{
+  opacity: 1;
+  transform: scale(1);
+}
+/* ===== 50/50: collapse -> 2x fly to center -> boom ===== */
+
+/* если где-то остались псевдо-стрелки — вырубаем */
+.b5050-window::before,
+.b5050-window::after{
+  content:none !important;
+  display:none !important;
+}
+
+/* ===== 50/50: smooth collapse -> 2s hold -> slow collide -> boom + particles ===== */
+
+/* этап: плавно убрать барабаны и VS */
+.b5050-machine--collapse .b5050-unit,
+.b5050-machine--collapse .b5050-vs{
+  opacity: 0;
+  transform: translateY(-10px) scale(0.975);
+  pointer-events: none;
+  transition: opacity 650ms ease, transform 650ms cubic-bezier(0.16, 0.84, 0.18, 1);
+}
+
+/* Два "голых" X (fixed для стабильности) */
+.b5050-flyx{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0);
+  z-index: 10000000;
+  pointer-events: none;
+
+  font-weight: 1000;
+  font-size: 56px;
+  letter-spacing: 0.5px;
+  color: #fff;
+
+  padding: 10px 16px;
   
+
+}
+
+
+
+.b5050-flyx--clash{
+  animation: b5050Clash 200ms ease both;
+}
+@keyframes b5050Clash{
+  0%{ transform: translate3d(-50%,-50%,0) scale(1); }
+  60%{ transform: translate3d(-50%,-50%,0) scale(1.22); }
+  100%{ transform: translate3d(-50%,-50%,0) scale(0.98); }
+}
+
+/* BOOM */
+.b5050-boom{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.85);
+  z-index: 10000001;
+  pointer-events: none;
+
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+
+  opacity: 0;
+  filter: drop-shadow(0 20px 60px rgba(0,0,0,0.65));
+}
+.b5050-boom.is-on{
+  opacity: 1;
+  transform: translate3d(-50%,-50%,0) scale(1);
+  transition: opacity 140ms ease, transform 360ms cubic-bezier(0.18,0.9,0.2,1);
+}
+.b5050-boom.is-off{
+  opacity: 0;
+  transform: translate3d(-50%,-50%,0) scale(1.10);
+  transition: opacity 520ms ease, transform 520ms ease;
+}
+
+/* PARTICLES around */
+.b5050-particle{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0);
+  z-index: 10000000;
+  pointer-events: none;
+  object-fit: contain;
+  opacity: 0;
+  filter: drop-shadow(0 16px 50px rgba(0,0,0,0.55));
+}
+
+/* winner is under boom, appears after fx */
+.b5050-result{ z-index: 10000000; }
+/* ===== nicer collide FX ===== */
+
+/* лёгкое дыхание пока "висят" */
+.b5050-flyx--idle{
+  animation: b5050Idle 1200ms ease-in-out infinite;
+}
+@keyframes b5050Idle{
+  0%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+  50%{ transform: translate3d(-50%,-50%,0) scale(1.04); opacity: 1; }
+  100%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+}
+
+/* микро-встряска экрана на удар */
+.b5050-shake{
+  animation: b5050Shake 240ms ease both;
+}
+@keyframes b5050Shake{
+  0%{ transform: translate3d(0,0,0); }
+  25%{ transform: translate3d(2px,-2px,0); }
+  50%{ transform: translate3d(-2px,2px,0); }
+  75%{ transform: translate3d(2px,1px,0); }
+  100%{ transform: translate3d(0,0,0); }
+}
+
+/* flash в центре */
+.b5050-flash{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.6);
+  width: 420px;
+  height: 420px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 10000006;
+  opacity: 0;
+  background: radial-gradient(circle,
+    rgba(255,255,255,0.95) 0%,
+    rgba(255,220,140,0.60) 18%,
+    rgba(255,180,80,0.22) 38%,
+    rgba(0,0,0,0) 70%
+  );
+  filter: blur(1px);
+}
+.b5050-flash.is-on{
+  animation: b5050Flash 520ms ease forwards;
+}
+@keyframes b5050Flash{
+  0%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(0.55); }
+  20%{ opacity: 1; transform: translate3d(-50%,-50%,0) scale(0.95); }
+  100%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(1.15); }
+}
+
+/* ударная волна (кольцо) */
+.b5050-ring{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.2);
+  width: 340px;
+  height: 340px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 10000005;
+  opacity: 0;
+  border: 2px solid rgba(255,240,180,0.45);
+  box-shadow: 0 0 40px rgba(255,210,120,0.22);
+}
+.b5050-ring.is-on{
+  animation: b5050Ring 780ms ease forwards;
+}
+@keyframes b5050Ring{
+  0%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(0.18); }
+  25%{ opacity: 0.9; }
+  100%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(1.25); }
+}
+
+/* слои: boom/particles/flash выше всего */
+.b5050-boom{ z-index: 10000007; }
+.b5050-particle{ z-index: 10000006; }
