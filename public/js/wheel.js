@@ -1841,11 +1841,24 @@ function getMultiplier(type) {
         boomSrc: 'images/boom.webp',
         particlesSrc: 'images/boomparticles.webp',
         onComplete: (xStr) => {
-          // если хочешь начислять здесь — раскомментируй:
-          // const mult = parseFloat(String(xStr).replace('x',''));
-          // if (betAmount > 0 && Number.isFinite(mult) && typeof addWinAmount === 'function') {
-          //   addWinAmount(betAmount * mult, currentCurrency);
-          // }
+          // ✅ Начисление выигрыша за бонус 50/50 + уведомление о выигрыше
+          const mult = parseFloat(String(xStr).replace('x',''));
+          if (betAmount > 0 && Number.isFinite(mult)) {
+            const rawWin = betAmount * mult;
+            const winAmount = (currentCurrency === 'stars')
+              ? Math.round(rawWin)
+              : +rawWin.toFixed(2);
+
+            // Toast (только на странице колеса — внутри showWinNotification есть проверка)
+            if (typeof showWinNotification === 'function') {
+              try { showWinNotification(winAmount); } catch (_) {}
+            }
+
+            // Баланс (в этом проекте addWinAmount работает в TEST_MODE)
+            if (window.TEST_MODE && typeof addWinAmount === 'function') {
+              try { addWinAmount(winAmount, currentCurrency); } catch (_) {}
+            }
+          }
           resolve(xStr);
         }
       });
