@@ -907,6 +907,30 @@ function tick(ts){
             setOmega(IDLE_OMEGA, { force: true });
             startCountdown(9);
           }, 2000);
+        } else if (typeFinished === 'Loot Rush') {
+          setTimeout(async () => {
+            console.log('[Wheel] 🎒 Starting Loot Rush bonus...');
+            const betOnLootRush = betsMap.get('Loot Rush') || 0;
+
+            // 🧊 Freeze wheel until bonus resolves
+            if (window.bonusLockStart) window.bonusLockStart();
+
+            if (window.startLootRushBonus) {
+              // 🔥 WAIT FOR BONUS COMPLETION
+              await window.startLootRushBonus(betOnLootRush);
+            } else {
+              console.warn('[Wheel] ⚠️ startLootRushBonus is not defined (missing lootrush.js?)');
+            }
+
+            // 🔥 Bonus finished: unlock + continue normal flow
+            if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+
+            pushHistory(typeFinished);
+            clearBets();
+            setPhase('betting', { force: true });
+            setOmega(IDLE_OMEGA, { force: true });
+            startCountdown(9);
+          }, 2000);
         } else {
           // 🔥 NORMAL RESULT - NO BONUS
           setTimeout(() => {
