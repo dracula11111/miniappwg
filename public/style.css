@@ -1719,33 +1719,43 @@ body.case-sheet-open .case-sheet-panel{
   transform: scale(1);
 }
 
+.case-carousel{
+  position: relative;
+  overflow: hidden;
+}
+
+/* было: padding:8px; inset:0; */
 .case-carousel-items{
-  position:absolute;
-  inset: 0;
-  display:flex;
-  flex-direction: row;
-  padding: 8px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+
+  display: flex;
   gap: 8px;
+  align-items: center;
   will-change: transform;
 }
 
 .case-carousel-item{
-  position:relative;
-  height: calc(100% - 16px);
+  height: 100%;
   aspect-ratio: 1;
-  background: var(--card);
-  border-radius: 12px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-shrink:0;
-  overflow:hidden;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .case-carousel-item img{
-  width:80%;
-  height:80%;
+  width: 80%;
+  height: 80%;
   object-fit: contain;
+  display: block;
 }
+
+
 
 /* Subtle base glow behind PNG */
 .case-carousel-item::before{
