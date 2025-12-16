@@ -100,7 +100,10 @@ if (window.TEST_MODE) {
       } else if (segmentName === '50&50') {
         // Запуск бонуса 50/50
         if (window.stopOnSegment) window.stopOnSegment('50&50');
-        else if (window.bonusLockStart) window.bonusLockStart();
+        else if (window.bonusLockStart) {
+        const wp = document.getElementById('wheelPage');
+        if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
+      }
 
         if (window.start5050Bonus) {
           Promise.resolve(window.start5050Bonus(betAmount)).finally(() => {
@@ -890,16 +893,38 @@ function tick(ts){
             console.log('[Wheel] 🎰 Starting 50/50 bonus...');
             const betOn5050 = betsMap.get('50&50') || 0;
 
-            // 🧊 Freeze wheel until bonus resolves
-            if (window.bonusLockStart) window.bonusLockStart();
+            // 🔥 НОВАЯ ЛОГИКА: проверка ставки и автопереключение
+            if (betOn5050 > 0 && window.BonusManager) {
+              // 🎯 Есть ставка - используем BonusManager
+              // Автоматически переключит на Wheel если нужно
+              // Заблокирует навигацию
+              await window.BonusManager.startBonus('50&50', betOn5050);
+            } else {
+              // 🎯 Нет ставки - показываем только если на wheel
+              if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
+                console.log('[Wheel] ⏭️ No bet on 50&50, skipping bonus on other page');
+                pushHistory(typeFinished);
+                clearBets();
+                setPhase('betting', { force: true });
+                setOmega(IDLE_OMEGA, { force: true });
+                startCountdown(9);
+                return;
+              }
 
-            if (window.start5050Bonus) {
-              // 🔥 WAIT FOR BONUS COMPLETION
-              await window.start5050Bonus(betOn5050);
+              // Обычный запуск (без BonusManager)
+              if (window.bonusLockStart) {
+        const wp = document.getElementById('wheelPage');
+        if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
+      }
+
+              if (window.start5050Bonus) {
+                await window.start5050Bonus(betOn5050);
+              }
+
+              if (window.bonusLockEnd) {
+                window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+              }
             }
-
-            // 🔥 Bonus finished: unlock + continue normal flow
-            if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
 
             pushHistory(typeFinished);
             clearBets();
@@ -909,21 +934,38 @@ function tick(ts){
           }, 2000);
         } else if (typeFinished === 'Loot Rush') {
           setTimeout(async () => {
-            console.log('[Wheel] 🎒 Starting Loot Rush bonus...');
+            console.log('[Wheel] 🎁 Starting Loot Rush bonus...');
             const betOnLootRush = betsMap.get('Loot Rush') || 0;
 
-            // 🧊 Freeze wheel until bonus resolves
-            if (window.bonusLockStart) window.bonusLockStart();
-
-            if (window.startLootRushBonus) {
-              // 🔥 WAIT FOR BONUS COMPLETION
-              await window.startLootRushBonus(betOnLootRush);
+            // 🔥 НОВАЯ ЛОГИКА: проверка ставки и автопереключение
+            if (betOnLootRush > 0 && window.BonusManager) {
+              await window.BonusManager.startBonus('Loot Rush', betOnLootRush);
             } else {
-              console.warn('[Wheel] ⚠️ startLootRushBonus is not defined (missing lootrush.js?)');
-            }
+              if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
+                console.log('[Wheel] ⏭️ No bet on Loot Rush, skipping bonus on other page');
+                pushHistory(typeFinished);
+                clearBets();
+                setPhase('betting', { force: true });
+                setOmega(IDLE_OMEGA, { force: true });
+                startCountdown(9);
+                return;
+              }
 
-            // 🔥 Bonus finished: unlock + continue normal flow
-            if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+              if (window.bonusLockStart) {
+        const wp = document.getElementById('wheelPage');
+        if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
+      }
+
+              if (window.startLootRushBonus) {
+                await window.startLootRushBonus(betOnLootRush);
+              } else {
+                console.warn('[Wheel] ⚠️ startLootRushBonus is not defined');
+              }
+
+              if (window.bonusLockEnd) {
+                window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+              }
+            }
 
             pushHistory(typeFinished);
             clearBets();
@@ -977,22 +1019,19 @@ function checkBetsAndShowResult(resultType) {
   if (isBonusRound) {
     console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
     
-    //  ONLY SHOW NOTIFICATION IF ON WHEEL PAGE
-    const wheelPage = document.getElementById('wheelPage');
-    const isWheelActive = wheelPage?.classList.contains('page-active');
-    
-    if (isWheelActive) {
+    // 🔥 ИЗМЕНЕНО: используем BonusManager
+    if (window.BonusManager && window.BonusManager.isOnWheelPage()) {
       showBonusNotification(resultType);
     }
     
-    //  FOR 50/50 BONUS - WAIT FOR COMPLETION
-    // Bonus will be started from the decelerate completion handler
     if (resultType === '50&50') {
       return;
     }
     
     return;
   }
+  
+
   
   if (totalBets <= 0) {
     console.log('[Wheel] No bets placed');
@@ -1047,90 +1086,44 @@ function getMultiplier(type) {
 
   
 function showWinNotification(winAmount) {
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
+  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
+  if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
     console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
     return;
   }
-  
+
+  // Fallback (если BonusManager не подключён)
+  if (!window.BonusManager) {
+    const wheelPage = document.getElementById('wheelPage');
+    const isWheelActive = wheelPage?.classList.contains('page-active');
+    if (!isWheelActive) {
+      console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
+      return;
+    }
+  }
+
   const existing = document.getElementById('win-toast');
   if (existing) existing.remove();
-  
+
   const toast = document.createElement('div');
   toast.id = 'win-toast';
-  
-  const formattedAmount = currentCurrency === 'stars' 
-    ? Math.round(winAmount) 
+
+  const formattedAmount = currentCurrency === 'stars'
+    ? Math.round(winAmount)
     : winAmount.toFixed(2);
-  
-  toast.style.cssText = `
-    position: fixed;
-    top: 120px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-100px);
-    z-index: 10000;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.08));
-    backdrop-filter: blur(16px) saturate(180%);
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    border-radius: 20px;
-    padding: 18px 28px;
-    font-size: 26px;
-    font-weight: 900;
-    color: #10b981;
-    box-shadow: 
-      0 12px 32px rgba(16, 185, 129, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    animation: winJellyIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-    text-shadow: 0 2px 12px rgba(16, 185, 129, 0.4);
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  `;
-  
+
   const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-  
+
   toast.innerHTML = `
     <span>+${formattedAmount}</span>
-    <img src="${iconSrc}" style="width: 24px; height: 24px;" />
+    <img src="${iconSrc}" style="width: 22px; height: 22px;" />
   `;
-  
-  if (!document.getElementById('win-animations')) {
-    const style = document.createElement('style');
-    style.id = 'win-animations';
-    style.textContent = `
-      @keyframes winJellyIn {
-        0% { 
-          transform: translateX(-50%) translateY(-100px) scale(0.3);
-          opacity: 0;
-        }
-        50% { 
-          transform: translateX(-50%) translateY(0) scale(1.08);
-          opacity: 1;
-        }
-        65% { 
-          transform: translateX(-50%) translateY(0) scale(0.95);
-        }
-        80% { 
-          transform: translateX(-50%) translateY(0) scale(1.02);
-        }
-        100% { 
-          transform: translateX(-50%) translateY(0) scale(1);
-          opacity: 1;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  document.body.appendChild(toast);
-  
+
+  (document.getElementById('wheelPage') || document.body).appendChild(toast);
+
   setTimeout(() => {
-    toast.style.animation = 'winJellyOut 0.6s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards';
-    setTimeout(() => toast.remove(), 600);
+    toast.style.animation = 'winSlideUp 0.4s ease forwards';
+    setTimeout(() => toast.remove(), 400);
   }, 2500);
 }
 
@@ -1179,54 +1172,7 @@ function showInsufficientBalanceNotification() {
 
 
 
-function showBonusNotification(bonusType) {
-  // 🔥 CHECK IF ON WHEEL PAGE
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
-    console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
-    return;
-  }
-  
-  const existing = document.getElementById('bonus-trigger-toast');
-  if (existing) existing.remove();
-  
-  const toast = document.createElement('div');
-  toast.id = 'bonus-trigger-toast';
-  
-  toast.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0);
-    z-index: 9999;
-    background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(219, 39, 119, 0.95));
-    backdrop-filter: blur(16px);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 24px;
-    padding: 30px 50px;
-    font-size: 48px;
-    font-weight: 900;
-    color: white;
-    animation: bonusTrigger 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    text-align: center;
-  `;
-  
-  toast.innerHTML = `
-    <div style="margin-bottom: 10px;">${bonusType}</div>
-    <div style="font-size: 18px; font-weight: 600;">Bonus Round</div>
-  `;
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'bonusTriggerOut 0.5s ease forwards';
-    setTimeout(() => toast.remove(), 500);
-  }, 1500);
-}
-
-
+// (removed duplicate showBonusNotification - superseded by clean version below)
 function showTestModeNotification() {
   const existing = document.getElementById('test-mode-toast');
   if (existing) return;
@@ -1405,7 +1351,10 @@ window.run5050BonusManual = async function run5050BonusManual(betAmount = 0) {
   await decelerateToSlice(idx, 1400, 1, '50&50');
 
   // 2) заморозить и запустить бонус
-  if (window.bonusLockStart) window.bonusLockStart();
+  if (window.bonusLockStart) {
+        const wp = document.getElementById('wheelPage');
+        if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
+      }
 
   try {
     if (window.start5050Bonus) {
@@ -1696,33 +1645,41 @@ console.log('[Wheel] ✅ Bonus integration ready');
 
 /* ===== 🔥 WIN NOTIFICATION - CLEAN STYLE ===== */
 function showWinNotification(winAmount) {
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
+  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
+  if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
     console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
     return;
   }
-  
+
+  // Fallback (если BonusManager не подключён)
+  if (!window.BonusManager) {
+    const wheelPage = document.getElementById('wheelPage');
+    const isWheelActive = wheelPage?.classList.contains('page-active');
+    if (!isWheelActive) {
+      console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
+      return;
+    }
+  }
+
   const existing = document.getElementById('win-toast');
   if (existing) existing.remove();
-  
+
   const toast = document.createElement('div');
   toast.id = 'win-toast';
-  
-  const formattedAmount = currentCurrency === 'stars' 
-    ? Math.round(winAmount) 
+
+  const formattedAmount = currentCurrency === 'stars'
+    ? Math.round(winAmount)
     : winAmount.toFixed(2);
-  
+
   const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-  
+
   toast.innerHTML = `
     <span>+${formattedAmount}</span>
     <img src="${iconSrc}" style="width: 22px; height: 22px;" />
   `;
-  
-  document.body.appendChild(toast);
-  
+
+  (document.getElementById('wheelPage') || document.body).appendChild(toast);
+
   setTimeout(() => {
     toast.style.animation = 'winSlideUp 0.4s ease forwards';
     setTimeout(() => toast.remove(), 400);
@@ -1753,24 +1710,35 @@ function showInsufficientBalanceNotification() {
 
 /* ===== 🔥 BONUS NOTIFICATION - CLEAN ===== */
 function showBonusNotification(bonusType) {
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) return;
-  
+  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
+  if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
+    console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
+    return;
+  }
+
+  // Fallback (если BonusManager не подключён)
+  if (!window.BonusManager) {
+    const wheelPage = document.getElementById('wheelPage');
+    const isWheelActive = wheelPage?.classList.contains('page-active');
+    if (!isWheelActive) {
+      console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
+      return;
+    }
+  }
+
   const existing = document.getElementById('bonus-trigger-toast');
   if (existing) existing.remove();
-  
+
   const toast = document.createElement('div');
   toast.id = 'bonus-trigger-toast';
-  
+
   toast.innerHTML = `
     <div>${bonusType}</div>
     <div>Bonus Round</div>
   `;
-  
-  document.body.appendChild(toast);
-  
+
+  (document.getElementById('wheelPage') || document.body).appendChild(toast);
+
   setTimeout(() => {
     toast.style.animation = 'bonusFadeOut 0.4s ease forwards';
     setTimeout(() => toast.remove(), 400);
@@ -1812,6 +1780,12 @@ function getMultiplier(type) {
 
 // ===== 50/50 BONUS: make sure it can start from wheel =====
 (function () {
+  function __wheelBonusMount() {
+    // Mount all bonus UI inside wheelPage so it isn't visible on other pages
+    const wheelPage = document.getElementById('wheelPage');
+    return wheelPage || document.body;
+  }
+
   function ensureBonusOverlay() {
     let overlay = document.getElementById('bonus5050Overlay');
     if (overlay) return overlay;
@@ -1823,7 +1797,7 @@ function getMultiplier(type) {
       <div class="bonus-overlay__blur-backdrop"></div>
       <div class="bonus-container"></div>
     `;
-    document.body.appendChild(overlay);
+    __wheelBonusMount().appendChild(overlay);
     return overlay;
   }
 
@@ -1893,3 +1867,55 @@ function getMultiplier(type) {
 
 console.log('[Wheel] ✅ Notification functions loaded');
 console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
+
+
+/* ===== BONUS UI VISIBILITY: keep overlays inside Wheel page ===== */
+(function () {
+  function __moveBonusUiToWheel(node) {
+    const wheelPage = document.getElementById('wheelPage');
+    if (!wheelPage || !node || node.nodeType !== 1) return;
+
+    const id = (node.id || '').toLowerCase();
+    const cls = (node.className || '').toString().toLowerCase();
+
+    // Known toasts
+    const isToast = id === 'win-toast' || id === 'bonus-trigger-toast';
+
+    // Known overlays / modals (5050, loot rush, generic)
+    const isOverlay =
+      cls.includes('bonus-overlay') ||
+      cls.includes('loot') && cls.includes('overlay') ||
+      id.includes('bonus') && (id.includes('overlay') || id.includes('modal')) ||
+      id.includes('lootrush');
+
+    if (isToast || isOverlay) {
+      // If already inside wheelPage — ok
+      if (wheelPage.contains(node)) return;
+      try { wheelPage.appendChild(node); } catch (_) {}
+    }
+  }
+
+  // Move existing ones if any
+  ['bonus5050Overlay', 'win-toast', 'bonus-trigger-toast'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) __moveBonusUiToWheel(el);
+  });
+
+  // Observe future injections (e.g., other bonus scripts)
+  try {
+    const obs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        for (const n of m.addedNodes) {
+          if (n && n.nodeType === 1) {
+            __moveBonusUiToWheel(n);
+            // also check children quickly
+            const kids = n.querySelectorAll ? n.querySelectorAll('#bonus5050Overlay, #win-toast, #bonus-trigger-toast, .bonus-overlay') : [];
+            kids.forEach(__moveBonusUiToWheel);
+          }
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  } catch (_) {}
+})();
+

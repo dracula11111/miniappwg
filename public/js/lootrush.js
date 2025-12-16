@@ -1,6 +1,7 @@
 // public/js/lootrush.js - LOOT RUSH BONUS (CS:GO Style)
-// 🎯 Timer moved to bottom
-// 🎯 Rows shift like CS:GO cases (alternating directions)
+// 🎯 Timer moved to bottom and HIDDEN until selection
+// 🎯 Rows shift randomly (not just shift)
+// 🎯 Time reduced to 10 seconds
 
 console.log('[LootRush] 💼 Loading Loot Rush bonus system...');
 
@@ -9,7 +10,7 @@ class LootRush {
     this.container = container;
     this.options = {
       onComplete: typeof options.onComplete === 'function' ? options.onComplete : () => {},
-      durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 12,
+      durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 10,
       
       bagFolder: options.bagFolder || '/images/lootrush/',
       bagPrefix: options.bagPrefix || 'lootbag',
@@ -23,6 +24,9 @@ class LootRush {
       
       ...options
     };
+    
+    // 🔥 Пул всех сумок для рандомизации
+    this._allBagSrcs = [];
 
     this._running = false;
     this._scrollY = 0;
@@ -36,6 +40,7 @@ class LootRush {
   }
 
   _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+  
   _fmtX(v) {
     const num = Number(v);
     if (!Number.isFinite(num)) return '1.1x';
@@ -90,6 +95,13 @@ class LootRush {
     const n = i + 1;
     return `${this.options.bagFolder}${this.options.bagPrefix}${n}${this.options.bagExt}`;
   }
+  
+  // 🔥 Получить случайную сумку из пула
+  _getRandomBagSrc() {
+    if (this._allBagSrcs.length === 0) return this._getBagSrc(0);
+    const idx = Math.floor(Math.random() * this._allBagSrcs.length);
+    return this._allBagSrcs[idx];
+  }
 
   async _preloadImages(srcs) {
     const promises = srcs.map(src => {
@@ -112,8 +124,11 @@ class LootRush {
     for (let i = 0; i < 25; i++) {
       bagSrcs.push(this._getBagSrc(i));
     }
+    
+    // 🔥 Инициализируем пул всех сумок
+    this._allBagSrcs = [...bagSrcs];
 
-    // 🔥 FIXED LAYOUT: Grid first, then bottom section with title + timer
+    // 🔥 FIXED LAYOUT: Grid first, then bottom section with title + timer (СКРЫТ)
     this.container.innerHTML = `
       <div class="lr-cutscene">
         <div class="lr-grid" id="lrGrid">
@@ -127,7 +142,7 @@ class LootRush {
         
         <div class="lr-bottom">
           <div class="lr-title" id="lrTitle">Choose your loot bag</div>
-          <div class="lr-timer" id="lrTimer">${this.options.durationSec}</div>
+          <div class="lr-timer lr-timer-hidden" id="lrTimer">${this.options.durationSec}</div>
         </div>
       </div>
     `;
@@ -255,11 +270,9 @@ class LootRush {
     const srcs = this._rowBagSrcs[row];
     if (!srcs || srcs.length !== 5) return;
 
-    // Shift bag sources
-    if (direction > 0) {
-      srcs.unshift(srcs.pop()); // Shift right
-    } else {
-      srcs.push(srcs.shift()); // Shift left
+    // 🔥 РАНДОМИЗАЦИЯ: вместо сдвига массива, генерируем случайные сумки
+    for (let c = 0; c < 5; c++) {
+      srcs[c] = this._getRandomBagSrc();
     }
 
     // 🔥 Update DOM with SMOOTH fade transition
@@ -271,20 +284,24 @@ class LootRush {
       const img = tile.querySelector('.lr-bag');
       if (img) {
         // Fade out
-        img.style.transition = 'opacity 0.15s ease';
+        img.style.transition = 'opacity 0.12s ease, transform 0.12s ease';
         img.style.opacity = '0';
+        img.style.transform = 'scale(0.9)';
         
         // Change source and fade in
         setTimeout(() => {
           img.src = srcs[c];
           img.style.opacity = '1';
-        }, 75); // Half of transition time
+          img.style.transform = 'scale(1)';
+        }, 60);
       }
     }
 
-    // 🔥 Shift multipliers to match
+    // 🔥 Shift multipliers to match (тоже рандомизируем для эффекта)
     const base = row * 5;
     const rowMults = this._multipliers.slice(base, base + 5);
+    
+    // Сдвигаем множители в противоположную сторону от direction для эффекта
     if (direction > 0) {
       rowMults.unshift(rowMults.pop());
     } else {
@@ -313,6 +330,14 @@ class LootRush {
 
     this._selectedIndex = 0;
     this._applySelection();
+    
+    // 🔥 ПОКАЗАТЬ ТАЙМЕР после выбора сумки
+    const timer = this.container.querySelector('#lrTimer');
+    if (timer) {
+      timer.classList.remove('lr-timer-hidden');
+      // Плавное появление
+      setTimeout(() => timer.classList.add('lr-timer-visible'), 50);
+    }
   }
 
   _applySelection() {
@@ -454,7 +479,7 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
 
     return new Promise((resolve) => {
       const bonus = new LootRush(container, {
-        durationSec: 12,
+        durationSec: 10,
         bagFolder: '/images/lootrush/',
         bagPrefix: 'lootbag',
         bagExt: '.png',

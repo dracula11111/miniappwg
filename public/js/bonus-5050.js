@@ -14,6 +14,8 @@ class Bonus5050 {
       ...options
     };
 
+    this._scrollLocked = false;
+
     this._running = false;
     this._scrollY = 0;
 
@@ -27,6 +29,11 @@ class Bonus5050 {
   _overlayEl() { return document.getElementById('bonus5050Overlay'); }
 
   _lockScroll() {
+    const wheelPage = document.getElementById('wheelPage');
+    const isWheelActive = !!(wheelPage && wheelPage.classList.contains('page-active'));
+    if (!isWheelActive) return; // don't lock the whole app if user isn't on wheel
+
+    this._scrollLocked = true;
     this._scrollY = window.scrollY || 0;
     document.documentElement.classList.add('bonus-active');
     document.body.classList.add('bonus-active');
@@ -39,6 +46,11 @@ class Bonus5050 {
     const top = document.body.style.top;
     document.body.style.top = '';
     window.scrollTo(0, top ? -parseInt(top, 10) : this._scrollY);
+  }
+
+  _fxRoot() {
+    // Keep all FX (boom/particles/flying labels) inside the bonus overlay so it only appears on Wheel page
+    return (this.container && this.container.closest && this.container.closest('#bonus5050Overlay')) || this.container || document.body;
   }
 
   _render() {
@@ -169,7 +181,7 @@ class Bonus5050 {
     el.textContent = text;
     el.style.left = `${at.x}px`;
     el.style.top  = `${at.y}px`;
-    document.body.appendChild(el);
+    this._fxRoot().appendChild(el);
     return el;
   }
 
@@ -266,7 +278,7 @@ class Bonus5050 {
     boom.alt = '';
     boom.style.left = `${end.x}px`;
     boom.style.top  = `${end.y}px`;
-    document.body.appendChild(boom);
+    this._fxRoot().appendChild(boom);
   
     // PARTICLES (around)
     const particleCount = 14; // ✅ больше частиц
@@ -289,7 +301,7 @@ class Bonus5050 {
       p.style.width = `${size}px`;
       p.style.height = `${size}px`;
   
-      document.body.appendChild(p);
+      this._fxRoot().appendChild(p);
       parts.push({ el: p, dx, dy });
     }
   
