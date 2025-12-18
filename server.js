@@ -91,9 +91,9 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
 // ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
   try {
-    const { amount, currency, userId, txHash, timestamp, initData, invoiceId, type, roundId, bets } = req.body;
+    const { amount, currency, userId, txHash, timestamp, initData, invoiceId, depositId: bodyDepositId, type, roundId, bets, notify } = req.body;
     
-    const depositId = invoiceId || txHash || `${userId}_${currency}_${Math.abs(amount)}_${timestamp}`;
+    const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amount)}_${timestamp}`;
     
     console.log('[Deposit] Notification received:', {
       amount,
@@ -148,6 +148,13 @@ app.post("/api/deposit-notification", async (req, res) => {
       markDepositProcessed(depositId);
     }
 
+    // Send Telegram message ONLY for real deposits (not case wins / wheel / etc.)
+    const shouldSendDepositMessage =
+      notify !== false &&
+      amount > 0 &&
+      process.env.BOT_TOKEN &&
+      (type === 'deposit' || (!type && (txHash || invoiceId)));
+
     // Process transaction
     try {
       if (currency === 'ton') {
@@ -165,8 +172,8 @@ app.post("/api/deposit-notification", async (req, res) => {
         // 🔥 BROADCAST BALANCE UPDATE
         broadcastBalanceUpdate(userId);
         
-        // Send notification for deposits only
-        if (amount > 0 && process.env.BOT_TOKEN) {
+        // Send notification only for real deposits
+        if (shouldSendDepositMessage) {
           await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
         }
         
@@ -192,8 +199,8 @@ app.post("/api/deposit-notification", async (req, res) => {
         // 🔥 BROADCAST BALANCE UPDATE
         broadcastBalanceUpdate(userId);
         
-        // Send notification for deposits only
-        if (amount > 0 && process.env.BOT_TOKEN) {
+        // Send notification only for real deposits
+        if (shouldSendDepositMessage) {
           await sendTelegramMessage(userId, `✅ Payment successful!\n\nYou received ${amount} ⭐ Stars`);
         }
         
