@@ -39,8 +39,40 @@
   let carousels = [];
   let animationFrames = [];
 
+  function getLineXInItems(carousel) {
+  const cont = carousel.itemsContainer;
+  const w = carousel.element.getBoundingClientRect().width;
+
+  // .case-carousel-items имеет left:8px; offsetLeft даёт это смещение БЕЗ учёта transform
+  const insetLeft = cont?.offsetLeft || 0;
+
+  // линия по центру .case-carousel => переводим в координаты cont
+  return (w / 2) - insetLeft;
+}
+
+function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
+  // где линия указывает в координатах контента ленты
+  const xContent = finalPos + lineX;
+
+  let idx = Math.floor((xContent - padL) / step);
+  idx = Math.max(0, Math.min(idx, strip.length - 1));
+
+  carousel.winningStripIndex = idx;
+  carousel.winningItem = strip[idx];
+  return idx;
+}
+
+
   // ====== HELPERS ======
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+  function easeInOutCubic(t) {
+  // 0..1 -> 0..1 (плавный старт + плавная остановка)
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 
   function formatAmount(currency, value) {
     if (currency === 'ton') return (Math.round((parseFloat(value) || 0) * 100) / 100).toFixed(2);
@@ -427,40 +459,52 @@
 
   // ====== IDLE ANIMATION (slow continuous scroll) ======
   function startIdleAnimation() {
-    carousels.forEach((carousel, index) => {
-      carousel.velocity = 0.5 + Math.random() * 0.5;
+  carousels.forEach((carousel, index) => {
+    // было ~0.5–1 px/frame (~30–60 px/s на 60fps)
+    // делаем сразу px/сек — так не дергается при просадках FPS
+    carousel.velocity = 32 + Math.random() * 32; // 32–64 px/s
+    carousel.position = carousel.position || 0;
 
-      const animate = () => {
-        // если карусель скрыли/удалили — прекращаем
-        if (!carousel.element.classList.contains('active')) return;
+    // для плавности на GPU
+    if (carousel.itemsContainer) {
+      carousel.itemsContainer.style.willChange = 'transform';
+    }
 
-        // Во время спина мы не двигаем ленту айдлом, НО оставляем RAF живым.
-        // Это лечит баг, когда startIdleAnimation вызывался пока isSpinning=true
-        // (и из-за раннего return всё "замирало" насовсем).
-        if (!isSpinning) {
-          const metrics = getCarouselMetrics(carousel);
-          if (metrics && metrics.step > 0 && metrics.loopWidth > 0) {
-            carousel.position += carousel.velocity;
+    let lastTime = 0;
 
-            // бесконечный цикл на половине (baseItems), потому что items = baseItems*2
-            while (carousel.position >= metrics.loopWidth) carousel.position -= metrics.loopWidth;
-            while (carousel.position < 0) carousel.position += metrics.loopWidth;
+    const animate = (t) => {
+      // если карусель скрыли/удалили — прекращаем
+      if (!carousel.element.classList.contains('active')) return;
 
-            carousel.itemsContainer.style.transform = `translateX(-${carousel.position}px)`;
-          } else {
-            // fallback (если размеры ещё не посчитались)
-            carousel.position += carousel.velocity;
-            carousel.itemsContainer.style.transform = `translateX(-${carousel.position}px)`;
-          }
+      if (!lastTime) lastTime = t;
+
+      // dt в секундах, clamp чтобы после сворачивания вкладки не прыгало
+      const dt = Math.min(0.05, (t - lastTime) / 1000);
+      lastTime = t;
+
+      // во время спина айдл не двигаем, но RAF оставляем живым
+      if (!isSpinning) {
+        const metrics = getCarouselMetrics(carousel);
+
+        // шаг на этом кадре
+        const delta = carousel.velocity * dt;
+        carousel.position += delta;
+
+        if (metrics && metrics.loopWidth > 0) {
+          while (carousel.position >= metrics.loopWidth) carousel.position -= metrics.loopWidth;
+          while (carousel.position < 0) carousel.position += metrics.loopWidth;
         }
 
-        animationFrames[index] = requestAnimationFrame(animate);
-      };
+        carousel.itemsContainer.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
+      }
 
-      // стартуем цикл
       animationFrames[index] = requestAnimationFrame(animate);
-    });
-  }
+    };
+
+    animationFrames[index] = requestAnimationFrame(animate);
+  });
+}
+
 
   // ====== STOP ALL ANIMATIONS ======
   function stopAllAnimations() {
@@ -649,12 +693,23 @@
         }
 
         // целевая позиция: winAt ровно под центральной линией
-        let targetPosition = padL + winAt * step - centerOffset;
+        // координата центральной линии внутри itemsContainer (учитываем, что лента inset'ом от краёв, напр. left:8px)
+        const contRect = cont.getBoundingClientRect();
+        const contLeft = contRect.left - containerRect.left;   // смещение ленты внутри карусели
+        const centerX = containerWidth / 2 - contLeft;         // X линии в координатах cont
 
-        const totalStripWidth =
-          padL + padR + (strip.length * itemWidth) + (Math.max(0, strip.length - 1) * gap);
-        const maxTarget = Math.max(0, totalStripWidth - containerWidth);
-        targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
+        // X линии в координатах itemsContainer (важно!)
+        const lineX = getLineXInItems(carousel);
+
+        // рандомная точка внутри выигрышного предмета (от его левого края)
+        // чтобы не попадало прямо в край — делаем небольшой отступ
+        const innerMargin = Math.min(18, itemWidth * 0.18);
+        const randomPointInItem =
+        innerMargin + Math.random() * (itemWidth - innerMargin * 2);
+
+        // целевая позиция: чтобы centerX попал в randomPointInItem выбранного предмета
+        let targetPosition = padL + winAt * step + randomPointInItem - lineX;
+
 
         // гарантируем, что пройдем заметное расстояние, чтобы не было "дёргания"
         const minTravel = step * 20;
@@ -671,9 +726,41 @@
           const progress = Math.min(elapsed / duration, 1);
 
           // плавное замедление
-          const eased = 1 - Math.pow(1 - progress, 3);
-          carousel.position = startPosition + totalDistance * eased;
-          cont.style.transform = `translateX(-${carousel.position}px)`;
+          // GPU hint
+        cont.style.willChange = 'transform';
+        // чтобы тактилка не делала микролаги — не рандом, а раз в ~120мс
+        let lastHaptic = 0;
+
+      const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+        // более плавно: мягкий старт + мягкая остановка
+      const eased = easeInOutCubic(progress);
+
+      carousel.position = startPosition + totalDistance * eased;
+        cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
+
+      if (tg?.HapticFeedback && progress < 0.85 && (currentTime - lastHaptic) > 120) {
+        tg.HapticFeedback.impactOccurred('light');
+        lastHaptic = currentTime;
+      }
+
+      if (progress < 1) {
+        animationFrames[index] = requestAnimationFrame(animate);
+      } else {
+      // финальная защёлка в точное значение
+      carousel.position = targetPosition;
+        cont.style.transform = `translate3d(-${targetPosition}px, 0, 0)`;
+
+    // можно убрать подсказку GPU после остановки
+    cont.style.willChange = '';
+
+    highlightWinningItem(carousel, index);
+    resolve();
+  }
+};
+
 
           // лёгкие тактильные "щёлчки" пока крутимся
           if (tg?.HapticFeedback && Math.random() < 0.04 && progress < 0.85) {
@@ -690,6 +777,17 @@
             if (tg?.HapticFeedback) {
               tg.HapticFeedback.notificationOccurred('success');
             }
+
+            // финальная защёлка
+            carousel.position = targetPosition;
+            cont.style.transform = `translate3d(${-targetPosition}px, 0, 0)`;
+
+            // ВАЖНО: теперь выигрыш = то, что реально под линией
+            syncWinByLine(carousel, targetPosition, strip, padL, step, lineX);
+
+            highlightWinningItem(carousel, index);
+            resolve();
+
 
             // подсветка выигрышного слота
             highlightWinningItem(carousel, index);
