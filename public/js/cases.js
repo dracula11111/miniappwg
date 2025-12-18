@@ -22,7 +22,8 @@
         { id: 'gift8', icon: 'gift8.png', price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
         { id: 'gift9', icon: 'gift9.png', price: { ton: 0.23, stars: 25 }, rarity: 'common' },
         { id: 'gift10', icon: 'gift10.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift11', icon: 'gift11.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' }
+        { id: 'gift11', icon: 'gift11.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
       ]
 
 
@@ -934,7 +935,8 @@ function showResult(currency) {
               initData,
               timestamp: Date.now(),
               depositId,
-              type: 'case_win'
+              type: 'case_win',
+              notify: false
             })
           }).catch(() => {});
         }
