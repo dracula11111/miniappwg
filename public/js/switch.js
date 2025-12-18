@@ -85,7 +85,8 @@
         e.stopPropagation();
         const currency = btn.dataset.currency;
         console.log('[Switch] 📘 Currency button clicked:', currency);
-        switchCurrency(currency);
+        // 🔒 Block currency switch if user already has an active bet in current round
+        switchCurrency(currency, btn);
       });
       
       btn.style.cursor = 'pointer';
@@ -125,10 +126,72 @@
     });
   }
 
+  // ================== ROUND LOCK (ACTIVE BET) ==================
+  function isCurrencyChangeLocked() {
+    try {
+      return !!(window.WheelGame && typeof window.WheelGame.hasBets === 'function' && window.WheelGame.hasBets());
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function showCurrencyLockNotification() {
+    const existing = document.getElementById('currency-lock-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'currency-lock-toast';
+    toast.textContent = 'Currency change is available after the end of the round';
+
+    document.body.appendChild(toast);
+
+    // Start animation on next frame
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      toast.classList.add('hide');
+      setTimeout(() => toast.remove(), 260);
+    }, 2400);
+  }
+
+  function triggerCurrencySwitchError(sourceBtn) {
+    const btn = sourceBtn || document.querySelector('.curr-btn');
+    const sw = btn?.closest('.currency-switch') || document.querySelector('.currency-switch');
+
+    if (sw) {
+      sw.classList.remove('currency-switch--error');
+      // restart animation
+      void sw.offsetWidth;
+      sw.classList.add('currency-switch--error');
+      setTimeout(() => sw.classList.remove('currency-switch--error'), 450);
+    }
+
+    if (btn) {
+      btn.classList.remove('curr-btn--error');
+      void btn.offsetWidth;
+      btn.classList.add('curr-btn--error');
+      setTimeout(() => btn.classList.remove('curr-btn--error'), 450);
+    }
+  }
+
   // ================== CURRENCY SWITCHING ==================
-  function switchCurrency(currency) {
+  function switchCurrency(currency, sourceBtn) {
     if (currency === currentCurrency) {
       console.log('[Switch] Already on', currency);
+      return;
+    }
+
+    // 🔒 If there is an active bet in the current round, do not allow switching currency
+    if (isCurrencyChangeLocked()) {
+      console.log('[Switch] ⛔ Currency switch blocked - active bet detected');
+      showCurrencyLockNotification();
+      triggerCurrencySwitchError(sourceBtn);
+      if (tg?.HapticFeedback?.notificationOccurred) {
+        tg.HapticFeedback.notificationOccurred('error');
+      } else if (tg?.HapticFeedback?.impactOccurred) {
+        tg.HapticFeedback.impactOccurred('rigid');
+      }
       return;
     }
     
@@ -538,6 +601,7 @@
       margin: 16px 0;
       position: relative;
       overflow: hidden;
+      --wt-indicator-x: 0px;
     }
 
     .currency-switch::before {
@@ -552,11 +616,95 @@
       transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       pointer-events: none;
       z-index: 0;
-      transform: translateX(0);
+      transform: translateX(var(--wt-indicator-x));
     }
 
-    .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
-      transform: translateX(calc(100% + 8px));
+    .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active) {
+      --wt-indicator-x: calc(100% + 8px);
+    }
+
+    /* ===== Locked switch feedback (active bet) ===== */
+    @keyframes wtSwitchShake {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(6px); }
+      45% { transform: translateX(-5px); }
+      70% { transform: translateX(4px); }
+      100% { transform: translateX(0); }
+    }
+
+    @keyframes wtIndicatorError {
+      0%   { transform: translateX(var(--wt-indicator-x)); }
+      25%  { transform: translateX(calc(var(--wt-indicator-x) + 10px)); }
+      55%  { transform: translateX(calc(var(--wt-indicator-x) - 8px)); }
+      100% { transform: translateX(var(--wt-indicator-x)); }
+    }
+
+    @keyframes wtBtnErrorPop {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(.94); }
+      65%  { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+
+    .currency-switch.currency-switch--error {
+      border-color: rgba(255, 77, 79, 0.45);
+      box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.12);
+      animation: wtSwitchShake 0.35s ease;
+    }
+
+    .currency-switch.currency-switch--error::before {
+      background: linear-gradient(135deg, rgba(255, 77, 79, .20), rgba(255, 77, 79, .10));
+      animation: wtIndicatorError 0.35s ease;
+    }
+
+    .curr-btn.curr-btn--error {
+      color: #ff6b6b;
+      animation: wtBtnErrorPop 0.35s ease;
+    }
+
+    .curr-btn.curr-btn--error .curr-icon {
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(255, 77, 79, .35));
+    }
+
+    /* ===== Toast ===== */
+    #currency-lock-toast {
+      position: fixed;
+      top: 120px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-14px);
+      opacity: 0;
+      z-index: 10000;
+      background: linear-gradient(135deg, rgba(127, 29, 29, 0.16), rgba(153, 27, 27, 0.10));
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(185, 28, 28, 0.22);
+      border-radius: 18px;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #ff6b6b;
+      max-width: min(92vw, 360px);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    @keyframes wtToastIn {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(-22px) scale(0.96); }
+      60%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.02); }
+      100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    }
+
+    @keyframes wtToastOut {
+      0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(0.98); }
+    }
+
+    #currency-lock-toast.show {
+      animation: wtToastIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    #currency-lock-toast.hide {
+      animation: wtToastOut 0.25s ease forwards;
     }
 
     .curr-btn {
