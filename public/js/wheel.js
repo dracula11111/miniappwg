@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE =  false; // 🔥 ТЕСТОВЫЙ РЕЖИМ
+const TEST_MODE =  true; // 🔥 ТЕСТОВЫЙ РЕЖИМ
 
 // ===== ЭКСПОРТ ДЛЯ АДМИН-ПАНЕЛИ =====
 // Делаем TEST_MODE доступным глобально
