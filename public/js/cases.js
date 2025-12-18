@@ -9,7 +9,7 @@
     case1: {
       id: 'case1',
       name: 'Case 1',
-      price: { ton: 1000, stars: 2000 },
+      price: { ton: 0.01, stars: 2 },
       items: [
 
         { id: 'gift1', icon: 'gift1.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
