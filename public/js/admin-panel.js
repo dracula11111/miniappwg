@@ -46,6 +46,18 @@
     return false;
   }
 
+  async function ensureWildTimeLoaded() {
+    if (typeof window.startWildTimeBonus === 'function') return true;
+    const candidates = ['/js/wildtime.js', '/public/js/wildtime.js', '/wildtime.js'];
+    for (const src of candidates) {
+      try {
+        await loadScriptOnce(src);
+        if (typeof window.startWildTimeBonus === 'function') return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
   function fmt(v) {
     if (v == null) return '';
     if (typeof v === 'number') return String(v);
@@ -445,9 +457,21 @@
     }
 
     if (seg === 'Wild Time') {
-      log('Wild Time bonus not implemented yet', 'warn');
-      if (typeof window.showBonusNotification === 'function') window.showBonusNotification('Wild Time');
-      return;
+	      if (typeof window.bonusLockStart === 'function') window.bonusLockStart();
+	      log('Launching <b>Wild Time</b> bonus...', 'ok');
+	      try {
+	        const ok = await ensureWildTimeLoaded();
+	        if (!ok) throw new Error('wildtime.js not loaded');
+	        const res = await window.startWildTimeBonus(1);
+	        const choice = res && typeof res === 'object' ? (res.choice || res.result || '') : res;
+	        log(`Wild Time completed → <b>${fmt(choice)}</b>`, 'ok');
+	      } catch (e) {
+	        log(`Wild Time error → ${fmt(e?.message || e)}`, 'err');
+	      } finally {
+	        if (typeof window.bonusLockEnd === 'function') window.bonusLockEnd({ phase: 'betting', omega: 0.35 });
+	      }
+	      renderState();
+	      return;
     }
 
     // Multipliers: easiest is to use WheelAdmin simulation if available

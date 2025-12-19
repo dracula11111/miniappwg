@@ -117,11 +117,25 @@ if (window.TEST_MODE) {
           window.showBonusNotification('Loot Rush');
         }
       } else if (segmentName === 'Wild Time') {
-        // Бонус Wild Time (заглушка)
-        console.log('[WheelAdmin] Wild Time bonus not implemented yet');
-        if (window.showBonusNotification) {
-          window.showBonusNotification('Wild Time');
-        }
+        console.log('[WheelAdmin] 🐾 Starting Wild Time bonus.');
+        const betOnWildTime = betAmount || 0;
+
+        (async () => {
+          try {
+            if (typeof window.bonusLockStart === 'function') window.bonusLockStart();
+            if (typeof window.startWildTimeBonus === 'function') {
+              await window.startWildTimeBonus(betOnWildTime);
+            } else if (typeof window.showBonusNotification === 'function') {
+              window.showBonusNotification('Wild Time');
+            } else {
+              console.warn('[WheelAdmin] startWildTimeBonus not found');
+            }
+          } catch (e) {
+            console.warn('[WheelAdmin] Wild Time error', e);
+          } finally {
+            if (typeof window.bonusLockEnd === 'function') window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+          }
+        })();
       }
       
       // Добавляем в историю
@@ -973,7 +987,57 @@ function tick(ts){
             setOmega(IDLE_OMEGA, { force: true });
             startCountdown(9);
           }, 2000);
-        } else {
+	        } else if (typeFinished === 'Wild Time') {
+	          setTimeout(async () => {
+	            console.log('[Wheel] 🐾 Starting Wild Time bonus...');
+	            const betOnWildTime = betsMap.get('Wild Time') || 0;
+
+	            // 🔥 НОВАЯ ЛОГИКА: пробуем BonusManager (если поддерживает), иначе локальный бонус wildtime.js
+	            if (betOnWildTime > 0 && window.BonusManager && typeof window.BonusManager.startBonus === 'function') {
+	              try {
+	                await window.BonusManager.startBonus('Wild Time', betOnWildTime);
+	              } catch (e) {
+	                console.warn('[Wheel] ⚠️ BonusManager Wild Time failed — fallback to local bonus', e);
+	                if (window.startWildTimeBonus) {
+	                  await window.startWildTimeBonus(betOnWildTime);
+	                } else {
+	                  console.warn('[Wheel] ⚠️ startWildTimeBonus is not defined');
+	                }
+	              }
+	            } else {
+	              if (window.BonusManager && typeof window.BonusManager.isOnWheelPage === 'function' && !window.BonusManager.isOnWheelPage()) {
+	                console.log('[Wheel] ⏭️ No bet on Wild Time, skipping bonus on other page');
+	                pushHistory(typeFinished);
+	                clearBets();
+	                setPhase('betting', { force: true });
+	                setOmega(IDLE_OMEGA, { force: true });
+	                startCountdown(9);
+	                return;
+	              }
+
+	              if (window.bonusLockStart) {
+	        const wp = document.getElementById('wheelPage');
+	        if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
+	      }
+
+	              if (window.startWildTimeBonus) {
+	                await window.startWildTimeBonus(betOnWildTime);
+	              } else {
+	                console.warn('[Wheel] ⚠️ startWildTimeBonus is not defined');
+	              }
+
+	              if (window.bonusLockEnd) {
+	                window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+	              }
+	            }
+
+	            pushHistory(typeFinished);
+	            clearBets();
+	            setPhase('betting', { force: true });
+	            setOmega(IDLE_OMEGA, { force: true });
+	            startCountdown(9);
+	          }, 2000);
+	        } else {
           // 🔥 NORMAL RESULT - NO BONUS
           setTimeout(() => {
             pushHistory(typeFinished);
