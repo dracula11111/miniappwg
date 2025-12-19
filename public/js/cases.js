@@ -555,6 +555,34 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
   }
 
   // ====== HANDLE OPEN CASE ======
+  async function waitForStableCarouselLayout(timeoutMs = 1200) {
+  const start = performance.now();
+  let lastSig = null;
+
+  // 2 кадра — чтобы браузер точно применил классы/разметку
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // если шрифт грузится — дождёмся (иногда влияет на высоты/лейаут)
+  if (document.fonts?.ready) {
+    try { await document.fonts.ready; } catch {}
+  }
+
+  while (performance.now() - start < timeoutMs) {
+    const sig = carousels.map(c => {
+      const m = getCarouselMetrics(c); // у тебя уже есть :contentReference[oaicite:2]{index=2}
+      const w = c.element.getBoundingClientRect().width;
+      return m ? `${w.toFixed(2)}:${m.itemWidth.toFixed(2)}:${(m.gap||0).toFixed(2)}` : 'x';
+    }).join('|');
+
+    if (sig === lastSig) return true;
+    lastSig = sig;
+
+    await new Promise(r => requestAnimationFrame(r));
+  }
+  return false; // если не успели — всё равно продолжим
+}
+
+
   async function handleOpenCase() {
     if (isAnimating || isSpinning || !currentCase) return;
 
@@ -571,6 +599,8 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     }
 
     console.log('[Cases] 🎰 Opening case:', { demo: isDemoMode, count: selectedCount, currency });
+    await waitForStableCarouselLayout();
+
 
     isSpinning = true;
     openBtn.disabled = true;
