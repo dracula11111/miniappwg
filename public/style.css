@@ -5737,3 +5737,55 @@ body.bonus-active{
   transform: scale(1) translateY(0) !important;
   transition: opacity .3s ease, transform .3s ease;
 }
+
+/* FIX: winner highlight (зелёная обводка как раньше) */
+.case-carousel-item{
+  position: relative; /* важно для ::before/::after */
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px var(--ok),
+    0 0 26px rgba(39, 201, 63, 0.65);
+}
+
+.case-carousel-item.winning::before{
+  background: rgba(39, 201, 63, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(39, 201, 63, 0.25);
+}
+.case-carousel-items { overflow: visible; }
+
+.case-carousel-item { position: relative; }
+
+.case-carousel-item.winning { z-index: 10; }
+
+
+/* ===== CASES: Center square (the "winner box") ===== */
+.case-carousel-centerbox{
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  aspect-ratio: 1 / 1;
+
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 9;
+
+  /* default (blue) */
+  background: rgba(0, 166, 255, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(0, 166, 255, 0.55),
+    0 0 26px rgba(0, 166, 255, 0.25);
+}
+
+/* becomes green when stopped */
+.case-carousel-centerbox.winning{
+  background: rgba(39, 201, 63, 0.07);
+  box-shadow:
+    0 0 0 2px rgba(39, 201, 63, 0.9),
+    0 0 32px rgba(39, 201, 63, 0.35);
+}

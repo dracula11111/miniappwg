@@ -36,6 +36,8 @@
   let isSpinning = false;
   let selectedCount = 1;
   let isDemoMode = false;
+  let activeSpin = null; // locks demo/currency for current spin
+  let pendingCurrencyChange = false;
 
   let carousels = [];
   let animationFrames = [];
@@ -94,6 +96,24 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     }
   }
 
+  function setControlsLocked(locked) {
+    // Prevent switching Demo/count during spin/claim
+    if (demoToggle) {
+      demoToggle.classList.toggle('locked', locked);
+      demoToggle.style.pointerEvents = locked ? 'none' : '';
+      demoToggle.style.opacity = locked ? '0.6' : '';
+    }
+
+    // Count buttons
+    countBtns.forEach(btn => {
+      if (!btn) return;
+      btn.disabled = !!locked;
+      btn.style.pointerEvents = locked ? 'none' : '';
+      btn.style.opacity = locked ? '0.6' : '';
+    });
+  }
+
+
   // ====== DOM ELEMENTS ======
   let overlay = null;
   let sheetPanel = null;
@@ -151,6 +171,7 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     `;
 
     toggle.addEventListener('click', () => {
+      if (isSpinning) return; // нельзя менять режим во время прокрута/клейма
       isDemoMode = !isDemoMode;
       toggle.classList.toggle('active', isDemoMode);
       updateOpenButton();
@@ -587,20 +608,28 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     if (isAnimating || isSpinning || !currentCase) return;
 
     const currency = window.WildTimeCurrency?.current || 'ton';
-    const totalPrice = currentCase.price[currency] * selectedCount;
+    const demoModeAtStart = !!isDemoMode;
+    const countAtStart = selectedCount;
+    const totalPrice = currentCase.price[currency] * countAtStart;
 
-    if (!isDemoMode) {
+    // фикс: блокируем возможность "переключиться" во время прокрута и забрать деньги
+    activeSpin = { demoMode: demoModeAtStart, currency, count: countAtStart, totalPrice };
+    setControlsLocked(true);
+
+    if (!demoModeAtStart) {
       const balance = window.WildTimeCurrency?.balance?.[currency] || 0;
       if (balance < totalPrice) {
+        setControlsLocked(false);
+        activeSpin = null;
+
         tg?.HapticFeedback?.notificationOccurred?.('error');
         alert(`Insufficient ${currency.toUpperCase()} balance`);
         return;
       }
     }
 
-    console.log('[Cases] 🎰 Opening case:', { demo: isDemoMode, count: selectedCount, currency });
+    console.log('[Cases] 🎰 Opening case:', { demo: demoModeAtStart, count: countAtStart, currency });
     await waitForStableCarouselLayout();
-
 
     isSpinning = true;
     openBtn.disabled = true;
@@ -608,20 +637,31 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
     tg?.HapticFeedback?.impactOccurred?.('heavy');
 
-    if (!isDemoMode) {
+    if (!demoModeAtStart) {
       applyBalanceDelta(currency, -totalPrice);
     }
 
     try {
-      await spinCarousels(currency);
+      await spinCarousels(currency, activeSpin);
     } finally {
       openBtn.disabled = false;
       openBtn.style.opacity = '1';
+
+      isSpinning = false;
+      activeSpin = null;
+      setControlsLocked(false);
+
+      // если во время спина приходила смена валюты — обновим после разблокировки
+      if (pendingCurrencyChange) {
+        pendingCurrencyChange = false;
+        generateCasesGrid();
+        if (currentCase && sheetPanel?.classList.contains('active')) updateSheetContent();
+      }
     }
   }
 
   // ====== SPIN CAROUSELS (новая логика: без резкой смены линии, старт с текущей позиции) ======
-  async function spinCarousels(currency) {
+  async function spinCarousels(currency, spinCtx) {
     isSpinning = true;
     stopAllAnimations();
 
@@ -838,7 +878,7 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     carousels.forEach(c => c.element.classList.add('cases-finished'));
 
     await delay(250);
-    await showResult(currency);
+    await showResult(currency, spinCtx?.demoMode);
 
     isSpinning = false;
   }
@@ -908,10 +948,12 @@ function hideClaimBar() {
 
 
 // ====== SHOW RESULT (Claim button under carousels) ======
-function showResult(currency) {
+function showResult(currency, demoModeOverride) {
   const tg = window.Telegram?.WebApp;
   const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
   const initData = tg?.initData || "";
+
+  const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
 
   const wonItems = carousels.map(c => c.winningItem).filter(Boolean);
   const totalValueRaw = wonItems.reduce((sum, item) => sum + (item.price?.[currency] || 0), 0);
@@ -948,7 +990,7 @@ function showResult(currency) {
       btn.classList.add('loading');
 
       try {
-        if (!isDemoMode) {
+        if (!demoModeForRound) {
           // 1) моментально начисляем в UI
           applyBalanceDelta(currency, totalValue);
 
@@ -1001,7 +1043,12 @@ function showResult(currency) {
 }
 
   // ====== CURRENCY CHANGE LISTENER ======
-  window.addEventListener('currency:changed', (e) => {
+  window.addEventListener('currency:changed', () => {
+    if (isSpinning) {
+      pendingCurrencyChange = true;
+      return;
+    }
+
     generateCasesGrid();
 
     if (currentCase && sheetPanel?.classList.contains('active')) {
@@ -1023,9 +1070,11 @@ function showResult(currency) {
     getCases: () => CASES,
     isDemoMode: () => isDemoMode,
     setDemoMode: (mode) => {
-      isDemoMode = mode;
-      if (demoToggle) demoToggle.classList.toggle('active', mode);
+      if (isSpinning) return false; // запрещаем менять режим во время прокрута/клейма
+      isDemoMode = !!mode;
+      if (demoToggle) demoToggle.classList.toggle('active', isDemoMode);
       updateOpenButton();
+      return true;
     }
   };
 
