@@ -2,7 +2,7 @@
 (() => {
   console.log('[Cases] 🎁 Starting cases module');
 
-  const tg = window.Telegram?.WebApp;
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
   // ====== CASE DATA ======
   const CASES = {
@@ -28,6 +28,26 @@
 
 
     }
+,
+// Case 2: NFT + Gifts
+case2: {
+  id: 'case2',
+  name: 'NFT + Gifts',
+  price: { ton: 0.02, stars: 4 },
+  items: [
+    // NFTs (put images into /public/images/nfts/)
+    { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 1.5, stars: 200 }, rarity: 'legendary' },
+    { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 0.9, stars: 120 }, rarity: 'epic' },
+    { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 0.5, stars: 70  }, rarity: 'rare' },
+
+    // Gifts
+    { id: 'gift1',  icon: 'gift1.png',  price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+    { id: 'gift4',  icon: 'gift4.png',  price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
+    { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
+    { id: 'gift9',  icon: 'gift9.png',  price: { ton: 0.23, stars: 25  }, rarity: 'common' },
+    { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+  ]
+}
   };
 
   // ====== STATE ======
@@ -41,6 +61,97 @@
 
   let carousels = [];
   let animationFrames = [];
+
+// ====== ITEM HELPERS (gift / nft) ======
+function itemType(item) {
+  if (item && item.type) return item.type;
+  var id = item && item.id ? String(item.id).toLowerCase() : '';
+  if (id.indexOf('nft') === 0) return 'nft';
+  return 'gift';
+}
+
+function itemIconPath(item) {
+  // ВАЖНО: у тебя NFT лежат в /images/gifts/nfts/
+  // (то есть папка nfts внутри gifts). Поэтому путь для NFT именно такой.
+  // Если потом перенесёшь в /images/nfts/, просто поменяй строку ниже.
+  var base = itemType(item) === 'nft' ? '/images/gifts/nfts/' : '/images/gifts/';
+  var icon = (item && item.icon) ? String(item.icon) : 'stars.webp';
+  return base + icon;
+}
+
+// общий фолбэк (если картинка не найдена)
+const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
+
+// ====== DROP RATES (NFT rarity) ======
+// Demo: NFT выпадает часто (почти каждый прокрут)
+// Paid (TON / Stars): NFT выпадает редко
+const NFT_DROP_RATES = {
+  demo: 0.90,          // 90% на выигрыш в демо
+  ton: 0.03,           // 3% на выигрыш за TON
+  stars: 0.02          // 2% на выигрыш за Stars
+};
+
+// Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
+const STRIP_NFT_CHANCE = {
+  demo: 0.28,          // в демо пусть иногда мелькают
+  paid: 0.06           // в обычном режиме редко
+};
+
+const _casePoolsCache = new Map();
+
+function getCasePools(caseData) {
+  const key = caseData && caseData.id ? String(caseData.id) : '';
+  if (key && _casePoolsCache.has(key)) return _casePoolsCache.get(key);
+
+  const items = (caseData && Array.isArray(caseData.items)) ? caseData.items : [];
+  const nfts = items.filter(it => itemType(it) === 'nft');
+  const gifts = items.filter(it => itemType(it) !== 'nft');
+
+  const pools = { items, nfts, gifts };
+  if (key) _casePoolsCache.set(key, pools);
+  return pools;
+}
+
+function pickRandom(arr) {
+  if (!arr || !arr.length) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getNftWinChance(demoMode, currency) {
+  if (demoMode) return NFT_DROP_RATES.demo;
+  return (currency === 'ton') ? NFT_DROP_RATES.ton : NFT_DROP_RATES.stars;
+}
+
+function pickWinningItem(caseData, demoMode, currency) {
+  const pools = getCasePools(caseData);
+  if (!pools.items.length) return null;
+
+  // Если NFT в кейсе нет — выбираем как обычно
+  if (!pools.nfts.length) return pickRandom(pools.items);
+
+  const chance = getNftWinChance(demoMode, currency);
+  const roll = Math.random();
+
+  if (roll < chance) {
+    return pickRandom(pools.nfts) || pickRandom(pools.items);
+  }
+  // не NFT: выбираем из подарков
+  return pickRandom(pools.gifts) || pickRandom(pools.items);
+}
+
+function pickStripItem(caseData, demoMode) {
+  const pools = getCasePools(caseData);
+  if (!pools.items.length) return null;
+
+  if (!pools.nfts.length) return pickRandom(pools.items);
+
+  const chance = demoMode ? STRIP_NFT_CHANCE.demo : STRIP_NFT_CHANCE.paid;
+  if (Math.random() < chance) return pickRandom(pools.nfts) || pickRandom(pools.items);
+  return pickRandom(pools.gifts) || pickRandom(pools.items);
+}
+
+
+
 
   function getLineXInItems(carousel) {
   const cont = carousel.itemsContainer;
@@ -363,15 +474,15 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     const IDLE_BASE_COUNT = 70;
     const baseItems = [];
     for (let i = 0; i < IDLE_BASE_COUNT; i++) {
-      baseItems.push(currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+      baseItems.push(pickStripItem(currentCase, !!isDemoMode) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
     }
 
     // Делаем 2 копии, чтобы лента реально была бесконечной
     const items = baseItems.concat(baseItems);
 
     itemsContainer.innerHTML = items.map(item => (
-      `<div class="case-carousel-item" data-item-id="${item.id}">
-        <img src="/images/gifts/${item.icon}" alt="${item.id}">
+      `<div class="case-carousel-item" data-item-id="${item.id}" data-item-type="${itemType(item)}">
+        <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
       </div>`
     )).join('');
 
@@ -415,8 +526,8 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
   function renderCarouselItems(itemsContainer, items) {
     itemsContainer.innerHTML = items.map(it => (
-      `<div class="case-carousel-item" data-item-id="${it.id}">
-        <img src="/images/gifts/${it.icon}" alt="${it.id}">
+      `<div class="case-carousel-item" data-item-id="${it.id}" data-item-type="${itemType(it)}">
+        <img src="${itemIconPath(it)}" alt="${it.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
       </div>`
     )).join('');
   }
@@ -543,8 +654,8 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
 
     contentsGrid.innerHTML = currentCase.items.map(item => `
-      <div class="case-content-item" data-rarity="${item.rarity || 'common'}">
-        <img src="/images/gifts/${item.icon}" alt="${item.id}">
+      <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${itemType(item)}">
+        <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
         <div class="case-content-price">
           <span>${item.price[currency]}</span>
           <img src="${icon}" alt="${currency}">
@@ -585,12 +696,12 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
   // если шрифт грузится — дождёмся (иногда влияет на высоты/лейаут)
   if (document.fonts?.ready) {
-    try { await document.fonts.ready; } catch {}
+    try { await document.fonts.ready; } catch (e) {}
   }
 
   while (performance.now() - start < timeoutMs) {
     const sig = carousels.map(c => {
-      const m = getCarouselMetrics(c); // у тебя уже есть :contentReference[oaicite:2]{index=2}
+      const m = getCarouselMetrics(c);
       const w = c.element.getBoundingClientRect().width;
       return m ? `${w.toFixed(2)}:${m.itemWidth.toFixed(2)}:${(m.gap||0).toFixed(2)}` : 'x';
     }).join('|');
@@ -660,38 +771,35 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     }
   }
 
-  // ====== SPIN CAROUSELS (новая логика: без резкой смены линии, старт с текущей позиции) ======
+  // ====== SPIN CAROUSELS (плавный спин, точная остановка по линии) ======
   async function spinCarousels(currency, spinCtx) {
-    isSpinning = true;
     stopAllAnimations();
 
     const MIN_STRIP_LENGTH = 170;
     const TAIL_AFTER_WIN = 32;
 
     const spinPromises = carousels.map((carousel, index) => {
-      return new Promise(resolve => {
-        // выбираем выигрышный предмет для этой карусели
-        const winItem = currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+      return new Promise((resolve) => {
+        // 1) Выбираем выигрыш
+        const winItem = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
         carousel.winningItem = winItem;
 
-        // берём текущую ленту как базу
-        let strip = Array.isArray(carousel.items) && carousel.items.length
-          ? carousel.items.slice()
-          : [];
+        // 2) Берём текущую ленту как базу (чтобы не было резкого "скачка")
+        let strip = (Array.isArray(carousel.items) && carousel.items.length) ? carousel.items.slice() : [];
 
         if (!strip.length) {
           const idleCount = 70;
           for (let i = 0; i < idleCount; i++) {
-            strip.push(currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+            strip.push(pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
           }
         }
 
-        // удлиняем ленту до нужной длины (новые элементы будут справа, вне экрана)
+        // 3) Удлиняем ленту
         while (strip.length < MIN_STRIP_LENGTH) {
-          strip.push(currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+          strip.push(pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
         }
 
-        // индекс, под которым приз должен остановиться
+        // 4) Фиксируем позицию выигрыша ближе к концу
         const winAt = strip.length - TAIL_AFTER_WIN;
         strip[winAt] = winItem;
 
@@ -699,30 +807,37 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
         carousel.winningStripIndex = winAt;
 
         const cont = carousel.itemsContainer;
-        const existingNodes = Array.from(cont.children);
+        if (!cont) { resolve(); return; }
+
+        // 5) Синхронизируем DOM с strip (не трогаем transform)
+        const existingNodes = Array.prototype.slice.call(cont.children);
         const needed = strip.length;
 
-        // аккуратно синхронизируем DOM с массивом, не трогая transform
         for (let i = 0; i < needed; i++) {
           const dataItem = strip[i];
+
           if (i < existingNodes.length) {
             const node = existingNodes[i];
             node.dataset.itemId = dataItem.id;
+            node.dataset.itemType = itemType(dataItem);
+
             const img = node.querySelector('img');
             if (img) {
-              img.src = `/images/gifts/${dataItem.icon}`;
+              img.onerror = null;
+              img.src = itemIconPath(dataItem);
               img.alt = dataItem.id;
+              img.onerror = function () { this.onerror = null; this.src = ITEM_ICON_FALLBACK; };
             }
           } else {
             const node = document.createElement('div');
             node.className = 'case-carousel-item';
             node.dataset.itemId = dataItem.id;
-            node.innerHTML = `<img src="/images/gifts/${dataItem.icon}" alt="${dataItem.id}">`;
+            node.dataset.itemType = itemType(dataItem);
+            node.innerHTML = `<img src="${itemIconPath(dataItem)}" alt="${dataItem.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">`;
             cont.appendChild(node);
           }
         }
 
-        // если старых элементов больше, чем нужно — убираем лишние с конца
         if (existingNodes.length > needed) {
           for (let i = existingNodes.length - 1; i >= needed; i--) {
             cont.removeChild(existingNodes[i]);
@@ -730,137 +845,84 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
         }
 
         const firstItem = cont.querySelector('.case-carousel-item');
-        if (!firstItem) {
-          resolve();
-          return;
-        }
+        if (!firstItem) { resolve(); return; }
 
-        const itemRect = firstItem.getBoundingClientRect();
-        const itemWidth = itemRect.width;
-
-        const containerRect = carousel.element.getBoundingClientRect();
-        const containerWidth = containerRect.width;
+        const itemWidth = firstItem.getBoundingClientRect().width;
+        const containerWidth = carousel.element.getBoundingClientRect().width;
 
         const cs = getComputedStyle(cont);
         const gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
         const padL = parseFloat(cs.paddingLeft) || 0;
-        const padR = parseFloat(cs.paddingRight) || 0;
 
         const step = itemWidth + gap;
-        const centerOffset = containerWidth / 2 - itemWidth / 2;
 
-        // стартуем с того места, где лента остановилась на айдле
-        let startPosition = carousel.position || 0;
+        // 6) Стартовая позиция — текущая
+        let startPosition = (typeof carousel.position === 'number') ? carousel.position : 0;
         if (!startPosition) {
-          const transform = getComputedStyle(cont).transform;
-          if (transform && transform !== 'none') {
-            const match = transform.match(/matrix\(([^)]+)\)/);
-            if (match) {
-              const parts = match[1].split(',');
+          const tr = getComputedStyle(cont).transform;
+          if (tr && tr !== 'none') {
+            const m = tr.match(/matrix\(([^)]+)\)/);
+            if (m) {
+              const parts = m[1].split(',');
               const tx = parseFloat(parts[4]) || 0;
-              startPosition = -tx; // т.к. translateX(-position)
+              startPosition = -tx;
             }
           }
         }
 
-        // целевая позиция: winAt ровно под центральной линией
-        // координата центральной линии внутри itemsContainer (учитываем, что лента inset'ом от краёв, напр. left:8px)
-        const contRect = cont.getBoundingClientRect();
-        const contLeft = contRect.left - containerRect.left;   // смещение ленты внутри карусели
-        const centerX = containerWidth / 2 - contLeft;         // X линии в координатах cont
-
-        // X линии в координатах itemsContainer (важно!)
+        // 7) Линия (центр) в координатах itemsContainer
         const lineX = getLineXInItems(carousel);
 
-        // рандомная точка внутри выигрышного предмета (от его левого края)
-        // чтобы не попадало прямо в край — делаем небольшой отступ
+        // 8) Точка внутри выигрышного айтема (чтобы не попадать строго в край)
         const innerMargin = Math.min(18, itemWidth * 0.18);
-        const randomPointInItem =
-        innerMargin + Math.random() * (itemWidth - innerMargin * 2);
+        const randomPoint = innerMargin + Math.random() * (itemWidth - innerMargin * 2);
 
-        // целевая позиция: чтобы centerX попал в randomPointInItem выбранного предмета
-        let targetPosition = padL + winAt * step + randomPointInItem - lineX;
+        // 9) Целевая позиция: под линию попадает randomPoint у winAt
+        let targetPosition = padL + winAt * step + randomPoint - lineX;
 
+        const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineX;
+        if (targetPosition < 0) targetPosition = 0;
+        if (targetPosition > maxTarget) targetPosition = maxTarget;
 
-        // гарантируем, что пройдем заметное расстояние, чтобы не было "дёргания"
+        // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
         const minTravel = step * 20;
         if (targetPosition - startPosition < minTravel) {
           targetPosition = Math.min(maxTarget, startPosition + minTravel);
         }
 
         const totalDistance = targetPosition - startPosition;
+
+        // 11) Плавная анимация
         const duration = 5200 + index * 250 + Math.random() * 600;
         const startTime = performance.now();
+        let lastHaptic = 0;
+
+        cont.style.willChange = 'transform';
 
         const animate = (currentTime) => {
           const elapsed = currentTime - startTime;
           const progress = Math.min(elapsed / duration, 1);
+          const eased = easeInOutCubic(progress);
 
-          // плавное замедление
-          // GPU hint
-        cont.style.willChange = 'transform';
-        // чтобы тактилка не делала микролаги — не рандом, а раз в ~120мс
-        let lastHaptic = 0;
+          carousel.position = startPosition + totalDistance * eased;
+          cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
 
-      const animate = (currentTime) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-        // более плавно: мягкий старт + мягкая остановка
-      const eased = easeInOutCubic(progress);
-
-      carousel.position = startPosition + totalDistance * eased;
-        cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
-
-      if (tg?.HapticFeedback && progress < 0.85 && (currentTime - lastHaptic) > 120) {
-        tg.HapticFeedback.impactOccurred('light');
-        lastHaptic = currentTime;
-      }
-
-      if (progress < 1) {
-        animationFrames[index] = requestAnimationFrame(animate);
-      } else {
-      // финальная защёлка в точное значение
-      carousel.position = targetPosition;
-        cont.style.transform = `translate3d(-${targetPosition}px, 0, 0)`;
-
-    // можно убрать подсказку GPU после остановки
-    cont.style.willChange = '';
-
-    highlightWinningItem(carousel, index);
-    resolve();
-  }
-};
-
-
-          // лёгкие тактильные "щёлчки" пока крутимся
-          if (tg?.HapticFeedback && Math.random() < 0.04 && progress < 0.85) {
-            tg.HapticFeedback.impactOccurred('light');
+          // тактилка не чаще, чем раз в 140мс
+          if (tg && tg.HapticFeedback && progress < 0.85 && (currentTime - lastHaptic) > 140) {
+            try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+            lastHaptic = currentTime;
           }
 
           if (progress < 1) {
             animationFrames[index] = requestAnimationFrame(animate);
           } else {
-            // финальная защёлка в точное значение
             carousel.position = targetPosition;
-            cont.style.transform = `translateX(-${targetPosition}px)`;
+            cont.style.transform = `translate3d(-${targetPosition}px, 0, 0)`;
+            cont.style.willChange = '';
 
-            if (tg?.HapticFeedback) {
-              tg.HapticFeedback.notificationOccurred('success');
-            }
-
-            // финальная защёлка
-            carousel.position = targetPosition;
-            cont.style.transform = `translate3d(${-targetPosition}px, 0, 0)`;
-
-            // ВАЖНО: теперь выигрыш = то, что реально под линией
+            // ВАЖНО: финальный выигрыш = то, что реально под линией
             syncWinByLine(carousel, targetPosition, strip, padL, step, lineX);
 
-            highlightWinningItem(carousel, index);
-            resolve();
-
-
-            // подсветка выигрышного слота
             highlightWinningItem(carousel, index);
             resolve();
           }
@@ -874,13 +936,11 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
     await Promise.all(spinPromises);
 
-    // помечаем все карусели как "остановлены" — для CSS, чтобы затемнить остальные подарки
+    // для CSS: затемнить остальные
     carousels.forEach(c => c.element.classList.add('cases-finished'));
 
     await delay(250);
-    await showResult(currency, spinCtx?.demoMode);
-
-    isSpinning = false;
+    await showResult(currency, spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined);
   }
 
   // ====== HIGHLIGHT WINNING ITEM ======
@@ -898,7 +958,7 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
     // Берём тот индекс, куда МЫ положили выигрышный предмет
     const winIndex = carousel.winningStripIndex;
-    const winEl = carousel.itemsContainer.children?.[winIndex];
+    const winEl = (carousel.itemsContainer && carousel.itemsContainer.children) ? carousel.itemsContainer.children[winIndex] : null;
 
     if (winEl) {
       winEl.classList.add('winning');
@@ -949,14 +1009,14 @@ function hideClaimBar() {
 
 // ====== SHOW RESULT (Claim button under carousels) ======
 function showResult(currency, demoModeOverride) {
-  const tg = window.Telegram?.WebApp;
-  const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
-  const initData = tg?.initData || "";
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  const tgUserId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) ? tg.initDataUnsafe.user.id : "guest";
+  const initData = (tg && tg.initData) ? tg.initData : "";
 
   const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
 
   const wonItems = carousels.map(c => c.winningItem).filter(Boolean);
-  const totalValueRaw = wonItems.reduce((sum, item) => sum + (item.price?.[currency] || 0), 0);
+  const totalValueRaw = wonItems.reduce((sum, item) => sum + ((item && item.price && item.price[currency]) ? item.price[currency] : 0), 0);
 
   // Нормализуем сумму
   const totalValue =
@@ -1013,7 +1073,7 @@ function showResult(currency, demoModeOverride) {
           }).catch(() => {});
         }
 
-        tg?.HapticFeedback?.notificationOccurred?.('success');
+        if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === 'function') { try { tg.HapticFeedback.notificationOccurred('success'); } catch (e) {} }
       } finally {
         // прячем кнопку
         bar.hidden = true;
