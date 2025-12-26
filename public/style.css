@@ -3992,7 +3992,7 @@ body.case-sheet-open .case-sheet-panel{
     object-fit: cover;
     object-position: center;
   }
-  
+
   /* Overlay */
   .splash__overlay {
     position: absolute;
@@ -4073,43 +4073,61 @@ body.case-sheet-open .case-sheet-panel{
     overflow: hidden; /* 🔥 CRITICAL: Clip overflow */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) inset;
   }
+ 
   
-  /* 🔥 FIXED: Progress Bar Fill */
-  .splash__bar-fill {
-    position: absolute; /* 🔥 IMPORTANT: Absolute positioning */
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 0%; /* 🔥 Start from 0 */
-    max-width: 100%; /* 🔥 CRITICAL: Never exceed 100% */
-    background: linear-gradient(90deg, #ffffff 0%, #e0e7ff 100%);
-    border-radius: 999px;
-    transform-origin: left;
-    transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 
-      0 0 16px rgba(255, 255, 255, 0.6),
-      0 0 8px rgba(255, 255, 255, 0.4);
-    /* 🔥 Prevent any overflow */
-    overflow: hidden;
-    contain: strict;
-  }
-  
-  /* 🔥 FIXED: Shimmer Effect */
-  .splash__bar-fill::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.4) 50%,
-      transparent 100%
-    );
-    animation: shimmer 1.5s infinite;
-    /* 🔥 Keep shimmer inside */
-    overflow: hidden;
-  }
-  
+/* 🔥 IMPROVED: Beautiful Progress Fill */
+.splash__bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  max-width: 100%;
+  background: linear-gradient(
+    90deg,
+    #ffd700 0%,
+    #ffed4e 30%,
+    #ffa500 60%,
+    #ff8c42 100%
+  );
+  border-radius: 999px;
+  transform-origin: left;
+  transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 0 24px rgba(255, 215, 0, 0.8),
+    0 0 12px rgba(255, 165, 0, 0.6),
+    0 2px 8px rgba(255, 215, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+  contain: strict;
+}
+
+/* 🔥 IMPROVED: Enhanced Shimmer */
+.splash__bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 40%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.6) 60%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+  overflow: hidden;
+}
+
+/* 🔥 IMPROVED: Larger Percent Text */
+.splash__percent {
+  font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: #ffd700;
+  letter-spacing: 1px;
+  text-shadow: 
+    0 2px 8px rgba(255, 215, 0, 0.6),
+    0 0 16px rgba(255, 215, 0, 0.4);
+}
   /* Percent Text */
   .splash__percent {
     font: 600 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial;
@@ -4272,7 +4290,7 @@ body.case-sheet-open .case-sheet-panel{
         0 2px 4px rgba(0, 0, 0, 1);
     }
   }
-    
+  
 
 
   /* ========================================
