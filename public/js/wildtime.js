@@ -96,8 +96,9 @@
   
     // IMPORTANT: mount to body so fixed overlay is truly full-screen even if #wheelPage is transformed
     function mountRoot() {
-      return document.body;
-    }
+        return document.getElementById("wheelPage") || document.body;
+      }
+      
   
     function ensureOverlay() {
       let el = document.getElementById(CFG.overlayId);
