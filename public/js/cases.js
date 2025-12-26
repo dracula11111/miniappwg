@@ -36,9 +36,9 @@ case2: {
   price: { ton: 0.02, stars: 4 },
   items: [
     // NFTs (put images into /public/images/nfts/)
-    { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 1.5, stars: 200 }, rarity: 'legendary' },
-    { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 0.9, stars: 120 }, rarity: 'epic' },
-    { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 0.5, stars: 70  }, rarity: 'rare' },
+    { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+    { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
+    { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
 
     // Gifts
     { id: 'gift1',  icon: 'gift1.png',  price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
@@ -193,19 +193,41 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     return String(Math.round(parseFloat(value) || 0));
   }
 
-  function applyBalanceDelta(currency, delta) {
-    const curr = window.WildTimeCurrency?.balance?.[currency] ?? 0;
+  function setBalanceValue(currency, value) {
+  const c = (currency === 'stars') ? 'stars' : 'ton';
+  const next = (c === 'ton')
+    ? Math.max(0, Math.round((parseFloat(value) || 0) * 100) / 100)
+    : Math.max(0, Math.round(parseFloat(value) || 0));
 
-    if (currency === 'ton') {
-      const next = Math.max(0, Math.round((parseFloat(curr) + delta) * 100) / 100);
-      window.dispatchEvent(new CustomEvent('balance:update', { detail: { ton: next } }));
-      return next;
-    } else {
-      const next = Math.max(0, Math.round(parseFloat(curr) + delta));
-      window.dispatchEvent(new CustomEvent('balance:update', { detail: { stars: next } }));
-      return next;
-    }
+  // Update internal balance if exists
+  if (window.WildTimeCurrency) {
+    window.WildTimeCurrency.balance = window.WildTimeCurrency.balance || { ton: 0, stars: 0 };
+    window.WildTimeCurrency.balance[c] = next;
+  } else {
+    window.WildTimeCurrency = { current: c, balance: { ton: 0, stars: 0 } };
+    window.WildTimeCurrency.balance[c] = next;
   }
+
+  // Prefer official setter if available
+  if (typeof window.WildTimeCurrency.setBalance === 'function') {
+    try { window.WildTimeCurrency.setBalance(c, next); } catch (_) {}
+  }
+
+  // Notify listeners
+  window.dispatchEvent(new CustomEvent('balance:update', { detail: { [c]: next } }));
+  return next;
+}
+
+function applyBalanceDelta(currency, delta) {
+  const c = (currency === 'stars') ? 'stars' : 'ton';
+  const curr = window.WildTimeCurrency?.balance?.[c] ?? 0;
+  const d = parseFloat(delta) || 0;
+
+  const next = (c === 'ton')
+    ? Math.max(0, Math.round((parseFloat(curr) + d) * 100) / 100)
+    : Math.max(0, Math.round(parseFloat(curr) + d));
+  return setBalanceValue(c, next);
+}
 
   function setControlsLocked(locked) {
     // Prevent switching Demo/count during spin/claim
@@ -1007,102 +1029,386 @@ function hideClaimBar() {
 }
 
 
-// ====== SHOW RESULT (Claim button under carousels) ======
+// ====== NFT DECISION PANEL (under carousels) ======
+// NFT -> Claim (save to profile) OR Sell (convert to currency).
+function ensureNftDecisionPanel() {
+  let panel = document.getElementById('caseNftDecisionPanel');
+  if (panel) return panel;
+
+  const section = document.querySelector('.case-carousels-section');
+  if (!section) return null;
+
+  panel = document.createElement('div');
+  panel.id = 'caseNftDecisionPanel';
+  panel.className = 'case-nft-decision-panel';
+  panel.hidden = true;
+
+  panel.innerHTML = `
+    <div class="case-nft-decision">
+<div class="case-nft-decision__sub">Выберите действие</div>
+      </div>
+
+      <div id="caseNftDecisionItems" class="case-nft-decision__items" aria-label="Won NFTs"></div>
+
+      <div class="case-nft-decision__actions">
+        <button id="caseNftClaimBtn" class="case-nft-decision-btn case-nft-decision-btn--primary" type="button">
+          Claim
+        </button>
+
+        <button id="caseNftSellBtn" class="case-nft-decision-btn case-nft-decision-btn--secondary" type="button">
+          <span>Sell</span>
+          <span id="caseNftSellAmount" class="case-nft-decision-btn__amount">0</span>
+          <img id="caseNftSellIcon" class="case-nft-decision-btn__icon" src="/icons/ton.svg" alt="">
+        </button>
+      </div>
+
+      <div class="case-nft-decision__note" id="caseNftDecisionNote" hidden></div>
+    </div>
+  `;
+
+  section.insertAdjacentElement('afterend', panel);
+  return panel;
+}
+
+function hideNftDecisionPanel() {
+  const panel = document.getElementById('caseNftDecisionPanel');
+  if (!panel) return;
+  panel.hidden = true;
+
+  const claimBtn = document.getElementById('caseNftClaimBtn');
+  const sellBtn = document.getElementById('caseNftSellBtn');
+  claimBtn && (claimBtn.disabled = false);
+  sellBtn && (sellBtn.disabled = false);
+  claimBtn && claimBtn.classList.remove('loading');
+  sellBtn && sellBtn.classList.remove('loading');
+}
+
+const INV_LS_PREFIX = 'WT_INV_'; // keep in sync with profile.js
+function inventoryLocalKey(userId) {
+  return INV_LS_PREFIX + String(userId);
+}
+function legacyInventoryLocalKey(userId) {
+  return `wt_inventory_${String(userId)}`;
+}
+
+function normalizeInventory(arr) {
+  const a = Array.isArray(arr) ? arr : [];
+  const seen = new Set();
+  const out = [];
+  for (const it of a) {
+    if (!it) continue;
+    const key = it.instanceId || it.id || JSON.stringify(it);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+function readLocalInventory(userId) {
+  try {
+    const rawNew = localStorage.getItem(inventoryLocalKey(userId));
+    const rawOld = localStorage.getItem(legacyInventoryLocalKey(userId));
+    const a = rawNew ? JSON.parse(rawNew) : [];
+    const b = rawOld ? JSON.parse(rawOld) : [];
+    return normalizeInventory([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])]);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalInventory(userId, arr) {
+  const clean = normalizeInventory(arr);
+  try { localStorage.setItem(inventoryLocalKey(userId), JSON.stringify(clean)); } catch {}
+  // legacy mirror for older builds
+  try { localStorage.setItem(legacyInventoryLocalKey(userId), JSON.stringify(clean)); } catch {}
+}
+
+function addToLocalInventory(userId, items) {
+  const prev = readLocalInventory(userId);
+  writeLocalInventory(userId, prev.concat(items || []));
+}
+
+async function fetchJsonSafe(url, options = {}, timeoutMs = 6000) {
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const t = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+
+  try {
+    const resp = await fetch(url, { ...options, signal: ctrl ? ctrl.signal : undefined });
+    let json = null;
+    try { json = await resp.json(); } catch (_) {}
+    return { ok: resp.ok, status: resp.status, json };
+  } catch (e) {
+    return { ok: false, status: 0, json: null, error: (e && e.name === 'AbortError') ? 'timeout' : (e?.message || 'fetch_failed') };
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
+function setBtnLoading(btn, loading) {
+  if (!btn) return;
+  btn.disabled = !!loading;
+  btn.classList.toggle('loading', !!loading);
+}
+
+function showToast(msg) {
+  const tg = window.Telegram?.WebApp;
+  if (tg?.showToast) { try { tg.showToast({ message: msg }); return; } catch (_) {} }
+  if (tg?.showAlert) { try { tg.showAlert(msg); return; } catch (_) {} }
+  try { alert(msg); } catch (_) {}
+}
+
+// ====== SHOW RESULT (Gift: Claim; NFT: Claim/Sell) ======
 function showResult(currency, demoModeOverride) {
   const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
-  const tgUserId = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) ? tg.initDataUnsafe.user.id : "guest";
-  const initData = (tg && tg.initData) ? tg.initData : "";
+  const tgUserId = (tg?.initDataUnsafe?.user?.id) ? String(tg.initDataUnsafe.user.id) : "guest";
+  const initData = tg?.initData ? tg.initData : "";
 
   const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
 
   const wonItems = carousels.map(c => c.winningItem).filter(Boolean);
-  const totalValueRaw = wonItems.reduce((sum, item) => sum + ((item && item.price && item.price[currency]) ? item.price[currency] : 0), 0);
+  const gifts = wonItems.filter(it => itemType(it) !== 'nft');
+  const nfts  = wonItems.filter(it => itemType(it) === 'nft');
 
-  // Нормализуем сумму
-  const totalValue =
-    currency === 'stars'
-      ? Math.max(0, Math.round(totalValueRaw))
-      : Math.max(0, +(+totalValueRaw).toFixed(2));
+  const sumValue = (arr) => arr.reduce((sum, item) => sum + ((item?.price?.[currency]) ? (parseFloat(item.price[currency]) || 0) : 0), 0);
+  const giftsRaw = sumValue(gifts);
+  const nftsRaw  = sumValue(nfts);
+
+  const giftsAmount = (currency === 'stars') ? Math.max(0, Math.round(giftsRaw)) : Math.max(0, +(+giftsRaw).toFixed(2));
+  const nftsAmount  = (currency === 'stars') ? Math.max(0, Math.round(nftsRaw))  : Math.max(0, +(+nftsRaw).toFixed(2));
 
   const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  const roundId = `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
   const bar = ensureClaimBar();
-  if (!bar) return Promise.resolve();
+  const nftPanel = ensureNftDecisionPanel();
 
-  const btn = bar.querySelector('#caseClaimBtn');
-  const amountEl = bar.querySelector('#caseClaimAmount');
-  const iconEl = bar.querySelector('#caseClaimIcon');
-
-  if (!btn || !amountEl || !iconEl) return Promise.resolve();
-
-  iconEl.src = icon;
-  amountEl.textContent = formatAmount(currency, totalValue);
-
-  bar.hidden = false;
-
-  // Не даём открыть ещё раз пока не заклеймили
+  // Lock opening until all actions complete
   openBtn.disabled = true;
   openBtn.style.opacity = '0.6';
 
+  const pending = { gifts: gifts.length > 0, nft: nfts.length > 0 };
+
+  const resetAfter = () => {
+    hideClaimBar();
+    hideNftDecisionPanel();
+
+    carousels.forEach((carousel) => {
+      carousel.element.classList.remove('cases-finished');
+      resetCarouselToIdleFromCurrent(carousel);
+    });
+
+    startIdleAnimation();
+
+    openBtn.disabled = false;
+    openBtn.style.opacity = '1';
+  };
+
+  const maybeFinish = (resolve) => {
+    if (!pending.gifts && !pending.nft) {
+      resetAfter();
+      resolve();
+    }
+  };
+
   return new Promise((resolve) => {
-    const onClaim = async () => {
-      btn.disabled = true;
-      btn.classList.add('loading');
+    // ===== Gifts claim =====
+    if (pending.gifts && bar) {
+      const btn = bar.querySelector('#caseClaimBtn');
+      const amountEl = bar.querySelector('#caseClaimAmount');
+      const iconEl = bar.querySelector('#caseClaimIcon');
 
-      try {
-        if (!demoModeForRound) {
-          // 1) моментально начисляем в UI
-          applyBalanceDelta(currency, totalValue);
+      if (btn && amountEl && iconEl) {
+        iconEl.src = icon;
+        amountEl.textContent = formatAmount(currency, giftsAmount);
+        bar.hidden = false;
 
-          // 2) сохраняем на сервере (чтобы после перезагрузки не пропало)
-          const depositId = `casewin_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        btn.onclick = async () => {
+          setBtnLoading(btn, true);
 
-          await fetch('/api/deposit-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              amount: totalValue,
-              currency,
-              userId: tgUserId,
-              initData,
-              timestamp: Date.now(),
-              depositId,
-              type: 'case_win',
-              notify: false
-            })
-          }).catch(() => {});
-        }
+          try {
+            if (!demoModeForRound) {
+              // Optimistic UI
+              applyBalanceDelta(currency, giftsAmount);
 
-        if (tg && tg.HapticFeedback && typeof tg.HapticFeedback.notificationOccurred === 'function') { try { tg.HapticFeedback.notificationOccurred('success'); } catch (e) {} }
-      } finally {
-        // прячем кнопку
-        bar.hidden = true;
+              // Persist to server (idempotent)
+              const depositId = `case_gift_claim_${roundId}`;
+              const r = await fetchJsonSafe('/api/deposit-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  amount: giftsAmount,
+                  currency,
+                  userId: tgUserId,
+                  initData,
+                  timestamp: Date.now(),
+                  depositId,
+                  type: 'case_gift_claim',
+                  notify: false
+                })
+              }, 4500);
 
-        // Reset carousels back to idle
-        carousels.forEach((carousel) => {
-          carousel.element.classList.remove('cases-finished');
-          resetCarouselToIdleFromCurrent(carousel);
-        });
+              if (r.ok && r.json && typeof r.json.newBalance !== 'undefined') {
+                setBalanceValue(currency, r.json.newBalance);
+              } else if (!r.ok) {
+                showToast('Не удалось подтвердить начисление на сервере.');
+              }
+            }
 
-        startIdleAnimation();
-
-        // возвращаем Open
-        openBtn.disabled = false;
-        openBtn.style.opacity = '1';
-
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        btn.removeEventListener('click', onClaim);
-
-        resolve();
+            tg?.HapticFeedback?.notificationOccurred?.('success');
+          } finally {
+            bar.hidden = true;
+            pending.gifts = false;
+            setBtnLoading(btn, false);
+            btn.onclick = null;
+            maybeFinish(resolve);
+          }
+        };
+      } else {
+        pending.gifts = false;
       }
-    };
+    } else {
+      hideClaimBar();
+      pending.gifts = false;
+    }
 
-    btn.addEventListener('click', onClaim, { once: true });
+    // ===== NFT claim/sell =====
+    if (pending.nft && nftPanel) {
+      const itemsWrap = nftPanel.querySelector('#caseNftDecisionItems');
+      const claimBtn = nftPanel.querySelector('#caseNftClaimBtn');
+      const sellBtn = nftPanel.querySelector('#caseNftSellBtn');
+      const sellAmountEl = nftPanel.querySelector('#caseNftSellAmount');
+      const sellIconEl = nftPanel.querySelector('#caseNftSellIcon');
+      const noteEl = nftPanel.querySelector('#caseNftDecisionNote');
+
+      if (sellAmountEl) sellAmountEl.textContent = formatAmount(currency, nftsAmount);
+      if (sellIconEl) sellIconEl.src = icon;
+
+      if (itemsWrap) {
+        itemsWrap.innerHTML = '';
+        nfts.forEach((it) => {
+          const el = document.createElement('div');
+          el.className = 'case-nft-decision-item';
+          el.innerHTML = `
+            <div class="case-nft-decision-item__imgwrap">
+              <img src="${itemIconPath(it)}" alt="${it.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+            </div>
+          `;
+          itemsWrap.appendChild(el);
+        });
+      }
+
+      if (noteEl) {
+        noteEl.hidden = !demoModeForRound;
+        if (demoModeForRound) noteEl.textContent = 'Demo режим: claim/sell отключены.';
+      }
+
+      nftPanel.hidden = false;
+
+      const lock = (btn) => {
+        if (claimBtn) { claimBtn.disabled = true; claimBtn.classList.toggle('loading', btn === claimBtn); }
+        if (sellBtn)  { sellBtn.disabled = true;  sellBtn.classList.toggle('loading', btn === sellBtn); }
+      };
+      const unlock = () => {
+        if (claimBtn) { claimBtn.disabled = false; claimBtn.classList.remove('loading'); }
+        if (sellBtn)  { sellBtn.disabled = false;  sellBtn.classList.remove('loading'); }
+      };
+
+      claimBtn && (claimBtn.onclick = async () => {
+        lock(claimBtn);
+
+        try {
+          if (!demoModeForRound) {
+            const claimId = `case_nft_claim_${roundId}`;
+            const payloadItems = nfts.map((it, idx) => ({
+              instanceId: `${claimId}_${idx}`,
+              id: it.id,
+              type: 'nft',
+              icon: it.icon,
+              rarity: it.rarity,
+              price: it.price,
+              ts: Date.now()
+            }));
+
+            // Save to server
+            const r = await fetchJsonSafe('/api/inventory/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: tgUserId, initData, claimId, items: payloadItems })
+            }, 4500);
+
+            // Always keep local copy (fallback)
+            addToLocalInventory(tgUserId, payloadItems);
+
+            if (!r.ok || !r.json?.ok) {
+              showToast('Не удалось сохранить NFT на сервере — оставил локально.');
+            }
+
+            window.dispatchEvent(new CustomEvent('inventory:update'));
+          }
+
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+        } finally {
+          nftPanel.hidden = true;
+          pending.nft = false;
+          unlock();
+          if (claimBtn) claimBtn.onclick = null;
+          if (sellBtn) sellBtn.onclick = null;
+          maybeFinish(resolve);
+        }
+      });
+
+      sellBtn && (sellBtn.onclick = async () => {
+        lock(sellBtn);
+
+        try {
+          if (!demoModeForRound) {
+            applyBalanceDelta(currency, nftsAmount);
+
+            const depositId = `case_nft_sell_${roundId}`;
+            const r = await fetchJsonSafe('/api/deposit-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount: nftsAmount,
+                currency,
+                userId: tgUserId,
+                initData,
+                timestamp: Date.now(),
+                depositId,
+                type: 'case_nft_sell',
+                notify: false
+              })
+            }, 4500);
+
+            if (r.ok && r.json && typeof r.json.newBalance !== 'undefined') {
+              setBalanceValue(currency, r.json.newBalance);
+            } else if (!r.ok) {
+              showToast('Не удалось подтвердить продажу NFT на сервере.');
+            }
+          }
+
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+        } finally {
+          nftPanel.hidden = true;
+          pending.nft = false;
+          unlock();
+          if (claimBtn) claimBtn.onclick = null;
+          if (sellBtn) sellBtn.onclick = null;
+          maybeFinish(resolve);
+        }
+      });
+    } else {
+      hideNftDecisionPanel();
+      pending.nft = false;
+    }
+
+    // Nothing to do
+    maybeFinish(resolve);
   });
 }
 
-  // ====== CURRENCY CHANGE LISTENER ======
+// ====== CURRENCY CHANGE LISTENER ======
   window.addEventListener('currency:changed', () => {
     if (isSpinning) {
       pendingCurrencyChange = true;

@@ -1,281 +1,638 @@
-// /public/js/profile.js - FINAL (wallet connect button + avatar sync)
+// /public/js/profile.js - v4 (keep default empty Inventory panel + 3-col NFT grid + select/sell)
 (() => {
+  console.log('[Profile] ✅ Loaded v4');
+
   const tg = window.Telegram?.WebApp;
 
   // ====== DOM ELEMENTS ======
+  const profileCard = document.querySelector('#profilePage .profile-card');
+  const currencySwitch = document.querySelector('#profilePage .currency-switch');
 
-  // Topbar avatar (left)
-  const userAvatarImg = document.getElementById('userAvatarImg');
-
-  // Bottom nav profile avatar (if you use it)
-  const navProfileAvatar = document.getElementById('navProfileAvatar');
-
-  // Profile Page
   const profileAvatar = document.getElementById('profileAvatar');
   const profileName = document.getElementById('profileName');
   const profileHandle = document.getElementById('profileHandle');
 
-  // Wallet Card
   const walletCard = document.getElementById('walletCard');
   const walletCardStatus = document.getElementById('walletCardStatus');
-  const walletCardToggle = document.getElementById('walletCardToggle');
+  const walletCardBtn = document.getElementById('walletCardBtn');
   const walletCardDetails = document.getElementById('walletCardDetails');
   const walletCardAddress = document.getElementById('walletCardAddress');
   const walletCardCopy = document.getElementById('walletCardCopy');
   const walletCardDisconnect = document.getElementById('walletCardDisconnect');
 
-  // Connect block + button (profile)
-  const walletCardConnect = document.getElementById('walletCardConnect');
-  const profileConnectWalletBtn = document.getElementById('profileConnectWalletBtn');
+  const inventoryPanel = document.getElementById('profileInventoryPanel');
 
-  // ====== UTILITIES ======
+  // ====== LOCAL INVENTORY FALLBACK ======
+  const LS_PREFIX = 'WT_INV_'; // WT_INV_<userId> => JSON array
 
   function getTelegramUser() {
-    if (!tg?.initDataUnsafe?.user) {
-      return {
-        id: null,
-        firstName: 'Guest',
-        lastName: '',
-        username: null,
-        photoUrl: null
-      };
+    return tg?.initDataUnsafe?.user || { id: 'guest', username: null, first_name: 'Guest' };
+  }
+
+  function readLocalInventory(userId) {
+    try {
+      const raw = localStorage.getItem(LS_PREFIX + userId);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
     }
-
-    const u = tg.initDataUnsafe.user;
-    return {
-      id: u.id,
-      firstName: u.first_name || 'User',
-      lastName: u.last_name || '',
-      username: u.username || null,
-      photoUrl: u.photo_url || null
-    };
   }
 
-  function getDisplayName(user) {
-    const full = `${user.firstName} ${user.lastName}`.trim();
-    return full || 'User';
+  function writeLocalInventory(userId, items) {
+    try {
+      localStorage.setItem(LS_PREFIX + userId, JSON.stringify(items || []));
+    } catch {}
   }
 
-  function getDisplayHandle(user) {
-    return user.username ? `@${user.username}` : `ID: ${user.id || 'Unknown'}`;
-  }
-
-  function getShortAddress(address) {
-    if (!address) return 'Not connected';
-    return `${address.slice(0, 4)}…${address.slice(-4)}`;
-  }
-
+  // ====== HELPERS ======
   function haptic(type = 'light') {
-    if (tg?.HapticFeedback?.impactOccurred) tg.HapticFeedback.impactOccurred(type);
+    try { tg?.HapticFeedback?.impactOccurred?.(type); } catch {}
+  }
+
+  function getCurrency() {
+    return window.WildTimeCurrency?.current || 'ton';
+  }
+
+  function currencyIcon(currency) {
+    return currency === 'stars' ? '⭐' : '💎';
+  }
+
+  function itemType(item) {
+    if (item?.type) return item.type;
+    const id = String(item?.baseId || item?.id || '');
+    return id.startsWith('nft') ? 'nft' : 'gift';
+  }
+
+  function itemKey(item, idx) {
+    // Prefer stable unique identifiers
+    return String(
+      item?.uid ||
+      item?.instanceId ||
+      item?.claimId ||
+      item?.txId ||
+      item?._id ||
+      (item?.baseId || item?.id ? `${item.baseId || item.id}_${item?.ts || item?.createdAt || idx}` : `idx_${idx}`)
+    );
+  }
+
+  function itemIconPath(item) {
+    const icon = item?.icon || item?.image || item?.img;
+    if (!icon) return '/icons/unknown.png';
+
+    // NFTs stored in /public/images/nfts/, gifts in /public/images/gifts/
+    const t = itemType(item);
+    if (t === 'nft') return `/images/nfts/${icon}`;
+    return `/images/gifts/${icon}`;
+  }
+
+  function itemValue(item, currency) {
+    const v = item?.price?.[currency];
+    const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
+    if (!Number.isFinite(n)) return 0;
+    return currency === 'ton' ? Math.round(n * 100) / 100 : Math.round(n);
+  }
+
+  function setBalance(currency, value) {
+    if (window.WildTimeCurrency?.setBalance) {
+      window.WildTimeCurrency.setBalance(currency, value);
+    }
+    window.dispatchEvent(new CustomEvent('balance:update', { detail: currency === 'ton' ? { ton: value } : { stars: value } }));
+  }
+
+  function addBalance(currency, delta) {
+    const cur = window.WildTimeCurrency?.balance?.[currency] ?? 0;
+    const next = currency === 'ton'
+      ? Math.max(0, Math.round((parseFloat(cur) + delta) * 100) / 100)
+      : Math.max(0, Math.round(parseFloat(cur) + delta));
+    setBalance(currency, next);
+    return next;
+  }
+
+  async function postDeposit(delta, currency, userId, type = 'inventory_sell') {
+    // Server-side accounting (best-effort). No hard-fail for UI.
+    const initData = tg?.initData || '';
+    const depositId = `${type}_${userId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    try {
+      const r = await fetch('/api/deposit-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: delta,
+          currency,
+          userId,
+          initData,
+          timestamp: Date.now(),
+          depositId,
+          type,
+          notify: false
+        })
+      });
+      await r.json().catch(() => null);
+    } catch {}
   }
 
   // ====== USER UI ======
-
   function updateUserUI() {
     const user = getTelegramUser();
-    const avatarUrl = user.photoUrl || '/images/avatar-default.png';
 
-    // Topbar avatar
-    if (userAvatarImg) {
-      userAvatarImg.src = avatarUrl;
-      userAvatarImg.onerror = () => (userAvatarImg.src = '/images/avatar-default.png');
+    if (profileName) profileName.textContent = user.first_name || user.username || 'Guest';
+    if (profileHandle) profileHandle.textContent = user.username ? `@${user.username}` : `ID: ${user.id || 'Unknown'}`;
+
+    // Avatar (if project has endpoint; otherwise default)
+    if (profileAvatar && user.id && user.id !== 'guest') {
+      profileAvatar.src = `/avatar/${user.id}?t=${Date.now()}`;
     }
-
-    // Bottom nav avatar (if exists)
-    if (navProfileAvatar) {
-      navProfileAvatar.src = avatarUrl;
-      navProfileAvatar.onerror = () => (navProfileAvatar.src = '/images/avatar-default.png');
-    }
-
-    // Profile avatar
-    if (profileAvatar) {
-      profileAvatar.src = avatarUrl;
-      profileAvatar.onerror = () => (profileAvatar.src = '/images/avatar-default.png');
-    }
-
-    if (profileName) profileName.textContent = getDisplayName(user);
-    if (profileHandle) profileHandle.textContent = getDisplayHandle(user);
   }
 
-  // ====== WALLET UI ======
-
+  // ====== WALLET UI (does not change existing behavior) ======
   function updateWalletUI() {
-    const tc = window.__wtTonConnect;
+    if (!walletCard) return;
 
-    // NOT CONNECTED
-    if (!tc?.account) {
-      if (walletCardStatus) {
-        walletCardStatus.textContent = 'Not connected';
-        walletCardStatus.style.color = 'var(--muted)';
-      }
+    const addr = window.WildTimeTonConnect?.address || window.tonAddress || '';
+    const connected = !!addr;
 
-      if (walletCardAddress) walletCardAddress.textContent = '—';
+    if (walletCardStatus) walletCardStatus.textContent = connected ? 'Connected' : 'Not connected';
 
-      if (walletCardDetails) {
-        walletCardDetails.hidden = true;
-        walletCardToggle?.classList.remove('open');
-      }
+    if (walletCardBtn) walletCardBtn.hidden = connected;
+    if (walletCardDetails) walletCardDetails.hidden = !connected;
+    if (walletCardAddress) walletCardAddress.textContent = connected ? addr : '—';
 
-      // show connect button block
-      if (walletCardConnect) walletCardConnect.hidden = false;
+    if (walletCardCopy) {
+      walletCardCopy.onclick = () => {
+        if (!addr) return;
+        navigator.clipboard?.writeText(addr).catch(() => {});
+        haptic('light');
+      };
+    }
 
+    if (walletCardDisconnect) {
+      walletCardDisconnect.onclick = async () => {
+        try { await window.WildTimeTonConnect?.disconnect?.(); } catch {}
+        setTimeout(updateWalletUI, 150);
+      };
+    }
+  }
+
+  // ====== NFT SHELF (top) ======
+  function ensureNftShelf() {
+    if (!profileCard || !currencySwitch) return null;
+
+    let shelf = document.getElementById('profileNftShelf');
+    if (shelf) return shelf;
+
+    shelf = document.createElement('div');
+    shelf.id = 'profileNftShelf';
+    shelf.className = 'profile-nft-shelf';
+    shelf.hidden = true;
+
+    currencySwitch.insertAdjacentElement('beforebegin', shelf);
+    return shelf;
+  }
+
+  function renderNftShelf(items, onOpen) {
+    const shelf = ensureNftShelf();
+    if (!shelf) return;
+
+    const nfts = (items || []).filter(it => itemType(it) === 'nft');
+
+    if (!nfts.length) {
+      shelf.hidden = true;
+      shelf.innerHTML = '';
       return;
     }
 
-    // CONNECTED
-    const address = tc.account.address;
-    const shortAddr = getShortAddress(address);
+    shelf.hidden = false;
 
-    if (walletCardStatus) {
-      walletCardStatus.textContent = shortAddr;
-      walletCardStatus.style.color = 'var(--accent)';
+    const icons = nfts.slice(0, 18).map((it, idx) => {
+      const key = itemKey(it, idx);
+      return `
+        <button class="profile-nft-item is-nft" type="button" data-key="${key}" aria-label="NFT">
+          <img src="${itemIconPath(it)}" alt="">
+        </button>
+      `;
+    }).join('');
+
+    shelf.innerHTML = `
+      <div class="profile-nft-shelf__header">
+        <div class="profile-nft-shelf__title">NFT</div>
+        <div class="profile-nft-shelf__count">${nfts.length}</div>
+      </div>
+      <div class="profile-nft-shelf__row">${icons}</div>
+    `;
+
+    shelf.querySelectorAll('.profile-nft-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-key');
+        const it = nfts.find((x, i) => itemKey(x, i) === key);
+        if (it && onOpen) onOpen(it);
+      });
+    });
+  }
+
+  // ====== INVENTORY PANEL: keep default empty state ======
+  const selection = new Set();
+  let lastInventory = [];
+
+  function ensureInvDynamic() {
+    if (!inventoryPanel) return null;
+
+    let dyn = document.getElementById('profileInvDynamic');
+    if (dyn) return dyn;
+
+    dyn = document.createElement('div');
+    dyn.id = 'profileInvDynamic';
+    dyn.hidden = true;
+
+    dyn.innerHTML = `
+      <div id="profileInvGrid" class="profile-invgrid"></div>
+
+      <div id="profileInvActions" class="profile-invactions">
+        <button id="invSellSelected" class="inv-action-btn inv-action-btn--primary" type="button">
+          Sell selected <span id="invSellSelectedAmount" class="inv-action-btn__amount"></span>
+        </button>
+        <button id="invSellAll" class="inv-action-btn inv-action-btn--secondary" type="button">
+          Sell all <span id="invSellAllAmount" class="inv-action-btn__amount"></span>
+        </button>
+      </div>
+    `;
+
+    inventoryPanel.appendChild(dyn);
+    return dyn;
+  }
+
+  function getEmptyIconEl() {
+    return inventoryPanel?.querySelector('.profile-invpanel__icon') || null;
+  }
+  function getEmptyTextEl() {
+    return inventoryPanel?.querySelector('.profile-invpanel__text') || null;
+  }
+
+  // ====== MODAL (view NFT) ======
+  function ensureModal() {
+    let modal = document.getElementById('profileNftModal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'profileNftModal';
+    modal.className = 'profile-modal';
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="profile-modal__backdrop" data-close="1"></div>
+      <div class="profile-modal__box" role="dialog" aria-modal="true">
+        <div class="profile-modal__imgwrap"><img id="profileModalImg" src="" alt=""></div>
+        <div class="profile-modal__meta">
+          <div id="profileModalTitle" class="profile-modal__title">NFT</div>
+          <div id="profileModalSub" class="profile-modal__sub"></div>
+        </div>
+        <div class="profile-modal__actions">
+          <button id="profileModalSell" class="profile-modal-btn profile-modal-btn--primary" type="button">
+            Sell <span id="profileModalSellAmount" class="profile-modal-btn__amount"></span>
+          </button>
+          <button id="profileModalClose" class="profile-modal-btn profile-modal-btn--ghost" type="button">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelectorAll('[data-close="1"]').forEach(el => el.addEventListener('click', () => hideModal()));
+    modal.querySelector('#profileModalClose')?.addEventListener('click', () => hideModal());
+
+    return modal;
+  }
+
+  let modalItemKey = null;
+
+  function showModal(item, allItems) {
+    const modal = ensureModal();
+    if (!modal) return;
+
+    const currency = getCurrency();
+    const val = itemValue(item, currency);
+
+    modalItemKey = itemKey(item, allItems.findIndex(x => x === item));
+
+    modal.querySelector('#profileModalImg').src = itemIconPath(item);
+    modal.querySelector('#profileModalTitle').textContent = String(item.baseId || item.id || 'NFT');
+    modal.querySelector('#profileModalSub').textContent = `${val} ${currencyIcon(currency)}`;
+
+    const sellBtn = modal.querySelector('#profileModalSell');
+    const sellAmt = modal.querySelector('#profileModalSellAmount');
+    if (sellAmt) sellAmt.textContent = `${val} ${currencyIcon(currency)}`;
+
+    if (sellBtn) {
+      sellBtn.onclick = async () => {
+        if (!modalItemKey) return;
+        selection.clear();
+        selection.add(modalItemKey);
+        await sellSelected();
+        hideModal();
+      };
     }
 
-    if (walletCardAddress) {
-      const friendly = window.WT?.utils?.ensureFriendly?.(address) || address;
-      walletCardAddress.textContent = friendly;
+    modal.hidden = false;
+  }
+
+  function hideModal() {
+    const modal = document.getElementById('profileNftModal');
+    if (modal) modal.hidden = true;
+    modalItemKey = null;
+  }
+
+  // ====== RENDER INVENTORY ======
+  function updateActionAmounts(items) {
+    const currency = getCurrency();
+
+    const mapByKey = new Map();
+    items.forEach((it, idx) => mapByKey.set(itemKey(it, idx), it));
+
+    let selectedValue = 0;
+    selection.forEach(k => {
+      const it = mapByKey.get(k);
+      if (it) selectedValue += itemValue(it, currency);
+    });
+
+    let allValue = 0;
+    items.forEach(it => { allValue += itemValue(it, currency); });
+
+    const selBtn = document.getElementById('invSellSelected');
+    const allBtn = document.getElementById('invSellAll');
+
+    const selAmt = document.getElementById('invSellSelectedAmount');
+    const allAmt = document.getElementById('invSellAllAmount');
+
+    if (selAmt) selAmt.textContent = `${selectedValue || 0} ${currencyIcon(currency)}`;
+    if (allAmt) allAmt.textContent = `${allValue || 0} ${currencyIcon(currency)}`;
+
+    if (selBtn) selBtn.disabled = selection.size === 0;
+    if (allBtn) allBtn.disabled = items.length === 0;
+  }
+
+  function renderInventory(items) {
+    if (!inventoryPanel) return;
+
+    const emptyIcon = getEmptyIconEl();
+    const emptyText = getEmptyTextEl();
+    const dyn = ensureInvDynamic();
+
+    const nfts = (items || []).filter(it => itemType(it) === 'nft');
+
+    lastInventory = nfts;
+
+    // EMPTY STATE: keep original look (loupe + "No gifts yet.")
+    if (!nfts.length) {
+      if (emptyIcon) emptyIcon.hidden = false;
+      if (emptyText) {
+        emptyText.hidden = false;
+        // keep exact default message
+        emptyText.textContent = 'No gifts yet.';
+      }
+      if (dyn) dyn.hidden = true;
+
+      selection.clear();
+      updateActionAmounts([]); // resets button labels if shown elsewhere
+
+      // hide shelf
+      renderNftShelf([], null);
+      return;
     }
 
-    // hide connect button block
-    if (walletCardConnect) walletCardConnect.hidden = true;
-  }
+    // NON-EMPTY: hide loupe/text, show grid/actions
+    if (emptyIcon) emptyIcon.hidden = true;
+    if (emptyText) emptyText.hidden = true;
+    if (dyn) dyn.hidden = false;
 
-  // ====== WALLET CARD TOGGLE ======
+    // NFT shelf on top of profile
+    renderNftShelf(nfts, (it) => showModal(it, nfts));
 
-  if (walletCardToggle) {
-    walletCardToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
+    const grid = document.getElementById('profileInvGrid');
+    if (!grid) return;
 
-      if (!walletCardDetails) return;
+    grid.innerHTML = nfts.map((it, idx) => {
+      const key = itemKey(it, idx);
+      const selected = selection.has(key);
+      return `
+        <button class="profile-invitem${selected ? ' selected' : ''}" type="button" data-key="${key}">
+          <img src="${itemIconPath(it)}" alt="" />
+          <span class="profile-invcheck">✓</span>
+        </button>
+      `;
+    }).join('');
 
-      const tc = window.__wtTonConnect;
+    // click handlers (select)
+    grid.querySelectorAll('.profile-invitem').forEach(btn => {
+      const key = btn.getAttribute('data-key');
 
-      // if not connected -> open deposit modal
-      if (!tc?.account) {
-        if (window.WTTonDeposit?.open) window.WTTonDeposit.open();
-        return;
-      }
+      // tap -> toggle select
+      btn.addEventListener('click', () => {
+        if (!key) return;
+        if (selection.has(key)) selection.delete(key);
+        else selection.add(key);
+        haptic('light');
+        renderInventory(lastInventory);
+      });
 
-      const willOpen = walletCardDetails.hidden;
-      walletCardDetails.hidden = !willOpen;
-
-      walletCardToggle.classList.toggle('open', willOpen);
-      haptic('light');
-    });
-  }
-
-  // Click header = toggle
-  if (walletCard) {
-    walletCard.querySelector('.wallet-card__header')?.addEventListener('click', () => {
-      walletCardToggle?.click();
-    });
-  }
-
-  // ====== CONNECT BUTTON (PROFILE) ======
-
-  profileConnectWalletBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    haptic('medium');
-    if (window.WTTonDeposit?.open) window.WTTonDeposit.open();
-  });
-
-  // ====== COPY ADDRESS ======
-
-  if (walletCardCopy) {
-    walletCardCopy.addEventListener('click', async (e) => {
-      e.stopPropagation();
-
-      const tc = window.__wtTonConnect;
-      if (!tc?.account) return;
-
-      const address = window.WT?.utils?.ensureFriendly?.(tc.account.address) || tc.account.address;
-
-      try {
-        await navigator.clipboard.writeText(address);
-
-        if (tg?.showPopup) {
-          tg.showPopup({
-            title: '✅ Copied!',
-            message: 'Wallet address copied to clipboard',
-            buttons: [{ type: 'ok' }]
-          });
-        }
-
-        if (tg?.HapticFeedback?.notificationOccurred) {
-          tg.HapticFeedback.notificationOccurred('success');
-        }
-      } catch (err) {
-        console.error('[Profile] Copy failed:', err);
-        tg?.showAlert?.('Failed to copy address');
-      }
-    });
-  }
-
-  // ====== DISCONNECT WALLET ======
-
-  if (walletCardDisconnect) {
-    walletCardDisconnect.addEventListener('click', async (e) => {
-      e.stopPropagation();
-
-      const tc = window.__wtTonConnect;
-      if (!tc) return;
-
-      const doDisconnect = async () => {
-        try {
-          await tc.disconnect();
-          if (tg?.HapticFeedback?.notificationOccurred) {
-            tg.HapticFeedback.notificationOccurred('success');
-          }
-          // UI will update via status change + our refresh hooks
-        } catch (err) {
-          console.error('[Profile] Disconnect failed:', err);
-          tg?.showAlert?.('Failed to disconnect wallet');
-        }
+      // long-press -> open modal
+      let pressTimer = null;
+      const startPress = () => {
+        if (pressTimer) clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+          const it = lastInventory.find((x, i) => itemKey(x, i) === key);
+          if (it) showModal(it, lastInventory);
+        }, 420);
+      };
+      const cancelPress = () => {
+        if (pressTimer) clearTimeout(pressTimer);
+        pressTimer = null;
       };
 
-      if (tg?.showPopup) {
-        tg.showPopup(
-          {
-            title: 'Disconnect Wallet?',
-            message: 'Are you sure you want to disconnect your wallet?',
-            buttons: [
-              { id: 'cancel', type: 'cancel' },
-              { id: 'disconnect', type: 'destructive', text: 'Disconnect' }
-            ]
-          },
-          (btnId) => {
-            if (btnId === 'disconnect') doDisconnect();
-          }
-        );
-      } else {
-        if (confirm('Disconnect wallet?')) doDisconnect();
-      }
+      btn.addEventListener('touchstart', startPress, { passive: true });
+      btn.addEventListener('touchend', cancelPress);
+      btn.addEventListener('touchcancel', cancelPress);
+      btn.addEventListener('mousedown', startPress);
+      btn.addEventListener('mouseup', cancelPress);
+      btn.addEventListener('mouseleave', cancelPress);
+      btn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const it = lastInventory.find((x, i) => itemKey(x, i) === key);
+        if (it) showModal(it, lastInventory);
+      });
     });
+
+    // action handlers
+    const selBtn = document.getElementById('invSellSelected');
+    const allBtn = document.getElementById('invSellAll');
+
+    if (selBtn) selBtn.onclick = () => sellSelected();
+    if (allBtn) allBtn.onclick = () => sellAll();
+
+    updateActionAmounts(nfts);
+  }
+
+  // ====== SELL FLOW ======
+  async function sellSelected() {
+    const currency = getCurrency();
+    const user = getTelegramUser();
+    const userId = user.id;
+
+    const dynActions = document.getElementById('profileInvActions');
+    if (dynActions) dynActions.classList.add('loading');
+
+    try {
+      if (!selection.size) return;
+
+      const items = lastInventory.slice();
+      const keys = Array.from(selection);
+      const mapByKey = new Map(items.map((it, idx) => [itemKey(it, idx), it]));
+      const toSell = keys.map(k => mapByKey.get(k)).filter(Boolean);
+
+      const total = toSell.reduce((s, it) => s + itemValue(it, currency), 0);
+      if (!total) {
+        // remove anyway
+      }
+
+      // Try server endpoint (optional)
+      let serverOk = false;
+      try {
+        const r = await fetch('/api/inventory/sell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, currency, itemKeys: keys, items: toSell, initData: tg?.initData || '' })
+        });
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          if (j && j.ok === true) {
+            serverOk = true;
+            // If server returned updated inventory/balance, apply
+            if (Array.isArray(j.items)) {
+              writeLocalInventory(userId, j.items);
+            }
+            if (typeof j.balance === 'number') {
+              setBalance(currency, j.balance);
+            }
+          }
+        }
+      } catch {}
+
+      // Local fallback: remove from local inv and credit via deposit-notification
+      if (!serverOk) {
+        const local = readLocalInventory(userId);
+        const next = local.filter((it, idx) => !selection.has(itemKey(it, idx)));
+        writeLocalInventory(userId, next);
+        addBalance(currency, total);
+        await postDeposit(total, currency, userId, 'inventory_sell');
+      }
+
+      selection.clear();
+      await loadInventory();
+      haptic('medium');
+    } finally {
+      if (dynActions) dynActions.classList.remove('loading');
+    }
+  }
+
+  async function sellAll() {
+    const currency = getCurrency();
+    const user = getTelegramUser();
+    const userId = user.id;
+
+    const dynActions = document.getElementById('profileInvActions');
+    if (dynActions) dynActions.classList.add('loading');
+
+    try {
+      const items = lastInventory.slice();
+      if (!items.length) return;
+
+      // select all keys
+      const keys = items.map((it, idx) => itemKey(it, idx));
+      selection.clear();
+      keys.forEach(k => selection.add(k));
+
+      const total = items.reduce((s, it) => s + itemValue(it, currency), 0);
+
+      // Try server endpoint (optional)
+      let serverOk = false;
+      try {
+        const r = await fetch('/api/inventory/sell-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, currency, initData: tg?.initData || '' })
+        });
+        if (r.ok) {
+          const j = await r.json().catch(() => null);
+          if (j && j.ok === true) {
+            serverOk = true;
+            if (Array.isArray(j.items)) {
+              writeLocalInventory(userId, j.items);
+            } else {
+              writeLocalInventory(userId, []);
+            }
+            if (typeof j.balance === 'number') {
+              setBalance(currency, j.balance);
+            }
+          }
+        }
+      } catch {}
+
+      if (!serverOk) {
+        writeLocalInventory(userId, []);
+        addBalance(currency, total);
+        await postDeposit(total, currency, userId, 'inventory_sell_all');
+      }
+
+      selection.clear();
+      await loadInventory();
+      haptic('medium');
+    } finally {
+      if (dynActions) dynActions.classList.remove('loading');
+    }
+  }
+
+  // ====== LOAD INVENTORY ======
+  async function loadInventory() {
+    const user = getTelegramUser();
+    const userId = user.id;
+
+    // Prefer server inventory if exists
+    try {
+      const r = await fetch(`/api/user/inventory?userId=${encodeURIComponent(userId)}`, { method: 'GET' });
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        if (j && j.ok === true && Array.isArray(j.items)) {
+          // cache local for offline UI
+          writeLocalInventory(userId, j.items);
+          renderInventory(j.items);
+          return;
+        }
+      }
+    } catch {}
+
+    const local = readLocalInventory(userId);
+    renderInventory(local);
   }
 
   // ====== REFRESH HOOKS ======
-
   function refreshAll() {
     updateUserUI();
     updateWalletUI();
+    loadInventory();
   }
 
-  // Initial paint
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', refreshAll);
   } else {
     refreshAll();
   }
 
-  // When TonConnect is initialized in tondep.js
   window.addEventListener('wt-tc-ready', () => {
-    // Give TonConnect a moment to restoreConnection
     setTimeout(refreshAll, 50);
     setTimeout(refreshAll, 300);
   });
 
-  // When balance/currency changes (not strictly needed, but harmless)
-  window.addEventListener('currency:changed', refreshAll);
-  window.addEventListener('balance:update', refreshAll);
+  window.addEventListener('currency:changed', () => {
+    // Re-render amounts and selection values
+    renderInventory(readLocalInventory(getTelegramUser().id));
+  });
 
+  window.addEventListener('inventory:update', () => loadInventory());
 })();
