@@ -1,772 +1,896 @@
-// wildtime.js — Wild Time bonus (3 pointers + triple result + cups shuffle)
-// Exposes: window.startWildTimeBonus(betAmount?: number, opts?: object) -> Promise<{all:string[], choice:string, multiplier:number, winAmount:number, pickedIndex:number}>
+// js/wildtime.js
+// Wild Time bonus (gold wheel + 3 pointers + jar mini-game)
+//
+// FIXES in this version:
+// - Multipliers + jars are truly centered (no "at the bottom").
+// - Jars wait for images to load before measuring/positioning.
+// - Shuffling is stronger (full permutations + faster end).
+// - After timer/pick: jars lift -> fade out -> multipliers stay 3-4s.
+//
+// Paths used (adjust if your folders differ):
+// - wheel sector images: images/Wildtime/2x.png, 6x.png, 14x.png, 22x.png (1800x550)
+// - jar images: images/Wildtime/jar1.png ... jar9.png
+// - pointer image: images/pointer.png
 
-(() => {
-    'use strict';
+(function () {
+    "use strict";
   
-    const STYLE_ID = 'wildtimeStyles';
-    const OVERLAY_ID = 'wildtimeOverlay';
+    const CFG = {
+      overlayId: "wildTimeOverlay",
+      canvasId: "wildTimeCanvas",
   
-    // Doubled multipliers (1x,3x,7x,11x) -> (2x,6x,14x,22x)
-    const MULTS = [2, 6, 14, 22];
-    const SEGMENTS = Array.from({ length: 24 }, (_, i) => `${MULTS[i % MULTS.length]}x`);
+      // wheel
+      sectorsCount: 24,
+      multipliers: [2, 6, 14, 22],
+      balancedDistribution: true,
   
-    // Pointer angles around the wheel (radians)
-    // Top, bottom-right, bottom-left (120° steps)
-    const POINTER_ANGLES = [
-      -Math.PI / 2,
-      -Math.PI / 2 + (2 * Math.PI) / 3,
-      -Math.PI / 2 + (4 * Math.PI) / 3,
-    ];
+      appearWaitMs: 3000,
+      accelMs: 600,          // было 900 - быстрее ускорение
+      fastOmega: 9.5,        // было 7.5 - быстрее вращение
+      idleOmega: 0.0,
+      
+      decelMsMin: 4500,      // было 11000 - быстрее остановка
+      decelMsMax: 6500,      // было 15000 - быстрее остановка
+      extraTurnsMin: 2,      // было 3 - меньше оборотов
+      extraTurnsMax: 4,      // было 5 - меньше оборотов
   
+      pointerOffsetSectors: 2, // ±2 sectors => ±30deg
+  
+      // jar game
+      jarPool: 9,
+      jarPickCount: 3,
+      jarAppearMs: 380,
+      jarCoverDelayMs: 120,
+      preShowXsMs: 1200,
+  
+      jarShuffleSteps: 16,
+      jarShuffleMsStart: 420,
+      jarShuffleMsEnd: 95,
+  
+      pickCountdownSec: 5,
+  
+      // reveal / close
+      revealShowMs: 3600,
+      winPopupMs: 900,
+      closeFadeMs: 260
+    };
+  
+    const TAU = Math.PI * 2;
+    const POINTER_ANGLE = -Math.PI / 2; // top
+  
+    // state
+    let overlay, canvas, ctx, DPR = 1;
+    let raf = 0, lastTs = 0;
+  
+    let angle = 0;
+    let omega = CFG.idleOmega;
+    let phase = "idle"; // idle | accel | decel | stopped
+    let decel = null;
+  
+    let sectors = []; // 24 values of 2/6/14/22
+    let multImgs = new Map(); // multiplier -> Image | null
+    let imagesLoaded = false;
+  
+    let betAmount_ = 0;
+    let resolve_ = null;
+    let aborted = false;
+  
+    const randInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+    const mod = (n, m) => ((n % m) + m) % m;
+  
+    const easeInQuad = (t) => t * t;
     const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
-    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   
-    function rand01() {
-      try {
-        const a = new Uint32Array(1);
-        crypto.getRandomValues(a);
-        return a[0] / 0xffffffff;
-      } catch {
-        return Math.random();
-      }
-    }
+    // helper: promise that resolves when <img> is loaded (or already complete)
+    const waitImg = (imgEl) =>
+      new Promise((res) => {
+        if (!imgEl) return res();
+        if (imgEl.complete && imgEl.naturalWidth > 0) return res();
+        const done = () => res();
+        imgEl.addEventListener("load", done, { once: true });
+        imgEl.addEventListener("error", done, { once: true });
+      });
   
-    function injectStyles() {
-      if (document.getElementById(STYLE_ID)) return;
-      const style = document.createElement('style');
-      style.id = STYLE_ID;
-      style.textContent = `
-        html.wt-active, body.wt-active{ height:100%; overflow:hidden; }
-  
-        #wheelPage.wt-swipe-left{
-          transform: translateX(-35%);
-          opacity: 0;
-          filter: blur(2px);
-          transition: transform 420ms cubic-bezier(.2,.9,.2,1), opacity 420ms ease, filter 420ms ease;
-        }
-  
-        #${OVERLAY_ID}{
-          position: fixed; inset: 0;
-          z-index: 100000;
-          display: none;
-          opacity: 0;
-          transform: translateX(100%);
-          transition: transform 420ms cubic-bezier(.2,.9,.2,1), opacity 420ms ease;
-          background:
-            radial-gradient(1200px 700px at 50% -240px, rgba(21,32,51,.95) 0%, rgba(13,14,15,.98) 55%),
-            linear-gradient(180deg, rgba(15,20,28,.98), rgba(13,14,15,.98));
-          color: #fff;
-          overflow: hidden;
-        }
-        #${OVERLAY_ID}.wt-open{ display:flex; }
-        #${OVERLAY_ID}.wt-enter{ opacity: 1; transform: translateX(0); }
-        #${OVERLAY_ID} *{ box-sizing:border-box; }
-  
-        .wt-screen{
-          position: relative;
-          width: 100%;
-          height: 100%;
-          display:flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
-          padding: 18px 14px 24px;
-        }
-  
-        .wt-top{
-          width: 100%;
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          margin-top: calc(var(--safe-top, 0px) + 6px);
-        }
-        .wt-title{
-          font: 900 18px/1.1 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          letter-spacing: .4px;
-        }
-        .wt-sub{
-          margin-top: 4px;
-          font: 600 12px/1.2 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          opacity: .76;
-        }
-        .wt-pill{
-          padding: 8px 10px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(0,0,0,.22);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          font: 800 12px/1 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          letter-spacing:.2px;
-        }
-  
-        .wt-wheelWrap{
-          position: relative;
-          width: min(420px, 86vw);
-          aspect-ratio: 1 / 1;
-          margin-top: 18px;
-          border-radius: 24px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-        }
-        .wt-wheelCanvas{
-          width: 100%;
-          height: 100%;
-          border-radius: 999px;
-          box-shadow: 0 18px 60px rgba(0,0,0,.55);
-          border: 1px solid rgba(255,255,255,.08);
-        }
-        .wt-pointer{
-          position:absolute;
-          left: 50%;
-          top: 50%;
-          width: 0; height: 0;
-          border-left: 12px solid transparent;
-          border-right: 12px solid transparent;
-          border-top: 20px solid rgba(255,255,255,.95);
-          filter: drop-shadow(0 8px 12px rgba(0,0,0,.45));
-          transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(-190px);
-        }
-        @media (max-width: 420px){
-          .wt-pointer{
-            transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(-155px);
-          }
-        }
-  
-        .wt-status{
-          margin-top: 14px;
-          min-height: 20px;
-          font: 800 13px/1.2 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          opacity: .9;
-          text-align:center;
-        }
-        .wt-help{
-          margin-top: 6px;
-          font: 600 12px/1.35 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          opacity: .68;
-          text-align:center;
-          max-width: 520px;
-        }
-  
-        /* Modal overlay (step 5-6) */
-        .wt-modal{
-          position: absolute;
-          inset: 0;
-          display: none;
-          align-items: center;
-          justify-content: center;
-          background: rgba(0,0,0,.35);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-        }
-        .wt-modal.open{ display:flex; }
-        .wt-panel{
-          width: min(520px, calc(100vw - 28px));
-          border-radius: 22px;
-          border: 1px solid rgba(255,255,255,.14);
-          background: rgba(16,18,22,.86);
-          box-shadow: 0 26px 80px rgba(0,0,0,.55);
-          padding: 16px 14px 14px;
-        }
-        .wt-panelTitle{
-          font: 900 16px/1.1 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          letter-spacing:.3px;
-        }
-        .wt-panelSub{
-          margin-top: 4px;
-          font: 650 12px/1.35 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          opacity: .76;
-        }
-  
-        .wt-row{
-          position: relative;
-          margin-top: 14px;
-          height: 210px;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,.10);
-          background: rgba(0,0,0,.20);
-          overflow: hidden;
-        }
-        .wt-cupGroup{
-          position: absolute;
-          top: 22px;
-          left: 50%;
-          width: 130px;
-          height: 170px;
-          transform: translate(-50%, 0) translateX(var(--x, 0px));
-          transition: transform 520ms cubic-bezier(.2,.9,.2,1);
-          cursor: pointer;
-          user-select: none;
-        }
-        .wt-cupGroup.disabled{ pointer-events:none; }
-  
-        .wt-multBadge{
-          position: absolute;
-          left: 50%;
-          top: 120px;
-          transform: translate(-50%, 0);
-          padding: 9px 12px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.16);
-          background: rgba(0,0,0,.28);
-          font: 1000 18px/1 mf, mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          letter-spacing: .3px;
-          opacity: 1;
-        }
-  
-        .wt-cup{
-          position: absolute;
-          left: 50%;
-          top: 0;
-          width: 130px;
-          height: 150px;
-          transform: translate(-50%, -18px) scale(.92);
-          opacity: 0;
-          transition: transform 520ms cubic-bezier(.2,.9,.2,1), opacity 320ms ease;
-          filter: drop-shadow(0 18px 22px rgba(0,0,0,.55));
-        }
-        .wt-cupGroup.covered .wt-cup{ opacity: 1; transform: translate(-50%, 0) scale(1); }
-  
-        .wt-cupGroup .wt-multBadge{ transition: opacity 200ms ease, filter 200ms ease; }
-        .wt-cupGroup.covered .wt-multBadge{ opacity: .08; filter: blur(6px); }
-  
-        .wt-cupGroup.picked{ z-index: 5; }
-        .wt-cupGroup.picked .wt-cup{ transform: translate(-50%, -72px) rotate(-7deg) scale(1); }
-        .wt-cupGroup.picked .wt-multBadge{ opacity: 1; filter: none; }
-  
-        .wt-cupGroup.revealOther .wt-cup{ transform: translate(-50%, -58px) rotate(6deg) scale(1); }
-        .wt-cupGroup.revealOther .wt-multBadge{ opacity: 1; filter: none; }
-  
-        .wt-cupGroup.winGlow .wt-multBadge{
-          box-shadow: 0 0 0 3px rgba(0,166,255,.22), 0 20px 45px rgba(0,166,255,.18);
-          border-color: rgba(0,166,255,.45);
-        }
-  
-        .wt-foot{
-          margin-top: 12px;
-          display:flex;
-          align-items:center;
-          justify-content: space-between;
-          gap: 10px;
-        }
-        .wt-msg{
-          font: 800 12px/1.25 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          opacity: .86;
-        }
-        .wt-btn{
-          padding: 10px 12px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.14);
-          background: rgba(255,255,255,.08);
-          font: 900 12px/1 mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          letter-spacing: .2px;
-        }
-  
-        /* Drop animation badges */
-        .wt-drop{
-          position: absolute;
-          padding: 10px 13px;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.16);
-          background: rgba(0,0,0,.28);
-          font: 1000 18px/1 mf, mf, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-          box-shadow: 0 18px 60px rgba(0,0,0,.45);
-          transform: translate(-50%, -50%);
-          pointer-events: none;
-          will-change: transform, opacity;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-  
-    function cupDataUri() {
-      // simple "cup" SVG as a fallback; you can swap to /images/wildtime/cup.png in production
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="260" height="300" viewBox="0 0 260 300">
-          <defs>
-            <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stop-color="#f2f5ff" stop-opacity=".96"/>
-              <stop offset="1" stop-color="#b9c2d6" stop-opacity=".96"/>
-            </linearGradient>
-            <linearGradient id="g2" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>
-              <stop offset="1" stop-color="#aeb7cb" stop-opacity=".85"/>
-            </linearGradient>
-            <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="16" stdDeviation="10" flood-color="#000" flood-opacity=".35"/>
-            </filter>
-          </defs>
-          <g filter="url(#s)">
-            <!-- rim -->
-            <path d="M34 70h192c8 0 14 7 12 15l-5 26c-1 6-6 11-12 11H40c-6 0-11-5-12-11l-5-26c-2-8 4-15 12-15z" fill="url(#g2)"/>
-            <!-- body -->
-            <path d="M48 118h164l-18 162c-1 9-8 16-17 16H83c-9 0-16-7-17-16L48 118z" fill="url(#g)"/>
-            <!-- highlight -->
-            <path d="M78 132h26l-14 146h-26l14-146z" fill="#ffffff" opacity=".16"/>
-          </g>
-        </svg>
-      `;
-      const cleaned = svg
-        .replace(/\n\s+/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleaned)}`;
+    // IMPORTANT: mount to body so fixed overlay is truly full-screen even if #wheelPage is transformed
+    function mountRoot() {
+      return document.body;
     }
   
     function ensureOverlay() {
-      let overlay = document.getElementById(OVERLAY_ID);
-      if (overlay) return overlay;
+      let el = document.getElementById(CFG.overlayId);
+      if (el) return el;
   
-      overlay = document.createElement('div');
-      overlay.id = OVERLAY_ID;
-      overlay.className = 'wt-overlay';
+      const offsetDeg = (360 / CFG.sectorsCount) * CFG.pointerOffsetSectors; // 30deg
   
-      overlay.innerHTML = `
-            <div class="wt-screen">
-          <div class="wt-top">
-            <div>
-              <div class="wt-title">WILD TIME</div>
-                  <div class="wt-sub">3 поинтера • выбери множитель</div>
-            </div>
-            <div class="wt-pill" id="wtBetPill">—</div>
+      el = document.createElement("div");
+      el.id = CFG.overlayId;
+      el.className = "wt-overlay";
+      el.style.display = "none";
+  
+      el.innerHTML = `
+        <div class="wt-backdrop"></div>
+  
+        <div class="wt-container">
+          <!-- WHEEL STAGE -->
+          <div class="wt-stage" id="wildTimeStage">
+            <canvas id="${CFG.canvasId}"></canvas>
+  
+            <img class="wt-pointer" style="--ang:${-offsetDeg}deg" src="images/pointer.png" alt="">
+            <img class="wt-pointer" style="--ang:0deg" src="images/pointer.png" alt="">
+            <img class="wt-pointer" style="--ang:${offsetDeg}deg" src="images/pointer.png" alt="">
           </div>
   
-          <div class="wt-wheelWrap">
-            <canvas class="wt-wheelCanvas wt-wheelCanvas" id="wtCanvas" width="420" height="420" aria-label="Wild Time wheel"></canvas>
-            <div class="wt-pointer" style="--rot: 0deg" aria-hidden="true"></div>
-            <div class="wt-pointer" style="--rot: 120deg" aria-hidden="true"></div>
-            <div class="wt-pointer" style="--rot: 240deg" aria-hidden="true"></div>
-          </div>
-  
-              <div class="wt-status" id="wtStatus">Крутим…</div>
-              <div class="wt-help">После прокрута выпадут 3 множителя. Затем стаканчики накроют их и перемешаются — выбери один.</div>
-  
-          <div class="wt-modal" id="wtModal" aria-hidden="true">
-                <div class="wt-panel">
-                  <div class="wt-panelTitle">Выбери стаканчик</div>
-                  <div class="wt-panelSub">Вот 3 выпавших множителя. Стаканчики накроют их и перемешаются — выбери свой.</div>
-  
-              <div class="wt-row" id="wtRow"></div>
-  
-                  <div class="wt-foot">
-                    <div class="wt-msg" id="wtMsg">Смотри перемешивание…</div>
-                    <button class="wt-btn" id="wtSkipBtn" type="button">Пропустить</button>
-                  </div>
+          <!-- JAR GAME SCREEN -->
+          <div class="wt-jarGame" id="wildTimeJarGame" aria-hidden="true">
+            <div class="wt-jarRow" id="wildTimeJarRow">
+              <div class="wt-slot" data-slot="0"><div class="wt-mult" data-mult="0"></div></div>
+              <div class="wt-slot" data-slot="1"><div class="wt-mult" data-mult="1"></div></div>
+              <div class="wt-slot" data-slot="2"><div class="wt-mult" data-mult="2"></div></div>
             </div>
+  
+            <div class="wt-hint" id="wildTimeHint"></div>
+            <div class="wt-countdown" id="wildTimeCountdown"></div>
+            <div class="wt-win" id="wildTimeWin"></div>
           </div>
         </div>
       `;
   
-      // Append to body so it stays visible even if wheelPage is swiped/hidden
-      document.body.appendChild(overlay);
-  
-      return overlay;
+      mountRoot().appendChild(el);
+      return el;
     }
   
-    function setupHiDpiCanvas(canvas) {
-      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      const rect = canvas.getBoundingClientRect();
-      const size = Math.round(Math.min(rect.width, rect.height));
-      const px = Math.max(280, Math.min(520, size));
-      canvas.width = px * dpr;
-      canvas.height = px * dpr;
-      const ctx = canvas.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      return { ctx, size: px };
+    function openOverlay() {
+      overlay.style.display = "flex";
+      overlay.classList.remove("wt-leave");
+      document.documentElement.classList.add("bonus-active");
+      document.body.classList.add("bonus-active");
+      requestAnimationFrame(() => overlay.classList.add("wt-active"));
     }
   
-    function drawWheel(ctx, size, angleRad) {
-      const n = SEGMENTS.length;
-      const slice = (2 * Math.PI) / n;
-      const r = size / 2;
-      const cx = r;
-      const cy = r;
+    function closeOverlay() {
+      overlay.classList.remove("wt-active");
+      overlay.classList.add("wt-leave");
+      document.documentElement.classList.remove("bonus-active");
+      document.body.classList.remove("bonus-active");
   
-      ctx.clearRect(0, 0, size, size);
+      return new Promise((res) => {
+        setTimeout(() => {
+          overlay.style.display = "none";
+          overlay.classList.remove("wt-leave");
+          res();
+        }, CFG.closeFadeMs);
+      });
+    }
   
-      // Base shadow ring
+    function stopLoop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      lastTs = 0;
+    }
+  
+    function resetScreens() {
+      const stage = overlay.querySelector("#wildTimeStage");
+      const game = overlay.querySelector("#wildTimeJarGame");
+      const hint = overlay.querySelector("#wildTimeHint");
+      const cd = overlay.querySelector("#wildTimeCountdown");
+      const winEl = overlay.querySelector("#wildTimeWin");
+      const row = overlay.querySelector("#wildTimeJarRow");
+  
+      stage?.classList.remove("wt-stage--hide");
+  
+      if (game) {
+        game.classList.remove("wt-jarGame--show");
+        game.classList.remove("wt-jarGame--reveal");
+        game.setAttribute("aria-hidden", "true");
+      }
+  
+      if (hint) hint.textContent = "";
+      if (cd) {
+        cd.textContent = "";
+        cd.classList.remove("wt-countdown--show");
+      }
+      if (winEl) {
+        winEl.textContent = "";
+        winEl.classList.remove("wt-win--show");
+      }
+  
+      // remove jars
+      row?.querySelectorAll(".wt-jarBtn").forEach((n) => n.remove());
+  
+      // reset multipliers
+      overlay.querySelectorAll(".wt-mult").forEach((m) => {
+        m.textContent = "";
+        m.classList.remove("wt-mult--hidden");
+        m.classList.remove("wt-mult--selected");
+      });
+    }
+  
+    // ---- wheel data ----
+    function buildSectors() {
+        // Красивый паттерн: светлый-темный-светлый чередование
+        // 2 (светлый), 6 (темный), 14 (светлый), 6 (темный), 2, 6, 14, 22 (темный)
+        const pattern = [2, 6, 14, 6, 2, 6, 14, 22];
+        
+        // Повторяем паттерн 3 раза для 24 секторов
+        const arr = [];
+        const repeats = Math.floor(CFG.sectorsCount / pattern.length);
+        
+        for (let i = 0; i < repeats; i++) {
+          arr.push(...pattern);
+        }
+        
+        return arr;
+      }
+  
+    function preloadMultiplierImages() {
+      imagesLoaded = false;
+      multImgs.clear();
+  
+      return Promise.all(
+        CFG.multipliers.map((m) => {
+          const src = `images/Wildtime/${m}x.png`;
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => { multImgs.set(m, img); resolve(); };
+            img.onerror = () => { console.warn("[WildTime] missing:", src); multImgs.set(m, null); resolve(); };
+            img.src = src;
+          });
+        })
+      ).then(() => { imagesLoaded = true; });
+    }
+  
+    // ---- canvas ----
+    function prepareCanvas() {
+      DPR = window.devicePixelRatio || 1;
+  
+      const cssW = canvas.clientWidth || 720;
+      const cssH = canvas.clientHeight || 720;
+  
+      canvas.width = Math.round(cssW * DPR);
+      canvas.height = Math.round(cssH * DPR);
+  
+      ctx = canvas.getContext("2d");
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  
+      const stage = overlay.querySelector("#wildTimeStage");
+      const R = Math.min(cssW, cssH) / 2 - 10;
+      stage?.style.setProperty("--ptr-r", `${Math.round(R + 16)}px`);
+    }
+  
+    function drawRings(R) {
       ctx.save();
-      ctx.translate(cx, cy);
+  
       ctx.beginPath();
-      ctx.arc(0, 0, r - 2, 0, 2 * Math.PI);
-      ctx.fillStyle = 'rgba(0,0,0,.25)';
-      ctx.fill();
-      ctx.restore();
+      ctx.arc(0, 0, R, 0, TAU);
+      ctx.lineWidth = Math.max(3, R * 0.03);
+      ctx.strokeStyle = "rgba(255, 214, 120, 0.35)";
+      ctx.stroke();
   
-      const colors = [
-        { fill: 'rgba(0,166,255,.35)', stroke: 'rgba(0,166,255,.22)' },
-        { fill: 'rgba(70,255,180,.28)', stroke: 'rgba(70,255,180,.18)' },
-        { fill: 'rgba(255,200,80,.26)', stroke: 'rgba(255,200,80,.16)' },
-        { fill: 'rgba(255,90,180,.24)', stroke: 'rgba(255,90,180,.14)' },
-      ];
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.88, 0, TAU);
+      ctx.lineWidth = Math.max(2, R * 0.012);
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.stroke();
+  
+      ctx.restore();
+    }
+  
+    function drawHub(R) {
+      ctx.save();
+  
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.11, 0, TAU);
+      const g = ctx.createRadialGradient(0, 0, R * 0.01, 0, 0, R * 0.12);
+      g.addColorStop(0, "#2b220d");
+      g.addColorStop(0.55, "#0a0703");
+      g.addColorStop(1, "#000");
+      ctx.fillStyle = g;
+      ctx.fill();
+  
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      ctx.stroke();
+  
+      ctx.restore();
+    }
+  
+    // 1800x550 into sector with cover-scale + wedge clipping
+    function drawWheel() {
+      if (!ctx) return;
+  
+      const w = canvas.width / DPR;
+      const h = canvas.height / DPR;
+      const cx = w / 2;
+      const cy = h / 2;
+      const R = Math.min(cx, cy) - 10;
+  
+      ctx.clearRect(0, 0, w, h);
+  
+      const bg = ctx.createRadialGradient(cx, cy, R * 0.25, cx, cy, R);
+      bg.addColorStop(0, "rgba(255, 215, 120, 0.06)");
+      bg.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
   
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(angleRad);
+      ctx.rotate(angle);
   
-      for (let i = 0; i < n; i++) {
-        const start = i * slice - Math.PI / 2;
-        const end = start + slice;
-        const c = colors[i % colors.length];
+      const N = sectors.length;
+      const step = TAU / N;
   
+      const inner = R * 0.18;
+      const outer = R * 0.98;
+      const radialLen = outer - inner;
+  
+      for (let i = 0; i < N; i++) {
+        const a0 = i * step;
+        const a1 = a0 + step;
+        const mid = a0 + step / 2;
+  
+        ctx.save();
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.arc(0, 0, r - 8, start, end);
+        ctx.arc(0, 0, R, a0, a1);
         ctx.closePath();
-        ctx.fillStyle = c.fill;
-        ctx.fill();
-        ctx.strokeStyle = c.stroke;
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.clip();
   
-        // Text
-        const label = SEGMENTS[i];
-        const mid = (start + end) / 2;
+        const alt = (i % 2 === 0);
+        ctx.fillStyle = alt ? "rgba(255, 215, 130, 0.22)" : "rgba(160, 105, 20, 0.22)";
+        ctx.fillRect(-R, -R, R * 2, R * 2);
+  
+        const mult = sectors[i];
+        const img = imagesLoaded ? multImgs.get(mult) : null;
+  
+        if (img) {
+          ctx.save();
+          ctx.rotate(mid);
+  
+          const wedgeThicknessOuter = 2 * outer * Math.tan(step / 2);
+          const targetW = radialLen * 1.08;
+          const targetH = wedgeThicknessOuter * 1.22;
+  
+          const scale = Math.max(targetW / img.width, targetH / img.height);
+          const dw = img.width * scale;
+          const dh = img.height * scale;
+  
+          ctx.drawImage(img, inner + radialLen * -0.15, -dh / 2, dw, dh);
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.rotate(mid);
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.font = `900 ${Math.round(R * 0.08)}px system-ui, Arial`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`${mult}x`, inner + radialLen * 0.55, 0);
+          ctx.restore();
+        }
+  
+        ctx.restore();
+  
         ctx.save();
-        ctx.rotate(mid);
-        ctx.translate(0, -(r - 60));
-        ctx.rotate(-mid);
-        ctx.fillStyle = 'rgba(255,255,255,.95)';
-        ctx.font = '900 22px mf, system-ui, -apple-system, Segoe UI, Roboto, Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, 0, 0);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, R, a0, a1);
+        ctx.closePath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(255,255,255,0.14)";
+        ctx.stroke();
         ctx.restore();
       }
   
-      // Center cap
-      ctx.beginPath();
-      ctx.arc(0, 0, 52, 0, 2 * Math.PI);
-      ctx.fillStyle = 'rgba(0,0,0,.35)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.14)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-  
-      ctx.fillStyle = 'rgba(255,255,255,.92)';
-      ctx.font = '1000 14px mf, system-ui, -apple-system, Segoe UI, Roboto, Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('WILD', 0, -7);
-      ctx.fillText('TIME', 0, 10);
+      drawRings(R);
+      drawHub(R);
   
       ctx.restore();
     }
   
-    function normAngle(a) {
-      const two = 2 * Math.PI;
-      a = a % two;
-      if (a < 0) a += two;
-      return a;
+    // ---- animation loop ----
+    function tick(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = Math.min(0.033, (ts - lastTs) / 1000);
+      lastTs = ts;
+  
+      if (phase === "decel" && decel) {
+        const t = Math.min(1, (ts - decel.t0) / decel.dur);
+        const eased = easeOutCubic(t);
+        angle = decel.start + (decel.end - decel.start) * eased;
+  
+        if (t >= 1) {
+          angle = decel.end;
+          phase = "stopped";
+          omega = 0;
+  
+          const centerIdx = decel.centerIdx;
+          decel = null;
+          onStopped(centerIdx);
+        }
+      } else if (phase === "idle" || phase === "accel") {
+        angle += omega * dt;
+      }
+  
+      drawWheel();
+      raf = requestAnimationFrame(tick);
     }
   
-    function segmentAtPointer(wheelAngle, pointerAngle) {
-      const n = SEGMENTS.length;
-      const slice = (2 * Math.PI) / n;
+    function accelerateTo(targetOmega, ms) {
+      return new Promise((resolve) => {
+        const startOmega = omega;
+        const t0 = performance.now();
   
-      // Our draw starts slice0 at (angle - pi/2).
-      // Pointer sees the wheel at (pointerAngle). Solve for index.
-      const rel = normAngle(pointerAngle + Math.PI / 2 - wheelAngle);
-      const idx = Math.floor(rel / slice);
-      return SEGMENTS[idx % n];
-    }
-  
-    async function animateSpin(canvas, statusEl) {
-      const { ctx, size } = setupHiDpiCanvas(canvas);
-  
-      const baseTurns = 8 + Math.floor(rand01() * 4); // 8..11 turns
-      const finalAngle = rand01() * 2 * Math.PI;
-      const total = baseTurns * 2 * Math.PI + finalAngle;
-      const duration = 3200 + Math.floor(rand01() * 600);
-  
-      const t0 = performance.now();
-      let done = false;
-  
-      await new Promise((resolve) => {
-        const tick = (now) => {
-          const t = clamp01((now - t0) / duration);
-          const eased = easeOutCubic(t);
-          const angle = total * eased;
-          drawWheel(ctx, size, angle);
-          if (t >= 1) {
-            done = true;
-            resolve(angle);
-            return;
-          }
-          requestAnimationFrame(tick);
+        const step = () => {
+          if (aborted) return resolve();
+          const t = Math.min(1, (performance.now() - t0) / ms);
+          omega = startOmega + (targetOmega - startOmega) * easeInQuad(t);
+          if (t < 1) requestAnimationFrame(step);
+          else { omega = targetOmega; resolve(); }
         };
-        requestAnimationFrame(tick);
-      });
   
-      // Compute results at final angle
-      const results = POINTER_ANGLES.map((pa) => segmentAtPointer(total, pa));
-      statusEl.textContent = `Выпали: ${results.join('  •  ')}`;
-      return { angle: total, results };
+        requestAnimationFrame(step);
+      });
     }
   
-    async function dropBadges(overlay, results) {
-      const wrap = overlay.querySelector('.wt-wheelWrap');
-      const wheelRect = wrap.getBoundingClientRect();
-      const centerX = wheelRect.left + wheelRect.width / 2;
-      const centerY = wheelRect.top + wheelRect.height / 2;
+    function decelerateToCenterIndex(centerIdx, durMs, extraTurns) {
+      const N = sectors.length;
+      const step = TAU / N;
   
-      const destRow = overlay.querySelector('#wtRow');
-      const rowRect = destRow.getBoundingClientRect();
+      const normalized = mod(angle, TAU);
+      const sliceCenter = centerIdx * step + step / 2;
   
-      const spread = Math.min(140, Math.max(95, rowRect.width / 3.15));
-      const destXs = [rowRect.left + rowRect.width / 2 - spread, rowRect.left + rowRect.width / 2, rowRect.left + rowRect.width / 2 + spread];
-      const destY = rowRect.top + 52;
+      let delta = POINTER_ANGLE - normalized - sliceCenter;
+      while (delta > Math.PI) delta -= TAU;
+      while (delta < -Math.PI) delta += TAU;
   
-      const r = wheelRect.width / 2 - 14;
+      const end = angle + delta + extraTurns * TAU;
   
-      const anims = results.map((xStr, i) => {
-        const badge = document.createElement('div');
-        badge.className = 'wt-drop';
-        badge.textContent = xStr;
-        overlay.appendChild(badge);
-  
-        const a = POINTER_ANGLES[i];
-        const sx = centerX + r * Math.cos(a);
-        const sy = centerY + r * Math.sin(a);
-        badge.style.left = `${sx}px`;
-        badge.style.top = `${sy}px`;
-        badge.style.opacity = '0.0';
-  
-        const keyframes = [
-          { transform: 'translate(-50%, -50%) scale(.85)', opacity: 0 },
-          { transform: 'translate(-50%, -50%) scale(1.02)', opacity: 1, offset: 0.18 },
-          { transform: `translate(${destXs[i] - sx - 0}px, ${destY - sy}px) translate(-50%, -50%) scale(1)`, opacity: 1 },
-        ];
-        const anim = badge.animate(keyframes, { duration: 780, easing: 'cubic-bezier(.2,.9,.2,1)', fill: 'forwards' });
-        anim.finished.finally(() => badge.remove());
-        return anim.finished;
-      });
-  
-      await Promise.allSettled(anims);
+      decel = { start: angle, end, t0: performance.now(), dur: durMs, centerIdx };
+      phase = "decel";
+      omega = 0;
     }
   
-    function buildCupsRow(rowEl, results) {
-      rowEl.innerHTML = '';
-      const spread = Math.min(140, Math.max(95, rowEl.clientWidth / 3.15));
-      const pos = [-spread, 0, spread];
-      const cupSrc = '/images/wildtime/cup.png';
-      const fallback = cupDataUri();
+    // ---- 3 pointer results ----
+    function getTriResults(centerIdx) {
+      const N = sectors.length;
+      const off = CFG.pointerOffsetSectors;
   
-      const groups = results.map((xStr, i) => {
-        const g = document.createElement('div');
-        g.className = 'wt-cupGroup';
-        g.style.setProperty('--x', `${pos[i]}px`);
-        g.dataset.mult = xStr;
-        g.dataset.slot = String(i);
+      const leftIdx = mod(centerIdx - off, N);
+      const rightIdx = mod(centerIdx + off, N);
   
-        const badge = document.createElement('div');
-        badge.className = 'wt-multBadge';
-        badge.textContent = xStr;
-  
-        const img = document.createElement('img');
-        img.className = 'wt-cup';
-        img.alt = 'Cup';
-        img.src = cupSrc;
-        img.onerror = () => { img.src = fallback; };
-  
-        g.appendChild(badge);
-        g.appendChild(img);
-        rowEl.appendChild(g);
-        return g;
-      });
-  
-      return { groups, spread };
+      return {
+        left: { idx: leftIdx, mult: sectors[leftIdx] },
+        center: { idx: centerIdx, mult: sectors[centerIdx] },
+        right: { idx: rightIdx, mult: sectors[rightIdx] }
+      };
     }
   
-    async function coverAndShuffle(rowEl, groups, msgEl, skipBtn) {
-      // Cover
-      groups.forEach((g) => g.classList.add('covered'));
-      msgEl.textContent = 'Смотри перемешивание…';
-      await sleep(520);
-  
-      // Shuffle helper (swap positions)
-      const base = groups.map((_, i) => i); // position index per group
-      const spread = Math.min(140, Math.max(95, rowEl.clientWidth / 3.15));
-      const pos = [-spread, 0, spread];
-  
-      let isSkipped = false;
-      const onSkip = () => { isSkipped = true; };
-      skipBtn.addEventListener('click', onSkip, { once: true });
-  
-      const swap = (a, b) => {
-        const t = base[a];
-        base[a] = base[b];
-        base[b] = t;
-        groups.forEach((g, gi) => {
-          g.style.setProperty('--x', `${pos[base[gi]]}px`);
-        });
+    // ---- close handlers ----
+    function bindClose() {
+      const onClick = async (e) => {
+        if (e.target === overlay || e.target.classList.contains("wt-backdrop")) {
+          await abortClose("closed");
+        }
+      };
+      const onKey = async (e) => {
+        if (e.key === "Escape") await abortClose("closed");
       };
   
-      // Perform 4 random swaps (unless skipped)
-      for (let k = 0; k < 4; k++) {
-        if (isSkipped) break;
-        const a = Math.floor(rand01() * 3);
-        let b = Math.floor(rand01() * 3);
-        if (b === a) b = (b + 1) % 3;
-        swap(a, b);
-        await sleep(560);
-      }
-  
-      // End
-      msgEl.textContent = 'Выбери стаканчик.';
-      return base; // mapping groupIndex -> positionIndex
+      overlay.__wt_click = onClick;
+      overlay.__wt_key = onKey;
+      overlay.addEventListener("click", onClick);
+      window.addEventListener("keydown", onKey);
     }
   
-    async function pickCup(groups, msgEl) {
-      groups.forEach((g) => g.classList.remove('disabled'));
+    function unbindClose() {
+      if (overlay?.__wt_click) overlay.removeEventListener("click", overlay.__wt_click);
+      if (overlay?.__wt_key) window.removeEventListener("keydown", overlay.__wt_key);
+      overlay.__wt_click = null;
+      overlay.__wt_key = null;
+    }
   
-      return await new Promise((resolve) => {
-        const onPick = (ev) => {
-          const g = ev.currentTarget;
-          groups.forEach((x) => x.classList.add('disabled'));
-          const pickedIndex = groups.indexOf(g);
-          const choice = g.dataset.mult || '';
+    async function abortClose(val) {
+      if (!resolve_) return;
+      aborted = true;
   
-          // Reveal picked
-          g.classList.add('picked', 'winGlow');
-          msgEl.textContent = `Вы выбрали ${choice}`;
+      const r = resolve_;
+      resolve_ = null;
   
-          // Reveal others after a beat
-          setTimeout(() => {
-            groups.forEach((o) => {
-              if (o !== g) o.classList.add('revealOther');
-            });
-          }, 520);
+      stopLoop();
+      unbindClose();
   
-          setTimeout(() => resolve({ pickedIndex, choice }), 920);
-        };
+      try {
+        if (overlay?.__wt_resize) window.removeEventListener("resize", overlay.__wt_resize);
+        overlay.__wt_resize = null;
+      } catch (_) {}
   
-        groups.forEach((g) => {
-          g.addEventListener('click', onPick, { once: true });
-        });
+      await closeOverlay();
+      r(val);
+    }
+  
+    // ---- payout ----
+    function payout(betAmount, chosenMult) {
+      const bet = Number(betAmount) || 0;
+      const mult = Number(chosenMult) || 0;
+  
+      const currency = (window.WheelGame?.getCurrentCurrency?.() ?? window.currentCurrency) || "ton";
+      const raw = bet * mult;
+      const winAmount = currency === "stars" ? Math.round(raw) : +raw.toFixed(2);
+  
+      // If bet is 0, still return computed value (0) but skip balance changes
+      if (bet > 0 && mult > 0) {
+        if (typeof window.showWinNotification === "function") {
+          try { window.showWinNotification(winAmount); } catch (_) {}
+        }
+        if (window.TEST_MODE && typeof window.addWinAmount === "function") {
+          try { window.addWinAmount(winAmount, currency); } catch (_) {}
+        }
+      }
+  
+      return { winAmount, currency };
+    }
+  
+    // ---- jar game helpers ----
+    function pickUniqueJars() {
+      const arr = Array.from({ length: CFG.jarPool }, (_, i) => i + 1);
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr.slice(0, CFG.jarPickCount);
+    }
+  
+    function setMults(gameEl, vals) {
+      for (let i = 0; i < 3; i++) {
+        const el = gameEl.querySelector(`.wt-mult[data-mult="${i}"]`);
+        if (el) el.textContent = `${vals[i]}x`;
+      }
+    }
+  
+    function setMultsHidden(gameEl, hidden) {
+      gameEl.querySelectorAll(".wt-mult").forEach((m) => {
+        m.classList.toggle("wt-mult--hidden", hidden);
       });
     }
   
-    async function closeOverlay(overlay) {
-      const wheelPage = document.getElementById('wheelPage');
-  
-      overlay.classList.remove('wt-enter');
-      overlay.style.transform = 'translateX(100%)';
-      overlay.style.opacity = '0';
-  
-      // Restore wheel page
-      if (wheelPage) {
-        wheelPage.classList.remove('wt-swipe-left');
-        wheelPage.style.visibility = '';
-        wheelPage.style.pointerEvents = '';
-      }
-  
-      document.documentElement.classList.remove('wt-active');
-      document.body.classList.remove('wt-active');
-  
-      await sleep(460);
-      overlay.classList.remove('wt-open');
-      overlay.style.transform = '';
-      overlay.style.opacity = '';
+    function highlightMult(gameEl, slotIndex) {
+      gameEl.querySelectorAll(".wt-mult").forEach((m) => m.classList.remove("wt-mult--selected"));
+      const el = gameEl.querySelector(`.wt-mult[data-mult="${slotIndex}"]`);
+      if (el) el.classList.add("wt-mult--selected");
     }
   
-    let running = false;
+    function setJarVars(el, x, y, rotDeg, liftPx, opacity) {
+      el.style.setProperty("--x", `${x}px`);
+      el.style.setProperty("--y", `${y}px`);
+      el.style.setProperty("--rot", `${rotDeg}deg`);
+      el.style.setProperty("--lift", `${liftPx}px`);
+      if (opacity != null) el.style.opacity = String(opacity);
+    }
   
-    window.startWildTimeBonus = window.startWildTimeBonus || async function startWildTimeBonus(betAmount = 0, opts = {}) {
-      if (running) return { all: [], choice: '', multiplier: 0, winAmount: 0, pickedIndex: -1 };
-      running = true;
+    async function tweenJar(el, x, y, rotDeg, ms) {
+      el.style.transition = `transform ${ms}ms cubic-bezier(0.22,0.75,0.12,1), opacity 220ms ease`;
+      setJarVars(el, x, y, rotDeg, 0, 1);
+      await sleep(ms);
+      el.style.transition = "";
+    }
   
-      injectStyles();
-      const overlay = ensureOverlay();
-      const wheelPage = document.getElementById('wheelPage');
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
   
-      const betPill = overlay.querySelector('#wtBetPill');
-      const statusEl = overlay.querySelector('#wtStatus');
-      const modal = overlay.querySelector('#wtModal');
-      const rowEl = overlay.querySelector('#wtRow');
-      const msgEl = overlay.querySelector('#wtMsg');
-      const skipBtn = overlay.querySelector('#wtSkipBtn');
-      const canvas = overlay.querySelector('#wtCanvas');
+    // ---- jar game main ----
+    async function runJarGameWithPreShow(tri) {
+      const stage = overlay.querySelector("#wildTimeStage");
+      const game = overlay.querySelector("#wildTimeJarGame");
+      const row = overlay.querySelector("#wildTimeJarRow");
+      const hint = overlay.querySelector("#wildTimeHint");
+      const countdownEl = overlay.querySelector("#wildTimeCountdown");
+      const winEl = overlay.querySelector("#wildTimeWin");
   
-      // Reset modal
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-      rowEl.innerHTML = '';
-      msgEl.textContent = 'Смотри перемешивание…';
-      statusEl.textContent = 'Крутим…';
+      // Show jar screen, hide wheel
+      stage?.classList.add("wt-stage--hide");
+      game.classList.add("wt-jarGame--show");
+      game.setAttribute("aria-hidden", "false");
+      game.classList.remove("wt-jarGame--reveal");
   
-      // UI bet pill
-      const curr = window.currentCurrency || (opts && opts.currency) || 'ton';
-      const shown = (curr === 'stars') ? `${Math.round(Number(betAmount || 0))} ⭐` : `${Number(betAmount || 0).toFixed(2)} TON`;
-      betPill.textContent = betAmount > 0 ? `Ставка: ${shown}` : 'Без ставки';
+      // Left/Center/Right results initially visible
+      const base = [tri.left.mult, tri.center.mult, tri.right.mult];
+      setMults(game, base);
   
-      // Lock scroll
-      document.documentElement.classList.add('wt-active');
-      document.body.classList.add('wt-active');
+      // remove old jars
+      row.querySelectorAll(".wt-jarBtn").forEach((n) => n.remove());
   
-      // Swipe out wheel page
-      if (wheelPage) {
-        wheelPage.classList.add('wt-swipe-left');
-        wheelPage.style.pointerEvents = 'none';
-        setTimeout(() => { if (wheelPage) wheelPage.style.visibility = 'hidden'; }, 420);
+      // PRE-SHOW Xs (visible)
+      hint.textContent = "";
+      countdownEl.textContent = "";
+      countdownEl.classList.remove("wt-countdown--show");
+      setMultsHidden(game, false);
+  
+      await sleep(CFG.preShowXsMs);
+      if (aborted) return "aborted";
+  
+      // capture exact centers/bottoms of the visible multipliers (so jars land perfectly over them)
+      const rowRectPre = row.getBoundingClientRect();
+      const multRects = [0, 1, 2].map((i) => {
+        const el = row.querySelector(`.wt-mult[data-mult="${i}"]`);
+        const r = el.getBoundingClientRect();
+        return {
+          cx: (r.left + r.right) / 2 - rowRectPre.left,
+          bottom: r.bottom - rowRectPre.top
+        };
+      });
+      const slotXs = multRects.map((m) => m.cx);
+  
+      // AFTER PRE-SHOW: cover (hide mults) + drop jars
+      await sleep(CFG.jarCoverDelayMs);
+      setMultsHidden(game, true);
+  
+      const jarNum = randInt(1, CFG.jarPool);
+      const jars = [];
+  
+      // Create jars (each jar "carries" its mult with it, like shells)
+      for (let i = 0; i < 3; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "wt-jarBtn";
+        btn.disabled = true;
+        btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${jarNum}.png" alt="">`;
+        row.appendChild(btn);
+  
+        jars.push({ el: btn, pos: i, mult: base[i] });
+  
+        btn.style.opacity = "0";
+        setJarVars(btn, 0, 0, 0, 0, 0);
       }
   
-      // Show overlay (enter from right)
-      overlay.classList.add('wt-open');
-      await sleep(20);
-      overlay.classList.add('wt-enter');
+      // wait for jar images to load BEFORE measuring
+      await Promise.all(jars.map((j) => waitImg(j.el.querySelector("img"))));
+      await sleep(0);
   
-      try {
-        // Spin
-        await sleep(140);
-        const { results } = await animateSpin(canvas, statusEl);
+      const rowRect = row.getBoundingClientRect();
+      const jarRect = jars[0]?.el.getBoundingClientRect();
+      const jarW = jarRect?.width || 180;
+      const jarH = jarRect?.height || 230;
   
-        // Step 5: Blur overlay + show results, cover & shuffle
-        modal.classList.add('open');
-        modal.setAttribute('aria-hidden', 'false');
+      // y for each slot: bottom of text -> jar bottom slightly lower (covers text fully)
+      const coverPad = clamp(jarH * 0.06, 10, 18);
+      const slotYs = multRects.map((m) => clamp(m.bottom - jarH + coverPad, 0, rowRect.height - jarH));
   
-        // Drop badges from pointers into row
-        await dropBadges(overlay, results);
+      // appear / drop
+      for (const j of jars) {
+        const x = slotXs[j.pos] - jarW / 2;
+        const y = slotYs[j.pos];
+        j.el.style.opacity = "1";
+        await tweenJar(j.el, x, y - 22, 0, 130);
+        await tweenJar(j.el, x, y, 0, CFG.jarAppearMs);
+      }
   
-        const { groups } = buildCupsRow(rowEl, results);
-        await sleep(260);
-        await coverAndShuffle(rowEl, groups, msgEl, skipBtn);
+      // SHUFFLE (stronger)
+      hint.textContent = "Shuffling...";
+      jars.forEach((j) => j.el.classList.add("wt-jarBtn--shuffling"));
   
-        // Step 6: pick cup
-        const picked = await pickCup(groups, msgEl);
+      // we shuffle by applying full random permutations each step
+      for (let s = 0; s < CFG.jarShuffleSteps; s++) {
+        if (aborted) return "aborted";
   
-        // Compute win
-        const mult = parseFloat(String(picked.choice).replace('x', '')) || 0;
-        let winAmount = 0;
-        if (betAmount > 0 && Number.isFinite(mult) && mult > 0) {
-          const raw = Number(betAmount) * mult;
-          winAmount = (curr === 'stars') ? Math.round(raw) : +raw.toFixed(2);
+        const t = s / Math.max(1, CFG.jarShuffleSteps - 1);
+        let ms = Math.round(CFG.jarShuffleMsStart + (CFG.jarShuffleMsEnd - CFG.jarShuffleMsStart) * t);
   
-          if (typeof window.showWinNotification === 'function') {
-            try { window.showWinNotification(winAmount); } catch (_) {}
-          }
-          if (window.TEST_MODE && typeof window.addWinAmount === 'function') {
-            try { window.addWinAmount(winAmount, curr); } catch (_) {}
-          }
+        // last steps are extra fast
+        if (s > CFG.jarShuffleSteps - 5) ms = Math.max(70, ms - 25);
+  
+        const perm = shuffleArray([0, 1, 2]); // which slot each jar goes to
+        jars.forEach((j, idx) => { j.pos = perm[idx]; });
+  
+        const kick = (Math.random() * 2 - 1) * clamp(jarH * 0.08, 10, 18);
+  
+        await Promise.all(
+          jars.map((j, idx) => {
+            const x = slotXs[j.pos] - jarW / 2;
+            const y = slotYs[j.pos] + kick * (idx - 1) * 0.55;
+            const rot = (Math.random() * 34 - 17);
+            return tweenJar(j.el, x, y, rot, ms);
+          })
+        );
+      }
+  
+      jars.forEach((j) => j.el.classList.remove("wt-jarBtn--shuffling"));
+  
+      // PICK phase (RULE: jars lift ONLY when timer ends)
+      hint.textContent = "Pick a jar";
+  
+      let selectedJar = null;
+      let finished = false;
+  
+      jars.forEach((j) => {
+        j.el.disabled = false;
+        j.el.onclick = () => {
+          if (aborted || finished) return;
+          selectedJar = j;
+          jars.forEach((x) => x.el.classList.remove("wt-jarBtn--picked"));
+          j.el.classList.add("wt-jarBtn--picked");
+        };
+      });
+  
+      // countdown
+      let sec = CFG.pickCountdownSec;
+      countdownEl.textContent = String(sec);
+      countdownEl.classList.add("wt-countdown--show");
+  
+      let pickedMult = null;
+      let pickedSlot = null;
+  
+      let pickDoneResolve;
+      const pickDone = new Promise((res) => { pickDoneResolve = res; });
+  
+      const endReveal = async () => {
+        if (finished || aborted) return;
+        finished = true;
+  
+        // lock interaction
+        jars.forEach((x) => { x.el.disabled = true; x.el.onclick = null; });
+  
+        // auto-pick if user didn't choose
+        if (!selectedJar) {
+          selectedJar = jars[(Math.random() * jars.length) | 0];
+          jars.forEach((x) => x.el.classList.remove("wt-jarBtn--picked"));
+          selectedJar.el.classList.add("wt-jarBtn--picked");
         }
   
-        // Small pause for UX
-        await sleep(900);
+        countdownEl.classList.remove("wt-countdown--show");
   
-        return {
-          all: results,
-          choice: picked.choice,
-          multiplier: mult,
-          winAmount,
-          pickedIndex: picked.pickedIndex,
-        };
-      } finally {
-        await closeOverlay(overlay);
-        running = false;
+        // mapping by current slot positions (after shuffle)
+        const valsBySlot = [null, null, null];
+        jars.forEach((jj) => { valsBySlot[jj.pos] = jj.mult; });
+  
+        // reveal multipliers in correct order
+        setMults(game, valsBySlot);
+        setMultsHidden(game, false);
+        game.classList.add("wt-jarGame--reveal");
+  
+        // lift jars ONLY NOW (timer ended)
+        const liftChosen = clamp(Math.round(jarH * 0.62), 150, 220);
+        const liftOther = clamp(Math.round(jarH * 0.48), 110, 180);
+  
+        jars.forEach((jj) => {
+          jj.el.classList.add("wt-jarBtn--lift");
+          jj.el.style.setProperty("--lift", `${jj === selectedJar ? liftChosen : liftOther}px`);
+          if (jj === selectedJar) jj.el.classList.add("wt-jarBtn--chosen");
+        });
+  
+        // highlight chosen multiplier and store result
+        pickedMult = selectedJar.mult;
+        pickedSlot = selectedJar.pos;
+  
+        highlightMult(game, pickedSlot);
+  
+        // after lift, fade jars away and leave multipliers visible
+        await sleep(620);
+        jars.forEach((jj) => {
+          jj.el.style.transition = "opacity 260ms ease";
+          jj.el.style.opacity = "0";
+        });
+        await sleep(280);
+        jars.forEach((jj) => jj.el.remove());
+  
+        // keep multipliers visible 3-4s
+        await sleep(CFG.revealShowMs);
+  
+        // Payout at the END (after reveal)
+        // Payout at the END (after reveal)
+        const pay = payout(betAmount_, pickedMult);
+        // winEl display removed - using base notification instead
+
+        await sleep(CFG.revealShowMs); // используем время показа множителей вместо winPopupMs          
+        if (pickDoneResolve) pickDoneResolve(true);
+      };
+  
+      const timer = setInterval(() => {
+        if (aborted || finished) { clearInterval(timer); return; }
+        sec -= 1;
+        countdownEl.textContent = String(Math.max(0, sec));
+        if (sec <= 0) {
+          clearInterval(timer);
+          endReveal();
+        }
+      }, 1000);
+  
+      // wait for timer end reveal
+      while (!finished && !aborted) await sleep(50);
+      if (aborted) {
+        clearInterval(timer);
+        if (pickDoneResolve) pickDoneResolve(false);
+        return "aborted";
       }
+  
+      // Wait until reveal animation finishes (otherwise overlay closes immediately)
+      await pickDone;
+  
+      return {
+        chosenMult: pickedMult,
+        chosenSlot: pickedSlot
+      };
+    }
+  
+    // ---- stop -> show pre Xs -> jars -> shuffle -> pick -> reveal -> close ----
+    async function onStopped(centerIdx) {
+      if (aborted) return;
+  
+      const tri = getTriResults(centerIdx);
+      const jarRes = await runJarGameWithPreShow(tri);
+  
+      if (aborted) return;
+      if (!resolve_) return;
+  
+      const r = resolve_;
+      resolve_ = null;
+  
+      stopLoop();
+      unbindClose();
+  
+      try {
+        if (overlay?.__wt_resize) window.removeEventListener("resize", overlay.__wt_resize);
+        overlay.__wt_resize = null;
+      } catch (_) {}
+  
+      await closeOverlay();
+      r({ tri, jar: jarRes });
+    }
+  
+    // ---- public API ----
+    window.startWildTimeBonus = async function startWildTimeBonus(betAmount = 0) {
+      overlay = ensureOverlay();
+      canvas = overlay.querySelector(`#${CFG.canvasId}`);
+      if (!canvas) return "error";
+  
+      betAmount_ = betAmount;
+      aborted = false;
+      resetScreens();
+  
+      sectors = buildSectors();
+      await preloadMultiplierImages();
+  
+      openOverlay();
+      bindClose();
+  
+      prepareCanvas();
+      drawWheel();
+  
+      const onResize = () => { if (!aborted) { prepareCanvas(); drawWheel(); } };
+      window.addEventListener("resize", onResize, { passive: true });
+      overlay.__wt_resize = onResize;
+  
+      stopLoop();
+      phase = "idle";
+      omega = CFG.idleOmega;
+      lastTs = performance.now();
+      raf = requestAnimationFrame(tick);
+  
+      // wait before spin
+      await sleep(CFG.appearWaitMs);
+      if (aborted) return "closed";
+  
+      // accelerate
+      phase = "accel";
+      await accelerateTo(CFG.fastOmega, CFG.accelMs);
+      if (aborted) return "closed";
+  
+      // choose stop index
+      const centerIdx = (Math.random() * sectors.length) | 0;
+      const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
+      const extra = randInt(CFG.extraTurnsMin, CFG.extraTurnsMax);
+  
+      decelerateToCenterIndex(centerIdx, dur, extra);
+  
+      return await new Promise((resolve) => {
+        resolve_ = (val) => resolve(val);
+      });
     };
   })();
   
