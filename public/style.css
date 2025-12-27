@@ -2312,6 +2312,84 @@ body.case-sheet-open .case-sheet-panel{
   pointer-events: none;
 }
 
+/* Layout: left Claim (gifts) + right NFT actions block */
+.case-claim-row{
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.case-claim-row > *{ min-width: 0; }
+
+.case-claim-btn{ flex: 1 1 0; }
+
+.case-nft-actions-inline{
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.case-nft-btn-inline{
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  font-weight: 900;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.case-nft-btn-inline:active{ transform: translateY(1px); }
+
+.case-nft-btn-inline--primary{
+  background: rgba(42,168,255,0.16);
+  border: 1px solid rgba(42,168,255,0.55);
+  color: #fff;
+}
+
+.case-nft-btn-inline--secondary{
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.92);
+}
+
+.case-nft-btn-inline__amount{
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+.case-nft-btn-inline__icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+@media (max-width: 380px){
+  .case-claim-row{ gap: 10px; }
+  .case-claim-btn{ font-size: 15px; }
+  .case-nft-btn-inline{ font-size: 12px; height: 34px; gap: 5px; }
+}
+
+@media (max-width: 330px){
+  .case-claim-row{ gap: 8px; }
+  .case-claim-btn{ font-size: 14px; }
+  .case-nft-actions-inline{ padding: 3px; gap: 5px; }
+  .case-nft-btn-inline{ font-size: 11px; height: 32px; }
+}
+
 /* ===== CASES: Win decision panel (save to profile / cash-out) ===== */
 .case-decision-panel{
   padding: 10px 14px 12px;
@@ -6599,11 +6677,6 @@ body.bonus-active{
     var(--panel);
 }
 
-<<<<<<< Updated upstream
-
-
-
-=======
 /* гарантируем, что hidden реально скрывает панель */
 .case-decision-panel[hidden] { display: none !important; }
 
@@ -8024,4 +8097,255 @@ body.bonus-active{
 .profile-modal-btn--secondary{
   background: rgba(255,255,255,0.06);
 }
->>>>>>> Stashed changes
+
+.case-claim-bar{ padding:10px 14px 6px; }
+
+.case-claim-row{
+  display:flex;
+  gap:12px;
+  align-items:stretch;
+  flex-wrap:nowrap; /* всегда в линию */
+}
+
+/* Левая кнопка (Claim денег) */
+.case-claim-btn{
+  flex: 0 0 44%;
+  min-width: 0;
+  height:44px;
+  border:0;
+  border-radius:14px;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+  font-weight:900;
+  font-size:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  cursor:pointer;
+}
+.case-claim-btn.loading{ opacity:.7; }
+.case-claim-btn[disabled]{ opacity:.6; cursor:not-allowed; }
+
+/* ===== NFT блок (справа): одна капсула с двумя кнопками ===== */
+.case-nft-actions-inline{
+  position: relative;
+  flex: 1 1 auto;
+  display:flex;
+  align-items:center;
+  justify-content:stretch;
+  flex-wrap:nowrap;
+
+  padding: 4px;
+  border-radius: 16px;
+
+  background: rgba(10, 16, 24, 0.55);
+  border: 1px solid rgba(46, 166, 255, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.05),
+    0 14px 30px rgba(0,0,0,0.35);
+
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+/* Разделитель внутри капсулы */
+.case-nft-actions-inline::after{
+  content:'';
+  position:absolute;
+  left:50%;
+  top:6px;
+  bottom:6px;
+  width:1px;
+  background: rgba(255,255,255,0.10);
+  transform: translateX(-0.5px);
+  pointer-events:none;
+}
+
+/* Кнопки внутри капсулы */
+.case-nft-btn-inline{
+  flex: 1 1 0;
+  min-width:0;
+  height: 38px;
+
+  border: 0;
+  border-radius: 12px;
+
+  font-weight: 900;
+  font-size: 13px;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 7px;
+
+  cursor:pointer;
+  user-select:none;
+  white-space: nowrap;
+}
+
+.case-nft-btn-inline--primary{
+  background: linear-gradient(180deg,#34d399 0%,#10b981 100%);
+  color:#062b1d;
+  box-shadow: 0 10px 22px rgba(16,185,129,0.20);
+}
+
+.case-nft-btn-inline--secondary{
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.95);
+}
+
+.case-nft-btn-inline.loading{ opacity:.75; }
+.case-nft-btn-inline[disabled]{ opacity:.6; cursor:not-allowed; }
+
+.case-nft-btn-inline__amount{ font-variant-numeric: tabular-nums; opacity: .95; }
+.case-nft-btn-inline__icon{ width: 16px; height: 16px; display:block; }
+
+@media (max-width: 380px){
+  .case-claim-row{ gap:10px; }
+  .case-claim-btn{ height:42px; font-size:14px; flex-basis: 46%; }
+  .case-nft-btn-inline{ height:36px; font-size:12px; gap:6px; }
+  .case-nft-btn-inline__icon{ width:15px; height:15px; }
+}
+
+/* чтобы при отсутствии NFT левая кнопка была на всю ширину */
+.case-claim-row.no-nft .case-claim-btn{ flex: 1 1 auto !important; }
+
+/* чтобы цифры не “дёргали” кнопки */
+.case-claim-btn__amount,
+.case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* выравнивание высоты правого NFT-блока */
+.case-nft-actions-inline{ height:44px; padding:3px; }
+.case-nft-btn-inline{ height:38px; }
+
+/* визуально понятно что Claim уже забран */
+.case-claim-btn.claimed{ opacity:.65; }
+
+/* hidden должен реально скрывать элементы (иначе их держит display:flex из твоих классов) */
+.case-claim-bar[hidden]{ display:none !important; }
+.case-nft-actions-inline[hidden]{ display:none !important; }
+
+/* на всякий случай: когда NFT нет — правый блок не рисуем вообще */
+.case-claim-row.no-nft #caseNftActions{ display:none !important; }
+
+/* Линия должна оставаться зелёной до клейма */
+.case-carousel-indicator.won{
+  width:4px;
+  background: var(--ok);
+  box-shadow: 0 0 20px var(--ok), 0 0 40px var(--ok), 0 0 60px var(--ok);
+  animation: none; /* без бесконечных пульсаций */
+}
+
+/* hidden должен реально скрывать NFT-блок (если у тебя где-то display:flex перебивает) */
+.case-nft-actions-inline[hidden]{ display:none !important; }
+
+/* ===== Split mode: слева есть Claim денег -> справа меньше места ===== */
+/* Определяем split по факту: кнопка #caseClaimBtn НЕ hidden */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline{
+  font-size: 12px;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+/* Укорачиваем "Claim NFT" -> "NFT" ТОЛЬКО в split */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn{
+  font-size: 0;              /* скрываем исходный текст "Claim NFT" */
+}
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn::before{
+  content: "NFT";            /* короткая подпись */
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+/* Sell тоже чуть компактнее, чтобы не резалось */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn{
+  font-size: 12px;
+}
+
+/* чтобы сумма не “прыгала” */
+.case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Split mode: слева есть Claim денег -> справа меньше места ===== */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline{
+  padding: 0 6px;
+  gap: 5px;
+  overflow: hidden;
+}
+
+/* вместо короткого "NFT" делаем "NFT claim" (в 2 строки, чтобы точно влезало) */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn{
+  font-size: 0 !important;        /* скрываем исходный текст кнопки */
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn::before{
+  content: "NFT\A claim";         /* 2 строки: NFT + claim */
+  white-space: pre;
+  font-size: 11px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+/* Sell — компактнее, чтобы сумма + иконка валюты всегда помещались */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn{
+  font-size: 11px !important;
+  gap: 5px;
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn .case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn .case-nft-btn-inline__icon{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+/* если у тебя слово Sell — это обычный span, не даём ему сжиматься странно */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn span:first-child{
+  flex: 0 0 auto;
+  opacity: .92;
+}
+
+/* Убираем старые хаки с подменой текста (если они были) */
+#caseNftClaimBtn::before{ content: none !important; }
+#caseNftClaimBtn{ font-size: 12px !important; }
+
+/* Картинка NFT внутри кнопки Claim */
+.case-nft-btn-inline__thumb{
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex: 0 0 auto;
+
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 2px;
+}
+
+/* чтобы "Claim" не сжимался и не обрезался */
+.case-nft-btn-inline__label{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* В сплите чуть компактнее (когда слева ещё есть Claim денег) */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline__thumb{
+  width: 16px;
+  height: 16px;
+}

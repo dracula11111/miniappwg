@@ -1,0 +1,11 @@
+{
+  "users": {
+    "guest": {
+      "nfts": []
+    }
+  },
+  "processedClaims": {
+    "case_nft_claim_case_guest_1766765960138_316a0082679588": true,
+    "case_nft_claim_case_guest_1766772201675_fc9499b67e766": true
+  }
+}

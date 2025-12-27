@@ -80,9 +80,9 @@
     const icon = item?.icon || item?.image || item?.img;
     if (!icon) return '/icons/unknown.png';
 
-    // NFTs stored in /public/images/nfts/, gifts in /public/images/gifts/
+    // NFTs stored in /public/images/gifts/nfts/, gifts in /public/images/gifts/
     const t = itemType(item);
-    if (t === 'nft') return `/images/nfts/${icon}`;
+    if (t === 'nft') return `/images/gifts/nfts/${icon}`;
     return `/images/gifts/${icon}`;
   }
 
