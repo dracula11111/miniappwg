@@ -257,20 +257,20 @@ const COLORS = {
 };
 
 const IMAGES = {
-  '1.1x'       : '/images/wheel/1.1x.png',
-  '3x'       : '/images/wheel/3x.png',
-  '5x'       : '/images/wheel/5x.png',
-  '11x'      : '/images/wheel/11x.png',
-  '50&50'    : '/images/wheel/50-50.png',
-  'Loot Rush': '/images/wheel/loot.png',
-  'Wild Time': '/images/wheel/wild.png'
+  '1.1x'       : '/images/wheel/1.1x.webp',
+  '3x'       : '/images/wheel/3x.webp',
+  '5x'       : '/images/wheel/5x.webp',
+  '11x'      : '/images/wheel/11x.webp',
+  '50&50'    : '/images/wheel/50-50.webp',
+  'Loot Rush': '/images/wheel/loot.webp',
+  'Wild Time': '/images/wheel/wild.webp'
 };
 
 
 const BONUS_TEXT_IMAGES = (window.WHEEL_BONUS_TEXT_IMAGES || {
-  '50&50'    : '/images/wheel/50-50Text.png',
-  'Loot Rush': '/images/wheel/LootRushText.png',
-  'Wild Time': '/images/wheel/WildTimeText.png'
+  '50&50'    : '/images/wheel/50-50Text.webp',
+  'Loot Rush': '/images/wheel/LootRushText.webp',
+  'Wild Time': '/images/wheel/WildTimeText.webp'
 });
 
 // Настройки позиционирования вертикального текста бонусов поверх секторов
