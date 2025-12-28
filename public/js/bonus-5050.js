@@ -1,7 +1,7 @@
-// public/js/bonus-5050.js - DUAL REELS + VS + slow collide + boom + particles + winner reveal
+// public/js/bonus-5050.js - DUAL REELS + Lightning Icon VS + slow collide + boom + particles + winner reveal
 // Exports: window.Bonus5050 (class) for wheel.js
 
-console.log('[Bonus5050] 🎰 loaded (dual VS slow collide boom+particles v1)');
+console.log('[Bonus5050] 🎰 loaded (dual VS slow collide boom+particles v2 - lightning icon)');
 
 class Bonus5050 {
   constructor(container, options = {}) {
@@ -11,6 +11,7 @@ class Bonus5050 {
       durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 15,
       boomSrc: options.boomSrc || 'images/boom.webp',
       particlesSrc: options.particlesSrc || 'images/boomparticles.webp',
+      lightningIcon: options.lightningIcon || 'icons/lighting.webp',
       ...options
     };
 
@@ -74,7 +75,9 @@ class Bonus5050 {
               </div>
             </div>
 
-            <div class="b5050-vs" id="b5050VS" aria-hidden="true">VS</div>
+            <div class="b5050-vs" id="b5050VS" aria-label="versus">
+              <img src="${this.options.lightningIcon}" alt="VS" class="b5050-lightning-icon">
+            </div>
 
             <div class="b5050-unit b5050-unit--bad" id="b5050UnitBad">
               <div class="b5050-unitframe">
@@ -92,10 +95,7 @@ class Bonus5050 {
           </div>
 
           <div class="b5050-bulbs b5050-bulbs--bottom">${bulbs}</div>
-        </div>
-
-        <div class="b5050-timer" id="b5050Timer"></div>
-      </div>
+        
     `;
 
     return {

@@ -96,6 +96,7 @@
     <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
     <section class="history wheel-only" aria-label="Last results">
       <div id="historyList" class="history-list">
+        
         <!-- пример элемента истории с иконкой:
         <div class="history-item">
           <img src="/images/history/1x_small.png" alt="1x" />
@@ -108,7 +109,8 @@
     <main id="wheelPage" class="page page-active">
       <section class="wheel" aria-label="Wheel">
         <canvas id="wheelCanvas" width="420" height="420" aria-label="Wheel canvas"></canvas>
-        <div id="pointer" class="pointer" aria-hidden="true">▼</div>
+        <img id="pointer" class="pointer" src="/images/pointerMain.png" alt="" aria-hidden="true" draggable="false">
+
         <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true">
           <span id="countNum">9</span>
         </div>
@@ -146,44 +148,36 @@
 
          
       
-
-        <!-- Сетка лотов (большие картинки) -->
-        <div class="bet-grid" role="grid" aria-label="Select segment">
-          <!-- ряд 1 -->
-          <button class="bet-tile muted" role="gridcell" data-seg="1x">
-            <img class="bet-img" src="/images/bets/1x.png" alt="1x" />
-            <span class="bet-badge" data-badge-for="1x" hidden>0</span>
-          </button>
-          <button class="bet-tile muted" role="gridcell" data-seg="3x">
-            <img class="bet-img" src="/images/bets/3x.png" alt="3x" />
-            <span class="bet-badge" data-badge-for="3x" hidden>0</span>
-          </button>
-          <!-- ряд 2 -->
-          <button class="bet-tile muted" role="gridcell" data-seg="7x">
-            <img class="bet-img" src="/images/bets/7x.png" alt="7x" />
-            <span class="bet-badge" data-badge-for="7x" hidden>0</span>
-          </button>
-          <button class="bet-tile muted" role="gridcell" data-seg="11x">
-            <img class="bet-img" src="/images/bets/11x.png" alt="11x" />
-            <span class="bet-badge" data-badge-for="11x" hidden>0</span>
-          </button>
-          <!-- ряд 3 (бонусы) -->
-          <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
-            <img class="bet-img" src="/images/bets/50-50.png" alt="50&50" />
-            <span class="bet-badge" data-badge-for="50&50" hidden>0</span>
-          </button>
-          <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
-            <img class="bet-img" src="/images/bets/loot.png" alt="Loot Rush" />
-            <span class="bet-badge" data-badge-for="Loot Rush" hidden>0</span>
-          </button>
-          <!-- ряд 4 (широкий бонус) -->
-          <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
-            <img class="bet-img" src="/images/bets/wild.png" alt="Wild Time" />
-            <span class="bet-badge" data-badge-for="Wild Time" hidden>0</span>
-          </button>
-        </div>
+      <!-- Сетка лотов (большие картинки) -->
+      <div class="bet-grid" role="grid" aria-label="Select segment">
+        <!-- ряд 1 -->
+        <button class="bet-tile muted" role="gridcell" data-seg="1.1x">
+          <img class="bet-img" src="/images/bets/1.1x.png" alt="1.1x" />
+        </button>
+        <button class="bet-tile muted" role="gridcell" data-seg="3x">
+          <img class="bet-img" src="/images/bets/3x.png" alt="3x" />
+        </button>
+        <!-- ряд 2 -->
+        <button class="bet-tile muted" role="gridcell" data-seg="5x">
+          <img class="bet-img" src="/images/bets/5x.png" alt="5x" />
+        </button>
+        <button class="bet-tile muted" role="gridcell" data-seg="11x">
+          <img class="bet-img" src="/images/bets/11x.png" alt="11x" />
+        </button>
+        <!-- ряд 3 (бонусы) -->
+        <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
+          <img class="bet-img" src="/images/bets/50-50.png" alt="50&50" />
+        </button>
+        <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
+          <img class="bet-img" src="/images/bets/loot.png" alt="Loot Rush" />
+        </button>
+        <!-- ряд 4 (широкий бонус) -->
+        <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
+          <img class="bet-img" src="/images/bets/wild.png" alt="Wild Time" />
+        </button>
+      </div>
       </section>
-    </main>
+      </main>
 
     <!-- ===== CASES PAGE ===== -->
     <main id="casesPage" class="page">

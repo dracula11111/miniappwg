@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE =  false; // 🔥 ТЕСТОВЫЙ РЕЖИМ
+const TEST_MODE =  true // 🔥 ТЕСТОВЫЙ РЕЖИМ
 
 // ===== ЭКСПОРТ ДЛЯ АДМИН-ПАНЕЛИ =====
 // Делаем TEST_MODE доступным глобально
@@ -80,7 +80,7 @@ if (window.TEST_MODE) {
       const multipliers = {
         '1x': 1,
         '3x': 3,
-        '7x': 7,
+        '5x': 5,
         '11x': 11
       };
       
@@ -151,9 +151,9 @@ if (window.TEST_MODE) {
       historyItem.className = 'history-item';
       
       const historyIcons = {
-        '1x': '/images/history/1x_small.png',
+        '1.1x': '/images/history/1.1x_small.png',
         '3x': '/images/history/3x_small.png',
-        '7x': '/images/history/7x_small.png',
+        '5x': '/images/history/5x_small.png',
         '11x': '/images/history/11x_small.png',
         '50&50': '/images/history/50-50_small.png',
         'Loot Rush': '/images/history/loot_small.png',
@@ -231,15 +231,25 @@ if (window.TEST_MODE) {
 // ===== КОНЕЦ ПАТЧА =====
 
 const WHEEL_ORDER = [
-  'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
-  '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
-  '1x','3x','1x','11x','3x','1x','7x','50&50'
+  '1.1x','3x','Loot Rush','1.1x','5x','50&50','1.1x',
+  '3x','11x','1.1x','3x','Loot Rush','1.1x','5x','50&50',
+  '1.1x','3x','1.1x','Wild Time','11x','3x','1.1x','5x','50&50'
 ];
+// ===== SEGMENT KEY NORMALIZER (compat with old keys) =====
+const SEGMENT_ALIAS = {
+  '1.1x': '1.1x',
+  '5x': '5x',
+};
+
+function normSeg(s) {
+  return SEGMENT_ALIAS[s] || s;
+}
+
 
 const COLORS = {
-  '1x'       : { fill: '#6f6a00', text: '#fff' },
+  '1.1x'       : { fill: '#6f6a00', text: '#fff' },
   '3x'       : { fill: '#6e4200', text: '#fff' },
-  '7x'       : { fill: '#0f5a2e', text: '#fff' },
+  '5x'       : { fill: '#0f5a2e', text: '#fff' },
   '11x'      : { fill: '#0a3f64', text: '#fff' },
   '50&50'    : { fill: '#d9197a', text: '#fff' },
   'Loot Rush': { fill: '#6c2bd9', text: '#fff' },
@@ -247,17 +257,32 @@ const COLORS = {
 };
 
 const IMAGES = {
-  '1x'       : '/images/wheel/1x.png',
+  '1.1x'       : '/images/wheel/1.1x.png',
   '3x'       : '/images/wheel/3x.png',
-  '7x'       : '/images/wheel/7x.png',
+  '5x'       : '/images/wheel/5x.png',
   '11x'      : '/images/wheel/11x.png',
   '50&50'    : '/images/wheel/50-50.png',
   'Loot Rush': '/images/wheel/loot.png',
   'Wild Time': '/images/wheel/wild.png'
 };
 
+
+const BONUS_TEXT_IMAGES = (window.WHEEL_BONUS_TEXT_IMAGES || {
+  '50&50'    : '/images/wheel/50-50Text.png',
+  'Loot Rush': '/images/wheel/LootRushText.png',
+  'Wild Time': '/images/wheel/WildTimeText.png'
+});
+
+// Настройки позиционирования вертикального текста бонусов поверх секторов
+// heightFactor: 1.0 == "точно в сектор"; >1.0 == немного заходит на соседние сектора
+const BONUS_TEXT_STYLE_DEFAULT = {
+  heightFactor: 1.22,
+  radialPos: 0.22,
+  alpha: 1.0
+};
+
 const LABELS = { 
-  '1x':'1×','3x':'3×','7x':'7×','11x':'11×',
+  '1.1x':'1.1×','3x':'3×','5x':'5×','11x':'11×',
   '50&50':'50&50','Loot Rush':'Loot','Wild Time':'Wild' 
 };
 
@@ -488,25 +513,36 @@ function updateTestBalance() {
 
 /* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
+const loadedBonusTextImages = new Map();
 let imagesLoaded = false;
 
+function preloadImageMap(sourceObj, targetMap, opts = {}) {
+  const warn = opts.warn !== false;
+  if (!sourceObj) return [];
+  return Object.entries(sourceObj).map(([key, src]) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        targetMap.set(key, img);
+        resolve();
+      };
+      img.onerror = () => {
+        if (warn) console.warn(`Failed to load image: ${src}`);
+        resolve();
+      };
+      if (!src) { resolve(); return; }
+      img.src = src;
+    });
+  });
+}
+
 function preloadImages() {
-  return Promise.all(
-    Object.entries(IMAGES).map(([key, src]) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          loadedImages.set(key, img);
-          resolve();
-        };
-        img.onerror = () => {
-          console.warn(`Failed to load image: ${src}`);
-          resolve();
-        };
-        img.src = src;
-      });
-    })
-  ).then(() => {
+  const tasks = [
+    ...preloadImageMap(IMAGES, loadedImages),
+    ...preloadImageMap(BONUS_TEXT_IMAGES, loadedBonusTextImages, { warn: false })
+  ];
+
+  return Promise.all(tasks).then(() => {
     imagesLoaded = true;
     console.log('[Wheel] ✅ All wheel images loaded');
   });
@@ -515,6 +551,7 @@ function preloadImages() {
 
 
 /* ===== Init ===== */
+
 window.addEventListener('DOMContentLoaded', async () => {
   canvas       = document.getElementById('wheelCanvas');
   betOverlay   = document.getElementById('betOverlay');
@@ -628,6 +665,56 @@ function updateAmountButtonsUI(currency) {
   console.log('[Wheel] ✅ Buttons updated, currentAmount:', currentAmount);
 }
 
+// ===========================
+// Bet pill helpers (amount + currency icon)
+// ===========================
+function getCurrencyIconSrc(currency) {
+  return currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg';
+}
+
+function ensureBetPill(tile, seg) {
+  // remove legacy badge if it exists
+  const legacy = tile.querySelector('.bet-badge');
+  if (legacy) legacy.remove();
+
+  let pill = tile.querySelector('.bet-pill');
+  const isNew = !pill;
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.className = 'bet-pill';
+    pill.innerHTML = `
+      <img class="bet-pill__icon" alt="" />
+      <span class="bet-pill__amount"></span>
+    `;
+    tile.appendChild(pill);
+  }
+
+  pill.dataset.segment = seg;
+  return { pill, isNew };
+}
+
+function setBetPill(tile, seg, amount, currency) {
+  const { pill, isNew } = ensureBetPill(tile, seg);
+  const iconEl = pill.querySelector('.bet-pill__icon');
+  const amountEl = pill.querySelector('.bet-pill__amount');
+
+  if (iconEl) iconEl.src = getCurrencyIconSrc(currency);
+  if (amountEl) amountEl.textContent = String(amount);
+
+  pill.dataset.currency = currency;
+  pill.hidden = false;
+
+  // subtle "update" pop only when pill already exists
+  if (!isNew) {
+    pill.classList.remove('is-updating');
+    // force reflow so animation can restart
+    void pill.offsetWidth;
+    pill.classList.add('is-updating');
+  } else {
+    pill.classList.remove('is-updating');
+  }
+}
+
 window.updateCurrentAmount = function(amount) {
   currentAmount = amount;
   console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
@@ -684,6 +771,13 @@ function initBettingUI(){
       console.log('[Wheel] 🔄 Currency changed to:', newCurrency);
       currentCurrency = newCurrency;
       updateAmountButtonsUI(newCurrency);
+
+      // update icons on already placed bets
+      document.querySelectorAll('.bet-pill').forEach((pill) => {
+        const icon = pill.querySelector('.bet-pill__icon');
+        if (icon) icon.src = getCurrencyIconSrc(newCurrency);
+        pill.dataset.currency = newCurrency;
+      });
     }
   });
 
@@ -702,7 +796,8 @@ function initBettingUI(){
       
       if (phase !== 'betting') return;
       
-      const seg = tile.dataset.seg;
+      const seg = normSeg(tile.dataset.seg);
+
       const cur = betsMap.get(seg) || 0;
       
       // 🔥 Balance check (works in test mode too!)
@@ -729,15 +824,7 @@ function initBettingUI(){
         deductBetAmount(currentAmount, currentCurrency);
       }
 
-      let badge = tile.querySelector('.bet-badge');
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'bet-badge';
-        badge.dataset.badgeFor = seg;
-        tile.appendChild(badge);
-      }
-      badge.textContent = next;
-      badge.hidden = false;
+      setBetPill(tile, seg, next, currentCurrency);
 
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
@@ -856,6 +943,64 @@ function drawWheel(angle=0){
     
     ctx.restore();
   }
+
+
+// --- Bonus vertical text overlays (рисуем поверх всех секторов; клип только по кругу)
+if (imagesLoaded && loadedBonusTextImages && loadedBonusTextImages.size) {
+  const TAU = Math.PI * 2;
+  const sliceThickness = R * Math.tan(SLICE_ANGLE / 2) * 2;
+
+const style = (window.WHEEL_BONUS_TEXT_STYLE && typeof window.WHEEL_BONUS_TEXT_STYLE === 'object')
+  ? window.WHEEL_BONUS_TEXT_STYLE
+  : BONUS_TEXT_STYLE_DEFAULT;
+
+const heightFactor = (typeof style.heightFactor === 'number')
+  ? style.heightFactor
+  : BONUS_TEXT_STYLE_DEFAULT.heightFactor;
+const radialPos = (typeof style.radialPos === 'number')
+  ? style.radialPos
+  : BONUS_TEXT_STYLE_DEFAULT.radialPos;
+const alpha = (typeof style.alpha === 'number')
+  ? style.alpha
+  : BONUS_TEXT_STYLE_DEFAULT.alpha;
+
+  const textHBase = sliceThickness * heightFactor;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, TAU);
+  ctx.clip();
+
+  const prevAlpha = ctx.globalAlpha;
+  ctx.globalAlpha = alpha;
+
+  for (let i = 0; i < SLICE_COUNT; i++) {
+    const key = WHEEL_ORDER[i];
+    if (!loadedBonusTextImages.has(key)) continue;
+
+    const img = loadedBonusTextImages.get(key);
+    if (!img) continue;
+
+    const mid = i * SLICE_ANGLE + SLICE_ANGLE / 2;
+    const aspect = (img.width && img.height) ? (img.width / img.height) : 0.25;
+
+    const textH = textHBase;
+    const textW = textH * aspect;
+
+    ctx.save();
+    ctx.rotate(mid);
+
+    // x — насколько далеко от центра (0..R). y — центрируем по высоте.
+    const x = R * radialPos;
+    const y = -textH / 2;
+
+    ctx.drawImage(img, x, y, textW, textH);
+    ctx.restore();
+  }
+
+  ctx.globalAlpha = prevAlpha;
+  ctx.restore();
+}
 
   ctx.beginPath(); 
   ctx.arc(0,0,20,0,2*Math.PI);
@@ -1076,6 +1221,8 @@ function tick(ts){
 
 /* ===== Check bets and show result ===== */
 function checkBetsAndShowResult(resultType) {
+  resultType = normSeg(resultType);
+
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
   
   const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
@@ -1134,9 +1281,9 @@ function checkBetsAndShowResult(resultType) {
 }
 function getMultiplier(type) {
   const multipliers = {
-    '1x': 1,
+    '1.1x': 1.1,
     '3x': 3,
-    '7x': 7,
+    '5x': 5,
     '11x': 11,
     '50&50': 2,
     'Loot Rush': 5,
@@ -1354,18 +1501,31 @@ function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
 
 function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=null){
   return new Promise(resolve=>{
+    // ✅ normalize server type (supports old keys)
+    const serverType = typeForHistory ? normSeg(typeForHistory) : null;
+
+    // ✅ auto-fix “off by one” if serverType matches neighbor
+    let idx = sliceIndex;
+
+    if (serverType && WHEEL_ORDER[idx] !== serverType) {
+      const idxMinus = (idx - 1 + SLICE_COUNT) % SLICE_COUNT;
+      const idxPlus  = (idx + 1) % SLICE_COUNT;
+
+      if (WHEEL_ORDER[idxMinus] === serverType) idx = idxMinus;
+      else if (WHEEL_ORDER[idxPlus] === serverType) idx = idxPlus;
+      else idx = pickSliceIndexByLabel(serverType); // fallback: any same-type sector
+    }
+
     const normalizedCurrent = currentAngle % (2 * Math.PI);
-    const sliceCenter = sliceIndex * SLICE_ANGLE + SLICE_ANGLE / 2;
+    const sliceCenter = idx * SLICE_ANGLE + SLICE_ANGLE / 2;
 
     let deltaToTarget = POINTER_ANGLE - normalizedCurrent - sliceCenter;
-
     while (deltaToTarget > Math.PI) deltaToTarget -= 2 * Math.PI;
     while (deltaToTarget < -Math.PI) deltaToTarget += 2 * Math.PI;
 
     const endAngle = currentAngle + deltaToTarget + extraTurns * 2 * Math.PI;
 
-    // ✅ ВАЖНО: реальный сектор по индексу колеса
-    const landedType = WHEEL_ORDER[sliceIndex];
+    const landedType = WHEEL_ORDER[idx];
 
     decel = {
       start: currentAngle,
@@ -1373,9 +1533,9 @@ function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=nul
       t0: performance.now(),
       dur: ms,
       resolve,
-      resultType: landedType,      // ✅ вот это главное
-      serverType: typeForHistory,  // (опционально) что пришло с сервера
-      sliceIndex
+      resultType: landedType,
+      serverType,
+      sliceIndex: idx
     };
 
     setPhase('decelerate');
@@ -1516,16 +1676,23 @@ function checkHistoryVisibility() {
 function pushHistory(typeKey){
   if (!historyList) return;
   
+  const historyIcons = {
+    '1.1x': '/images/history/1.1x_small.png',
+    '3x': '/images/history/3x_small.png',
+    '5x': '/images/history/5x_small.png',
+    '11x': '/images/history/11x_small.png',
+    '50&50': '/images/history/50-50_small.png',
+    'Loot Rush': '/images/history/loot_small.png',
+    'Wild Time': '/images/history/wild_small.png'
+  };
+  
   const item = document.createElement('div');
   item.className = 'history-item';
-  item.textContent = LABELS[typeKey] || typeKey;
-  item.style.background = (COLORS[typeKey]?.fill)||'#444';
-  item.style.color='#fff';
-  item.style.padding='6px 10px';
-  item.style.borderRadius='8px';
-  item.style.font='600 12px/1 mf,system-ui,sans-serif';
-  item.style.marginRight='6px';
-  item.style.flexShrink='0';
+  
+  const iconSrc = historyIcons[typeKey] || '/images/history/1.1x_small.png';
+  console.log('[History] Adding:', typeKey, '| Path:', iconSrc);
+  
+  item.innerHTML = `<img src="${iconSrc}" alt="${typeKey}" onerror="console.error('❌ Failed to load:', this.src)" />`;
   
   historyList.prepend(item);
   
@@ -1541,11 +1708,8 @@ function clearBets(){
   console.log('[Wheel] 🧹 Clearing all bets');
   betsMap.clear();
   betTiles.forEach(tile=>{
-    const badge = tile.querySelector('.bet-badge');
-    if (badge) { 
-      badge.textContent = '0'; 
-      badge.hidden = true; 
-    }
+    const pill = tile.querySelector('.bet-pill');
+    if (pill) pill.remove();
     tile.classList.remove('active', 'has-bet');
   });
 }
@@ -1830,9 +1994,9 @@ function showTestModeNotification() {
 /* ===== 🔥 MULTIPLIER HELPER ===== */
 function getMultiplier(type) {
   const multipliers = {
-    '1x': 1,
+    '1.1x': 1.1,
     '3x': 3,
-    '7x': 7,
+    '5x': 5,
     '11x': 11,
     '50&50': 2,
     'Loot Rush': 5,

@@ -4,7 +4,7 @@
   const isTest = !!window.TEST_MODE;
   if (!isTest) return;
 
-  const SEGMENTS = ['1x', '3x', '7x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
+  const SEGMENTS = ['1.1x', '3x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
 
   // ===== Utils =====
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -258,7 +258,8 @@
 
     // actions
     forceSelect.addEventListener('change', () => {
-      const seg = forceSelect.value;
+      const seg = normSeg(forceSelect.value);
+
       if (!seg) return clearForced();
       forceNext(seg);
     });
@@ -323,6 +324,8 @@
 
   // ===== Actions =====
   function forceNext(seg) {
+    seg = normSeg(seg);
+
     if (window.WheelAdmin && typeof window.WheelAdmin.forceNextSegment === 'function') {
       window.WheelAdmin.forceNextSegment(seg);
       log(`Forced next landing: <b>${seg}</b>`, 'warn');
@@ -411,6 +414,8 @@
   }
 
   async function onTestSegment(seg) {
+    seg = normSeg(seg);
+
     // Bonuses: run directly (it’s how admin тест обычно делают)
     if (seg === '50&50') {
       const ok = await ensure5050Loaded();
@@ -483,7 +488,7 @@
     }
 
     // Fallback: just show win toast if exists
-    const multipliers = { '1x': 1, '3x': 3, '7x': 7, '11x': 11 };
+    const multipliers = { '1.1x': 1.1, '3x': 3, '5x': 5, '11x': 11 };
     const m = multipliers[seg] || 1;
     const bet = 1;
     const win = bet * m;

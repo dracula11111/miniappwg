@@ -718,45 +718,185 @@
      }
 
 
-    /* ===========================
-          HISTORY STRIP
-    =========================== */
-    .history{
-      padding: 6px 8px;
-      padding-top: 10px;
-      margin-top: 1px;
+/* ===========================
+      HISTORY STRIP - CLEAN VERSION
+   =========================== */
+   .history {
+    padding: 8px 12px;
+    margin-top: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  
+  .history-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 6px 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    scroll-behavior: smooth;
+  }
+  
+  .history-list::-webkit-scrollbar { 
+    height: 4px; 
+  }
+  
+  .history-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+  
+  .history-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  
+  .history-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  /* 🔥 History Item - Icon Container (без бордера/плашки) */
+  .history-item {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* Убираем shine-эффект */
+  .history-item::before {
+    content: none;
+  }
+  
+  /* Hover без теней */
+  .history-item:hover {
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: none;
+  }
+  
+  .history-item:active {
+    transform: translateY(-1px) scale(1.02);
+  }
+  
+  /* 🔥 Image inside history item */
+  .history-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: inherit;
+    filter: none;
+    display: block;
+  }
+  
+  .history-item:hover img {
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5)) brightness(1.1);
+  }
+  
+  /* 🔥 New item slide-in animation */
+  @keyframes historySlideIn {
+    0% {
+      opacity: 0;
+      transform: translateX(-30px) scale(0.7) rotate(-8deg);
     }
-    .history-list{
-      display: flex;
+    60% {
+      transform: translateX(5px) scale(1.05) rotate(2deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1) rotate(0deg);
+    }
+  }
+  
+  /* 🔥 First item - без специальных эффектов */
+  .history-item:first-child {
+    background: transparent;
+    box-shadow: none;
+    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  @keyframes historyPulse {
+    0% { 
+      transform: scale(0.7) rotate(-12deg);
+      opacity: 0;
+    }
+    30% { 
+      transform: scale(1.2) rotate(4deg);
+      opacity: 1;
+    }
+    50% { 
+      transform: scale(0.92) rotate(-2deg);
+    }
+    70% { 
+      transform: scale(1.08) rotate(1deg);
+    }
+    85% {
+      transform: scale(0.97) rotate(-0.5deg);
+    }
+    100% { 
+      transform: scale(1) rotate(0deg);
+    }
+  }
+  
+  /* 🔥 Empty state message */
+  .history-list:empty::before {
+    content: 'No history yet';
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 12px 8px;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 13px;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.3px;
+  }
+  
+  /* 🔥 Responsive adjustments */
+  @media (max-width: 480px) {
+    .history {
+      padding: 6px 10px;
+    }
+    
+    .history-item {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border-radius: 9px;
+    }
+    
+    .history-item img {
+      border-radius: 9px;
+    }
+    
+    .history-list {
       gap: 6px;
-      overflow-x: auto;
-      padding: 6px 2px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
     }
-    .history-list::-webkit-scrollbar{ 
-      height:6px; 
-    }
-    .history-list::-webkit-scrollbar-thumb{
-       background:var(--border);
-        border-radius:6px;
-       }
-    .history-icon{
-      width:26px; 
-      height:26px; 
-      flex:0 0 auto; 
-      border-radius:8px;
-      background:var(--card); 
-      border:1px solid var(--border);
-      padding:4px;
+  }
+  
+  /* 🔥 Reduced motion accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    .history-item {
+      animation: none;
+      transition: none;
     }
     
-    
-
-
-
-
-
+    .history-item:hover {
+      transform: none;
+    }
+  }
 
     /* ===========================
                 WHEEL
@@ -783,79 +923,23 @@
     }
 
     /* Pointer */
-    .pointer {
-  position:absolute; 
-  top:4px; 
-  left:50%; 
-  transform:translateX(-50%);
-  font-size:20px; 
-  color:#ffd700; /* Золотой цвет */
-  text-shadow:0 0 12px rgba(255,215,0,.6), 0 0 20px rgba(255,215,0,.3);
-  filter: drop-shadow(0 0 8px rgba(255,215,0,.5));
-  will-change: auto;/* Убрал animation чтобы не трясся */
-}
-
+    .pointer{
+      position:absolute;
+      top:-4px;              /* подстрой: выше/ниже */
+      left:50%;
+      transform:translateX(-50%);
+      width:44px;            /* подстрой размер */
+      height:auto;
+      z-index:10;
+      pointer-events:none;
+      filter: drop-shadow(0 8px 14px rgba(0,0,0,.55));
+    }
+    
 
 /* ===========================
    УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
 =========================== */
 
-/* История - горизонтальный скролл */
-.history {
-  padding: 8px;
-  overflow: hidden;
-}
-
-.history-list {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 6px 2px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-  scroll-behavior: smooth;
-}
-
-.history-list::-webkit-scrollbar {
-  height: 4px;
-}
-
-.history-list::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
-}
-
-.history-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.history-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 10px;
-  color: #fff;
-  font: 700 13px/1 mf, system-ui, sans-serif;
-  flex-shrink: 0;
-  box-shadow: 
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  animation: slideInFromRight 0.3s ease;
-}
-
-@keyframes slideInFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
 
 /* Колесо - улучшенная тень и свечение */
 #wheelCanvas {
@@ -1074,62 +1158,6 @@
   }
 }
 
-/* Бейджи ставок - улучшенные */
-.bet-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: linear-gradient(135deg, #00a6ff, #0d68c3);
-  color: #fff;
-  font-weight: 900;
-  font-size: 13px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  box-shadow: 
-    0 4px 12px rgba(0, 166, 255, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  animation: badgeAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes badgeAppear {
-  from {
-    transform: scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Плитки ставок - улучшенная подсветка */
-.bet-tile.has-bet {
-  border-color: rgba(0, 166, 255, 0.5);
-  box-shadow: 
-    0 0 0 1px rgba(0, 166, 255, 0.3) inset,
-    0 4px 16px rgba(0, 166, 255, 0.2);
-}
-
-.app.is-spinning .bet-tile.has-bet {
-  border-color: rgba(0, 166, 255, 0.7);
-  box-shadow: 
-    0 0 0 2px rgba(0, 166, 255, 0.5) inset,
-    0 6px 20px rgba(0, 166, 255, 0.3);
-  animation: betPulse 1s ease-in-out infinite;
-}
-
-@keyframes betPulse {
-  0%, 100% {
-    box-shadow: 
-      0 0 0 2px rgba(0, 166, 255, 0.5) inset,
-      0 6px 20px rgba(0, 166, 255, 0.3);
-  }
-  50% {
-    box-shadow: 
-      0 0 0 2px rgba(0, 166, 255, 0.7) inset,
-      0 8px 24px rgba(0, 166, 255, 0.5);
-  }
-}
 
 /* Адаптив для маленьких экранов */
 @media (max-width: 380px) {
@@ -1139,292 +1167,485 @@
     font-size: 12px;
     padding: 0 10px;
   }
+  }
+      /* ===========================
+   BET PILLS - Color-coded by segment
+   =========================== */
+.bet-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: pillAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+}
+
+.bet-pill__amount {
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.bet-pill__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Segment-specific colors (matching wheel sectors) */
+.bet-pill[data-segment="1.1x"] {
+  background: linear-gradient(135deg, #c46200, #6f3b00);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(111, 106, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="3x"] {
+  background: linear-gradient(135deg, #43d400, #266e00);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(110, 66, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="5x"] {
+  background: linear-gradient(135deg, #127239, #0f5a2e);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(15, 90, 46, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="11x"] {
+  background: linear-gradient(135deg, #0d5080, #0a3f64);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(10, 63, 100, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="50&50"] {
+  background: linear-gradient(135deg, #f71c95, #d9197a);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(217, 25, 122, 0.5),
+    0 0 20px rgba(217, 25, 122, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.bet-pill[data-segment="Loot Rush"] {
+  background: linear-gradient(135deg, #8236f7, #6c2bd9);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(108, 43, 217, 0.5),
+    0 0 20px rgba(108, 43, 217, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.bet-pill[data-segment="Wild Time"] {
+  background: linear-gradient(135deg, #e01b21, #c5161d);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(197, 22, 29, 0.5),
+    0 0 20px rgba(197, 22, 29, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+@keyframes pillAppear {
+  from {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pillUpdate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Плитки ставок - улучшенная подсветка */
+.bet-tile.has-bet {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.app.is-spinning .bet-tile.has-bet {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 0 0 2px rgba(255, 255, 255, 0.15) inset,
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: betPulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes betPulseGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 0 2px rgba(255, 255, 255, 0.15) inset,
+      0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    box-shadow: 
+      0 0 0 2px rgba(255, 255, 255, 0.25) inset,
+      0 12px 32px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ===========================
+            BET PANEL
+   =========================== */
+.bet-overlay {
+  position: relative; 
+  padding: 6px 10px 14px; 
+  transition: transform .4s ease, opacity .4s ease; 
+}
+
+.app.is-spinning .bet-overlay { 
+  transform: translateY(18px); 
+  opacity: .55; 
+}
+
+/* ===========================
+       AMOUNT CHIPS (SVG)
+   =========================== */
+.bet-amounts {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 6px 10px;
+}
+
+.amount-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+}
+
+.amount-icon { 
+  width: 20px; 
+  height: 20px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.amount-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: opacity 0.2s ease;
+}
+
+.amount-btn:active { 
+  transform: translateY(1px); 
+}
+
+.amount-btn.active { 
+  border-color: rgba(0, 166, 255, .6); 
+  box-shadow: 0 0 0 3px var(--accent-ghost); 
+}
+
+.amount-btn.active .amount-value {
+  color: var(--accent);
+}
+
+/* 🔥 Анимация смены валюты на кнопках */
+.amount-btn.currency-switching .amount-icon,
+.amount-btn.currency-switching .amount-value {
+  animation: currencySwitchBtn 0.3s ease;
+}
+
+@keyframes currencySwitchBtn {
+  0% { 
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  50% { 
+    opacity: 0;
+    transform: scale(0.8) rotate(-15deg);
+  }
+  100% { 
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Контейнер: кнопка очистки + суммы */
+.bet-controls {
+  position: relative;
+  padding: 6px 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Кнопка очистки - маленькая, слева */
+.clear-bets-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.25);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clear-bets-btn:hover {
+  background: rgba(255, 77, 79, 0.15);
+  border-color: rgba(255, 77, 79, 0.4);
+  transform: scale(1.05);
+}
+
+.clear-bets-btn:active {
+  transform: scale(0.95);
+}
+
+.clear-bets-btn img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
+  opacity: 0.9;
+}
+
+.clear-bets-btn:hover img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
+}
+
+/* Bet grid (tickets) */
+.bet-grid {
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 12px;
+  padding: 4px 4px 0;
+}
+
+.bet-tile {
+  position: relative;
+  background: linear-gradient(145deg, rgba(18, 25, 35, 0.95), rgba(12, 18, 28, 0.98));
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px; 
+  padding: 8px;
+  transition: all .25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/* Внутреннее свечение для всех плиток */
+.bet-tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+
+.bet-tile:hover::before {
+  opacity: 1;
+}
+
+.bet-tile > img.bet-img { 
+  width: 100%; 
+  height: auto; 
+  border-radius: 14px;
+  display: block;
+  transition: transform .25s ease, filter .25s ease;
+}
+
+.bet-tile:hover > img.bet-img {
+  transform: scale(1.02);
+}
+
+/* Hover эффект - легкий подъем */
+.bet-tile:hover { 
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bet-tile:hover img {
+  transform: scale(1.02);
+}
+
+/* Active эффект */
+.bet-tile:active { 
+  transform: translateY(-1px) scale(0.98);
+}
+
+/* Широкая плитка */
+.bet-tile.wide { 
+  grid-column: span 2; 
+}
+
+/* Числовые множители - более приглушенные */
+.bet-tile.muted { 
+  filter: saturate(.7) brightness(.85); 
+}
+
+.bet-tile.muted:hover {
+  filter: saturate(.85) brightness(.95);
+}
+
+/* Бонусные плитки - яркое неоновое свечение */
+.bet-tile.bonus { 
+  filter: none;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+/* Специфичные свечения для разных бонусов */
+.bet-tile.bonus[data-seg="50&50"] {
+  box-shadow: 
+    0 8px 32px rgba(255, 0, 255, 0.3),
+    0 0 40px rgba(138, 43, 226, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="50&50"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(255, 0, 255, 0.4),
+    0 0 60px rgba(138, 43, 226, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.bet-tile.bonus[data-seg="Loot Rush"] {
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 127, 0.3),
+    0 0 40px rgba(50, 205, 50, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="Loot Rush"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(0, 255, 127, 0.4),
+    0 0 60px rgba(50, 205, 50, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.bet-tile.bonus[data-seg="Wild Time"] {
+  box-shadow: 
+    0 8px 32px rgba(255, 69, 0, 0.4),
+    0 0 40px rgba(255, 140, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="Wild Time"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(255, 69, 0, 0.5),
+    0 0 60px rgba(255, 140, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+/* During spin: non-bet tiles fade, bet tiles stay visible */
+.app.is-spinning .bet-tile { 
+  opacity: .45; 
+}
+
+.app.is-spinning .bet-tile.has-bet {
+  opacity: 1;
+}
+
+/* ===========================
+   RESPONSIVE
+   =========================== */
+@media (max-width: 380px) {
+  .history-item {
+    min-width: 44px;
+    height: 28px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
   
-  .bet-badge {
+  .bet-pill {
     font-size: 11px;
-    padding: 3px 6px;
+    padding: 5px 8px;
+    gap: 4px;
     top: 6px;
     right: 6px;
   }
+  
+  .bet-pill__icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .bet-controls {
+    gap: 6px;
+    padding: 6px 4px 10px;
+  }
+  
+  .clear-bets-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .clear-bets-btn img {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .bet-amounts {
+    gap: 6px;
+  }
 }
+
+@media (max-width: 360px) {
+  .bet-controls {
+    gap: 4px;
+  }
   
+  .clear-bets-btn {
+    width: 34px;
+    height: 34px;
+  }
   
-  
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  /* ===========================
-              BET PANEL
-     =========================== */
-     .bet-overlay{
-       position:relative; 
-       padding:6px 10px 14px; 
-       transition: transform .4s ease, opacity .4s ease; 
-      }
-     .app.is-spinning .bet-overlay{ 
-      transform: translateY(18px); 
-      opacity:.55; 
-    }
-    
-    
-    
-
-
-
-
-    /* ===========================
-           AMOUNT CHIPS (SVG)
-     =========================== */
-
- 
-    .bet-amounts{
-      display:flex; justify-content:center; gap:10px;
-      padding:6px 6px 10px;
-    }
-    .amount-btn{
-      background:var(--panel);
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding: 10px 12px;
-      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 6px;
-      min-width: 64px;
-    }
-    
-    .amount-icon{ 
-      width: 20px; 
-      height: 20px;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-      flex-shrink: 0;
-    }
-    
-    .amount-value {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text);
-      line-height: 1;
-      transition: opacity 0.2s ease;
-    }
-    
-    .amount-btn:active{ 
-      transform: translateY(1px); 
-    }
-    
-    .amount-btn.active{ 
-      border-color: rgba(0,166,255,.6); 
-      box-shadow:0 0 0 3px var(--accent-ghost); 
-    }
-    
-    .amount-btn.active .amount-value {
-      color: var(--accent);
-    }
-    
-    /* 🔥 Анимация смены валюты на кнопках */
-    .amount-btn.currency-switching .amount-icon,
-    .amount-btn.currency-switching .amount-value {
-      animation: currencySwitchBtn 0.3s ease;
-    }
-    
-    @keyframes currencySwitchBtn {
-      0% { 
-        opacity: 1;
-        transform: scale(1) rotate(0deg);
-      }
-      50% { 
-        opacity: 0;
-        transform: scale(0.8) rotate(-15deg);
-      }
-      100% { 
-        opacity: 1;
-        transform: scale(1) rotate(0deg);
-      }
-    }
-   
-    .amount-btn:active{ 
-      transform: translateY(1px); 
-    }
-    .amount-btn.active{ 
-      border-color: rgba(0,166,255,.6); 
-      box-shadow:0 0 0 3px var(--accent-ghost); 
-    }
-        
-    
-
-
-
-
-    
-         /* Контейнер: кнопка очистки + суммы */
-         .bet-controls {
-          position: relative;
-          padding: 6px 6px 10px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        /* Кнопка очистки - маленькая, слева */
-        .clear-bets-btn {
-          flex-shrink: 0;
-          width: 40px;
-          height: 40px;
-          background: rgba(255, 77, 79, 0.1);
-          border: 1px solid rgba(255, 77, 79, 0.25);
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all .2s ease;
-          -webkit-tap-highlight-color: transparent;
-        }
-
-        .clear-bets-btn:hover {
-          background: rgba(255, 77, 79, 0.15);
-          border-color: rgba(255, 77, 79, 0.4);
-          transform: scale(1.05);
-        }
-
-        .clear-bets-btn:active {
-          transform: scale(0.95);
-        }
-
-        .clear-bets-btn img {
-          width: 18px;
-          height: 18px;
-          filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
-          opacity: 0.9;
-        }
-
-        .clear-bets-btn:hover img {
-          opacity: 1;
-          filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
-        }
-
-        /* Суммы - центрированы */
-        .bet-amounts {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 10px;
-          flex: 1;
-          min-width: 0;
-        }
-        
-        /* Адаптив для маленьких экранов */
-        @media (max-width: 380px) {
-          .bet-controls {
-            gap: 6px;
-            padding: 6px 4px 10px;
-          }
-          
-          .clear-bets-btn {
-            width: 36px;
-            height: 36px;
-          }
-          
-          .clear-bets-btn img {
-            width: 16px;
-            height: 16px;
-          }
-          
-          .bet-amounts {
-            gap: 6px;
-          }
-        }
-        
-        @media (max-width: 360px) {
-          .bet-controls {
-            gap: 4px;
-          }
-          
-          .clear-bets-btn {
-            width: 34px;
-            height: 34px;
-          }
-          
-          .bet-amounts {
-            gap: 4px;
-          }
-        }
-    
-                    /* Bet grid (tickets) */
-        .bet-grid{
-          display:grid; 
-          grid-template-columns:1fr 1fr; 
-          gap:10px;
-          padding:4px 4px 0;
-        }
-        .bet-tile{
-          position:relative;
-          background:var(--card); 
-          border:1px solid var(--border);
-          border-radius:16px; 
-          padding:10px;
-          transition: transform .12s ease, box-shadow .12s ease, opacity .2s ease;
-        }
-        .bet-tile img{ 
-          width:100%; 
-          height:auto; 
-          border-radius:12px; 
-        }
-        .bet-tile:active{ 
-          transform: translateY(1px); 
-        }
-        .bet-tile.wide{ 
-          grid-column:span 2; 
-        }
-        .bet-tile.muted{ 
-          filter:saturate(.6) brightness(.9); 
-        } /* числовые не такие яркие */
-        .bet-tile.bonus{ 
-          filter:none; 
-          box-shadow: 0 0 0 0 rgba(0,0,0,0); 
-        }
-
-       
-        /* Badge with placed amount count (optional) */
-      .bet-badge{
-        position:absolute; 
-        top:8px; 
-        right:8px;
-        background:var(--accent); 
-        color:#001018; 
-        font-weight:900; 
-        font-size:12px;
-        padding:4px 7px; 
-        border-radius:999px; 
-        box-shadow:0 6px 16px rgba(0,166,255,.25);
-      }
-      
-      
-      /* During spin: non-bet tiles fade, bet tiles stay visible (JS will toggle .has-bet) */
-      .app.is-spinning .bet-tile{ opacity:.45; 
-      }
-      .app.is-spinning .bet-tile.has-bet{
-        opacity:1; 
-        box-shadow:0 0 0 2px var(--accent-ghost), 0 8px 18px rgba(0,0,0,.25);
-      }
-
-
-
+  .bet-amounts {
+    gap: 4px;
+  }
+}
 
 
 
@@ -4791,13 +5012,9 @@ body.case-sheet-open .case-sheet-panel{
 
 
 
-
-
-  
-/* =========================================================
-   BONUS 50/50 — FULL CSS (CLEAN, NO DUPES)
-   Uses ONLY .b5050-pointer elements (from bonus-5050.js)
-   Paste at THE VERY END of style.css
+    /* =========================================================
+   BONUS 50/50 — UPDATED DESIGN (Blue vs Pink Energy)
+   
    ========================================================= */
 
 /* Lock scroll during cutscene */
@@ -4816,7 +5033,7 @@ body.bonus-active{
   position: fixed;
   inset: 0;
   z-index: 999999;
-  display: none; /* JS sets flex */
+  display: none;
   align-items: center;
   justify-content: center;
 
@@ -4832,13 +5049,16 @@ body.bonus-active{
   opacity: 0;
 }
 
-/* Backdrop */
+/* Backdrop - darker with slight gradient */
 #bonus5050Overlay .bonus-overlay__blur-backdrop{
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(16px) brightness(0.75) saturate(0.9);
-  -webkit-backdrop-filter: blur(16px) brightness(0.75) saturate(0.9);
+  background: radial-gradient(ellipse at center,
+    rgba(20, 10, 40, 0.75) 0%,
+    rgba(10, 5, 25, 0.88) 100%
+  );
+  backdrop-filter: blur(18px) brightness(0.65) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) brightness(0.65) saturate(1.2);
 }
 
 /* Container */
@@ -4881,7 +5101,7 @@ body.bonus-active{
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Bulbs */
+/* Bulbs - энергетические сферы */
 .b5050-bulbs{
   display: flex;
   justify-content: space-between;
@@ -4889,15 +5109,18 @@ body.bonus-active{
   margin: 10px 0;
 }
 .b5050-bulb{
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.16), 0 10px 22px rgba(0,0,0,0.35);
-  opacity: 0.9;
+  background: linear-gradient(135deg, #667eea 0%, #e94287 100%);
+  box-shadow: 
+    0 0 12px rgba(102, 126, 234, 0.6),
+    0 0 24px rgba(233, 66, 135, 0.4),
+    inset 0 0 8px rgba(255,255,255,0.3);
+  opacity: 0.85;
 }
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb{
-  animation: b5050Bulb 1200ms ease-in-out infinite;
+  animation: b5050BulbPulse 1400ms ease-in-out infinite;
 }
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(2){ animation-delay: 100ms; }
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(3){ animation-delay: 200ms; }
@@ -4907,27 +5130,95 @@ body.bonus-active{
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(7){ animation-delay: 600ms; }
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(8){ animation-delay: 700ms; }
 #bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(9){ animation-delay: 800ms; }
-@keyframes b5050Bulb{
-  0%{ opacity: .65; transform: scale(0.96); }
-  50%{ opacity: 1; transform: scale(1.03); }
-  100%{ opacity: .78; transform: scale(0.98); }
+
+@keyframes b5050BulbPulse{
+  0%{ 
+    opacity: .65; 
+    transform: scale(0.96);
+    box-shadow: 
+      0 0 8px rgba(102, 126, 234, 0.4),
+      0 0 16px rgba(233, 66, 135, 0.3);
+  }
+  50%{ 
+    opacity: 1; 
+    transform: scale(1.08);
+    box-shadow: 
+      0 0 18px rgba(102, 126, 234, 0.8),
+      0 0 32px rgba(233, 66, 135, 0.6);
+  }
+  100%{ 
+    opacity: .78; 
+    transform: scale(0.98);
+    box-shadow: 
+      0 0 10px rgba(102, 126, 234, 0.5),
+      0 0 20px rgba(233, 66, 135, 0.4);
+  }
 }
 
-/* Gold frame */
-.b5050-frame{
+/* Dual container */
+.b5050-dual{
   position: relative;
-  padding: 14px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #f3c35a 0%, #e0a62d 50%, #c98413 100%);
-  box-shadow: 0 22px 60px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.30);
+  width: min(360px, 88vw);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-/* =========================================================
-   POINTERS (FIXED): always point INSIDE the drum
-   Left  ▶  points RIGHT   (border-left)
-   Right ◀  points LEFT    (border-right)
-   ========================================================= */
+/* Unit blocks */
+.b5050-unit{ 
+  position: relative;
+}
 
+/* Frame - энергетический градиент вместо золота */
+.b5050-unitframe{
+  position: relative;
+  padding: 12px;
+  border-radius: 22px;
+  background: linear-gradient(
+    135deg,
+    #4f46e5 0%,
+    #7c3aed 25%,
+    #db2777 75%,
+    #f43f5e 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 20px 50px rgba(79, 70, 229, 0.3),
+    0 20px 50px rgba(219, 39, 119, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Good unit (blue/purple dominant) */
+.b5050-unit--good .b5050-unitframe{
+  background: linear-gradient(
+    135deg,
+    #4f46e5 0%,
+    #6366f1 50%,
+    #8b5cf6 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 20px 50px rgba(79, 70, 229, 0.5),
+    0 8px 30px rgba(139, 92, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Bad unit (pink/red dominant) */
+.b5050-unit--bad .b5050-unitframe{
+  background: linear-gradient(
+    135deg,
+    #ec4899 0%,
+    #f43f5e 50%,
+    #ef4444 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 20px 50px rgba(236, 72, 153, 0.5),
+    0 8px 30px rgba(244, 63, 94, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Pointers - lightning-styled arrows */
 .b5050-pointer{
   position: absolute;
   top: 50%;
@@ -4936,29 +5227,30 @@ body.bonus-active{
   height: 0;
   pointer-events: none;
   z-index: 5;
-
-  /* stable rendering */
   will-change: transform;
-  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.45));
 }
 
-/* Left pointer: ▶ (to center) */
+/* Left pointer */
 .b5050-pointer--left{
   left: 6px;
   border-top: 18px solid transparent;
   border-bottom: 18px solid transparent;
-  border-left: 22px solid #d18a10;
+  border-left: 22px solid #a78bfa;
+  filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.8))
+          drop-shadow(0 10px 20px rgba(0,0,0,0.4));
 }
 
-/* Right pointer: ◀ (to center) */
+/* Right pointer */
 .b5050-pointer--right{
   right: 6px;
   border-top: 18px solid transparent;
   border-bottom: 18px solid transparent;
-  border-right: 22px solid #d18a10;
+  border-right: 22px solid #f472b6;
+  filter: drop-shadow(0 0 12px rgba(244, 114, 182, 0.8))
+          drop-shadow(0 10px 20px rgba(0,0,0,0.4));
 }
 
-/* Inner dark cut (creates “notch” inside pointer) */
+/* Inner notch */
 .b5050-pointer--left::after,
 .b5050-pointer--right::after{
   content: "";
@@ -4971,28 +5263,43 @@ body.bonus-active{
   opacity: .95;
 }
 
-/* cut follows direction */
 .b5050-pointer--left::after{
-  left: -19px; /* inside the triangle */
-  border-left: 18px solid #3a2a12;
+  left: -19px;
+  border-left: 18px solid #1e1b4b;
 }
 .b5050-pointer--right::after{
   right: -19px;
-  border-right: 18px solid #3a2a12;
+  border-right: 18px solid #4a1d34;
 }
 
-/* Window (drum) */
+/* Window (drum) - темный космический фон */
 .b5050-window{
   position: relative;
-  height: 190px;
+  height: 150px;
   border-radius: 16px;
-  overflow: hidden; /* IMPORTANT: cut the track only */
-  background: linear-gradient(180deg, #1a202c 0%, #0f1420 100%);
-  border: 2px solid rgba(0,0,0,0.35);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  overflow: hidden;
+  background: linear-gradient(180deg, 
+    #0f0a2e 0%, 
+    #1a1147 50%,
+    #0a0618 100%
+  );
+  border: 2px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 
+    inset 0 0 40px rgba(79, 70, 229, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-/* Shading */
+/* Picked unit glow */
+.b5050-unit.is-picked .b5050-window{
+  border-color: rgba(167, 139, 250, 0.6);
+  box-shadow:
+    0 0 0 2px rgba(167, 139, 250, 0.4),
+    0 0 40px rgba(167, 139, 250, 0.3),
+    inset 0 0 60px rgba(167, 139, 250, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Shading - добавляем энергетическое свечение по краям */
 .b5050-shade{
   position: absolute;
   inset: 0;
@@ -5000,10 +5307,10 @@ body.bonus-active{
   z-index: 2;
   background: linear-gradient(
     180deg,
-    rgba(0,0,0,0.55),
-    rgba(0,0,0,0) 34%,
-    rgba(0,0,0,0) 66%,
-    rgba(0,0,0,0.65)
+    rgba(79, 70, 229, 0.25) 0%,
+    rgba(0, 0, 0, 0) 34%,
+    rgba(0, 0, 0, 0) 66%,
+    rgba(236, 72, 153, 0.25) 100%
   );
 }
 
@@ -5021,7 +5328,7 @@ body.bonus-active{
   z-index: 1;
 }
 
-/* Cells */
+/* Cells - звездная эстетика */
 .b5050-cell{
   height: 56px;
   border-radius: 14px;
@@ -5034,39 +5341,127 @@ body.bonus-active{
   letter-spacing: 0.5px;
 
   color: #fff;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
-  text-shadow: 0 10px 24px rgba(0,0,0,0.45);
+  background: rgba(30, 27, 75, 0.6);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  text-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.8),
+    0 10px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.1);
+  position: relative;
+}
+
+/* Звездочки на ячейках */
+.b5050-cell::before{
+  content: "✦";
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 14px;
+  opacity: 0.3;
+  color: #a78bfa;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle{
+  0%, 100%{ opacity: 0.2; transform: scale(0.9) rotate(0deg); }
+  50%{ opacity: 0.6; transform: scale(1.1) rotate(180deg); }
 }
 
 /* Highlight landed */
 .b5050-cell.is-win{
-  background: rgba(255, 208, 40, 0.16);
-  border-color: rgba(255, 162, 40, 0.75);
-  box-shadow: 0 0 24px rgba(255, 205, 40, 0.45), inset 0 0 0 1px rgba(255,255,255,0.10);
+  background: rgba(167, 139, 250, 0.25);
+  border-color: rgba(167, 139, 250, 0.8);
+  box-shadow: 
+    0 0 30px rgba(167, 139, 250, 0.6),
+    0 0 60px rgba(244, 114, 182, 0.4),
+    inset 0 0 30px rgba(167, 139, 250, 0.2);
   transform: scale(1.05);
+  text-shadow: 
+    0 0 30px rgba(255, 255, 255, 1),
+    0 0 50px rgba(167, 139, 250, 1);
 }
 
-/* Center line */
+/* VS - молния */
+.b5050-vs{
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  letter-spacing: 3px;
+  font-size: 16px;
+  color: #fff;
+  
+  text-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.9),
+    0 0 40px rgba(244, 114, 182, 0.9),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  
+  opacity: 0.95;
+  position: relative;
+}
+
+/* Lightning icon styling */
+.b5050-lightning-icon{
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: 
+    drop-shadow(0 0 16px rgba(167, 139, 250, 0.8))
+    drop-shadow(0 0 24px rgba(244, 114, 182, 0.6))
+    drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5));
+  animation: b5050LightningPulse 1800ms ease-in-out infinite;
+  will-change: filter, transform;
+}
+
+@keyframes b5050LightningPulse{
+  0%{ 
+    filter: 
+      drop-shadow(0 0 12px rgba(167, 139, 250, 0.6))
+      drop-shadow(0 0 20px rgba(244, 114, 182, 0.5))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
+    transform: scale(0.98) rotate(-2deg);
+  }
+  50%{ 
+    filter: 
+      drop-shadow(0 0 24px rgba(167, 139, 250, 1))
+      drop-shadow(0 0 36px rgba(244, 114, 182, 0.9))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.6));
+    transform: scale(1.08) rotate(2deg);
+  }
+  100%{ 
+    filter: 
+      drop-shadow(0 0 14px rgba(167, 139, 250, 0.7))
+      drop-shadow(0 0 22px rgba(244, 114, 182, 0.6))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5));
+    transform: scale(1) rotate(-1deg);
+  }
+}
+
+/* Center line - яркая энергетическая линия */
 .b5050-centerline{
   position: absolute;
   left: 18px;
   right: 18px;
   top: 50%;
   transform: translateY(-50%);
-  height: 2px;
+  height: 3px;
   border-radius: 999px;
   z-index: 3;
   pointer-events: none;
 
   background: linear-gradient(90deg,
-    rgba(40,170,255,0) 0%,
-    rgba(255, 234, 40, 0.85) 20%,
-    rgba(255,255,255,0.95) 50%,
-    rgba(255, 165, 40, 0.85) 80%,
-    rgba(40,170,255,0) 100%
+    rgba(79, 70, 229, 0) 0%,
+    rgba(139, 92, 246, 0.9) 20%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(244, 114, 182, 0.9) 80%,
+    rgba(236, 72, 153, 0) 100%
   );
-  box-shadow: 0 0 18px rgba(40,170,255,0.35), 0 0 4px rgba(255,255,255,0.25);
+  box-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.8),
+    0 0 40px rgba(244, 114, 182, 0.6),
+    0 0 8px rgba(255, 255, 255, 0.9);
 }
 
 /* Result big X */
@@ -5083,231 +5478,19 @@ body.bonus-active{
   color: #fff;
 
   text-shadow:
-    0 18px 40px rgba(0,0,0,0.55),
-    0 0 34px rgba(40,170,255,0.35);
+    0 0 40px rgba(167, 139, 250, 1),
+    0 0 80px rgba(244, 114, 182, 0.8),
+    0 18px 40px rgba(0, 0, 0, 0.7);
 
   opacity: 0;
   transform: scale(0.92);
   pointer-events: none;
-  z-index: 10;
+  z-index: 10000000;
   transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
 }
 
-/* Timer */
-.b5050-timer{
-  font-weight: 900;
-  font-size: 44px;
-  line-height: 1;
-  color: #fff;
-  text-shadow: 0 14px 28px rgba(0,0,0,0.45);
-  min-height: 44px;
-  text-align: center;
-}
-.b5050-timer.pop{
-  animation: b5050Pop 220ms ease;
-}
-@keyframes b5050Pop{
-  0%{ transform: scale(1); opacity: 0.9; }
-  60%{ transform: scale(1.10); opacity: 1; }
-  100%{ transform: scale(1); opacity: 1; }
-}
 
-/* =========================================================
-   RESULT MODE (works with b5050-machine--result from JS)
-   ========================================================= */
-.b5050-machine--result .b5050-bulbs,
-.b5050-machine--result .b5050-pointer,
-.b5050-machine--result .b5050-timer{
-  opacity: 0;
-  transform: translateY(-4px) scale(0.98);
-  pointer-events: none;
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.b5050-machine--result .b5050-centerline,
-.b5050-machine--result .b5050-shade{
-  opacity: 0;
-  transition: opacity 220ms ease;
-}
-
-.b5050-machine--result .b5050-track{
-  opacity: 0;
-  filter: blur(2px);
-  transition: opacity 240ms ease, filter 240ms ease;
-}
-
-.b5050-machine--result .b5050-frame{
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  transition: background 240ms ease, box-shadow 240ms ease, padding 240ms ease;
-}
-
-.b5050-machine--result .b5050-window{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  height: 180px;
-  transition: background 240ms ease, box-shadow 240ms ease, border 240ms ease;
-}
-
-.b5050-machine--result .b5050-result{
-  opacity: 1;
-  transform: scale(1);
-}
-/* ===== 50/50 DUAL REELS ADDON ===== */
-.b5050-windows{
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* два барабана чуть меньше высотой */
-.b5050-window{
-  height: 150px;
-  position: relative;
-}
-
-/* подсветка выбранного барабана */
-.b5050-window.is-picked{
-  box-shadow:
-    0 0 0 2px rgba(255, 200, 40, 0.45),
-    0 0 28px rgba(255, 200, 40, 0.25),
-    inset 0 0 0 1px rgba(255,255,255,0.10);
-}
-
-
-/* ячейка на НЕ выбранном барабане (тускло) */
-.b5050-cell.is-dim{
-  opacity: 0.45;
-  filter: saturate(0.7) brightness(0.95);
-}
-
-/* ячейка на выбранном (победном) барабане */
-.b5050-cell.is-picked{
-  box-shadow:
-    0 0 26px rgba(255,205,40,0.45),
-    inset 0 0 0 1px rgba(255,255,255,0.12);
-}
-
-/* ===== 50/50: two separate drums + VS gap (classic reveal) ===== */
-
-/* на всякий — отключаем старые псевдо-стрелки, если они где-то остались */
-.b5050-window::before,
-.b5050-window::after{
-  content: none !important;
-  display: none !important;
-}
-
-/* вертикальная компоновка: барабан / VS / барабан */
-.b5050-dual{
-  position: relative;
-  width: min(360px, 88vw);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;              /* расстояние между блоками */
-}
-
-/* отдельный блок-барабан (НЕ соединены рамкой) */
-.b5050-unit{ position: relative; }
-.b5050-unitframe{
-  position: relative;
-  padding: 12px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #f3c35a 0%, #e0a62d 50%, #c98413 100%);
-  box-shadow: 0 22px 60px rgba(0,0,0,0.55), inset 0 2px 0 rgba(255,255,255,0.30);
-}
-
-/* окно барабана */
-.b5050-window{
-  position: relative;
-  height: 150px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #1a202c 0%, #0f1420 100%);
-  border: 2px solid rgba(0,0,0,0.35);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
-}
-
-/* VS просто текстом посередине */
-.b5050-vs{
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-weight: 1000;
-  letter-spacing: 2px;
-  font-size: 14px;
-  color: rgba(255,255,255,0.9);
-
-  opacity: 0.9;
-}
-
-/* стрелки (стабильно смотрят внутрь) */
-.b5050-pointer{
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0; height: 0;
-  pointer-events: none;
-  z-index: 5;
-  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
-}
-
-
-/* выбранный барабан */
-.b5050-unit.is-picked .b5050-window{
-  box-shadow:
-    0 0 0 2px rgba(255, 200, 40, 0.38),
-    0 0 30px rgba(255, 200, 40, 0.18),
-    inset 0 0 0 1px rgba(255,255,255,0.10);
-}
-
-/* центр-линия */
-.b5050-centerline{
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 2px;
-  border-radius: 999px;
-  z-index: 3;
-  pointer-events: none;
-
-  background: linear-gradient(90deg,
-    rgba(40,170,255,0) 0%,
-    rgba(255, 234, 40, 0.85) 20%,
-    rgba(255,255,255,0.95) 50%,
-    rgba(255, 165, 40, 0.85) 80%,
-    rgba(40,170,255,0) 100%
-  );
-  box-shadow: 0 0 18px rgba(40,170,255,0.35), 0 0 4px rgba(255,255,255,0.25);
-}
-
-/* результат поверх всего dual-блока */
-.b5050-result{
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  font-weight: 1000;
-  font-size: 92px;
-  letter-spacing: 1px;
-  color: #fff;
-
-  text-shadow: 0 18px 40px rgba(0,0,0,0.55), 0 0 34px rgba(40,170,255,0.35);
-
-  opacity: 0;
-  transform: scale(0.92);
-  pointer-events: none;
-  z-index: 10;
-  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
-}
-/* убрать белые "светлячки" на этапе исчезновения барабанов */
+/* ===== RESULT MODE ===== */
 .b5050-machine--collapse .b5050-bulbs{
   opacity: 0;
   transform: translateY(-6px) scale(0.98);
@@ -5315,11 +5498,17 @@ body.bonus-active{
 }
 
 .b5050-machine--collapse .b5050-bulb{
-  animation: none !important; /* стопаем мерцание */
+  animation: none !important;
 }
 
+.b5050-machine--collapse .b5050-unit,
+.b5050-machine--collapse .b5050-vs{
+  opacity: 0;
+  transform: translateY(-10px) scale(0.975);
+  pointer-events: none;
+  transition: opacity 650ms ease, transform 650ms cubic-bezier(0.16, 0.84, 0.18, 1);
+}
 
-/* classic reveal: убираем барабаны и VS, показываем X */
 .b5050-machine--result .b5050-unit,
 .b5050-machine--result .b5050-vs{
   opacity: 0;
@@ -5332,27 +5521,8 @@ body.bonus-active{
   opacity: 1;
   transform: scale(1);
 }
-/* ===== 50/50: collapse -> 2x fly to center -> boom ===== */
 
-/* если где-то остались псевдо-стрелки — вырубаем */
-.b5050-window::before,
-.b5050-window::after{
-  content:none !important;
-  display:none !important;
-}
-
-/* ===== 50/50: smooth collapse -> 2s hold -> slow collide -> boom + particles ===== */
-
-/* этап: плавно убрать барабаны и VS */
-.b5050-machine--collapse .b5050-unit,
-.b5050-machine--collapse .b5050-vs{
-  opacity: 0;
-  transform: translateY(-10px) scale(0.975);
-  pointer-events: none;
-  transition: opacity 650ms ease, transform 650ms cubic-bezier(0.16, 0.84, 0.18, 1);
-}
-
-/* Два "голых" X (fixed для стабильности) */
+/* ===== FLYING X LABELS ===== */
 .b5050-flyx{
   position: fixed;
   transform: translate3d(-50%,-50%,0);
@@ -5363,13 +5533,33 @@ body.bonus-active{
   font-size: 56px;
   letter-spacing: 0.5px;
   color: #fff;
-
   padding: 10px 16px;
-  
-
 }
 
+/* Blue side */
+.b5050-flyx--good{
+  text-shadow: 
+    0 0 30px rgba(139, 92, 246, 1),
+    0 0 60px rgba(79, 70, 229, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.6);
+}
 
+/* Pink side */
+.b5050-flyx--bad{
+  text-shadow: 
+    0 0 30px rgba(244, 114, 182, 1),
+    0 0 60px rgba(236, 72, 153, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.b5050-flyx--idle{
+  animation: b5050Idle 1200ms ease-in-out infinite;
+}
+@keyframes b5050Idle{
+  0%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+  50%{ transform: translate3d(-50%,-50%,0) scale(1.04); opacity: 1; }
+  100%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+}
 
 .b5050-flyx--clash{
   animation: b5050Clash 200ms ease both;
@@ -5380,19 +5570,32 @@ body.bonus-active{
   100%{ transform: translate3d(-50%,-50%,0) scale(0.98); }
 }
 
-/* BOOM */
+/* ===== EFFECTS ===== */
+.b5050-shake{
+  animation: b5050Shake 240ms ease both;
+}
+@keyframes b5050Shake{
+  0%{ transform: translate3d(0,0,0); }
+  25%{ transform: translate3d(2px,-2px,0); }
+  50%{ transform: translate3d(-2px,2px,0); }
+  75%{ transform: translate3d(2px,1px,0); }
+  100%{ transform: translate3d(0,0,0); }
+}
+
+/* BOOM explosion */
 .b5050-boom{
   position: fixed;
   transform: translate3d(-50%,-50%,0) scale(0.85);
-  z-index: 10000001;
+  z-index: 10000007;
   pointer-events: none;
-
   width: 240px;
   height: 240px;
   object-fit: contain;
-
   opacity: 0;
-  filter: drop-shadow(0 20px 60px rgba(0,0,0,0.65));
+  filter: 
+    drop-shadow(0 0 40px rgba(167, 139, 250, 0.8))
+    drop-shadow(0 0 60px rgba(244, 114, 182, 0.8))
+    drop-shadow(0 20px 60px rgba(0, 0, 0, 0.7));
 }
 .b5050-boom.is-on{
   opacity: 1;
@@ -5405,44 +5608,21 @@ body.bonus-active{
   transition: opacity 520ms ease, transform 520ms ease;
 }
 
-/* PARTICLES around */
+/* PARTICLES */
 .b5050-particle{
   position: fixed;
   transform: translate3d(-50%,-50%,0);
-  z-index: 10000000;
+  z-index: 10000006;
   pointer-events: none;
   object-fit: contain;
   opacity: 0;
-  filter: drop-shadow(0 16px 50px rgba(0,0,0,0.55));
+  filter: 
+    drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))
+    drop-shadow(0 0 30px rgba(244, 114, 182, 0.6))
+    drop-shadow(0 16px 50px rgba(0, 0, 0, 0.6));
 }
 
-/* winner is under boom, appears after fx */
-.b5050-result{ z-index: 10000000; }
-/* ===== nicer collide FX ===== */
-
-/* лёгкое дыхание пока "висят" */
-.b5050-flyx--idle{
-  animation: b5050Idle 1200ms ease-in-out infinite;
-}
-@keyframes b5050Idle{
-  0%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
-  50%{ transform: translate3d(-50%,-50%,0) scale(1.04); opacity: 1; }
-  100%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
-}
-
-/* микро-встряска экрана на удар */
-.b5050-shake{
-  animation: b5050Shake 240ms ease both;
-}
-@keyframes b5050Shake{
-  0%{ transform: translate3d(0,0,0); }
-  25%{ transform: translate3d(2px,-2px,0); }
-  50%{ transform: translate3d(-2px,2px,0); }
-  75%{ transform: translate3d(2px,1px,0); }
-  100%{ transform: translate3d(0,0,0); }
-}
-
-/* flash в центре */
+/* Flash effect - энергетическая вспышка */
 .b5050-flash{
   position: fixed;
   transform: translate3d(-50%,-50%,0) scale(0.6);
@@ -5453,12 +5633,13 @@ body.bonus-active{
   z-index: 10000006;
   opacity: 0;
   background: radial-gradient(circle,
-    rgba(255,255,255,0.95) 0%,
-    rgba(255,220,140,0.60) 18%,
-    rgba(255,180,80,0.22) 38%,
-    rgba(0,0,0,0) 70%
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(167, 139, 250, 0.7) 15%,
+    rgba(244, 114, 182, 0.5) 30%,
+    rgba(139, 92, 246, 0.2) 50%,
+    rgba(0, 0, 0, 0) 75%
   );
-  filter: blur(1px);
+  filter: blur(2px);
 }
 .b5050-flash.is-on{
   animation: b5050Flash 520ms ease forwards;
@@ -5469,7 +5650,7 @@ body.bonus-active{
   100%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(1.15); }
 }
 
-/* ударная волна (кольцо) */
+/* Shockwave ring - ударная волна */
 .b5050-ring{
   position: fixed;
   transform: translate3d(-50%,-50%,0) scale(0.2);
@@ -5479,21 +5660,47 @@ body.bonus-active{
   pointer-events: none;
   z-index: 10000005;
   opacity: 0;
-  border: 2px solid rgba(255,240,180,0.45);
-  box-shadow: 0 0 40px rgba(255,210,120,0.22);
+  border: 3px solid rgba(167, 139, 250, 0.8);
+  box-shadow: 
+    0 0 40px rgba(167, 139, 250, 0.6),
+    0 0 80px rgba(244, 114, 182, 0.4),
+    inset 0 0 40px rgba(255, 255, 255, 0.3);
 }
 .b5050-ring.is-on{
   animation: b5050Ring 780ms ease forwards;
 }
 @keyframes b5050Ring{
-  0%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(0.18); }
-  25%{ opacity: 0.9; }
-  100%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(1.25); }
+  0%{ 
+    opacity: 0; 
+    transform: translate3d(-50%,-50%,0) scale(0.18);
+    border-color: rgba(167, 139, 250, 0.8);
+  }
+  25%{ 
+    opacity: 0.9;
+    border-color: rgba(244, 114, 182, 0.8);
+  }
+  100%{ 
+    opacity: 0; 
+    transform: translate3d(-50%,-50%,0) scale(1.25);
+    border-color: rgba(236, 72, 153, 0.4);
+  }
 }
 
-/* слои: boom/particles/flash выше всего */
-.b5050-boom{ z-index: 10000007; }
-.b5050-particle{ z-index: 10000006; }
+/* Dimmed cells on non-picked reel */
+.b5050-cell.is-dim{
+  opacity: 0.4;
+  filter: saturate(0.5) brightness(0.85);
+}
+
+.b5050-cell.is-picked{
+  box-shadow:
+    0 0 30px rgba(167, 139, 250, 0.7),
+    0 0 50px rgba(244, 114, 182, 0.5),
+    inset 0 0 20px rgba(255, 255, 255, 0.15);
+}
+
+
+
 
 
 
