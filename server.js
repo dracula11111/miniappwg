@@ -322,8 +322,10 @@ app.post("/api/deposit-notification", async (req, res) => {
       timestamp
     });
 
-    // 🔥 Проверка дубликатов ТОЛЬКО для положительных сумм (депозиты)
-    if (amount > 0 && isDepositProcessed(depositId)) {
+    // 🔥 Idempotency: dedupe deposits AND wheel bets/wins (even for negative amounts)
+    const shouldDedupe = !!depositId && (amount > 0 || type === 'wheel_bet' || type === 'wheel_win' || type === 'bet');
+
+    if (shouldDedupe && isDepositProcessed(depositId)) {
       console.log('[Deposit] ⚠️ Duplicate detected, skipping:', depositId);
       return res.json({ 
         ok: true, 
@@ -361,8 +363,8 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
-    // 🔥 Маркируем как обработанное ТОЛЬКО положительные транзакции
-    if (amount > 0) {
+    // 🔥 Mark as processed (same rule as dedupe)
+    if (shouldDedupe) {
       markDepositProcessed(depositId);
     }
 

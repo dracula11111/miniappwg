@@ -1,11 +1,21 @@
 // public/js/balance-live.js - Real-time balance updates via SSE
-(() => {
+(async () => {
   console.log('[Balance Live] 🔴 Starting live balance module');
 
   const tg = window.Telegram?.WebApp;
-  const tgUserId = tg?.initDataUnsafe?.user?.id;
 
-  if (!tgUserId || tgUserId === 'guest') {
+  async function getUserIdWithRetry() {
+    for (let i = 0; i < 40; i++) { // ~2s total
+      const id = tg?.initDataUnsafe?.user?.id;
+      if (id && id !== 'guest') return id;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    return null;
+  }
+
+  const tgUserId = await getUserIdWithRetry();
+
+  if (!tgUserId) {
     console.log('[Balance Live] No user ID, skipping SSE');
     return;
   }
@@ -71,6 +81,7 @@
             }
 
             // Dispatch event
+            window.dispatchEvent(new CustomEvent('balance:update', { detail: { ton: data.ton, stars: data.stars } }));
             window.dispatchEvent(new CustomEvent('balance:live-update', { 
               detail: { 
                 ton: data.ton, 
