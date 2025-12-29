@@ -1286,37 +1286,36 @@ function showToast(msg) {
 // ====== SHOW RESULT (Gift: Claim; NFT: Claim/Sell) ======
 
 // ====== SHOW RESULT (Gift: Claim; NFT: Claim/Sell) ======
-function showResult(currency, demoModeOverride) {
+async function showResult(currency, demoModeOverride) {
   const tgWeb = window.Telegram?.WebApp;
   const tgUserId = (tgWeb?.initDataUnsafe?.user?.id) ? String(tgWeb.initDataUnsafe.user.id) : "guest";
   const initData = tgWeb?.initData ? tgWeb.initData : "";
 
   const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
-  // initData может отсутствовать, но это не влияет на режим выпадения.
   // Сервер включаем только если не demo и есть реальный userId.
   const serverEnabled = (!demoModeForRound && tgUserId !== 'guest');
 
-  
-  // Collect wins with carousel refs (needed for per-NFT decisions)
+  // Collect wins with carousel refs (needed for per-line glow clearing)
   const winEntries = carousels
     .map((c, lineIndex) => ({ carousel: c, item: c?.winningItem || null, lineIndex }))
     .filter(e => !!e.item);
 
   const giftEntries = winEntries.filter(e => itemType(e.item) !== 'nft');
-  const nftEntries = winEntries.filter(e => itemType(e.item) === 'nft');
+  const nftEntries  = winEntries.filter(e => itemType(e.item) === 'nft');
 
   const itemValue = (it) => ((it?.price?.[currency]) ? (parseFloat(it.price[currency]) || 0) : 0);
 
   const giftsRaw = giftEntries.reduce((sum, e) => sum + itemValue(e.item), 0);
-  const giftsAmount = (currency === 'stars') ? Math.max(0, Math.round(giftsRaw)) : Math.max(0, +(+giftsRaw).toFixed(2));
+  const giftsAmount = (currency === 'stars')
+    ? Math.max(0, Math.round(giftsRaw))
+    : Math.max(0, +(+giftsRaw).toFixed(2));
 
   const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-
 
   // Use one roundId for the whole open -> claim flow
   const roundId = activeSpin?.roundId || `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-  // Build NFT queue: each NFT is claimed/sold individually, one after another
+  // Build NFT queue (we will CLAIM ALL from overlay at once)
   const nftQueue = nftEntries.map((e, idx) => {
     const valRaw = itemValue(e.item);
     const amount = (currency === 'stars') ? Math.max(0, Math.round(valRaw)) : Math.max(0, +(+valRaw).toFixed(2));
@@ -1330,10 +1329,9 @@ function showResult(currency, demoModeOverride) {
     };
   });
 
-
   const bar = ensureClaimBar();
 
-  // Lock opening until user finishes claim/sell
+  // Lock opening until user finishes claim
   if (openBtn) {
     openBtn.disabled = true;
     openBtn.style.opacity = '0.6';
@@ -1355,6 +1353,60 @@ function showResult(currency, demoModeOverride) {
     }
   };
 
+  // Claim all NFTs (real mode saves them; demo just clears highlight)
+  const claimAllNfts = async (queue) => {
+    if (!queue || !queue.length) return true;
+
+    const items = queue.map(q => q.item);
+
+    if (demoModeForRound || !serverEnabled) {
+      // demo / guest
+      showToast('Demo: NFT не сохраняются');
+      return true;
+    }
+
+    let r = await fetchJsonSafe('/api/inventory/nft/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: tgUserId,
+        initData,
+        items,
+        claimId: `case_nft_claim_${roundId}`
+      })
+    }, 6500);
+
+    // If initData expired, retry without it
+    if (!r.ok && (r.status === 401 || r.status === 403)) {
+      r = await fetchJsonSafe('/api/inventory/nft/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: tgUserId,
+          items,
+          claimId: `case_nft_claim_${roundId}_noinit`
+        })
+      }, 6500);
+    }
+
+    if (!r.ok) {
+      showToast('Не удалось сохранить NFT. Попробуй ещё раз.');
+      return false;
+    }
+
+    const list = r.json?.items || r.json?.nfts;
+    if (Array.isArray(list)) {
+      writeLocalInventory(tgUserId, list);
+    } else {
+      addToLocalInventory(tgUserId, items);
+    }
+    try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    showToast(items.length > 1 ? 'NFT сохранены ✅' : 'NFT сохранено ✅');
+    return true;
+  };
+
   return new Promise((resolve) => {
     if (!bar) {
       resetAfter();
@@ -1363,18 +1415,22 @@ function showResult(currency, demoModeOverride) {
     }
 
     pendingRound = {
-      roundId,
       userId: tgUserId,
       initData,
       currency,
       icon,
-      demo: demoModeForRound,
-      serverEnabled,
 
+      demo: !!demoModeForRound,
+      serverEnabled: !!serverEnabled,
+
+      // Gifts
       giftsAmount,
+      giftEntries,
       giftsPending: giftsAmount > 0,
 
+      // NFTs (overlay first)
       nftQueue,
+      nftEntries,
       nftPending: nftQueue.length > 0,
 
       depositIds: {
@@ -1385,8 +1441,54 @@ function showResult(currency, demoModeOverride) {
       _resetAfter: resetAfter
     };
 
-    renderPendingClaimBar();
-    maybeFinishPendingRound();
+    // Show NFT overlay FIRST (even if there are normal gifts too)
+    (async () => {
+      const pr = pendingRound;
+      if (!pr) return;
+
+      if (pr.nftPending && window.NftWinOverlay?.open) {
+        const uiNfts = pr.nftQueue.map((q) => ({
+          name: q.item?.name || q.item?.title || q.item?.displayName || '',
+          image: itemIconPath(q.item),
+          amount: q.amount,
+        }));
+        const total = pr.nftQueue.reduce((s, q) => s + (Number(q.amount) || 0), 0);
+
+        await window.NftWinOverlay.open({
+          title: pr.demo ? 'You could have won' : "You've won!",
+          buttonText: pr.demo ? 'Continue' : 'Claim',
+          demo: pr.demo,
+          currency,
+          currencyIcon: pr.icon,
+          nfts: uiNfts,
+          // в примере часто показывают value под заголовком — включаем, когда выпало >= 1 NFT
+          showTotal: true,
+          total,
+          onPrimary: async () => {
+            // Claim/Continue pressed
+            if (!pr.demo) {
+              const ok = await claimAllNfts(pr.nftQueue);
+              if (!ok) return false; // keep overlay open
+            } else {
+              // demo: just close + clear UI highlight
+              // (toast inside claimAllNfts not нужен, чтобы не спамить)
+            }
+
+            // Clear highlight for all NFT lines (these are "already claimed")
+            pr.nftQueue.forEach((entry) => clearGlowForCarousel(entry.carousel));
+
+            // Mark NFTs as done so claim bar shows ONLY gift claim
+            pr.nftQueue = [];
+            pr.nftPending = false;
+
+            return true;
+          }
+        });
+      }
+
+      renderPendingClaimBar();
+      maybeFinishPendingRound();
+    })();
   });
 }
 

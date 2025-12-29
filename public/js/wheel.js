@@ -1,18 +1,8 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = (
-  // enable via ?test=1
-  (new URLSearchParams(location.search).get('test') === '1') ||
-  // or via localStorage (localStorage.setItem('TEST_MODE','1'))
-  (localStorage.getItem('TEST_MODE') === '1') ||
-  // default: only on localhost
-  (/localhost|127\.0\.0\.1/.test(location.hostname))
-); // 🔥 ТЕСТОВЫЙ РЕЖИМ
-
-// ===== ЭКСПОРТ ДЛЯ АДМИН-ПАНЕЛИ =====
-// Делаем TEST_MODE доступным глобально
-window.TEST_MODE = !!TEST_MODE;
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
+window.TEST_MODE = TEST_MODE;
 
 // Если TEST_MODE включен, экспортируем дополнительные функции
 if (window.TEST_MODE) {

@@ -75,3 +75,37 @@
           outline-offset:2px;                            /* Отступ обводки */
         }
      
+        /* APP WRAPPER */
+        .app {
+                                   /* Макс. ширина как у телефона */
+          margin: 0 auto;                                /* Центрируем */
+          min-height: 100dvh;                            /* Мин. высота (динамический viewport) */
+          padding-bottom: 90px;                          /* Отступ для нижней навигации */
+          position: relative;                            /* Относительное позиционирование */
+          padding-top: 10px;                             /* Отступ сверху 10px */
+        }
+
+        /* LOGO MID */
+        .logo-header {
+          position: absolute;                            /* Абсолютное позиционирование */
+          margin-top: 29px;                              /* Отступ сверху */
+          top: calc(var(--safe-top) + 22px);             /* Позиция с учётом safe area (было +12px) */
+          left: 50%;                                     /* 50% слева */
+          transform: translateX(-50%);                   /* Центрируем по X */
+          z-index: 100;                                  /* Поверх других элементов */
+          max-width: 430px;                              /* Макс. ширина */
+          width: 100%;                                   /* Ширина 100% */
+          display: flex;                                 /* Flexbox */
+          justify-content: center;                       /* Центрируем содержимое */
+          align-items: center;                           /* Выравниваем по центру */
+          padding: 0 var(--spacing-lg);                  /* Горизонтальные отступы */
+        }
+
+        .main-logo {
+          height: 36px;                                  /* Высота логотипа */
+          width: auto;                                   /* Ширина автоматическая */
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3)); /* Тень */
+          animation: logoFadeIn 0.6s ease-out;           /* Анимация появления */
+        }
+
+       
