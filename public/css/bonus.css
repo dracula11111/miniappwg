@@ -1,0 +1,3543 @@
+   BONUS 50/50 — UPDATED DESIGN (Blue vs Pink Energy)
+   
+   ========================================================= */
+
+/* Lock scroll during cutscene */
+html.bonus-active,
+body.bonus-active{
+  height: 100%;
+  overflow: hidden;
+}
+body.bonus-active{
+  position: fixed;
+  left: 0; right: 0;
+}
+
+/* Overlay */
+#bonus5050Overlay.bonus-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+#bonus5050Overlay.bonus-overlay.bonus-overlay--active{
+  opacity: 1;
+  pointer-events: auto;
+}
+#bonus5050Overlay.bonus-overlay.bonus-overlay--leave{
+  opacity: 0;
+}
+
+/* Backdrop - darker with slight gradient */
+#bonus5050Overlay .bonus-overlay__blur-backdrop{
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center,
+    rgba(20, 10, 40, 0.75) 0%,
+    rgba(10, 5, 25, 0.88) 100%
+  );
+  backdrop-filter: blur(18px) brightness(0.65) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) brightness(0.65) saturate(1.2);
+}
+
+/* Container */
+#bonus5050Overlay .bonus-container{
+  position: relative;
+  z-index: 1;
+  width: min(420px, 92vw);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
+}
+#bonus5050Overlay.bonus-overlay--active .bonus-container{
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+#bonus5050Overlay.bonus-overlay--leave .bonus-container{
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+/* Layout */
+.b5050-cutscene{
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Machine */
+.b5050-machine{
+  position: relative;
+  width: min(360px, 88vw);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Bulbs - энергетические сферы */
+.b5050-bulbs{
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+  margin: 10px 0;
+}
+.b5050-bulb{
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #667eea 0%, #e94287 100%);
+  box-shadow: 
+    0 0 12px rgba(102, 126, 234, 0.6),
+    0 0 24px rgba(233, 66, 135, 0.4),
+    inset 0 0 8px rgba(255,255,255,0.3);
+  opacity: 0.85;
+}
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb{
+  animation: b5050BulbPulse 1400ms ease-in-out infinite;
+}
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(2){ animation-delay: 100ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(3){ animation-delay: 200ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(4){ animation-delay: 300ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(5){ animation-delay: 400ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(6){ animation-delay: 500ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(7){ animation-delay: 600ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(8){ animation-delay: 700ms; }
+#bonus5050Overlay.bonus-overlay--active .b5050-bulb:nth-child(9){ animation-delay: 800ms; }
+
+@keyframes b5050BulbPulse{
+  0%{ 
+    opacity: .65; 
+    transform: scale(0.96);
+    box-shadow: 
+      0 0 8px rgba(102, 126, 234, 0.4),
+      0 0 16px rgba(233, 66, 135, 0.3);
+  }
+  50%{ 
+    opacity: 1; 
+    transform: scale(1.08);
+    box-shadow: 
+      0 0 18px rgba(102, 126, 234, 0.8),
+      0 0 32px rgba(233, 66, 135, 0.6);
+  }
+  100%{ 
+    opacity: .78; 
+    transform: scale(0.98);
+    box-shadow: 
+      0 0 10px rgba(102, 126, 234, 0.5),
+      0 0 20px rgba(233, 66, 135, 0.4);
+  }
+}
+
+/* Dual container */
+.b5050-dual{
+  position: relative;
+  width: min(360px, 88vw);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Unit blocks */
+.b5050-unit{ 
+  position: relative;
+}
+
+/* Frame - энергетический градиент вместо золота */
+.b5050-unitframe{
+  position: relative;
+  padding: 12px;
+  border-radius: 22px;
+  background: linear-gradient(
+    135deg,
+    #4f46e5 0%,
+    #7c3aed 25%,
+    #db2777 75%,
+    #f43f5e 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 20px 50px rgba(79, 70, 229, 0.3),
+    0 20px 50px rgba(219, 39, 119, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Good unit (blue/purple dominant) */
+.b5050-unit--good .b5050-unitframe{
+  background: linear-gradient(
+    135deg,
+    #4f46e5 0%,
+    #6366f1 50%,
+    #8b5cf6 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 20px 50px rgba(79, 70, 229, 0.5),
+    0 8px 30px rgba(139, 92, 246, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Bad unit (pink/red dominant) */
+.b5050-unit--bad .b5050-unitframe{
+  background: linear-gradient(
+    135deg,
+    #ec4899 0%,
+    #f43f5e 50%,
+    #ef4444 100%
+  );
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 20px 50px rgba(236, 72, 153, 0.5),
+    0 8px 30px rgba(244, 63, 94, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Pointers - lightning-styled arrows */
+.b5050-pointer{
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+  will-change: transform;
+}
+
+/* Left pointer */
+.b5050-pointer--left{
+  left: 6px;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-left: 22px solid #a78bfa;
+  filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.8))
+          drop-shadow(0 10px 20px rgba(0,0,0,0.4));
+}
+
+/* Right pointer */
+.b5050-pointer--right{
+  right: 6px;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-right: 22px solid #f472b6;
+  filter: drop-shadow(0 0 12px rgba(244, 114, 182, 0.8))
+          drop-shadow(0 10px 20px rgba(0,0,0,0.4));
+}
+
+/* Inner notch */
+.b5050-pointer--left::after,
+.b5050-pointer--right::after{
+  content: "";
+  position: absolute;
+  top: -14px;
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  opacity: .95;
+}
+
+.b5050-pointer--left::after{
+  left: -19px;
+  border-left: 18px solid #1e1b4b;
+}
+.b5050-pointer--right::after{
+  right: -19px;
+  border-right: 18px solid #4a1d34;
+}
+
+/* Window (drum) - темный космический фон */
+.b5050-window{
+  position: relative;
+  height: 150px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, 
+    #0f0a2e 0%, 
+    #1a1147 50%,
+    #0a0618 100%
+  );
+  border: 2px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 
+    inset 0 0 40px rgba(79, 70, 229, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Picked unit glow */
+.b5050-unit.is-picked .b5050-window{
+  border-color: rgba(167, 139, 250, 0.6);
+  box-shadow:
+    0 0 0 2px rgba(167, 139, 250, 0.4),
+    0 0 40px rgba(167, 139, 250, 0.3),
+    inset 0 0 60px rgba(167, 139, 250, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Shading - добавляем энергетическое свечение по краям */
+.b5050-shade{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(79, 70, 229, 0.25) 0%,
+    rgba(0, 0, 0, 0) 34%,
+    rgba(0, 0, 0, 0) 66%,
+    rgba(236, 72, 153, 0.25) 100%
+  );
+}
+
+/* Track */
+.b5050-track{
+  position: absolute;
+  left: 0; right: 0;
+  top: 0;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  will-change: transform, opacity, filter;
+  transform: translate3d(0,0,0);
+  z-index: 1;
+}
+
+/* Cells - звездная эстетика */
+.b5050-cell{
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 900;
+  font-size: 42px;
+  letter-spacing: 0.5px;
+
+  color: #fff;
+  background: rgba(30, 27, 75, 0.6);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  text-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.8),
+    0 10px 24px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.1);
+  position: relative;
+}
+
+/* Звездочки на ячейках */
+.b5050-cell::before{
+  content: "✦";
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 14px;
+  opacity: 0.3;
+  color: #a78bfa;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle{
+  0%, 100%{ opacity: 0.2; transform: scale(0.9) rotate(0deg); }
+  50%{ opacity: 0.6; transform: scale(1.1) rotate(180deg); }
+}
+
+/* Highlight landed */
+.b5050-cell.is-win{
+  background: rgba(167, 139, 250, 0.25);
+  border-color: rgba(167, 139, 250, 0.8);
+  box-shadow: 
+    0 0 30px rgba(167, 139, 250, 0.6),
+    0 0 60px rgba(244, 114, 182, 0.4),
+    inset 0 0 30px rgba(167, 139, 250, 0.2);
+  transform: scale(1.05);
+  text-shadow: 
+    0 0 30px rgba(255, 255, 255, 1),
+    0 0 50px rgba(167, 139, 250, 1);
+}
+
+/* VS - молния */
+.b5050-vs{
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  letter-spacing: 3px;
+  font-size: 16px;
+  color: #fff;
+  
+  text-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.9),
+    0 0 40px rgba(244, 114, 182, 0.9),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  
+  opacity: 0.95;
+  position: relative;
+}
+
+/* Lightning icon styling */
+.b5050-lightning-icon{
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  filter: 
+    drop-shadow(0 0 16px rgba(167, 139, 250, 0.8))
+    drop-shadow(0 0 24px rgba(244, 114, 182, 0.6))
+    drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5));
+  animation: b5050LightningPulse 1800ms ease-in-out infinite;
+  will-change: filter, transform;
+}
+
+@keyframes b5050LightningPulse{
+  0%{ 
+    filter: 
+      drop-shadow(0 0 12px rgba(167, 139, 250, 0.6))
+      drop-shadow(0 0 20px rgba(244, 114, 182, 0.5))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.4));
+    transform: scale(0.98) rotate(-2deg);
+  }
+  50%{ 
+    filter: 
+      drop-shadow(0 0 24px rgba(167, 139, 250, 1))
+      drop-shadow(0 0 36px rgba(244, 114, 182, 0.9))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.6));
+    transform: scale(1.08) rotate(2deg);
+  }
+  100%{ 
+    filter: 
+      drop-shadow(0 0 14px rgba(167, 139, 250, 0.7))
+      drop-shadow(0 0 22px rgba(244, 114, 182, 0.6))
+      drop-shadow(0 8px 20px rgba(0, 0, 0, 0.5));
+    transform: scale(1) rotate(-1deg);
+  }
+}
+
+/* Center line - яркая энергетическая линия */
+.b5050-centerline{
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  border-radius: 999px;
+  z-index: 3;
+  pointer-events: none;
+
+  background: linear-gradient(90deg,
+    rgba(79, 70, 229, 0) 0%,
+    rgba(139, 92, 246, 0.9) 20%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(244, 114, 182, 0.9) 80%,
+    rgba(236, 72, 153, 0) 100%
+  );
+  box-shadow: 
+    0 0 20px rgba(167, 139, 250, 0.8),
+    0 0 40px rgba(244, 114, 182, 0.6),
+    0 0 8px rgba(255, 255, 255, 0.9);
+}
+
+/* Result big X */
+.b5050-result{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 1000;
+  font-size: 92px;
+  letter-spacing: 1px;
+  color: #fff;
+
+  text-shadow:
+    0 0 40px rgba(167, 139, 250, 1),
+    0 0 80px rgba(244, 114, 182, 0.8),
+    0 18px 40px rgba(0, 0, 0, 0.7);
+
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  z-index: 10000000;
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.16,0.84,0.18,1);
+}
+
+
+/* ===== RESULT MODE ===== */
+.b5050-machine--collapse .b5050-bulbs{
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity 420ms ease, transform 420ms ease;
+}
+
+.b5050-machine--collapse .b5050-bulb{
+  animation: none !important;
+}
+
+.b5050-machine--collapse .b5050-unit,
+.b5050-machine--collapse .b5050-vs{
+  opacity: 0;
+  transform: translateY(-10px) scale(0.975);
+  pointer-events: none;
+  transition: opacity 650ms ease, transform 650ms cubic-bezier(0.16, 0.84, 0.18, 1);
+}
+
+.b5050-machine--result .b5050-unit,
+.b5050-machine--result .b5050-vs{
+  opacity: 0;
+  transform: translateY(-6px) scale(0.985);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.b5050-machine--result .b5050-result{
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ===== FLYING X LABELS ===== */
+.b5050-flyx{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0);
+  z-index: 10000000;
+  pointer-events: none;
+
+  font-weight: 1000;
+  font-size: 56px;
+  letter-spacing: 0.5px;
+  color: #fff;
+  padding: 10px 16px;
+}
+
+/* Blue side */
+.b5050-flyx--good{
+  text-shadow: 
+    0 0 30px rgba(139, 92, 246, 1),
+    0 0 60px rgba(79, 70, 229, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+/* Pink side */
+.b5050-flyx--bad{
+  text-shadow: 
+    0 0 30px rgba(244, 114, 182, 1),
+    0 0 60px rgba(236, 72, 153, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.b5050-flyx--idle{
+  animation: b5050Idle 1200ms ease-in-out infinite;
+}
+@keyframes b5050Idle{
+  0%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+  50%{ transform: translate3d(-50%,-50%,0) scale(1.04); opacity: 1; }
+  100%{ transform: translate3d(-50%,-50%,0) scale(1); opacity: 0.95; }
+}
+
+.b5050-flyx--clash{
+  animation: b5050Clash 200ms ease both;
+}
+@keyframes b5050Clash{
+  0%{ transform: translate3d(-50%,-50%,0) scale(1); }
+  60%{ transform: translate3d(-50%,-50%,0) scale(1.22); }
+  100%{ transform: translate3d(-50%,-50%,0) scale(0.98); }
+}
+
+/* ===== EFFECTS ===== */
+.b5050-shake{
+  animation: b5050Shake 240ms ease both;
+}
+@keyframes b5050Shake{
+  0%{ transform: translate3d(0,0,0); }
+  25%{ transform: translate3d(2px,-2px,0); }
+  50%{ transform: translate3d(-2px,2px,0); }
+  75%{ transform: translate3d(2px,1px,0); }
+  100%{ transform: translate3d(0,0,0); }
+}
+
+/* BOOM explosion */
+.b5050-boom{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.85);
+  z-index: 10000007;
+  pointer-events: none;
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+  opacity: 0;
+  filter: 
+    drop-shadow(0 0 40px rgba(167, 139, 250, 0.8))
+    drop-shadow(0 0 60px rgba(244, 114, 182, 0.8))
+    drop-shadow(0 20px 60px rgba(0, 0, 0, 0.7));
+}
+.b5050-boom.is-on{
+  opacity: 1;
+  transform: translate3d(-50%,-50%,0) scale(1);
+  transition: opacity 140ms ease, transform 360ms cubic-bezier(0.18,0.9,0.2,1);
+}
+.b5050-boom.is-off{
+  opacity: 0;
+  transform: translate3d(-50%,-50%,0) scale(1.10);
+  transition: opacity 520ms ease, transform 520ms ease;
+}
+
+/* PARTICLES */
+.b5050-particle{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0);
+  z-index: 10000006;
+  pointer-events: none;
+  object-fit: contain;
+  opacity: 0;
+  filter: 
+    drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))
+    drop-shadow(0 0 30px rgba(244, 114, 182, 0.6))
+    drop-shadow(0 16px 50px rgba(0, 0, 0, 0.6));
+}
+
+/* Flash effect - энергетическая вспышка */
+.b5050-flash{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.6);
+  width: 420px;
+  height: 420px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 10000006;
+  opacity: 0;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(167, 139, 250, 0.7) 15%,
+    rgba(244, 114, 182, 0.5) 30%,
+    rgba(139, 92, 246, 0.2) 50%,
+    rgba(0, 0, 0, 0) 75%
+  );
+  filter: blur(2px);
+}
+.b5050-flash.is-on{
+  animation: b5050Flash 520ms ease forwards;
+}
+@keyframes b5050Flash{
+  0%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(0.55); }
+  20%{ opacity: 1; transform: translate3d(-50%,-50%,0) scale(0.95); }
+  100%{ opacity: 0; transform: translate3d(-50%,-50%,0) scale(1.15); }
+}
+
+/* Shockwave ring - ударная волна */
+.b5050-ring{
+  position: fixed;
+  transform: translate3d(-50%,-50%,0) scale(0.2);
+  width: 340px;
+  height: 340px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 10000005;
+  opacity: 0;
+  border: 3px solid rgba(167, 139, 250, 0.8);
+  box-shadow: 
+    0 0 40px rgba(167, 139, 250, 0.6),
+    0 0 80px rgba(244, 114, 182, 0.4),
+    inset 0 0 40px rgba(255, 255, 255, 0.3);
+}
+.b5050-ring.is-on{
+  animation: b5050Ring 780ms ease forwards;
+}
+@keyframes b5050Ring{
+  0%{ 
+    opacity: 0; 
+    transform: translate3d(-50%,-50%,0) scale(0.18);
+    border-color: rgba(167, 139, 250, 0.8);
+  }
+  25%{ 
+    opacity: 0.9;
+    border-color: rgba(244, 114, 182, 0.8);
+  }
+  100%{ 
+    opacity: 0; 
+    transform: translate3d(-50%,-50%,0) scale(1.25);
+    border-color: rgba(236, 72, 153, 0.4);
+  }
+}
+
+/* Dimmed cells on non-picked reel */
+.b5050-cell.is-dim{
+  opacity: 0.4;
+  filter: saturate(0.5) brightness(0.85);
+}
+
+.b5050-cell.is-picked{
+  box-shadow:
+    0 0 30px rgba(167, 139, 250, 0.7),
+    0 0 50px rgba(244, 114, 182, 0.5),
+    inset 0 0 20px rgba(255, 255, 255, 0.15);
+}
+
+
+
+
+
+
+/* =========================================================
+   LOOT RUSH BONUS - CS:GO STYLE (УЛУЧШЕННАЯ ВЕРСИЯ)
+   🔥 НОВОЕ: Плавные градиенты, glow эффекты, улучшенные анимации
+   🔥 Таймер скрыт до момента выбора сумки
+   ========================================================= */
+
+/* Cutscene container */
+.lr-cutscene {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: lrFadeIn 0.5s ease forwards;
+}
+
+@keyframes lrFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Grid first */
+.lr-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  order: 1;
+}
+
+/* Bottom section (title + timer) */
+.lr-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  order: 2;
+}
+
+/* Title */
+.lr-title {
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-shadow: 
+    0 2px 12px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(168, 85, 247, 0.3);
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lr-title.lr-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Timer - 🔥 СКРЫТ ПО УМОЛЧАНИЮ */
+.lr-timer {
+  font-size: 56px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(168, 85, 247, 0.5);
+  min-height: 56px;
+  line-height: 1;
+  transition: all 0.3s ease;
+}
+
+/* 🔥 Скрытый таймер */
+.lr-timer-hidden {
+  opacity: 0;
+  transform: scale(0.8) translateY(-10px);
+  pointer-events: none;
+}
+
+/* 🔥 Видимый таймер */
+.lr-timer-visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  animation: lrTimerAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes lrTimerAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-20px);
+  }
+  60% {
+    transform: scale(1.1) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.lr-timer-pulse {
+  animation: lrTimerPulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes lrTimerPulse {
+  0%, 100% { 
+    transform: scale(1); 
+    text-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.6),
+      0 0 30px rgba(168, 85, 247, 0.5);
+  }
+  50% { 
+    transform: scale(1.2); 
+    text-shadow: 
+      0 8px 24px rgba(0, 0, 0, 0.8),
+      0 0 50px rgba(168, 85, 247, 0.8),
+      0 0 80px rgba(168, 85, 247, 0.4);
+  }
+}
+
+/* Tile (each bag/mult) */
+.lr-tile {
+  position: relative;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(219, 39, 119, 0.05));
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: default;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 0;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Multiplier (hidden initially) */
+.lr-mult {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 20px;
+  color: #fff;
+  text-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(168, 85, 247, 0.4);
+  z-index: 1;
+  opacity: 0;
+  transform: scale(0.8) translateY(-10px);
+}
+
+/* Show multiplier */
+.lr-tile.lr-mult-show .lr-mult {
+  animation: lrMultShow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes lrMultShow {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(-15px) rotate(-5deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+
+/* Bag (starts hidden) */
+.lr-bag {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 10%;
+  opacity: 0;
+  transform: translateY(-100%) rotate(-10deg);
+  z-index: 2;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Cover with bag */
+.lr-tile.lr-covered .lr-bag {
+  animation: lrBagDrop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes lrBagDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) rotate(-10deg) scale(0.8);
+  }
+  60% {
+    transform: translateY(5%) rotate(2deg) scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+
+/* Spinning state - CS:GO style horizontal shift */
+.lr-tile.lr-spinning .lr-bag {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+/* Row-specific animations for visual effect */
+.lr-spinning[data-index="0"],
+.lr-spinning[data-index="1"],
+.lr-spinning[data-index="2"],
+.lr-spinning[data-index="3"],
+.lr-spinning[data-index="4"] {
+  animation: lrShiftRight 0.3s ease-in-out infinite;
+}
+
+.lr-spinning[data-index="5"],
+.lr-spinning[data-index="6"],
+.lr-spinning[data-index="7"],
+.lr-spinning[data-index="8"],
+.lr-spinning[data-index="9"] {
+  animation: lrShiftLeft 0.3s ease-in-out infinite;
+}
+
+.lr-spinning[data-index="10"],
+.lr-spinning[data-index="11"],
+.lr-spinning[data-index="12"],
+.lr-spinning[data-index="13"],
+.lr-spinning[data-index="14"] {
+  animation: lrShiftRight 0.3s ease-in-out infinite;
+}
+
+.lr-spinning[data-index="15"],
+.lr-spinning[data-index="16"],
+.lr-spinning[data-index="17"],
+.lr-spinning[data-index="18"],
+.lr-spinning[data-index="19"] {
+  animation: lrShiftLeft 0.3s ease-in-out infinite;
+}
+
+.lr-spinning[data-index="20"],
+.lr-spinning[data-index="21"],
+.lr-spinning[data-index="22"],
+.lr-spinning[data-index="23"],
+.lr-spinning[data-index="24"] {
+  animation: lrShiftRight 0.3s ease-in-out infinite;
+}
+
+@keyframes lrShiftRight {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+@keyframes lrShiftLeft {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-4px); }
+}
+
+/* Selectable */
+.lr-tile.lr-selectable {
+  cursor: pointer;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.lr-tile.lr-selectable:hover {
+  transform: translateY(-4px) scale(1.03);
+  border-color: rgba(168, 85, 247, 0.5);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(219, 39, 119, 0.08));
+  box-shadow: 
+    0 8px 24px rgba(168, 85, 247, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Selected */
+.lr-tile.lr-selected {
+  border-color: rgba(255, 200, 40, 0.9);
+  background: linear-gradient(135deg, rgba(255, 200, 40, 0.15), rgba(255, 165, 40, 0.1));
+  box-shadow: 
+    0 0 0 3px rgba(255, 200, 40, 0.5),
+    0 0 40px rgba(255, 200, 40, 0.4),
+    inset 0 0 20px rgba(255, 200, 40, 0.1);
+  animation: lrSelectedPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes lrSelectedPulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 0 3px rgba(255, 200, 40, 0.5),
+      0 0 40px rgba(255, 200, 40, 0.4);
+  }
+  50% {
+    box-shadow: 
+      0 0 0 4px rgba(255, 200, 40, 0.7),
+      0 0 60px rgba(255, 200, 40, 0.6),
+      0 0 100px rgba(255, 200, 40, 0.3);
+  }
+}
+
+/* Reveal (bag fades, mult shows) */
+.lr-tile.lr-reveal .lr-bag {
+  animation: lrBagFadeOut 0.4s ease forwards;
+}
+
+@keyframes lrBagFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.7) rotate(-15deg);
+  }
+}
+
+.lr-tile.lr-reveal .lr-mult {
+  animation: lrMultReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s forwards;
+}
+
+@keyframes lrMultReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-10deg);
+  }
+  60% {
+    transform: scale(1.15) rotate(2deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Winner tile */
+.lr-tile.lr-winner .lr-mult {
+  color: #ffd028;
+  text-shadow: 
+    0 0 30px rgba(255, 208, 40, 1),
+    0 0 60px rgba(255, 208, 40, 0.6),
+    0 4px 20px rgba(0, 0, 0, 0.8);
+  transform: scale(1.4) !important;
+  animation: lrWinnerPulse 1s ease-in-out infinite;
+}
+
+@keyframes lrWinnerPulse {
+  0%, 100% {
+    transform: scale(1.4) rotate(0deg);
+    text-shadow: 
+      0 0 30px rgba(255, 208, 40, 1),
+      0 0 60px rgba(255, 208, 40, 0.6);
+  }
+  50% {
+    transform: scale(1.5) rotate(3deg);
+    text-shadow: 
+      0 0 50px rgba(255, 208, 40, 1),
+      0 0 100px rgba(255, 208, 40, 0.8),
+      0 0 150px rgba(255, 208, 40, 0.4);
+  }
+}
+
+/* Picked tile glow */
+.lr-tile.lr-picked {
+  border-color: rgba(255, 200, 40, 1);
+  background: linear-gradient(135deg, rgba(255, 200, 40, 0.2), rgba(255, 165, 40, 0.15));
+  box-shadow: 
+    0 0 0 4px rgba(255, 200, 40, 0.7),
+    0 0 50px rgba(255, 200, 40, 0.8),
+    0 0 100px rgba(255, 200, 40, 0.4),
+    inset 0 0 30px rgba(255, 200, 40, 0.2);
+  animation: lrPickedGlow 1.2s ease-in-out infinite;
+}
+
+@keyframes lrPickedGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 0 4px rgba(255, 200, 40, 0.7),
+      0 0 50px rgba(255, 200, 40, 0.8);
+  }
+  50% {
+    box-shadow: 
+      0 0 0 5px rgba(255, 200, 40, 0.9),
+      0 0 80px rgba(255, 200, 40, 1),
+      0 0 120px rgba(255, 200, 40, 0.6);
+  }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 420px) {
+  .lr-cutscene {
+    padding: 16px;
+    gap: 20px;
+  }
+  
+  .lr-title {
+    font-size: 20px;
+  }
+  
+  .lr-timer {
+    font-size: 48px;
+  }
+  
+  .lr-grid {
+    gap: 8px;
+  }
+  
+  .lr-mult {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 360px) {
+  .lr-grid {
+    gap: 6px;
+  }
+  
+  .lr-mult {
+    font-size: 16px;
+  }
+  
+  .lr-timer {
+    font-size: 42px;
+  }
+  
+  .lr-tile {
+    border-radius: 12px;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .lr-tile,
+  .lr-mult,
+  .lr-bag,
+  .lr-title,
+  .lr-timer,
+  .lr-cutscene {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .lr-tile.lr-mult-show .lr-mult,
+  .lr-tile.lr-covered .lr-bag,
+  .lr-tile.lr-reveal .lr-mult,
+  .lr-tile.lr-reveal .lr-bag {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (prefers-contrast: high) {
+  .lr-tile {
+    border-width: 2px;
+  }
+  
+  .lr-tile.lr-selected {
+    border-width: 3px;
+  }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+.lr-tile,
+.lr-mult,
+.lr-bag {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lr-tile.lr-reveal {
+  animation: removeWillChange 0.5s 1s forwards;
+}
+
+@keyframes removeWillChange {
+  to {
+    will-change: auto;
+  }
+}
+
+/* LOOTRUSH: reveal multipliers */
+.lr-tile.lr-reveal .lr-bag{
+  opacity: 0 !important;
+  transform: scale(0.9) rotate(-10deg) !important;
+  transition: opacity .3s ease, transform .3s ease;
+}
+
+.lr-tile.lr-reveal .lr-mult{
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+  transition: opacity .3s ease, transform .3s ease;
+}
+
+/* =========================================================
+   WILD TIME BONUS - PREMIUM EDITION
+   Modern, luxurious design with animations and effects
+   ========================================================= */
+
+   #wildTimeOverlay.wt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 400ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  #wildTimeOverlay.wt-overlay.wt-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  #wildTimeOverlay.wt-overlay.wt-leave { 
+    opacity: 0;
+    transition: opacity 300ms ease-out;
+  }
+  
+  /* Animated gradient backdrop */
+  #wildTimeOverlay .wt-backdrop {
+    position: absolute;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse at 30% 50%, rgba(255, 200, 50, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 50%, rgba(255, 150, 30, 0.12) 0%, transparent 50%),
+      linear-gradient(135deg, rgba(0, 0, 0, 0.85) 0%, rgba(20, 10, 5, 0.9) 100%);
+    backdrop-filter: blur(20px) brightness(0.7) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) brightness(0.7) saturate(1.2);
+    animation: backdropPulse 8s ease-in-out infinite;
+  }
+  
+  @keyframes backdropPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.95; }
+  }
+  
+  #wildTimeOverlay .wt-container {
+    position: relative;
+    z-index: 1;
+    width: min(980px, 98vw);
+    height: min(980px, 98vh);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* ===================== WHEEL STAGE ===================== */
+  
+  #wildTimeOverlay .wt-stage {
+    position: relative;
+    width: min(820px, 96vw);
+    aspect-ratio: 1;
+    overflow: visible;
+    
+    opacity: 1;
+    transform: scale(1);
+    transition: 
+      opacity 400ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+    --ptr-r: 340px;
+    
+    /* Outer glow */
+    filter: drop-shadow(0 0 60px rgba(255, 200, 50, 0.3));
+  }
+  
+  #wildTimeOverlay .wt-stage::before {
+    content: '';
+    position: absolute;
+    inset: -40px;
+    background: radial-gradient(circle, rgba(255, 215, 120, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    animation: stageGlow 3s ease-in-out infinite;
+  }
+  
+  @keyframes stageGlow {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  
+  #wildTimeOverlay .wt-stage.wt-stage--hide {
+    opacity: 0;
+    transform: scale(0.92) translateY(20px);
+    pointer-events: none;
+  }
+  
+  #wildTimeOverlay #wildTimeCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 50%;
+    box-shadow: 
+      0 0 0 3px rgba(255, 215, 120, 0.2),
+      0 0 0 6px rgba(255, 215, 120, 0.1),
+      0 30px 80px rgba(0, 0, 0, 0.5),
+      inset 0 0 60px rgba(255, 200, 50, 0.05);
+  }
+  
+  /* Pointers with enhanced styling */
+  #wildTimeOverlay .wt-pointer {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    width: clamp(50px, 6.5vw, 68px);
+    height: auto;
+    pointer-events: none;
+    opacity: 0.98;
+    filter: 
+      drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 12px rgba(255, 200, 50, 0.4));
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--ang))
+      translateY(calc(-1 * var(--ptr-r)));
+    animation: pointerPulse 2s ease-in-out infinite;
+    animation-delay: calc(var(--ang) * 0.1s);
+  }
+  
+  @keyframes pointerPulse {
+    0%, 100% { filter: 
+      drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 12px rgba(255, 200, 50, 0.4)); }
+    50% { filter: 
+      drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 20px rgba(255, 200, 50, 0.7)); }
+  }
+  
+  /* ===================== JAR GAME ===================== */
+  
+  #wildTimeOverlay .wt-jarGame {
+    position: absolute;
+    inset: 0;
+    
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 2.5vh, 22px);
+    
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(30px) scale(0.95);
+    transition: 
+      opacity 450ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 550ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  #wildTimeOverlay .wt-jarGame.wt-jarGame--show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+  
+  /* Clean row - no panels, only glows */
+  #wildTimeOverlay .wt-jarRow {
+    position: relative;
+    width: min(980px, 96vw);
+    min-height: clamp(240px, 36vh, 460px);
+    
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: clamp(20px, 7.5vw, 150px);
+    padding: clamp(20px, 5vw, 50px) clamp(16px, 4.5vw, 50px);
+  }
+  
+  #wildTimeOverlay .wt-slot {
+    flex: 1;
+    height: 100%;
+    
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    position: relative;
+  }
+  
+  /* Gorgeous multiplier text */
+  #wildTimeOverlay .wt-mult {
+    font-weight: 900;
+    font-size: clamp(48px, 11vw, 120px);
+    background: linear-gradient(180deg, 
+      #fff 0%, 
+      #ffd678 40%, 
+      #ffb444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    margin: 0;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: 
+      opacity 350ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+    position: relative;
+  }
+  
+  #wildTimeOverlay .wt-mult::after {
+    content: attr(data-mult);
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, 
+      rgba(255, 255, 255, 0.3) 0%, 
+      transparent 50%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: blur(1px);
+    opacity: 0.6;
+  }
+  
+  #wildTimeOverlay .wt-mult.wt-mult--hidden {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  
+  /* Spectacular selected multiplier */
+
+#wildTimeOverlay .wt-mult.wt-mult--selected {
+  animation: 
+    multSelected 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+    multPulse 3.5s ease-in-out 0.8s infinite;
+  filter: 
+    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 30px rgba(255, 200, 50, 0.8))
+    drop-shadow(0 0 60px rgba(255, 200, 50, 0.5));
+  position: relative;
+}
+
+/* Rotating rays around winner */
+#wildTimeOverlay .wt-mult.wt-mult--selected::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: 
+    repeating-conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 15deg,
+      rgba(255, 200, 50, 0.12) 15deg,
+      rgba(255, 200, 50, 0.12) 18deg,
+      transparent 18deg,
+      transparent 33deg
+    );
+  z-index: -1;
+  border-radius: 50%;
+  opacity: 0;
+  animation: 
+    raysRotate 8s linear infinite,
+    raysFadeIn 0.8s ease-out 0.4s forwards;
+}
+
+/* Pulsing outer glow */
+#wildTimeOverlay .wt-mult.wt-mult--selected::after {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  background: radial-gradient(ellipse at center, 
+    rgba(255, 200, 50, 0.25) 0%, 
+    rgba(255, 150, 30, 0.15) 30%,
+    transparent 70%);
+  border-radius: 50%;
+  z-index: -2;
+  opacity: 0;
+  animation: 
+    glowExpand 2.5s ease-in-out 0.5s infinite,
+    raysFadeIn 0.6s ease-out 0.3s forwards;
+}
+
+@keyframes multSelected {
+  0% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-12px) scale(1.15); }
+  100% { transform: translateY(0) scale(1.1); }
+}
+
+@keyframes multPulse {
+  0%, 100% { 
+    filter: 
+      drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))
+      drop-shadow(0 0 30px rgba(255, 200, 50, 0.75))
+      drop-shadow(0 0 60px rgba(255, 200, 50, 0.45));
+  }
+  50% { 
+    filter: 
+      drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5))
+      drop-shadow(0 0 40px rgba(255, 200, 50, 0.95))
+      drop-shadow(0 0 80px rgba(255, 200, 50, 0.6))
+      drop-shadow(0 0 110px rgba(255, 150, 30, 0.35));
+  }
+}
+
+@keyframes raysRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes raysFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes glowExpand {
+  0% { 
+    transform: scale(0.9); 
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.5;
+  }
+  100% { 
+    transform: scale(1.5); 
+    opacity: 0;
+  }
+}
+  /* Beautiful jar buttons with motion trails */
+  #wildTimeOverlay .wt-jarBtn {
+    position: absolute;
+    top: 0;
+    left: 0;
+    
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    outline: none;
+    
+    width: clamp(150px, 28vw, 300px);
+    height: auto;
+    
+    opacity: 1;
+    
+    --x: 0px;
+    --y: 0px;
+    --rot: 0deg;
+    --lift: 0px;
+    --s: 1;
+    
+    transform: translate(var(--x), calc(var(--y) - var(--lift))) rotate(var(--rot)) scale(var(--s));
+    will-change: transform, opacity;
+    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  /* Motion trail effect during fast movements */
+  #wildTimeOverlay .wt-jarBtn::after {
+    content: '';
+    position: absolute;
+    inset: 5%;
+    background: radial-gradient(ellipse at center, 
+      rgba(255, 200, 50, 0.15) 0%, 
+      transparent 60%);
+    border-radius: 50%;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 150ms ease, transform 150ms ease;
+    pointer-events: none;
+    z-index: -1;
+  }
+  
+  #wildTimeOverlay .wt-jarBtn:hover:not(:disabled) {
+    --s: 1.05;
+    filter: 
+      drop-shadow(0 20px 35px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 20px rgba(255, 200, 50, 0.3));
+  }
+  
+  #wildTimeOverlay .wt-jarImg {
+    width: 100%;
+    height: auto;
+    display: block;
+    pointer-events: none;
+    filter: 
+      drop-shadow(0 20px 35px rgba(0, 0, 0, 0.65))
+      drop-shadow(0 5px 15px rgba(255, 200, 50, 0.1));
+    transition: filter 300ms ease;
+  }
+  
+  /* Enhanced shuffling effect - only visual effects, no transform blocking */
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--shuffling::after {
+    opacity: 0.8;
+    transform: scale(1.2);
+    animation: trailPulse 0.4s ease-in-out infinite;
+  }
+  
+  @keyframes trailPulse {
+    0%, 100% { opacity: 0.6; transform: scale(1.1); }
+    50% { opacity: 1; transform: scale(1.4); }
+  }
+  
+  /* Glowing aura during shuffle */
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--shuffling::before {
+    content: '';
+    position: absolute;
+    inset: -10%;
+    background: radial-gradient(ellipse at center, 
+      rgba(255, 200, 50, 0.25) 0%, 
+      rgba(255, 150, 30, 0.15) 40%,
+      transparent 70%);
+    border-radius: 50%;
+    animation: shuffleAura 0.4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+  
+  @keyframes shuffleAura {
+    0%, 100% { 
+      opacity: 0.7; 
+      transform: scale(1) rotate(0deg); 
+    }
+    50% { 
+      opacity: 1; 
+      transform: scale(1.2) rotate(180deg); 
+    }
+  }
+  
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--shuffling .wt-jarImg {
+    filter:
+      drop-shadow(0 25px 40px rgba(0, 0, 0, 0.7))
+      drop-shadow(0 0 25px rgba(255, 200, 50, 0.6))
+      drop-shadow(0 0 50px rgba(255, 200, 50, 0.3))
+      brightness(1.15)
+      contrast(1.08)
+      saturate(1.1);
+    animation: jarShuffleGlow 0.3s ease-in-out infinite alternate;
+  }
+  
+
+  /* Lift animation */
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--lift {
+    transition: transform 600ms cubic-bezier(0.22, 0.61, 0.36, 1) !important;
+  }
+  
+  /* Chosen jar - spectacular */
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--chosen .wt-jarImg {
+    filter:
+      drop-shadow(0 25px 45px rgba(0, 0, 0, 0.7))
+      drop-shadow(0 0 30px rgba(255, 200, 50, 0.6))
+      drop-shadow(0 0 60px rgba(255, 200, 50, 0.3));
+    animation: jarChosen 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  @keyframes jarChosen {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-3deg); }
+    75% { transform: rotate(3deg); }
+  }
+  
+  /* Picked jar highlight */
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--picked {
+    --s: 1.06;
+  }
+  
+  #wildTimeOverlay .wt-jarBtn.wt-jarBtn--picked .wt-jarImg {
+    filter:
+      drop-shadow(0 20px 35px rgba(0, 0, 0, 0.65))
+      drop-shadow(0 0 25px rgba(255, 255, 255, 0.4))
+      drop-shadow(0 0 50px rgba(255, 200, 50, 0.3));
+    animation: jarPicked 0.5s ease-in-out infinite;
+  }
+  
+  @keyframes jarPicked {
+    0%, 100% { filter:
+      drop-shadow(0 20px 35px rgba(0, 0, 0, 0.65))
+      drop-shadow(0 0 25px rgba(255, 255, 255, 0.4))
+      drop-shadow(0 0 50px rgba(255, 200, 50, 0.3)); }
+    50% { filter:
+      drop-shadow(0 20px 35px rgba(0, 0, 0, 0.65))
+      drop-shadow(0 0 35px rgba(255, 255, 255, 0.6))
+      drop-shadow(0 0 70px rgba(255, 200, 50, 0.5)); }
+  }
+  
+  /* Hint text */
+  #wildTimeOverlay .wt-hint {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 800;
+    font-size: clamp(16px, 3.5vw, 22px);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    pointer-events: none;
+    text-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(255, 200, 50, 0.3);
+    animation: hintPulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes hintPulse {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 1; }
+  }
+  
+  /* Countdown timer */
+  #wildTimeOverlay .wt-countdown {
+    margin-top: 4px;
+    opacity: 0;
+    background: linear-gradient(180deg, 
+      #fff 0%, 
+      #ffd678 50%, 
+      #ff9944 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 900;
+    font-size: clamp(50px, 12vw, 100px);
+    letter-spacing: 0.02em;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+    transform: scale(0.9);
+    transition: 
+      opacity 300ms ease,
+      transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  
+  #wildTimeOverlay .wt-countdown.wt-countdown--show {
+    opacity: 1;
+    transform: scale(1);
+    animation: countdownTick 1s ease-in-out infinite;
+  }
+  
+  @keyframes countdownTick {
+    0% { transform: scale(1); }
+    10% { transform: scale(1.15); }
+    20% { transform: scale(1); }
+  }
+  
+
+  #wildTimeOverlay .wt-win.wt-win--show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    #wildTimeOverlay *,
+    #wildTimeOverlay *::before,
+    #wildTimeOverlay *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    #wildTimeOverlay .wt-jarRow {
+      gap: clamp(12px, 5vw, 80px);
+      padding: clamp(16px, 4vw, 30px) clamp(12px, 3vw, 25px);
+    }
+    
+    #wildTimeOverlay .wt-mult {
+      font-size: clamp(40px, 12vw, 100px);
+    }
+    
+    #wildTimeOverlay .wt-countdown {
+      font-size: clamp(44px, 14vw, 90px);
+    }
+  }
+  
+
+  
+
+
+
+/* FIX: winner highlight (зелёная обводка как раньше) */
+.case-carousel-item{
+  position: relative; /* важно для ::before/::after */
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px var(--ok),
+    0 0 26px rgba(39, 201, 63, 0.65);
+}
+
+.case-carousel-item.winning::before{
+  background: rgba(39, 201, 63, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(39, 201, 63, 0.25);
+}
+.case-carousel-items { overflow: visible; }
+
+.case-carousel-item { position: relative; }
+
+.case-carousel-item.winning { z-index: 10; }
+
+
+/* ===== CASES: Center square (the "winner box") ===== */
+.case-carousel-centerbox{
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  aspect-ratio: 1 / 1;
+
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 9;
+
+  /* default (blue) */
+  background: rgba(0, 166, 255, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(0, 166, 255, 0.55),
+    0 0 26px rgba(0, 166, 255, 0.25);
+}
+
+/* becomes green when stopped */
+.case-carousel-centerbox.winning{
+  background: rgba(39, 201, 63, 0.07);
+  box-shadow:
+    0 0 0 2px rgba(39, 201, 63, 0.9),
+    0 0 32px rgba(39, 201, 63, 0.35);
+}
+
+
+/* ===========================
+   Cases: smoother spin + item numbers
+   =========================== */
+
+/* чуть мягче на мобильных при частых translate */
+.case-carousel-items{
+  transform: translate3d(0,0,0);
+  will-change: transform;
+}
+
+/* чтобы номер позиционировался поверх карточки */
+.case-carousel-item,
+.case-content-item{
+  position: relative;
+}
+
+/* если секция с контентом реально скроллится */
+.case-contents-section{
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.case-item-num-badge{ 
+  display:none !important; 
+}
+
+/* Подсветка NFT только в CONTENTS (как на скрине) */
+.case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(0,166,255,.55);
+  box-shadow:
+    0 0 0 1px rgba(0,166,255,.22),
+    0 10px 24px rgba(0,166,255,.10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%),
+    var(--panel);
+}
+
+/* гарантируем, что hidden реально скрывает панель */
+.case-decision-panel[hidden] { display: none !important; }
+
+/* ===== CASES: Win decision panel (save to profile / cash-out) ===== */
+.case-decision-panel{
+  padding: 10px 14px 12px;
+}
+
+.case-decision{
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+
+.case-decision__title{
+  font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  font-size: 16px;
+}
+
+.case-decision__sub{
+  margin-top: 4px;
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.case-decision__items{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px 0 10px;
+}
+
+.case-decision-item{
+  width: 76px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.case-decision-item__imgwrap{
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+
+.case-decision-item__imgwrap img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.case-decision-item__meta{
+  padding: 6px 6px 8px;
+}
+
+.case-decision-item__name{
+  font-weight: 900;
+  color: rgba(255,255,255,0.9);
+  font-size: 12px;
+}
+
+.case-decision-item__rarity{
+  margin-top: 2px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.6);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.case-decision__actions{
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.case-decision-btn{
+  width: 100%;
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.case-decision-btn--primary{
+  border: 0;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+}
+
+.case-decision-btn--secondary{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+}
+
+.case-decision-btn:active{ transform: translateY(1px); }
+
+.case-decision-btn__icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.case-decision-btn__amount{
+  font-variant-numeric: tabular-nums;
+}
+
+.case-decision-btn.loading{
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.case-decision__note{
+  margin-top: 10px;
+  color: rgba(255,255,255,0.65);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+/* ===== PROFILE: Inventory grid ===== */
+.profile-invlist{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-invitem{
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-invitem img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+}
+
+.profile-invbadge{
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  text-transform: uppercase;
+}
+
+@media (max-width: 380px){
+  .profile-invlist{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* фикс кликов и скрытия панели выигрыша */
+#caseDecisionPanel{
+  position: relative;
+  z-index: 2305;
+  pointer-events: auto;
+}
+#caseDecisionPanel button{ pointer-events: auto; }
+#caseDecisionPanel[hidden]{ display:none !important; }
+
+/* ===== PROFILE INVENTORY: no labels + NFT glow + sell actions ===== */
+
+/* если где-то остались бейджи/надписи — прячем */
+.profile-invbadge,
+.profile-invitem__label,
+.profile-invitem__rarity,
+.inventory-badge,
+.rarity-badge{
+  display: none !important;
+}
+
+/* grid */
+.profile-invlist{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* item (button) */
+.profile-invitem{
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-invitem img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+}
+
+/* NFT highlight */
+.profile-invitem.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow:
+    0 0 0 1px rgba(0,166,255,.22),
+    0 10px 24px rgba(0,166,255,.10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%),
+    rgba(255,255,255,0.06);
+}
+
+/* selection */
+.profile-invitem.selected{
+  box-shadow:
+    0 0 0 2px rgba(42,168,255,.55),
+    0 12px 26px rgba(0,0,0,.25);
+}
+
+.profile-invcheck{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.9);
+  font-weight: 900;
+  font-size: 14px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.profile-invitem.selected .profile-invcheck{ display: flex; }
+
+/* actions */
+.profile-invactions{
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.profile-invactions.loading{
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.inv-action-btn{
+  width: 100%;
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.inv-action-btn__amount{
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+.inv-action-btn--primary{
+  border: 0;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+}
+
+.inv-action-btn--secondary{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+}
+
+@media (max-width: 380px){
+  .profile-invlist{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ===== PROFILE: NFT shelf on top ===== */
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 360px;
+  margin: 10px auto 12px;
+  padding: 10px 12px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.profile-nft-shelf__title{font-weight:900;font-size:16px;color:rgba(255,255,255,.95)}
+.profile-nft-shelf__count{font-weight:900;font-size:13px;color:rgba(255,255,255,.7)}
+.profile-nft-shelf__row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+
+.profile-nft-item{
+  width:64px;height:64px;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-nft-item img{width:78%;height:78%;object-fit:contain;display:block}
+.profile-nft-item.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+  background: radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%), rgba(255,255,255,0.06);
+}
+
+/* Inventory grid (NFT only in this logic) */
+.profile-invgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.profile-invitem{
+  aspect-ratio:1/1;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.profile-invitem img{width:82%;height:82%;object-fit:contain;display:block}
+.profile-invitem.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+}
+@media (max-width:380px){.profile-invgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* ===== CASES: NFT decision panel ===== */
+.case-nft-panel{padding:10px 14px 6px}
+.case-nft-panel[hidden]{display:none!important}
+.case-nft-panel__box{
+  border-radius:18px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  padding:12px;
+  text-align:center;
+}
+.case-nft-panel__title{font-weight:900;color:rgba(255,255,255,.95);margin-bottom:10px}
+.case-nft-panel__items{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.case-nft-panel__item{
+  width:72px;height:72px;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow: 0 10px 22px rgba(0,166,255,0.08);
+}
+.case-nft-panel__item img{width:82%;height:82%;object-fit:contain}
+.case-nft-panel__actions{display:grid;gap:10px}
+.case-nft-btn{
+  width:100%;height:44px;border-radius:14px;
+  font-weight:900;font-size:15px;border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  -webkit-tap-highlight-color:transparent;
+}
+.case-nft-btn--primary{background:linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);color:#fff}
+.case-nft-btn--secondary{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.92);border:1px solid rgba(255,255,255,0.12)}
+.case-nft-btn.loading{opacity:.8;pointer-events:none}
+.case-nft-btn__icon{width:20px;height:20px;display:block}
+.case-nft-panel__note{margin-top:8px;font-size:12px;font-weight:800;color:rgba(255,255,255,.7)}
+
+/* ====== CASES: actions host ====== */
+.case-actions-host{
+  padding: 10px 14px 0;
+}
+
+/* ====== PROFILE: NFT shelf on top ====== */
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 360px;
+  margin: 10px auto 12px;
+  padding: 10px 12px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.profile-nft-shelf__title{font-weight:900;font-size:16px;color:rgba(255,255,255,.95)}
+.profile-nft-shelf__count{font-weight:900;font-size:13px;color:rgba(255,255,255,.7)}
+.profile-nft-shelf__row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+
+.profile-nft-item{
+  flex: 0 0 auto;
+  width:64px;height:64px;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-nft-item img{width:78%;height:78%;object-fit:contain;display:block}
+.profile-nft-item.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+  background: radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%), rgba(255,255,255,0.06);
+}
+
+/* ====== PROFILE: inventory grid + selection ====== */
+.profile-invgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+@media (max-width:380px){.profile-invgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.profile-invitem{
+  position: relative;
+  aspect-ratio:1/1;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.profile-invitem img{width:82%;height:82%;object-fit:contain;display:block}
+.profile-invitem.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+}
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+.profile-invcheck{
+  position:absolute; top:8px; right:8px;
+  width:22px;height:22px;border-radius:999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none; align-items:center; justify-content:center;
+  font-weight:900; font-size:14px;
+}
+.profile-invitem.selected .profile-invcheck{display:flex}
+
+/* ====== PROFILE: sell buttons ====== */
+.profile-invactions{
+  display:grid;
+  gap:10px;
+  margin-top:10px;
+}
+.profile-invactions.loading{opacity:.85;pointer-events:none}
+
+.inv-action-btn{
+  width:100%;
+  height:44px;
+  border-radius:14px;
+  font-weight:900;
+  font-size:14px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.inv-action-btn--primary{
+  border:0;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+}
+.inv-action-btn--secondary{
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+}
+.inv-action-btn__amount{font-variant-numeric:tabular-nums;opacity:.95}
+
+/* ====== PROFILE: modal (view / select / sell) ====== */
+.profile-modal{position:fixed;inset:0;z-index:9999}
+.profile-modal[hidden]{display:none!important}
+.profile-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.profile-modal__box{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:min(360px, calc(100% - 28px));
+  border-radius:18px;
+  background: rgba(0,0,0,0.75);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding:14px;
+}
+.profile-modal__imgwrap{
+  width:120px;height:120px;border-radius:22px;
+  margin: 6px auto 10px;
+  background: rgba(255,255,255,0.06);
+  border:1px solid rgba(0,166,255,.25);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-modal__imgwrap img{width:78%;height:78%;object-fit:contain}
+.profile-modal__meta{text-align:center;margin-bottom:10px}
+.profile-modal__title{font-weight:900;font-size:16px}
+.profile-modal__sub{font-weight:800;font-size:12px;color:rgba(255,255,255,.7);margin-top:4px}
+.profile-modal__actions{display:grid;gap:10px}
+
+.profile-modal-btn{
+  height:44px;border-radius:14px;
+  font-weight:900;font-size:14px;
+  border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.profile-modal-btn--primary{background:linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);color:#fff}
+.profile-modal-btn--secondary{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,.92)}
+.profile-modal-btn--ghost{background:transparent;border:1px solid rgba(255,255,255,0.10);color:rgba(255,255,255,.85)}
+.profile-modal-btn__amount{font-variant-numeric:tabular-nums}
+.profile-modal-btn__icon{width:20px;height:20px;display:block}
+
+/* ===== CASES: NFT panel ===== */
+.case-nft-panel{ padding: 10px 14px 6px; }
+.case-nft-panel[hidden]{ display:none !important; }
+.case-nft-panel__box{
+  border-radius:18px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  padding:12px;
+  text-align:center;
+}
+.case-nft-panel__title{ font-weight:900; color:rgba(255,255,255,.95); margin-bottom:10px; }
+.case-nft-panel__items{ display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.case-nft-panel__item{
+  width:72px; height:72px; border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  display:flex; align-items:center; justify-content:center;
+}
+.case-nft-panel__item img{ width:82%; height:82%; object-fit:contain; }
+.case-nft-panel__actions{ display:grid; gap:10px; }
+.case-nft-btn{
+  width:100%; height:44px; border-radius:14px;
+  font-weight:900; font-size:15px; border:0; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+.case-nft-btn--primary{
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+}
+.case-nft-btn--secondary{
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.92);
+}
+.case-nft-btn.loading{ opacity:.8; pointer-events:none; }
+.case-nft-btn__amount{ font-variant-numeric: tabular-nums; }
+
+/* ===== PROFILE: NFT shelf ===== */
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 360px;
+  margin: 10px auto 12px;
+  padding: 10px 12px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.profile-nft-shelf__title{font-weight:900;font-size:16px;color:rgba(255,255,255,.95)}
+.profile-nft-shelf__count{font-weight:900;font-size:13px;color:rgba(255,255,255,.7)}
+.profile-nft-shelf__row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.profile-nft-item{
+  width:64px;height:64px;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-nft-item img{width:78%;height:78%;object-fit:contain;display:block}
+.profile-nft-item.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+  background: radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%), rgba(255,255,255,0.06);
+}
+
+/* ===== PROFILE: inventory grid + select + actions ===== */
+.profile-invgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+@media (max-width:380px){.profile-invgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.profile-invitem{
+  position: relative;
+  aspect-ratio:1/1;border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.profile-invitem img{width:82%;height:82%;object-fit:contain;display:block}
+.profile-invitem.is-nft{
+  border-color: rgba(0,166,255,.55);
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+}
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+.profile-invcheck{
+  position:absolute; top:8px; right:8px;
+  width:22px;height:22px;border-radius:999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none; align-items:center; justify-content:center;
+  font-weight:900; font-size:14px;
+}
+.profile-invitem.selected .profile-invcheck{display:flex}
+
+.profile-invactions{ display:grid; gap:10px; margin-top:10px; }
+.profile-invactions.loading{ opacity:.85; pointer-events:none; }
+.inv-action-btn{
+  width:100%;
+  height:44px;
+  border-radius:14px;
+  font-weight:900;
+  font-size:14px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.inv-action-btn--primary{
+  border:0;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+}
+.inv-action-btn--secondary{
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+}
+.inv-action-btn__amount{font-variant-numeric:tabular-nums;opacity:.95}
+
+/* ===== PROFILE: modal ===== */
+.profile-modal{position:fixed;inset:0;z-index:9999}
+.profile-modal[hidden]{display:none!important}
+.profile-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.profile-modal__box{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:min(360px, calc(100% - 28px));
+  border-radius:18px;
+  background: rgba(0,0,0,0.75);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding:14px;
+}
+.profile-modal__imgwrap{
+  width:120px;height:120px;border-radius:22px;
+  margin: 6px auto 10px;
+  background: rgba(255,255,255,0.06);
+  border:1px solid rgba(0,166,255,.25);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-modal__imgwrap img{width:78%;height:78%;object-fit:contain}
+.profile-modal__meta{text-align:center;margin-bottom:10px}
+.profile-modal__title{font-weight:900;font-size:16px}
+.profile-modal__sub{font-weight:800;font-size:12px;color:rgba(255,255,255,.7);margin-top:4px}
+.profile-modal__actions{display:grid;gap:10px}
+.profile-modal-btn{
+  height:44px;border-radius:14px;
+  font-weight:900;font-size:14px;
+  border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.profile-modal-btn--primary{background:linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);color:#fff}
+.profile-modal-btn--secondary{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,.92)}
+.profile-modal-btn--ghost{background:transparent;border:1px solid rgba(255,255,255,0.10);color:rgba(255,255,255,.85)}
+.profile-modal-btn__amount{font-variant-numeric:tabular-nums}
+
+/* === NFT actions: only buttons (no “you won” window) === */
+.case-nft-actions{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* make NFT buttons look like claim button */
+.case-nft-btn{
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.case-nft-btn--primary{
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+}
+
+.case-nft-btn--secondary{
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.case-nft-btn__icon{
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.case-nft-btn__amount{
+  font-variant-numeric: tabular-nums;
+}
+
+.case-nft-btn.loading{
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* === если где-то ещё остался старый “win-window” — скрываем его текст/картинки === */
+.case-nft-panel__title,
+.case-nft-panel__note,
+.case-nft-panel__items,
+.case-decision__title,
+.case-decision__sub,
+.case-decision__items{
+  display: none !important;
+}
+
+.case-nft-panel__box,
+.case-decision{
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* ===============================
+   PROFILE: NFT inventory UI
+   =============================== */
+
+/* Top NFT shelf (above currency switch) */
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 340px;
+  margin: 12px auto 10px;
+  padding: 10px 14px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 10px;
+}
+.profile-nft-shelf__title{
+  font-weight: 900;
+  font-size: 16px;
+  color: rgba(255,255,255,0.95);
+}
+.profile-nft-shelf__count{
+  font-weight: 900;
+  font-size: 13px;
+  color: rgba(255,255,255,0.70);
+}
+.profile-nft-shelf__row{
+  display:flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.profile-nft-item{
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.40);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: 0 10px 22px rgba(0,166,255,0.08);
+}
+.profile-nft-item img{
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  display:block;
+}
+
+/* Inventory grid */
+.profile-invempty{
+  margin: 6px 0 10px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.72);
+  text-align: center;
+}
+.profile-invgrid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 380px){
+  .profile-invgrid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.profile-invitem{
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  overflow: hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: 0 8px 18px rgba(0,166,255,0.06);
+}
+.profile-invitem img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display:block;
+}
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+.profile-invcheck{
+  position:absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+  font-size: 14px;
+}
+.profile-invitem.selected .profile-invcheck{ display:flex; }
+
+/* Actions */
+.profile-invactions{
+  display:grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.profile-invactions.loading{
+  opacity: 0.85;
+  pointer-events: none;
+}
+.inv-action-btn{
+  width: 100%;
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.inv-action-btn--primary{
+  border: 0;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+}
+.inv-action-btn--secondary{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+}
+.inv-action-btn__amount{
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+/* Modal (view NFT) */
+.profile-modal{ position: fixed; inset:0; z-index: 9999; }
+.profile-modal[hidden]{ display:none !important; }
+.profile-modal__backdrop{ position:absolute; inset:0; background: rgba(0,0,0,.55); }
+.profile-modal__box{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100% - 28px));
+  border-radius: 18px;
+  background: rgba(0,0,0,0.78);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding: 14px;
+}
+.profile-modal__imgwrap{
+  width: 120px;
+  height: 120px;
+  border-radius: 22px;
+  margin: 6px auto 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.25);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.profile-modal__imgwrap img{ width:78%; height:78%; object-fit:contain; }
+.profile-modal__meta{ text-align:center; margin-bottom: 10px; }
+.profile-modal__title{ font-weight: 900; font-size: 16px; }
+.profile-modal__sub{ font-weight: 800; font-size: 12px; color: rgba(255,255,255,.7); margin-top: 4px; }
+.profile-modal__actions{ display:grid; gap: 10px; }
+
+.profile-modal-btn{
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  border: 0;
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 10px;
+}
+.profile-modal-btn--primary{
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+}
+.profile-modal-btn--secondary{
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.92);
+}
+.profile-modal-btn--ghost{
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.85);
+}
+.profile-modal-btn__amount{ font-variant-numeric: tabular-nums; }
+.profile-modal-btn__icon{ width: 20px; height: 20px; display:block; }
+
+/* ===== Profile: NFT shelf + inventory grid + actions (keeps default empty state) ===== */
+
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 340px;
+  margin: 12px auto 10px;
+  padding: 10px 14px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.profile-nft-shelf__title{font-weight:900;font-size:16px;color:rgba(255,255,255,.95)}
+.profile-nft-shelf__count{font-weight:900;font-size:13px;color:rgba(255,255,255,.7)}
+.profile-nft-shelf__row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+
+.profile-nft-item{
+  flex: 0 0 auto;
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.40);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow: 0 10px 22px rgba(0,166,255,0.08);
+}
+.profile-nft-item img{width:78%;height:78%;object-fit:contain;display:block}
+.profile-nft-item.is-nft{
+  box-shadow: 0 0 0 1px rgba(0,166,255,.22), 0 10px 24px rgba(0,166,255,.10);
+}
+
+/* Actions */
+.profile-invactions{
+  display:grid;
+  gap:10px;
+  margin: 10px 0 0;
+}
+.profile-invactions.loading{opacity:.85;pointer-events:none}
+.inv-action-btn{
+  width:100%;
+  height:44px;
+  border-radius:14px;
+  font-weight:900;
+  font-size:14px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  -webkit-tap-highlight-color:transparent;
+}
+.inv-action-btn--primary{
+  border:0;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+  box-shadow: 0 10px 22px rgba(17,140,255,0.18);
+}
+.inv-action-btn--secondary{
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+}
+.inv-action-btn__amount{font-variant-numeric:tabular-nums;opacity:.95}
+
+/* Grid */
+.profile-invgrid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap:10px;
+  margin-top:10px;
+}
+@media (max-width:380px){.profile-invgrid{grid-template-columns: repeat(3, minmax(0,1fr));}}
+
+.profile-invitem{
+  position:relative;
+  aspect-ratio: 1/1;
+  border-radius:16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow: 0 8px 18px rgba(0,166,255,0.06);
+}
+.profile-invitem img{width:82%;height:82%;object-fit:contain;display:block}
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+.profile-invcheck{
+  position:absolute; top:8px; right:8px;
+  width:22px; height:22px;
+  border-radius:999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none;
+  align-items:center; justify-content:center;
+  font-weight:900; font-size:14px;
+}
+.profile-invitem.selected .profile-invcheck{display:flex}
+
+/* Modal (view) */
+.profile-modal{position:fixed;inset:0;z-index:9999}
+.profile-modal[hidden]{display:none!important}
+.profile-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.profile-modal__box{
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:min(360px, calc(100% - 28px));
+  border-radius:18px;
+  background: rgba(0,0,0,0.78);
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding:14px;
+}
+.profile-modal__imgwrap{
+  width:120px;height:120px;border-radius:22px;
+  margin: 6px auto 10px;
+  background: rgba(255,255,255,0.06);
+  border:1px solid rgba(0,166,255,.25);
+  display:flex;align-items:center;justify-content:center;
+}
+.profile-modal__imgwrap img{width:78%;height:78%;object-fit:contain}
+.profile-modal__meta{text-align:center;margin-bottom:10px}
+.profile-modal__title{font-weight:900;font-size:16px}
+.profile-modal__sub{font-weight:800;font-size:12px;color:rgba(255,255,255,.7);margin-top:4px}
+.profile-modal__actions{display:grid;gap:10px}
+.profile-modal-btn{
+  height:44px;border-radius:14px;
+  font-weight:900;font-size:14px;
+  border:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.profile-modal-btn--primary{background:linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);color:#fff}
+.profile-modal-btn--secondary{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,.92)}
+.profile-modal-btn--ghost{background:transparent;border:1px solid rgba(255,255,255,0.10);color:rgba(255,255,255,.85)}
+
+/* ===== PROFILE inventory grid: max 3 items per row ===== */
+.profile-invgrid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 360px){
+  .profile-invgrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* cards */
+.profile-invitem{
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  overflow: hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: 0 8px 18px rgba(0,166,255,0.06);
+}
+.profile-invitem img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display:block;
+}
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+.profile-invcheck{
+  position:absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+  font-size: 14px;
+}
+.profile-invitem.selected .profile-invcheck{ display:flex; }
+
+/* top NFT shelf */
+.profile-nft-shelf{
+  width: 100%;
+  max-width: 340px;
+  margin: 12px auto 10px;
+  padding: 10px 14px 12px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.profile-nft-shelf__header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.profile-nft-shelf__title{font-weight:900;font-size:16px;color:rgba(255,255,255,.95)}
+.profile-nft-shelf__count{font-weight:900;font-size:13px;color:rgba(255,255,255,.7)}
+.profile-nft-shelf__row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.profile-nft-item{
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.40);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow: 0 10px 22px rgba(0,166,255,0.08);
+}
+.profile-nft-item img{width:78%;height:78%;object-fit:contain;display:block}
+
+/* buttons block */
+.profile-invactions{ display:grid; gap:10px; margin-top:10px; }
+.profile-invactions.loading{ opacity:.85; pointer-events:none; }
+
+/* === Inventory grid: максимум 3 в ряд === */
+.profile-invgrid{
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 360px){
+  .profile-invgrid{ grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
+.profile-invitem{
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,166,255,.35);
+  overflow: hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.profile-invitem img{
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display:block;
+}
+
+.profile-invitem.selected{
+  box-shadow: 0 0 0 2px rgba(42,168,255,.55), 0 12px 26px rgba(0,0,0,.25);
+}
+
+.profile-invcheck{
+  position:absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.95);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+  font-size: 14px;
+}
+.profile-invitem.selected .profile-invcheck{ display:flex; }
+
+/* кнопки продажи показываются только когда есть предметы (JS управляет hidden) */
+.profile-invactions{ display:grid; gap:10px; margin-top:10px; }
+.profile-invactions.loading{ opacity:.85; pointer-events:none; }
+
+/* ===== PROFILE INVENTORY (NFT) ===== */
+
+.profile-nft-shelf{
+  margin: 12px 0 6px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.profile-nft-shelf__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 10px;
+}
+
+.profile-nft-shelf__title{
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.profile-nft-shelf__count{
+  font-size: 12px;
+  opacity: .75;
+}
+
+.profile-nft-shelf__row{
+  display:flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.profile-nft-item{
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.profile-nft-item img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.profile-invgrid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* максимум 3 в ряд */
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-invitem{
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.profile-invitem.selected{
+  border-color: rgba(0, 180, 255, 0.95) !important;
+  box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.25);
+}
+
+.profile-invactions{
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.inv-action-btn{
+  width:100%;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+
+.inv-action-btn--primary{
+  background: linear-gradient(180deg, rgba(0,150,255,0.95), rgba(0,110,220,0.95));
+  border-color: rgba(0,170,255,0.55);
+}
+
+.inv-action-btn--secondary{
+  background: rgba(255,255,255,0.06);
+}
+
+.inv-action-btn:disabled{
+  opacity: .55;
+}
+
+/* ===== NFT MODAL ===== */
+
+.profile-modal{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.profile-modal[hidden]{
+  display:none;
+}
+
+.profile-modal__backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+}
+
+.profile-modal__box{
+  position:absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92vw, 360px);
+  border-radius: 20px;
+  background: rgba(20,20,24,0.92);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  overflow:hidden;
+}
+
+.profile-modal__imgwrap{
+  padding: 18px 18px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.profile-modal__imgwrap img{
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+}
+
+.profile-modal__meta{
+  padding: 0 18px 14px;
+}
+
+.profile-modal__title{
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.profile-modal__sub{
+  margin-top: 6px;
+  opacity: .75;
+  font-size: 12px;
+}
+
+.profile-modal__actions{
+  padding: 0 18px 18px;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-modal-btn{
+  width:100%;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-weight: 900;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+}
+
+.profile-modal-btn--primary{
+  background: linear-gradient(180deg, rgba(0,150,255,0.95), rgba(0,110,220,0.95));
+  border-color: rgba(0,170,255,0.55);
+}
+
+.profile-modal-btn--secondary{
+  background: rgba(255,255,255,0.06);
+}
+
+.case-claim-bar{ padding:10px 14px 6px; }
+
+.case-claim-row{
+  display:flex;
+  gap:12px;
+  align-items:stretch;
+  flex-wrap:nowrap; /* всегда в линию */
+}
+
+/* Левая кнопка (Claim денег) */
+.case-claim-btn{
+  flex: 0 0 44%;
+  min-width: 0;
+  height:44px;
+  border:0;
+  border-radius:14px;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color:#fff;
+  font-weight:900;
+  font-size:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  cursor:pointer;
+}
+.case-claim-btn.loading{ opacity:.7; }
+.case-claim-btn[disabled]{ opacity:.6; cursor:not-allowed; }
+
+/* ===== NFT блок (справа): одна капсула с двумя кнопками ===== */
+.case-nft-actions-inline{
+  position: relative;
+  flex: 1 1 auto;
+  display:flex;
+  align-items:center;
+  justify-content:stretch;
+  flex-wrap:nowrap;
+
+  padding: 4px;
+  border-radius: 16px;
+
+  background: rgba(10, 16, 24, 0.55);
+  border: 1px solid rgba(46, 166, 255, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.05),
+    0 14px 30px rgba(0,0,0,0.35);
+
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+/* Разделитель внутри капсулы */
+.case-nft-actions-inline::after{
+  content:'';
+  position:absolute;
+  left:50%;
+  top:6px;
+  bottom:6px;
+  width:1px;
+  background: rgba(255,255,255,0.10);
+  transform: translateX(-0.5px);
+  pointer-events:none;
+}
+
+/* Кнопки внутри капсулы */
+.case-nft-btn-inline{
+  flex: 1 1 0;
+  min-width:0;
+  height: 38px;
+
+  border: 0;
+  border-radius: 12px;
+
+  font-weight: 900;
+  font-size: 13px;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 7px;
+
+  cursor:pointer;
+  user-select:none;
+  white-space: nowrap;
+}
+
+.case-nft-btn-inline--primary{
+  background: linear-gradient(180deg,#34d399 0%,#10b981 100%);
+  color:#062b1d;
+  box-shadow: 0 10px 22px rgba(16,185,129,0.20);
+}
+
+.case-nft-btn-inline--secondary{
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.95);
+}
+
+.case-nft-btn-inline.loading{ opacity:.75; }
+.case-nft-btn-inline[disabled]{ opacity:.6; cursor:not-allowed; }
+
+.case-nft-btn-inline__amount{ font-variant-numeric: tabular-nums; opacity: .95; }
+.case-nft-btn-inline__icon{ width: 16px; height: 16px; display:block; }
+
+@media (max-width: 380px){
+  .case-claim-row{ gap:10px; }
+  .case-claim-btn{ height:42px; font-size:14px; flex-basis: 46%; }
+  .case-nft-btn-inline{ height:36px; font-size:12px; gap:6px; }
+  .case-nft-btn-inline__icon{ width:15px; height:15px; }
+}
+
+/* чтобы при отсутствии NFT левая кнопка была на всю ширину */
+.case-claim-row.no-nft .case-claim-btn{ flex: 1 1 auto !important; }
+
+/* чтобы цифры не “дёргали” кнопки */
+.case-claim-btn__amount,
+.case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* выравнивание высоты правого NFT-блока */
+.case-nft-actions-inline{ height:44px; padding:3px; }
+.case-nft-btn-inline{ height:38px; }
+
+/* визуально понятно что Claim уже забран */
+.case-claim-btn.claimed{ opacity:.65; }
+
+/* hidden должен реально скрывать элементы (иначе их держит display:flex из твоих классов) */
+.case-claim-bar[hidden]{ display:none !important; }
+.case-nft-actions-inline[hidden]{ display:none !important; }
+
+/* на всякий случай: когда NFT нет — правый блок не рисуем вообще */
+.case-claim-row.no-nft #caseNftActions{ display:none !important; }
+
+/* Линия должна оставаться зелёной до клейма */
+.case-carousel-indicator.won{
+  width:4px;
+  background: var(--ok);
+  box-shadow: 0 0 20px var(--ok), 0 0 40px var(--ok), 0 0 60px var(--ok);
+  animation: none; /* без бесконечных пульсаций */
+}
+
+/* hidden должен реально скрывать NFT-блок (если у тебя где-то display:flex перебивает) */
+.case-nft-actions-inline[hidden]{ display:none !important; }
+
+/* ===== Split mode: слева есть Claim денег -> справа меньше места ===== */
+/* Определяем split по факту: кнопка #caseClaimBtn НЕ hidden */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline{
+  font-size: 12px;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+/* Укорачиваем "Claim NFT" -> "NFT" ТОЛЬКО в split */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn{
+  font-size: 0;              /* скрываем исходный текст "Claim NFT" */
+}
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn::before{
+  content: "NFT";            /* короткая подпись */
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+/* Sell тоже чуть компактнее, чтобы не резалось */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn{
+  font-size: 12px;
+}
+
+/* чтобы сумма не “прыгала” */
+.case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Split mode: слева есть Claim денег -> справа меньше места ===== */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline{
+  padding: 0 6px;
+  gap: 5px;
+  overflow: hidden;
+}
+
+/* вместо короткого "NFT" делаем "NFT claim" (в 2 строки, чтобы точно влезало) */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn{
+  font-size: 0 !important;        /* скрываем исходный текст кнопки */
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftClaimBtn::before{
+  content: "NFT\A claim";         /* 2 строки: NFT + claim */
+  white-space: pre;
+  font-size: 11px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+
+/* Sell — компактнее, чтобы сумма + иконка валюты всегда помещались */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn{
+  font-size: 11px !important;
+  gap: 5px;
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn .case-nft-btn-inline__amount{
+  min-width: 4.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn .case-nft-btn-inline__icon{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+/* если у тебя слово Sell — это обычный span, не даём ему сжиматься странно */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions #caseNftSellBtn span:first-child{
+  flex: 0 0 auto;
+  opacity: .92;
+}
+
+/* Убираем старые хаки с подменой текста (если они были) */
+#caseNftClaimBtn::before{ content: none !important; }
+#caseNftClaimBtn{ font-size: 12px !important; }
+
+/* Картинка NFT внутри кнопки Claim */
+.case-nft-btn-inline__thumb{
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex: 0 0 auto;
+
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.10);
+  padding: 2px;
+}
+
+/* чтобы "Claim" не сжимался и не обрезался */
+.case-nft-btn-inline__label{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* В сплите чуть компактнее (когда слева ещё есть Claim денег) */
+.case-claim-row #caseClaimBtn:not([hidden]) ~ #caseNftActions .case-nft-btn-inline__thumb{
+  width: 16px;
+  height: 16px;
+}

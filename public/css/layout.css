@@ -1,0 +1,150 @@
+        /* APP WRAPPER */
+        .app {
+                                   /* Макс. ширина как у телефона */
+          margin: 0 auto;                                /* Центрируем */
+          min-height: 100dvh;                            /* Мин. высота (динамический viewport) */
+          padding-bottom: 90px;                          /* Отступ для нижней навигации */
+          position: relative;                            /* Относительное позиционирование */
+          padding-top: 10px;                             /* Отступ сверху 10px */
+        }
+
+        /* LOGO MID */
+        .logo-header {
+          position: absolute;                            /* Абсолютное позиционирование */
+          margin-top: 29px;                              /* Отступ сверху */
+          top: calc(var(--safe-top) + 22px);             /* Позиция с учётом safe area (было +12px) */
+          left: 50%;                                     /* 50% слева */
+          transform: translateX(-50%);                   /* Центрируем по X */
+          z-index: 100;                                  /* Поверх других элементов */
+          max-width: 430px;                              /* Макс. ширина */
+          width: 100%;                                   /* Ширина 100% */
+          display: flex;                                 /* Flexbox */
+          justify-content: center;                       /* Центрируем содержимое */
+          align-items: center;                           /* Выравниваем по центру */
+          padding: 0 var(--spacing-lg);                  /* Горизонтальные отступы */
+        }
+
+        .main-logo {
+          height: 36px;                                  /* Высота логотипа */
+          width: auto;                                   /* Ширина автоматическая */
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3)); /* Тень */
+          animation: logoFadeIn 0.6s ease-out;           /* Анимация появления */
+        }
+
+       /* ============================================
+                TOPBAR WITH LEFT CONTROLS
+         ============================================ */
+
+         .topbar {
+          position: relative;                            /* Относительное позиционирование */
+          display: flex;                                 /* Flexbox */
+          align-items: center;                           /* Центрируем по вертикали */
+          justify-content: space-between;                /* Распределяем по краям */
+          padding: 12px 14px;                            /* Внутренние отступы */
+          gap: 12px;                                     /* Расстояние между элементами */
+        }
+
+        .topbar__left {
+          display: flex;                                 /* Flexbox */
+          align-items: center;                           /* Центрируем по вертикали */
+          gap: 10px;                                     /* Расстояние между элементами */
+          margin-top: 70px;                              /* Отступ сверху (под логотипом) */
+        }
+
+        /* Avatar Button */
+        .avatar-btn {
+          width: 40px;                                   /* Ширина кнопки */
+          height: 40px;                                  /* Высота кнопки */
+          border-radius: 50%;                            /* Круглая форма */
+          background: var(--panel);                      /* Фон панели */
+          border: 1.5px solid rgba(0, 166, 255, 0.3);   /* Акцентная граница */
+          padding: 0;                                    /* Без отступов */
+          overflow: hidden;                              /* Скрываем overflow */
+          cursor: pointer;                               /* Курсор pointer */
+          transition: all 0.2s ease;                     /* Плавные переходы */
+          -webkit-tap-highlight-color: transparent;      /* Убираем подсветку на мобильных */
+          box-shadow:                                    /* Двойная тень */
+            0 2px 8px rgba(0, 0, 0, 0.3),
+            0 0 0 2px rgba(0, 166, 255, 0.1);
+        }
+
+        .avatar-btn:hover {
+          transform: scale(1.05);                        /* Увеличиваем при hover */
+          border-color: rgba(0, 166, 255, 0.5);          /* Усиливаем границу */
+          box-shadow:                                    /* Усиливаем тень */
+            0 4px 12px rgba(0, 166, 255, 0.3),
+            0 0 0 2px rgba(0, 166, 255, 0.2);
+        }
+
+        .avatar-btn:active {
+          transform: scale(0.95);                        /* Уменьшаем при нажатии */
+        }
+
+        .avatar-btn__img {
+          width: 100%;                                   /* Ширина 100% */
+          height: 100%;                                  /* Высота 100% */
+          object-fit: cover;                             /* Обрезаем изображение */
+        }
+
+        /* Burger Button */
+        .burger-btn {
+          width: 40px;                                   /* Ширина кнопки */
+          height: 40px;                                  /* Высота кнопки */
+          border-radius: 12px;                           /* Скруглённые углы */
+          background: var(--panel);                      /* Фон панели */
+          border: 1px solid var(--border);               /* Граница */
+          display: flex;                                 /* Flexbox */
+          flex-direction: column;                        /* Вертикальное расположение */
+          align-items: center;                           /* Центрируем */
+          justify-content: center;                       /* Центрируем */
+          gap: 5px;                                      /* Расстояние между линиями */
+          cursor: pointer;                               /* Курсор pointer */
+          transition: all 0.2s ease;                     /* Плавные переходы */
+          padding: 0;                                    /* Без отступов */
+          -webkit-tap-highlight-color: transparent;      /* Убираем подсветку */
+          box-shadow:                                    /* Тень + внутренний блик */
+            0 2px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .burger-btn:hover {
+          background: var(--card);                       /* Меняем фон при hover */
+          border-color: rgba(0, 166, 255, 0.3);          /* Подсвечиваем границу */
+          transform: translateY(-1px);                   /* Приподнимаем */
+          box-shadow:                                    /* Усиливаем тень */
+            0 4px 12px rgba(0, 166, 255, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        .burger-btn:active {
+          transform: translateY(0) scale(0.95);          /* Возвращаем и уменьшаем */
+        }
+
+        .burger-btn__line {
+          width: 18px;                                   /* Ширина линии */
+          height: 2px;                                   /* Высота линии */
+          background: var(--text);                       /* Цвет линии */
+          border-radius: 2px;                            /* Скругление */
+          transition: all 0.3s ease;                     /* Плавные переходы для анимации */
+        }
+
+        /* Burger animation when sheet is open */
+        .burger-btn.active .burger-btn__line:nth-child(1) {
+          transform: translateY(7px) rotate(45deg);      /* Первая линия → верх крестика */
+        }
+
+        .burger-btn.active .burger-btn__line:nth-child(2) {
+          opacity: 0;                                    /* Вторая линия исчезает */
+          transform: translateX(-10px);                  /* Уходит влево */
+        }
+
+        .burger-btn.active .burger-btn__line:nth-child(3) {
+          transform: translateY(-7px) rotate(-45deg);    /* Третья линия → низ крестика */
+        }
+
+        /* Balance - stay on the right */
+        .balance {
+          margin-left: auto;                             /* Прижимаем вправо */
+        }
+
+        /* ============================================

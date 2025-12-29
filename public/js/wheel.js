@@ -1421,40 +1421,43 @@ function showTestModeNotification() {
 let cInt = null;
 let isCountdownActive = false;
 
-function startCountdown(sec=9){
+function startCountdown(sec = 9) {
   if (!countdownBox || !countNumEl) return;
-  if (isCountdownActive) return;
 
+  // Always restart cleanly (useful when returning from bonuses/pages)
   stopCountdown();
+
   isCountdownActive = true;
   setPhase('betting');
   setOmega(IDLE_OMEGA);
   setBetPanel(true);
 
   countdownBox.classList.add('visible');
+
   let left = sec;
   countNumEl.textContent = String(left);
 
   cInt = setInterval(async () => {
     left--;
-    
+
     if (left >= 0) {
       countNumEl.textContent = String(left);
-      countdownBox.classList.remove('pulse'); 
-      void countdownBox.offsetWidth; 
+      countdownBox.classList.remove('pulse');
+      // restart animation if pulse styles exist
+      void countdownBox.offsetWidth;
       countdownBox.classList.add('pulse');
     }
-    
+
     if (left <= 0) {
       stopCountdown();
 
       setPhase('accelerate');
       setBetPanel(false);
-      
+
       try {
         await accelerateTo(FAST_OMEGA, 1200);
         const { sliceIndex, type } = await fetchRoundOutcome();
-        const dur = 5000 + Math.floor(Math.random()*2000);
+        const dur = 5000 + Math.floor(Math.random() * 2000);
         await decelerateToSlice(sliceIndex, dur, 4, type);
       } catch (error) {
         console.error('[Wheel] Error during spin:', error);
@@ -1468,15 +1471,23 @@ function startCountdown(sec=9){
   }, 1000);
 }
 
-function stopCountdown(){
+function stopCountdown() {
   if (cInt) {
     clearInterval(cInt);
     cInt = null;
   }
   isCountdownActive = false;
+
+  // Hide the timer when it's not running
+  if (countdownBox) countdownBox.classList.remove('visible', 'pulse');
 }
 
+// Make sure bonuses/admin can call these reliably
+window.startCountdown = startCountdown;
+window.stopCountdown = stopCountdown;
+
 /* ===== Accel/Decel ===== */
+
 function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
   return new Promise(res=>{
     const start = omega;

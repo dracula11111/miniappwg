@@ -1,0 +1,1079 @@
+             CASES (FULL CLEAN BLOCK) —
+       ============================================ */
+
+/* On Cases page / when sheet open: hide avatar & burger */
+body.page-cases #userAvatarBtn,
+body.page-cases #burgerBtn,
+body.case-sheet-open #userAvatarBtn,
+body.case-sheet-open #burgerBtn,
+body.tonc-open #userAvatarBtn,
+body.tonc-open #burgerBtn{
+  display:none !important;
+}
+
+/* Move the case sheet a bit lower so it doesn’t touch the balance pill */
+body.page-cases .case-sheet-panel,
+body.case-sheet-open .case-sheet-panel{
+  max-height: 80vh;
+}
+
+/* Keep balance pill above blur */
+.case-sheet-open .pill--ton{
+  position: relative;
+  z-index: 2500 !important;
+}
+.case-sheet-open .topbar{
+  z-index: 2400;
+}
+
+/* ----------------------------
+   Cases Filter
+   ---------------------------- */
+.cases-filter{
+  display:flex;
+  gap:8px;
+  padding: 0 12px 16px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width:none;
+}
+.cases-filter::-webkit-scrollbar{ display:none; }
+
+.filter-tab{
+  flex-shrink:0;
+  padding: 8px 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  transition: transform .15s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.filter-tab.active{
+  background: linear-gradient(135deg, #00a6ff, #0d68c3);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 166, 255, 0.30);
+  transform: translateY(-1px);
+}
+.filter-tab:active{ transform: scale(0.96); }
+
+/* ----------------------------
+   Cases Grid + Cards
+   ---------------------------- */
+.cases-grid{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:12px;
+  padding: 0 12px;
+}
+@media (max-width: 380px){
+  .cases-grid{ gap:10px; padding: 0 10px; }
+}
+
+.case-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow:hidden;
+  cursor:pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+@media (hover:hover){
+  .case-card:hover{
+    transform: translateY(-4px) scale(1.02);
+    border-color: rgba(0,166,255,0.55);
+    box-shadow:
+      0 0 0 1px rgba(0,166,255,0.25) inset,
+      0 12px 32px rgba(0,0,0,0.40),
+      0 0 24px rgba(0,166,255,0.18);
+  }
+  .case-card:hover .case-img{ transform: scale(1.08) rotate(2deg); }
+  .case-card:hover .case-card__glow{ opacity:1; }
+}
+.case-card:active{
+  transform: translateY(-2px) scale(0.99);
+  transition-duration: .12s;
+}
+
+.case-card__image{
+  position:relative;
+  aspect-ratio: 1;
+  overflow:hidden;
+  background: linear-gradient(135deg, #1a2332, #0f1620);
+}
+.case-img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+  transition: transform .35s ease;
+}
+.case-card__glow{
+  position:absolute;
+  inset:0;
+  background: radial-gradient(circle at center, rgba(0,166,255,0.22), transparent 65%);
+  opacity:0;
+  transition: opacity .35s ease;
+  pointer-events:none;
+}
+
+.case-card__info{
+  padding: 12px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.case-card__title{
+  margin:0;
+  font-size:14px;
+  font-weight:700;
+  color: var(--text);
+  line-height:1.25;
+}
+@media (max-width: 380px){
+  .case-card__title{ font-size:13px; }
+}
+.case-card__price{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  font-weight:700;
+  color: var(--accent);
+}
+.price-icon{
+  width:16px;
+  height:16px;
+  filter: drop-shadow(0 0 4px rgba(0,166,255,0.40));
+}
+
+/* ----------------------------
+   Bottom sheet overlay
+   ---------------------------- */
+.case-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.70);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity:0;
+  visibility:hidden;
+  transition: opacity .25s ease, visibility .25s ease;
+  z-index: 2000;
+}
+.case-overlay.active{
+  opacity:1;
+  visibility:visible;
+}
+
+.case-bottom-sheet{
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  pointer-events:none;
+}
+
+.case-sheet-panel{
+  position:absolute;
+  left:0; right:0; bottom:0;
+  max-height: 85vh;
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  transform: translateY(100%);
+  transition: transform .35s cubic-bezier(0.4,0,0.2,1);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.50);
+  pointer-events: all;
+  z-index: 2200;
+}
+.case-sheet-panel.active{ transform: translateY(0); }
+
+/* Header */
+.case-sheet-header{
+  flex-shrink:0;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.case-sheet-header h2{
+  margin:0;
+  font-size:20px;
+  font-weight:700;
+  color: var(--text);
+}
+.case-sheet-close{
+  width:32px; height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: var(--panel);
+  border-radius: 999px;
+  font-size:24px;
+  color: var(--muted);
+  transition: transform .12s ease, background .12s ease;
+}
+.case-sheet-close:active{
+  transform: scale(0.92);
+  background: var(--border);
+}
+
+/* ----------------------------
+   Carousels
+   ---------------------------- */
+.case-carousels-section{
+  flex-shrink:0;
+  padding: 24px 20px 16px;
+}
+.case-carousels-wrapper{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.case-carousel{
+  position:relative;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow:hidden;
+  opacity:0;
+  transform: scale(0.92);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.case-carousel.active{
+  opacity:1;
+  transform: scale(1);
+}
+
+.case-carousel{
+  position: relative;
+  overflow: hidden;
+}
+
+/* было: padding:8px; inset:0; */
+.case-carousel-items{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  will-change: transform;
+}
+
+.case-carousel-item{
+  height: 100%;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.case-carousel-item img{
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  display: block;
+}
+
+
+
+/* Subtle base glow behind PNG */
+.case-carousel-item::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background: rgba(255,255,255,0.035);
+}
+
+/* Winning highlight (very clear) */
+.case-carousel-item.winning::before{
+  background: rgba(0, 166, 255, 0.26);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 166, 255, 0.34),
+    0 0 26px rgba(0, 166, 255, 0.35);
+}
+.case-carousel-item.winning::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.12), transparent 60%);
+}
+
+/* Center indicator line */
+.case-carousel-indicator{
+  position:absolute;
+  top:0; bottom:0;
+  left:50%;
+  transform: translateX(-50%);
+  width:3px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent), 0 0 24px var(--accent);
+  z-index: 10;
+  pointer-events:none;
+  transition: all .2s ease;
+}
+.case-carousel-indicator.winning{
+  width:4px;
+  background: var(--ok);
+  box-shadow: 0 0 20px var(--ok), 0 0 40px var(--ok), 0 0 60px var(--ok);
+  animation: caseWinPulse .5s ease-in-out 3;
+}
+@keyframes caseWinPulse{
+  0%,100%{ box-shadow: 0 0 20px var(--ok), 0 0 40px var(--ok); }
+  50%{ box-shadow: 0 0 30px var(--ok), 0 0 60px var(--ok), 0 0 80px var(--ok); }
+}
+
+/* Edge gradients */
+.case-carousel::before,
+.case-carousel::after{
+  content:"";
+  position:absolute;
+  top:0; bottom:0;
+  width:60px;
+  z-index:5;
+  pointer-events:none;
+}
+.case-carousel::before{ left:0; background: linear-gradient(90deg, var(--panel) 0%, transparent 100%); }
+.case-carousel::after{ right:0; background: linear-gradient(-90deg, var(--panel) 0%, transparent 100%); }
+
+/* ----------------------------
+   Count switch + demo
+   ---------------------------- */
+.case-count-section{
+  flex-shrink:0;
+  padding: 12px 20px 20px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 16px;
+}
+
+.case-count-switch{
+  display:flex;
+  gap:8px;
+  background: var(--panel);
+  padding: 4px;
+  border-radius: 12px;
+}
+.case-count-btn{
+  width:48px;
+  height:36px;
+  border-radius: 8px;
+  font-size:16px;
+  font-weight:700;
+  color: var(--muted);
+  transition: transform .12s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.case-count-btn.active{
+  background: var(--accent);
+  color:#fff;
+  box-shadow: 0 2px 8px rgba(0,166,255,0.40);
+}
+.case-count-btn:active{ transform: scale(0.96); }
+
+.case-demo-toggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background: var(--panel);
+  padding: 6px 12px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  user-select:none;
+  -webkit-tap-highlight-color: transparent;
+}
+.case-demo-toggle.active{
+  background: rgba(39, 201, 63, 0.15);
+  border-color: var(--ok);
+}
+.case-demo-label{
+  font-size:12px;
+  font-weight:600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing:.5px;
+}
+.case-demo-toggle.active .case-demo-label{ color: var(--ok); }
+
+.case-demo-switch{
+  width:32px;
+  height:18px;
+  background: var(--border);
+  border-radius: 999px;
+  position:relative;
+  transition: background .2s ease;
+}
+.case-demo-toggle.active .case-demo-switch{ background: var(--ok); }
+.case-demo-switch::after{
+  content:"";
+  position:absolute;
+  top:2px; left:2px;
+  width:14px; height:14px;
+  background:#fff;
+  border-radius:999px;
+  transition: transform .2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.case-demo-toggle.active .case-demo-switch::after{ transform: translateX(14px); }
+
+/* ----------------------------
+   Contents grid (scroll)
+   ---------------------------- */
+.case-contents-section{
+  flex:1;
+  overflow-y:auto;
+  padding: 0 20px 100px;
+}
+.case-contents-title{
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+}
+.case-contents-grid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.case-content-item{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  text-align:center;
+}
+.case-content-item img{
+  width:100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+.case-content-price{
+  background: var(--card);
+  border-radius: 8px;
+  padding: 6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  font-size:12px;
+  font-weight:700;
+  color: var(--text);
+}
+.case-content-price img{
+  width:14px;
+  height:14px;
+  margin:0;
+}
+
+/* Bottom button */
+.case-bottom-button{
+  position:absolute;
+  left:0; right:0; bottom:0;
+  padding: 16px 20px 20px;
+  background: linear-gradient(to top, var(--bg) 80%, transparent);
+  border-top: 1px solid var(--border);
+  pointer-events:none;
+}
+.case-open-btn{
+  width:100%;
+  height:52px;
+  background: linear-gradient(135deg, var(--accent), #0d68c3);
+  border-radius: 12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  font-size:17px;
+  font-weight:700;
+  color:#fff;
+  pointer-events: all;
+  box-shadow: 0 4px 16px rgba(0,166,255,0.30);
+  transition: transform .12s ease;
+}
+.case-open-btn:active{ transform: scale(0.99); }
+
+.case-open-btn.demo-mode{
+  background: linear-gradient(135deg, var(--ok), #1a9f2f);
+  box-shadow: 0 4px 16px rgba(39,201,63,0.30);
+}
+.case-open-price{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.case-open-price img{ width:18px; height:18px; }
+.case-open-btn.demo-mode .case-open-price img{ display:none; }
+
+
+/* --- OVERLAY CONTAINER --- */
+.case-win-overlay,
+#caseWinOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events:none;
+}
+.case-win-overlay.show,
+#caseWinOverlay.show{
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.case-win-overlay.hide,
+#caseWinOverlay.hide{
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+
+/* --- CARD CONTAINER --- */
+.case-win-card{
+  width: min(86vw, 360px);
+  height: auto;
+  aspect-ratio: auto;
+  border-radius: 22px;
+  background: rgba(18, 22, 30, 0.92);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.60);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap: 14px;
+  padding: 18px 16px;
+  backdrop-filter: blur(10px);
+}
+
+/* --- MEDIA AND VALUE CONTAINERS --- */
+.case-win-media{
+  width:100%;
+  display:block;
+}
+.case-win-value:empty{ display:none; }
+
+/* ============================================
+   НОВАЯ СТРУКТУРА УВЕДОМЛЕНИЯ О ВЫИГРЫШЕ
+   ============================================ */
+
+/* --- ONE CASE: Large centered gift --- */
+.case-win-single {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.case-win-single .case-win-gift {
+  width: clamp(200px, 60vw, 260px);
+  aspect-ratio: 1 / 1;
+}
+
+/* --- TWO CASES: Side by side --- */
+.case-win-double {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.case-win-double .case-win-gift {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/* --- THREE CASES: Grid layout --- */
+.case-win-triple {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.case-win-triple .case-win-gift {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+/* --- GIFT CONTAINER (universal) --- */
+.case-win-gift {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.case-win-gift__bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 42%, 
+    rgba(0, 166, 255, 0.22), 
+    rgba(0, 166, 255, 0.06) 60%, 
+    rgba(0, 0, 0, 0) 100%
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 166, 255, 0.28),
+    inset 0 -18px 40px rgba(0, 0, 0, 0.35);
+}
+
+.case-win-gift img {
+  width: 75%;
+  height: 75%;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
+}
+
+/* --- TILE (for multiple gifts) --- */
+.case-win-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.case-win-label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Hide label for single gift */
+.case-win-single .case-win-label {
+  display: none;
+}
+
+/* --- TOTAL VALUE (bottom section) --- */
+.case-win-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 16px;
+  background: rgba(0, 166, 255, 0.08);
+  border-radius: 14px;
+  border: 1px solid rgba(0, 166, 255, 0.15);
+}
+
+.case-win-plus {
+  font-size: 32px;
+  font-weight: 900;
+  color: #00ff88;
+  text-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+}
+
+.case-win-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* --- MORE GIFTS INDICATOR --- */
+.case-win-more {
+  width: 100%;
+  text-align: center;
+  padding: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.7;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* --- VALUE CONTAINER --- */
+.case-win-value {
+  width: 100%;
+}
+
+/* ============================================
+   CASE WIN CARD STRUCTURE
+   ============================================ */
+
+/* --- RESPONSIVE ADJUSTMENTS --- */
+@media (max-width: 390px) {
+  .case-win-card{ 
+    width: min(90vw, 340px); 
+  }
+  
+  .case-win-single .case-win-gift {
+    width: clamp(180px, 55vw, 240px);
+  }
+  
+  .case-win-double {
+    gap: 12px;
+  }
+  
+  .case-win-triple {
+    gap: 8px;
+  }
+  
+  .case-win-plus {
+    font-size: 28px;
+  }
+  
+  .case-win-icon {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+
+/* ===== CASES: максимально видно, что именно выпало ===== */
+
+/* базовый тайл — гарантируем, что он relative */
+.case-carousel-item{
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* лёгкий фон по умолчанию */
+.case-carousel-item::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background: rgba(255,255,255,0.02);
+  pointer-events:none;
+}
+
+/* когда спин закончился — приглушаем все слоты */
+.case-carousel.cases-finished .case-carousel-item{
+  opacity: 0.35;
+  transform: scale(0.92);
+  filter: grayscale(0.6);
+}
+
+/* ВЫИГРЫШНЫЙ слот: яркий, крупный, с подсветкой */
+.case-carousel.cases-finished .case-carousel-item.winning{
+  opacity: 1;
+  transform: scale(1.10);
+  filter: none;
+  box-shadow:
+    0 0 0 2px rgba(0,166,255,0.95),
+    0 0 26px rgba(0,166,255,0.90);
+}
+
+.case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(0,166,255,0.45),
+    rgba(0,166,255,0.16) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
+
+/* PNG внутри приза чуть крупнее */
+.case-carousel.cases-finished .case-carousel-item.winning img{
+  transform: scale(1.06);
+  transition: transform .18s ease;
+}
+
+/* ===== CASES: Claim bar under carousels ===== */
+.case-claim-bar{
+  padding: 10px 14px 6px;
+}
+
+.case-claim-btn{
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  font-weight: 900;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.case-claim-btn:active{ transform: translateY(1px); }
+
+.case-claim-btn__icon{
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.case-claim-btn__amount{
+  font-variant-numeric: tabular-nums;
+}
+
+.case-claim-btn.loading{
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Layout: left Claim (gifts) + right NFT actions block */
+.case-claim-row{
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.case-claim-row > *{ min-width: 0; }
+
+.case-claim-btn{ flex: 1 1 0; }
+
+.case-nft-actions-inline{
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+.case-nft-btn-inline{
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  font-weight: 900;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+
+.case-nft-btn-inline:active{ transform: translateY(1px); }
+
+.case-nft-btn-inline--primary{
+  background: rgba(42,168,255,0.16);
+  border: 1px solid rgba(42,168,255,0.55);
+  color: #fff;
+}
+
+.case-nft-btn-inline--secondary{
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.92);
+}
+
+.case-nft-btn-inline__amount{
+  font-variant-numeric: tabular-nums;
+  opacity: 0.95;
+}
+
+.case-nft-btn-inline__icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+@media (max-width: 380px){
+  .case-claim-row{ gap: 10px; }
+  .case-claim-btn{ font-size: 15px; }
+  .case-nft-btn-inline{ font-size: 12px; height: 34px; gap: 5px; }
+}
+
+@media (max-width: 330px){
+  .case-claim-row{ gap: 8px; }
+  .case-claim-btn{ font-size: 14px; }
+  .case-nft-actions-inline{ padding: 3px; gap: 5px; }
+  .case-nft-btn-inline{ font-size: 11px; height: 32px; }
+}
+
+/* ===== CASES: Win decision panel (save to profile / cash-out) ===== */
+.case-decision-panel{
+  padding: 10px 14px 12px;
+}
+
+.case-decision{
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+
+.case-decision__title{
+  font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  font-size: 16px;
+}
+
+.case-decision__sub{
+  margin-top: 4px;
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.case-decision__items{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px 0 10px;
+}
+
+.case-decision-item{
+  width: 76px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.case-decision-item__imgwrap{
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+
+.case-decision-item__imgwrap img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.case-decision-item__meta{
+  padding: 6px 6px 8px;
+}
+
+.case-decision-item__name{
+  font-weight: 900;
+  color: rgba(255,255,255,0.9);
+  font-size: 12px;
+}
+
+.case-decision-item__rarity{
+  margin-top: 2px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.6);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.case-decision__actions{
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.case-decision-btn{
+  width: 100%;
+  height: 44px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.case-decision-btn--primary{
+  border: 0;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 10px 22px rgba(17, 140, 255, 0.18);
+}
+
+.case-decision-btn--secondary{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+}
+
+.case-decision-btn:active{ transform: translateY(1px); }
+
+.case-decision-btn__icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.case-decision-btn__amount{
+  font-variant-numeric: tabular-nums;
+}
+
+.case-decision-btn.loading{
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.case-decision__note{
+  margin-top: 10px;
+  color: rgba(255,255,255,0.65);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+
+        
+     
+/* ============================================

@@ -1,0 +1,77 @@
+/*============================================
+                DESIGN CSS
+      ============================================*/
+      :root{
+        --bg:#0d0e0f;                                    /* Основной тёмный фон */
+        --bg-2:#0f141c;                                  /* Вторичный фон */
+        --panel:#121823;                                 /* Фон панелей */
+        --card:#141c2a;                                  /* Фон карточек */
+        --border:#253247;                                /* Цвет границ */
+        --text:#e7edf7;                                  /* Основной цвет текста */
+        --muted:#99a7bb;                                 /* Приглушённый текст */
+        --accent:#00a6ff;                                /* Акцентный цвет (голубой) */
+        --accent-ghost:rgba(0,166,255,.14);              /* Полупрозрачный акцент */
+        --glow-soft:rgba(21,32,51,.6);                   /* Мягкое свечение */
+        --danger:#ff4d4f;                                /* Цвет ошибок */
+        --ok:#27c93f;                                    /* Цвет успеха */
+      }
+
+      *{
+         box-sizing:border-box;                          /* Box-sizing для всех элементов */
+        }
+      html,body{ 
+        height:100%;                                     /* Высота 100% */
+        margin:0;                                        /* Убираем отступы */
+      }
+      body{
+        background:                                      /* Двойной градиент фона */
+          radial-gradient(1200px 600px at 50% -220px, #152033 0%, var(--bg) 55%),
+          linear-gradient(180deg, var(--bg-2), var(--bg));
+        color:var(--text);                               /* Цвет текста */
+        padding-top: 10px;                               /* Отступ сверху */
+        font-family: system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif; /* Системные шрифты */
+        -webkit-font-smoothing:antialiased;              /* Сглаживание для WebKit */
+        -moz-osx-font-smoothing:grayscale;               /* Сглаживание для Firefox */
+     
+        
+        /* КРИТИЧНО: Запрещаем повторение градиента */
+        background-repeat: no-repeat;                    /* Градиент не повторяется */
+        background-attachment: fixed;                    /* Фиксируем фон */
+        background-size: 100% 100%;                      /* Растягиваем на весь экран */
+        
+        color: #ffffff;                                  /* Белый текст */
+        overflow-x: hidden;                              /* Убираем горизонтальную прокрутку */
+        min-height: 100vh;                               /* Минимальная высота viewport */
+      }
+
+
+        /* ШРИФТЫ */
+      @font-face{
+        font-family:'mf';                                /* Название кастомного шрифта */
+        src:url('/fonts/mf.woff2') format('woff2'),      /* Путь к woff2 */
+            url('/fonts/mf.woff') format('woff');        /* Fallback woff */
+        font-weight:400; font-style:normal; font-display:swap; /* Параметры шрифта */
+      }
+      body{ font-family:'mf', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; /* Применяем кастомный шрифт */
+      }
+
+      img{ 
+        display:block;                                   /* Блочные изображения */
+        max-width:100%;                                  /* Макс. ширина 100% */
+      }
+     
+     
+      button{ 
+        font:inherit;                                    /* Наследуем шрифт */
+        color:inherit;                                   /* Наследуем цвет */
+        background:none;                                 /* Без фона */
+        border:none;                                     /* Без границы */
+         padding:0;                                      /* Без отступов */
+         cursor:pointer;                                 /* Курсор pointer */
+         }
+     
+         :focus-visible{ 
+          outline:2px solid var(--accent);               /* Акцентная обводка */
+          outline-offset:2px;                            /* Отступ обводки */
+        }
+     

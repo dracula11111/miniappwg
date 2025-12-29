@@ -1,0 +1,844 @@
+      HISTORY STRIP - CLEAN VERSION
+   =========================== */
+   .history {
+    padding: 8px 12px;
+    margin-top: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  
+  .history-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 6px 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    scroll-behavior: smooth;
+  }
+  
+  .history-list::-webkit-scrollbar { 
+    height: 4px; 
+  }
+  
+  .history-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+  
+  .history-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+  
+  .history-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  /* 🔥 History Item - Icon Container (без бордера/плашки) */
+  .history-item {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* Убираем shine-эффект */
+  .history-item::before {
+    content: none;
+  }
+  
+  /* Hover без теней */
+  .history-item:hover {
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: none;
+  }
+  
+  .history-item:active {
+    transform: translateY(-1px) scale(1.02);
+  }
+  
+  /* 🔥 Image inside history item */
+  .history-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: inherit;
+    filter: none;
+    display: block;
+  }
+  
+  .history-item:hover img {
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.5)) brightness(1.1);
+  }
+  
+  /* 🔥 New item slide-in animation */
+  @keyframes historySlideIn {
+    0% {
+      opacity: 0;
+      transform: translateX(-30px) scale(0.7) rotate(-8deg);
+    }
+    60% {
+      transform: translateX(5px) scale(1.05) rotate(2deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0) scale(1) rotate(0deg);
+    }
+  }
+  
+  /* 🔥 First item - без специальных эффектов */
+  .history-item:first-child {
+    background: transparent;
+    box-shadow: none;
+    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  @keyframes historyPulse {
+    0% { 
+      transform: scale(0.7) rotate(-12deg);
+      opacity: 0;
+    }
+    30% { 
+      transform: scale(1.2) rotate(4deg);
+      opacity: 1;
+    }
+    50% { 
+      transform: scale(0.92) rotate(-2deg);
+    }
+    70% { 
+      transform: scale(1.08) rotate(1deg);
+    }
+    85% {
+      transform: scale(0.97) rotate(-0.5deg);
+    }
+    100% { 
+      transform: scale(1) rotate(0deg);
+    }
+  }
+  
+  /* 🔥 Empty state message */
+  .history-list:empty::before {
+    content: 'No history yet';
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 12px 8px;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 13px;
+    font-weight: 500;
+    font-style: italic;
+    letter-spacing: 0.3px;
+  }
+  
+  /* 🔥 Responsive adjustments */
+  @media (max-width: 480px) {
+    .history {
+      padding: 6px 10px;
+    }
+    
+    .history-item {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border-radius: 9px;
+    }
+    
+    .history-item img {
+      border-radius: 9px;
+    }
+    
+    .history-list {
+      gap: 6px;
+    }
+  }
+  
+  /* 🔥 Reduced motion accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    .history-item {
+      animation: none;
+      transition: none;
+    }
+    
+    .history-item:hover {
+      transform: none;
+    }
+  }
+
+    /* ===========================
+                WHEEL
+   =========================== */
+   .wheel{
+    position: relative;
+    display:flex; 
+    justify-content:center; 
+    align-items:center; 
+    padding:8px 10px 12px; 
+  }
+    #wheelCanvas{
+      display:block;
+      width:min(92vw, 420px); 
+      height:auto;
+      margin:0 auto; 
+      border-radius:50%;
+      background:radial-gradient(circle at 50% 40%, #182234 0%, #101723 58%, #0d131c 100%);
+      border:1px solid var(--border);
+      box-shadow:
+      0 16px 40px rgba(0,0,0,.55),
+      inset 0 0 40px rgba(0,0,0,.35),
+      0 0 24px rgba(21,32,51,.4);
+    }
+
+    /* Pointer */
+    .pointer{
+      position:absolute;
+      top:-4px;              /* подстрой: выше/ниже */
+      left:50%;
+      transform:translateX(-50%);
+      width:44px;            /* подстрой размер */
+      height:auto;
+      z-index:10;
+      pointer-events:none;
+      filter: drop-shadow(0 8px 14px rgba(0,0,0,.55));
+    }
+    
+     /* ===========================
+      WHEEL COUNTDOWN TIMER
+      (#countdown / #countNum)
+      =========================== */
+
+    #countdown.countdown{
+      position: absolute;
+      left: 50%;
+      top: 49.4%;
+      transform: translate(-50%, -50%) scale(0.88);
+    
+      width: clamp(64px, 18vw, 92px);
+      height: clamp(64px, 18vw, 92px);
+      border-radius: 999px;
+    
+      display: grid;
+      place-items: center;
+    
+      /* стеклянная капсула */
+      background:
+        
+        rgba(12, 18, 28, 0.09);
+    
+      box-shadow:
+        0 18px 40px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 0 22px rgba(0,166,255,0.12);
+    
+      backdrop-filter: blur(2px);
+    
+      /* скрыт по умолчанию — JS включает .visible */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+      z-index: 9; /* под pointer(10), но над canvas */
+    }
+    
+    #countdown.countdown.visible{
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
+    #countdown.countdown #countNum{
+      font-family: 'mf', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+      font-weight: 900;
+      font-size: clamp(15px, 9vw, 52px);
+      line-height: 1;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+    
+      /* “неоновый” градиент текста */
+      background: white;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: white;
+    
+      text-shadow:
+        0 3px 10px rgba(0,0,0,0.55),
+        0 0 18px rgba(219, 242, 255, 0.28);
+    }
+    
+    /* JS дёргает класс .pulse на каждом тике */
+    #countdown.countdown.pulse{
+      animation: wheelCountdownPulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    @keyframes wheelCountdownPulse{
+      0%   { transform: translate(-50%, -50%) scale(1); }
+      55%  { transform: translate(-50%, -50%) scale(1.14); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+    
+    /* Accessibility */
+    @media (prefers-reduced-motion: reduce){
+      #countdown.countdown{ transition: none; }
+      #countdown.countdown.pulse{ animation: none; }
+    }
+      
+/* ===========================
+   УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
+=========================== */
+
+
+/* Колесо - улучшенная тень и свечение */
+#wheelCanvas {
+  box-shadow:
+  0 16px 40px rgba(0,0,0,.55),
+  inset 0 0 40px rgba(0,0,0,.35),
+  0 0 24px rgba(21,32,51,.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: box-shadow 0.3s ease;
+}
+
+.app.is-spinning #wheelCanvas {
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.6),
+    inset 0 0 40px rgba(0, 0, 0, 0.4),
+    0 0 32px rgba(0, 166, 255, 0.4);
+}
+
+
+
+
+/* Адаптив для маленьких экранов */
+@media (max-width: 380px) {
+  .history-item {
+    min-width: 44px;
+    height: 28px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+  }
+      /* ===========================
+   BET PILLS - Color-coded by segment
+   =========================== */
+.bet-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: pillAppear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+}
+
+.bet-pill__amount {
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.bet-pill__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Segment-specific colors (matching wheel sectors) */
+.bet-pill[data-segment="1.1x"] {
+  background: linear-gradient(135deg, #c46200, #6f3b00);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(111, 106, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="3x"] {
+  background: linear-gradient(135deg, #43d400, #266e00);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(110, 66, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="5x"] {
+  background: linear-gradient(135deg, #127239, #0f5a2e);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(15, 90, 46, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="11x"] {
+  background: linear-gradient(135deg, #0d5080, #0a3f64);
+  color: #fff;
+  box-shadow: 
+    0 4px 12px rgba(10, 63, 100, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.bet-pill[data-segment="50&50"] {
+  background: linear-gradient(135deg, #f71c95, #d9197a);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(217, 25, 122, 0.5),
+    0 0 20px rgba(217, 25, 122, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.bet-pill[data-segment="Loot Rush"] {
+  background: linear-gradient(135deg, #8236f7, #6c2bd9);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(108, 43, 217, 0.5),
+    0 0 20px rgba(108, 43, 217, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.bet-pill[data-segment="Wild Time"] {
+  background: linear-gradient(135deg, #e01b21, #c5161d);
+  color: #fff;
+  box-shadow: 
+    0 4px 16px rgba(197, 22, 29, 0.5),
+    0 0 20px rgba(197, 22, 29, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+@keyframes pillAppear {
+  from {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pillUpdate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Плитки ставок - улучшенная подсветка */
+.bet-tile.has-bet {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+    0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.app.is-spinning .bet-tile.has-bet {
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 0 0 2px rgba(255, 255, 255, 0.15) inset,
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: betPulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes betPulseGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 0 2px rgba(255, 255, 255, 0.15) inset,
+      0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    box-shadow: 
+      0 0 0 2px rgba(255, 255, 255, 0.25) inset,
+      0 12px 32px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ===========================
+            BET PANEL
+   =========================== */
+.bet-overlay {
+  position: relative; 
+  padding: 6px 10px 14px; 
+  transition: transform .4s ease, opacity .4s ease; 
+}
+
+.app.is-spinning .bet-overlay { 
+  transform: translateY(18px); 
+  opacity: .55; 
+}
+
+/* ===========================
+       AMOUNT CHIPS (SVG)
+   =========================== */
+.bet-amounts {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 6px 10px;
+}
+
+.amount-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+}
+
+.amount-icon { 
+  width: 20px; 
+  height: 20px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.amount-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  transition: opacity 0.2s ease;
+}
+
+.amount-btn:active { 
+  transform: translateY(1px); 
+}
+
+.amount-btn.active { 
+  border-color: rgba(0, 166, 255, .6); 
+  box-shadow: 0 0 0 3px var(--accent-ghost); 
+}
+
+.amount-btn.active .amount-value {
+  color: var(--accent);
+}
+
+/* 🔥 Анимация смены валюты на кнопках */
+.amount-btn.currency-switching .amount-icon,
+.amount-btn.currency-switching .amount-value {
+  animation: currencySwitchBtn 0.3s ease;
+}
+
+@keyframes currencySwitchBtn {
+  0% { 
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  50% { 
+    opacity: 0;
+    transform: scale(0.8) rotate(-15deg);
+  }
+  100% { 
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Контейнер: кнопка очистки + суммы */
+.bet-controls {
+  position: relative;
+  padding: 6px 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Кнопка очистки - маленькая, слева */
+.clear-bets-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.25);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clear-bets-btn:hover {
+  background: rgba(255, 77, 79, 0.15);
+  border-color: rgba(255, 77, 79, 0.4);
+  transform: scale(1.05);
+}
+
+.clear-bets-btn:active {
+  transform: scale(0.95);
+}
+
+.clear-bets-btn img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
+  opacity: 0.9;
+}
+
+.clear-bets-btn:hover img {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(110%) contrast(92%);
+}
+
+/* Bet grid (tickets) */
+.bet-grid {
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 12px;
+  padding: 4px 4px 0;
+}
+
+.bet-tile {
+  position: relative;
+  background: linear-gradient(145deg, rgba(18, 25, 35, 0.95), rgba(12, 18, 28, 0.98));
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px; 
+  padding: 8px;
+  transition: all .25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/* Внутреннее свечение для всех плиток */
+.bet-tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03), transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+
+.bet-tile:hover::before {
+  opacity: 1;
+}
+
+.bet-tile > img.bet-img { 
+  width: 100%; 
+  height: auto; 
+  border-radius: 14px;
+  display: block;
+  transition: transform .25s ease, filter .25s ease;
+}
+
+.bet-tile:hover > img.bet-img {
+  transform: scale(1.02);
+}
+
+/* Hover эффект - легкий подъем */
+.bet-tile:hover { 
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bet-tile:hover img {
+  transform: scale(1.02);
+}
+
+/* Active эффект */
+.bet-tile:active { 
+  transform: translateY(-1px) scale(0.98);
+}
+
+/* Широкая плитка */
+.bet-tile.wide { 
+  grid-column: span 2; 
+}
+
+/* Числовые множители - более приглушенные */
+.bet-tile.muted { 
+  filter: saturate(.7) brightness(.85); 
+}
+
+.bet-tile.muted:hover {
+  filter: saturate(.85) brightness(.95);
+}
+
+/* Бонусные плитки - яркое неоновое свечение */
+.bet-tile.bonus { 
+  filter: none;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+/* Специфичные свечения для разных бонусов */
+.bet-tile.bonus[data-seg="50&50"] {
+  box-shadow: 
+    0 8px 32px rgba(255, 0, 255, 0.3),
+    0 0 40px rgba(138, 43, 226, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="50&50"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(255, 0, 255, 0.4),
+    0 0 60px rgba(138, 43, 226, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.bet-tile.bonus[data-seg="Loot Rush"] {
+  box-shadow: 
+    0 8px 32px rgba(0, 255, 127, 0.3),
+    0 0 40px rgba(50, 205, 50, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="Loot Rush"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(0, 255, 127, 0.4),
+    0 0 60px rgba(50, 205, 50, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+.bet-tile.bonus[data-seg="Wild Time"] {
+  box-shadow: 
+    0 8px 32px rgba(255, 69, 0, 0.4),
+    0 0 40px rgba(255, 140, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.bet-tile.bonus[data-seg="Wild Time"]:hover {
+  box-shadow: 
+    0 12px 40px rgba(255, 69, 0, 0.5),
+    0 0 60px rgba(255, 140, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+}
+
+/* During spin: non-bet tiles fade, bet tiles stay visible */
+.app.is-spinning .bet-tile { 
+  opacity: .45; 
+}
+
+.app.is-spinning .bet-tile.has-bet {
+  opacity: 1;
+}
+
+/* ===========================
+   RESPONSIVE
+   =========================== */
+@media (max-width: 380px) {
+  .history-item {
+    min-width: 44px;
+    height: 28px;
+    font-size: 12px;
+    padding: 0 10px;
+  }
+  
+  .bet-pill {
+    font-size: 11px;
+    padding: 5px 8px;
+    gap: 4px;
+    top: 6px;
+    right: 6px;
+  }
+  
+  .bet-pill__icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .bet-controls {
+    gap: 6px;
+    padding: 6px 4px 10px;
+  }
+  
+  .clear-bets-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .clear-bets-btn img {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .bet-amounts {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 360px) {
+  .bet-controls {
+    gap: 4px;
+  }
+  
+  .clear-bets-btn {
+    width: 34px;
+    height: 34px;
+  }
+  
+  .bet-amounts {
+    gap: 4px;
+  }
+}
+
+
+
+
+
+
+
+
+
+              /* ===========================
+                       OTHER PAGES
+              =========================== */
+        .page{ 
+          display:none; 
+        }
+        .page-active, .page.page-active{ 
+          display:block; 
+        }
+        .coming{
+          margin:18px; 
+          padding:16px; 
+          text-align:center;
+          background:var(--panel); 
+          border:1px solid var(--border); 
+          border-radius:14px; 
+          color:var(--muted);
+        }
+        
+        
+
+
+
+    
+
+
+
+       /* ============================================

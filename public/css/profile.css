@@ -1,0 +1,2219 @@
+   PROFILE PAGE - REDESIGNED STYLES
+   ============================================ */
+
+   .profile-card {
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 24px 16px 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  /* ÐÐ²Ð°Ñ‚Ð°Ñ€ */
+  .profile-ava {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid rgba(0, 166, 255, 0.3);
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.6),
+      0 0 0 8px rgba(0, 166, 255, 0.1),
+      inset 0 2px 6px rgba(255, 255, 255, 0.1);
+    transition: all .3s ease;
+    cursor: default;
+  }
+  
+  .profile-name {
+    margin: 16px 0 4px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.4px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    text-align: center;
+  }
+  
+  .profile-handle {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: #8da1b8;
+    font-weight: 500;
+    opacity: 0.9;
+    text-align: center;
+  }
+  
+  /* ============================================
+     BALANCE DISPLAY
+     ============================================ */
+  
+  .profile-balance {
+    width: 100%;
+    max-width: 340px;
+    padding: 24px 20px;
+    background: linear-gradient(135deg, var(--panel), var(--card));
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    text-align: center;
+    margin-top: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  }
+  
+  .profile-balance__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  
+  .profile-balance__amount {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 40px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+  }
+  
+  .profile-balance__icon {
+    width: 40px;
+    height: 40px;
+    filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
+    animation: iconPulse 3s ease-in-out infinite;
+  }
+  
+  @keyframes iconPulse {
+    0%, 100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.4));
+    }
+    50% {
+      transform: scale(1.05);
+      filter: drop-shadow(0 0 16px rgba(0, 166, 255, 0.6));
+    }
+  }
+  
+  /* ============================================
+     WALLET CARD - FIXED ANIMATION
+     ============================================ */
+  
+  .wallet-card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+  
+  .wallet-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .wallet-card__header:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  
+  .wallet-card__header:active {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+
+
+/* чтобы картинка внутри выглядела аккуратно */
+.wallet-card__icon img{
+  width: 36px;
+  height: 36px;
+
+  border-radius: 6px; /* мягко, если PNG с углами */
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+}
+
+  
+  .wallet-card__info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .wallet-card__label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  
+  .wallet-card__status {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .wallet-card__toggle {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .wallet-card__toggle:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+  }
+  
+  .wallet-card__chevron {
+    transition: transform 0.3s ease;
+  }
+  
+  .wallet-card__toggle.open .wallet-card__chevron {
+    transform: rotate(180deg);
+  }
+  
+  /* Ð”ÐµÑ‚Ð°Ð»Ð¸ - FIXED: ÑƒÐ±Ñ€Ð°Ð½Ñ‹ Ð¿Ñ€Ñ‹Ð¶ÐºÐ¸ */
+  .wallet-card__details {
+    /* Ð£Ð±Ð¸Ñ€Ð°ÐµÐ¼ max-height Ð´Ð»Ñ Ð¿Ð»Ð°Ð²Ð½Ð¾Ð¹ Ð°Ð½Ð¸Ð¼Ð°Ñ†Ð¸Ð¸ */
+    overflow: hidden;
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+    opacity: 0;
+    max-height: 0;
+  }
+  
+  .wallet-card__details:not([hidden]) {
+    opacity: 1;
+    max-height: 200px;
+    padding: 0 16px 16px;
+  }
+  
+  .wallet-card__address {
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    user-select: text;
+  }
+  
+  .wallet-card__actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .btn-action {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .btn-action svg {
+    flex-shrink: 0;
+  }
+  
+  .btn-action:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+  
+  .btn-action:active {
+    transform: translateY(0);
+  }
+  
+  .btn-action--secondary {
+    border-color: rgba(0, 166, 255, 0.3);
+    color: var(--accent);
+  }
+  
+  .btn-action--secondary:hover {
+    background: rgba(0, 166, 255, 0.1);
+    border-color: rgba(0, 166, 255, 0.5);
+  }
+  
+  .btn-action--danger {
+    border-color: rgba(255, 77, 79, 0.3);
+    color: var(--danger);
+  }
+  
+  .btn-action--danger:hover {
+    background: rgba(255, 77, 79, 0.1);
+    border-color: rgba(255, 77, 79, 0.5);
+  }
+  
+  
+  
+/* ============================================
+   PROFILE INVENTORY PANEL (separate)
+   ============================================ */
+
+   .profile-invpanel{
+    width: 100%;
+    max-width: 340px;        /* чтобы совпадало с wallet-card */
+    margin: 16px auto 0;     /* отдельный блок, не “приклеен” */
+    padding: 10px 14px 18px; /* меньше сверху */
+    border-radius: 18px;
+  
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  
+    text-align: center;
+  }
+  
+  .profile-invpanel__title{
+    color: rgba(255,255,255,0.95);
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.2px;
+    margin: 0;              /* убираем верхний/нижний margin */
+    padding-top: 0;         /* на всякий */
+    margin-bottom: 10px;    /* только вниз */
+  }
+  
+  .profile-invpanel__icon{
+    display: flex;
+    justify-content: center;
+    margin: 6px 0 10px;
+  }
+  
+  .profile-invpanel__img{
+    width: 72px;
+    height: 72px;
+    display: block;
+    object-fit: contain;
+  
+    filter: drop-shadow(0 10px 24px rgba(0,0,0,0.45));
+    animation: invFloat 2.6s ease-in-out infinite;
+    transform-origin: 50% 60%;
+  }
+  
+  .profile-invpanel__text{
+    color: rgba(255,255,255,0.82);
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  /* Inventory list (when user has gifts/NFTs) */
+  .profile-invlist{
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .profile-invitem{
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .profile-invitem img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 8px;
+    display: block;
+    filter: drop-shadow(0 10px 22px rgba(0,0,0,0.35));
+  }
+
+  .profile-invbadge{
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    color: rgba(255,255,255,0.95);
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.10);
+    text-transform: uppercase;
+  }
+  
+  @keyframes invFloat{
+    0%   { transform: translateY(0) scale(1); }
+    50%  { transform: translateY(-6px) scale(1.02); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  
+
+  /* ============================================
+     PROFILE ACTIONS
+     ============================================ */
+  
+  .profile-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 340px;
+  }
+  
+  .profile-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .profile-action-btn:hover {
+    background: var(--card);
+    border-color: rgba(0, 166, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 166, 255, 0.15);
+  }
+  
+  .profile-action-btn:active {
+    transform: translateY(0);
+  }
+  
+  .profile-action-icon {
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  
+  .profile-action-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+  }
+  
+  /* ============================================
+     boah
+     ============================================ */
+  
+  @media (max-width: 380px) {
+    .profile-ava {
+      width: 100px;
+      height: 100px;
+      border-width: 3px;
+    }
+    
+    .profile-name {
+      font-size: 20px;
+    }
+    
+    .profile-balance__amount {
+      font-size: 32px;
+    }
+    
+    .profile-balance__icon {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .profile-actions {
+      gap: 10px;
+    }
+    
+    .profile-action-btn {
+      padding: 14px 10px;
+    }
+    
+    .profile-action-label {
+      font-size: 11px;
+    }
+  }
+
+  
+  /* ============================================
+     ACCESSIBILITY
+     ============================================ */
+  
+  @media (prefers-reduced-motion: reduce) {
+    .wallet-card,
+    .wallet-card__details,
+    .wallet-card__chevron,
+    .btn-action,
+    .profile-action-btn,
+    .profile-balance__icon {
+      animation: none;
+      transition: none;
+    }
+  }
+
+
+
+
+
+                                            /* ===========================
+                                                    BOTTOM NAV
+                                            =========================== */
+       
+              .bottom-nav {
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    display: flex;
+                    justify-content: space-around;
+                    align-items: center;
+                    background: rgba(20, 20, 20, 0.85);
+                    backdrop-filter: blur(10px);
+                    border-top: 1px solid rgba(255, 255, 255, 0.05);
+                    border-radius: 20px 20px 0 0; /* ← сглаженные верхние углы */
+                    height: 60px;
+                    z-index: 50; /* понижаем немного, чтобы не перекрывала модалки */
+                  }
+                  
+
+            /* кнопки */
+            .nav-item {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 2px;
+              color: #97a7bf;
+              background: transparent;
+              border: none;
+              padding: 4px 6px;
+              border-radius: 10px;
+              font-size: 10px; /* подпись меньше */
+              cursor: pointer;
+              -webkit-tap-highlight-color: transparent;
+              transition: background 0.18s ease, color 0.18s ease, transform 0.1s ease;
+            }
+
+            .nav-item:active {
+              transform: translateY(1px);
+            }
+
+            .nav-item.active {
+              color: var(--accent);
+              background: rgba(0, 166, 255, 0.1);
+              box-shadow: inset 0 0 0 1px rgba(0, 166, 255, 0.22);
+            }
+            /* Bottom nav: profile avatar вместо svg */
+              .nav-avatar{
+                width: 24px;
+                height: 24px;
+                border-radius: 999px;
+                object-fit: cover;
+                display: block;
+                border: 1px solid rgba(255,255,255,0.14);
+              }
+              .bottom-nav .nav-item.active .nav-avatar{
+                border-color: rgba(0,166,255,0.55);
+              }
+              
+
+            /* иконки — поменьше */
+            .nav-icon {
+              width: 20px;
+              height: 20px;
+            }
+
+            .nav-label {
+              font-size: 10px;
+              letter-spacing: .2px;
+            }
+              /* базовое состояние */
+          .bottom-nav .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 6px 4px;
+            flex: 1;
+            color: #999;                 /* серый текст */
+            font-size: 12px;
+            transition: color 0.2s ease;
+          }
+
+          /* иконки внутри - СЕРЫЕ по умолчанию */
+          .bottom-nav .nav-item .nav-icon {
+            width: 22px;
+            height: 22px;
+            margin-bottom: 4px;
+            /* фильтр для перекраски SVG в серый */
+            filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
+            transition: filter 0.2s ease;
+          }
+
+          /* активное состояние — ПОЛНАЯ ПЕРЕКРАСКА в голубой */
+          .bottom-nav .nav-item.active {
+            background: transparent;
+            box-shadow: none;
+            color: #00aaff;              /* голубой текст */
+          }
+
+          .bottom-nav .nav-item.active .nav-icon {
+            /* фильтр для полной перекраски SVG в голубой (#00aaff) */
+            filter: brightness(0) saturate(100%) invert(56%) sepia(97%) saturate(3071%) hue-rotate(181deg) brightness(101%) contrast(106%);
+          }
+
+
+
+
+
+
+
+
+              /* ===========================
+                  UTILITIES & ADAPTIVE
+              =========================== */
+      .hidden{ 
+        display:none !important; 
+      }
+      .center{ 
+        display:grid; 
+        place-items:center; 
+      }
+      .text-muted{ 
+        color:var(--muted); 
+      }
+
+      @media (max-width:420px){
+        .app{ 
+          padding-bottom: 94px; 
+        }
+        .amount-btn img{ 
+          width:34px; 
+          height:34px; 
+        }
+        .pill{ 
+          padding:6px 9px; 
+        }
+        #wheelCanvas{ 
+          width:92vw; 
+        }
+      }
+
+      .wheel { position: relative; 
+      }
+      
+      
+      
+      /* колесо — мягкий свет */
+      #wheelCanvas{
+        box-shadow:
+          0 16px 40px rgba(0,0,0,.55),
+          inset 0 0 40px rgba(0,0,0,.35),
+          0 0 18px rgba(0,166,255,.15);
+        border: 1px solid var(--border);
+      }
+
+      /* ставки — плавная “полупрозрачность” в режиме вращения (ты уже это используешь через .app.is-spinning) */
+      .app.is-spinning .bet-overlay{
+        transform: translateY(14px);
+        opacity: .6;
+      }
+
+      /* сетка кейсов — чуть плотнее на маленьких экранах */
+      @media (max-width: 380px){
+        .cases-grid{ grid-template-columns: repeat(2, 1fr); }
+        .case-card{ height: 108px; }
+      }
+
+          
+
+
+      /* ============================================
+      DEPOSIT POPUPS - ИСПРАВЛЕННАЯ ВЕРСИЯ
+      Убраны прыжки при открытии
+      ============================================ */
+
+.deposit-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  /* Важно: используем opacity для плавной анимации */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.deposit-popup--open {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Затемнённый фон */
+.deposit-popup__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+/* Контент попапа - ИСПРАВЛЕНО */
+.deposit-popup__content {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: #1e2329;
+  border-radius: 24px;
+  padding: 32px 24px 24px;
+  /* Убираем transform из начального состояния */
+  transform: scale(1);
+  /* Плавная анимация только scale */
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  z-index: 1;
+}
+
+/* Анимация появления - только при открытии */
+.deposit-popup:not(.deposit-popup--open) .deposit-popup__content {
+  transform: scale(0.9);
+}
+
+/* Компактная версия */
+.deposit-popup__content--compact {
+  padding: 24px 20px 20px;
+}
+
+/* Кнопка закрытия */
+.deposit-popup__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.deposit-popup__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.deposit-popup__close:active {
+  transform: scale(0.9);
+}
+
+.deposit-popup__close svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Заголовок */
+.deposit-popup__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 24px 0;
+  padding-right: 40px;
+  text-align: center;
+}
+
+.deposit-popup__content--compact .deposit-popup__title {
+  font-size: 20px;
+  margin: 0 0 16px 0;
+  padding-right: 32px;
+}
+
+/* ============================================
+   ERROR NOTIFICATION - ИСПРАВЛЕНО
+   ============================================ */
+
+.error-notification {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 77, 79, 0.12);
+  border: 1px solid rgba(255, 77, 79, 0.3);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  /* Важно: начинаем с скрытого состояния */
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.error-notification:not([hidden]) {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 100px;
+}
+
+.error-icon {
+  width: 16px;
+  height: 16px;
+  color: #ff4d4f;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff6b6b;
+  line-height: 1.3;
+}
+
+/* ============================================
+   INPUT VALIDATION STATES - ИСПРАВЛЕНО
+   ============================================ */
+
+.deposit-popup__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* Убираем transition отсюда */
+}
+
+/* Состояние ошибки - ИСПРАВЛЕНА АНИМАЦИЯ */
+.deposit-popup__input-wrapper.error {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97);
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input {
+  border-color: rgba(255, 77, 79, 0.5);
+  background: rgba(255, 77, 79, 0.05);
+  /* Плавный переход */
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input:focus {
+  border-color: rgba(255, 77, 79, 0.7);
+  background: rgba(255, 77, 79, 0.08);
+}
+
+/* Анимация тряски - ОПТИМИЗИРОВАНА */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+/* Успешное состояние */
+.deposit-popup__input-wrapper.success .deposit-popup__input {
+  border-color: rgba(39, 201, 63, 0.5);
+  background: rgba(39, 201, 63, 0.05);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.deposit-popup__input-wrapper.success .deposit-popup__input-icon {
+  filter: brightness(1.3) drop-shadow(0 0 8px rgba(39, 201, 63, 0.4));
+  transition: filter 0.2s ease;
+}
+
+/* ============================================
+   INPUT GROUP
+   ============================================ */
+
+.deposit-popup__input-group {
+  margin-bottom: 16px;
+}
+
+.deposit-popup__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+}
+
+.deposit-popup__input-icon {
+  position: absolute;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  /* Плавный переход только для фильтра */
+  transition: filter 0.2s ease;
+}
+
+.deposit-popup__input-icon--stars {
+  filter: brightness(1.2) saturate(1.3);
+}
+
+.deposit-popup__input {
+  width: 100%;
+  height: 52px;
+  padding: 0 80px 0 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  /* Оптимизированный transition */
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.deposit-popup__input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deposit-popup__input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.deposit-popup__input-currency {
+  position: absolute;
+  right: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+/* ============================================
+   WALLET INFO
+   ============================================ */
+
+.deposit-popup__wallet-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 16px;
+}
+
+.deposit-popup__wallet-icon {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================
+   DIVIDER
+   ============================================ */
+
+.deposit-popup__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 0 16px 0;
+}
+
+/* ============================================
+   BUTTON
+   ============================================ */
+
+.deposit-popup__button {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  background: #ffffff;
+  color: #000000;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.deposit-popup__button:hover:not(:disabled) {
+  background: #f0f0f0;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 255, 255, 0.15);
+}
+
+.deposit-popup__button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.deposit-popup__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   АДАПТИВНОСТЬ
+   ============================================ */
+
+@media (max-width: 420px) {
+  .deposit-popup__content--compact {
+    padding: 20px 16px 16px;
+  }
+  
+  .deposit-popup__title {
+    font-size: 18px;
+  }
+  
+  .deposit-popup__input {
+    height: 48px;
+    font-size: 16px;
+  }
+  
+  .deposit-popup__button {
+    height: 48px;
+    font-size: 15px;
+  }
+}
+
+@media (max-height: 600px) {
+  .deposit-popup__content--compact {
+    padding: 18px 16px 14px;
+  }
+  
+  .deposit-popup__input-group {
+    margin-bottom: 12px;
+  }
+  
+  .deposit-popup__wallet-info {
+    margin-bottom: 12px;
+  }
+  
+  .deposit-popup__divider {
+    margin: 0 0 12px 0;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .deposit-popup,
+  .deposit-popup__content,
+  .deposit-popup__input-wrapper.error,
+  .error-notification {
+    animation: none;
+    transition: none;
+  }
+  
+  .deposit-popup__input,
+  .deposit-popup__input-icon,
+  .deposit-popup__button {
+    transition: none;
+  }
+}
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+.deposit-popup__content {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Удаляем will-change после анимации */
+.deposit-popup--open .deposit-popup__content {
+  animation: removeWillChange 0.5s 0.5s forwards;
+}
+
+@keyframes removeWillChange {
+  to { will-change: auto; }
+}
+/* ============================================
+   STARS ICON STYLES
+   ============================================ */
+
+/* Большая иконка звезды рядом с балансом */
+.deposit-popup__currency-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 12px;
+  filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.4));
+  animation: starGlow 2s ease-in-out infinite;
+}
+
+@keyframes starGlow {
+  0%, 100% {
+    filter: drop-shadow(0 2px 8px rgba(255, 215, 0, 0.4));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 4px 16px rgba(255, 215, 0, 0.6));
+    transform: scale(1.05);
+  }
+}
+
+/* Иконка в поле ввода */
+.deposit-popup__input-icon--stars {
+  width: 20px;
+  height: 20px;
+  filter: brightness(1.2) saturate(1.3);
+}
+
+/* Маленькая иконка в подсказке */
+.hint-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 2px;
+  filter: brightness(1.1);
+}
+
+/* Адаптация для маленьких экранов */
+@media (max-width: 380px) {
+  .deposit-popup__currency-icon {
+    width: 36px;
+    height: 36px;
+    margin-left: 10px;
+  }
+}
+
+/* Темная тема - усиливаем свечение */
+@media (prefers-color-scheme: dark) {
+  .deposit-popup__currency-icon {
+    filter: drop-shadow(0 2px 12px rgba(255, 215, 0, 0.5));
+  }
+  
+  @keyframes starGlow {
+    0%, 100% {
+      filter: drop-shadow(0 2px 12px rgba(255, 215, 0, 0.5));
+    }
+    50% {
+      filter: drop-shadow(0 4px 20px rgba(255, 215, 0, 0.7));
+    }
+  }
+}
+      
+      
+      
+
+
+
+      
+                                      /* === Deposit Bottom Sheet (scoped) === */
+            .sheet{
+              position:fixed; inset:0; z-index:3000;   /* было 10000*/
+              pointer-events:none;
+            }
+            .sheet__backdrop{
+              position:absolute; inset:0;
+              background:rgba(0,0,0,.35);
+              opacity:0; transition:opacity .2s ease;
+            }
+            .sheet__panel{
+              position:absolute; left:50%; bottom:0;
+              transform:translate(-50%, 100%);
+              width:100%; max-width:430px;
+
+              background:#161a22;
+              border-top-left-radius:18px; border-top-right-radius:18px;
+              border:1px solid rgba(255,255,255,.08); border-bottom:none;
+              padding:16px 16px calc(env(safe-area-inset-bottom) + 16px);
+              box-shadow:0 -20px 60px rgba(0,0,0,.6);
+              transition:transform .26s ease;
+              color:#e7edf7;
+            }
+            .sheet__handle{ width:56px; height:5px; margin:4px auto 10px; border-radius:999px; background:rgba(255,255,255,.18); }
+            .sheet__title{ margin:4px 0 2px; font-size:20px; font-weight:800; text-align:center; }
+            .sheet__sub{ margin:0; text-align:center; }
+            .sheet__sub--muted{ color:#9aa7bd; }
+            .sheet__close{
+              position:absolute; right:10px; top:10px; width:28px; height:28px; border-radius:8px;
+              background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:#e7edf7;
+            }
+
+            /* open */
+            .sheet.sheet--open{ pointer-events:auto; }
+            .sheet.sheet--open .sheet__backdrop{ opacity:1; }
+            .sheet.sheet--open .sheet__panel{ transform:translate(-50%, 0); }
+
+            /* Input */
+            .dep-input{
+              display:flex; align-items:center; gap:10px; background:#0f131a;
+              border:1px solid rgba(255,255,255,.1); padding:12px; border-radius:14px; margin:14px 0 8px;
+            }
+            .dep-input__icon{ width:18px; height:18px; opacity:.9; }
+            .dep-input input{
+              width:100%; background:transparent; border:none; color:#e7edf7; font-size:16px; outline:none;
+            }
+            .dep-hint{ font-size:12px; color:#9aa7bd; margin-bottom:10px; }
+
+            /* Buttons */
+            .dep-actions{ display:flex; gap:10px; 
+            }
+            .dep-actions.single { justify-content: center; }
+            .dep-actions.single .btn--primary { flex: 0; width: 100%; max-width: 320px; }
+
+            .btn{
+              display:flex; align-items:center; justify-content:center; gap:10px;
+              flex:1; padding:12px; border-radius:12px; font-weight:800; border:1px solid transparent; color:#e7edf7;
+            }
+            .btn__icons img{ width:18px; height:18px; object-fit:contain; filter:drop-shadow(0 0 6px rgba(0,166,255,.25)); }
+            .btn--ghost{ background:transparent; border-color:rgba(255,255,255,.2); }
+            .btn--primary{ background:#0d68c3; color:#fff; border-color:#0d68c3; box-shadow:0 6px 16px rgba(13,104,195,.35); }
+            .btn[disabled]{ opacity:.5; filter:saturate(.6); pointer-events:none; }
+
+            /* --- навигация ниже, чтобы модалки были над ней --- */
+            .bottom-nav{ z-index: 1500; }
+
+           /* 3) TonConnect modal: ловим все варианты контейнера на разных версиях библиотеки */
+            body > div[id*="ton-connect"],
+            body > div[class*="ton-connect"],
+            body > div[class*="TonConnect"],
+            .tc-modal,
+            [data-tc-modal],
+            #tc-modal-root,
+            #ton-connect-ui__modal,
+            .ton-connect-modal,
+            div[id^="ton-connect-ui"],
+            div[class*="tonconnect"] {
+              position: fixed !important;
+              inset: 0 !important;
+              z-index: 2147483647 !important; /* самый верхний возможный безопасный уровень */
+              pointer-events: auto !important;
+            }
+
+            /* Когда открыт TON Connect — блюрим/блокируем фон */
+            body.tonc-open .sheet,
+            body.tonc-open .bottom-nav{
+              filter:blur(4px) brightness(.7);
+              pointer-events:none;
+            }
+
+            /* (если у тебя где-то использовалось) */
+            .deposit-popup{ z-index: 3000 !important; }  /* вровень с .sheet */
+
+          
+          
+
+
+
+
+
+                    /* ===== Topbar layout: left pill — center logo — right pill ===== */
+          .topbar {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr; /* left | center | right */
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+          }
+
+          /* Центрируем лого (если есть .logo-wrap) */
+          .topbar .logo-wrap { justify-self: center; }
+
+          /* Правую пилюлю прижимаем вправо (твоя TON-пилюля) */
+          .topbar .balance { justify-self: end; }
+
+          /* ===== Профиль-пилюля (левая) ===== */
+          /* Если у тебя .pill уже есть — этот блок можно не дублировать.
+            Он задан нейтрально и не должен конфликтовать. */
+          .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 36px;                 /* фиксируем высоту, чтобы совпало с TON-пилюлей */
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #0e1a26;
+            border: 1px solid rgba(255,255,255,.12);
+            color: #fff;
+            line-height: 1;
+            transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+            -webkit-tap-highlight-color: transparent;
+          }
+          .pill:active { transform: translateY(1px); }
+
+          .pill--user {
+            justify-self: start;           /* левый край сетки */
+            cursor: pointer;
+            background: #0f1620;           /* слегка темнее для отличия */
+          }
+          .pill--user:hover {
+            box-shadow: 0 0 0 1px rgba(0,153,255,.35) inset, 0 4px 16px rgba(0,153,255,.15);
+          }
+          .pill--user:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,153,255,.5) inset;
+          }
+
+          /* Аватарка внутри пилюли */
+          .pill-avatar {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex: 0 0 22px;
+            box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+          }
+
+          /* Имя пользователя. Обрезаем, чтобы не ломало ширину */
+          .pill-username {
+            max-width: 120px;              /* при необходимости подгони */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 600;
+            font-size: 14px;
+            opacity: .95;
+          }
+
+          /* Поддержка тёмной темы (если используешь переменные) */
+          :root {
+            --wt-blue: #0d68c3;
+          }
+          .pill--user:hover .pill-username { opacity: 1; }
+
+          /* Адаптив: на очень узких экранах слегка уменьшаем */
+          @media (max-width: 360px) {
+            .pill { height: 34px; padding: 6px 10px; }
+            .pill-avatar { width: 20px; height: 20px; }
+            .pill-username { max-width: 92px; font-size: 13px; }
+          }
+
+
+          
+  
+              /* бет-панель во время спина */
+      #betOverlay.disabled {
+        pointer-events: none;
+        filter: saturate(.85);
+      }
+
+      /* история кружочками/плашками — подгоняй под свой UI */
+      .history-item {
+        display:inline-flex; align-items:center; justify-content:center;
+        min-width:36px; height:28px; padding:0 8px; margin-right:6px;
+        border-radius:8px; color:#fff; font:600 12px/1 mf,system-ui,sans-serif;
+      }
+
+
+
+
+
+
+
+
+      
+
+/* ============================================
+   COMPACT DEPOSIT POPUPS WITH VALIDATION
+   ============================================ */
+
+/* Компактная версия попапа */
+.deposit-popup__content--compact {
+  padding: 24px 20px 20px;
+}
+
+/* Заголовок ближе к верху */
+.deposit-popup__content--compact .deposit-popup__title {
+  font-size: 20px;
+  margin: 0 0 16px 0;
+  padding-right: 32px;
+}
+
+/* ============================================
+   ERROR NOTIFICATION
+   ============================================ */
+
+.error-notification {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 77, 79, 0.12);
+  border: 1px solid rgba(255, 77, 79, 0.3);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  animation: slideDown 0.3s ease;
+}
+
+.error-notification[hidden] {
+  display: none;
+}
+
+.error-icon {
+  width: 16px;
+  height: 16px;
+  color: #ff4d4f;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff6b6b;
+  line-height: 1.3;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   INPUT VALIDATION STATES
+   ============================================ */
+
+/* Нормальное состояние */
+.deposit-popup__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+/* Состояние ошибки - красная рамка */
+.deposit-popup__input-wrapper.error {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97);
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input {
+  border-color: rgba(255, 77, 79, 0.5);
+  background: rgba(255, 77, 79, 0.05);
+}
+
+.deposit-popup__input-wrapper.error .deposit-popup__input:focus {
+  border-color: rgba(255, 77, 79, 0.7);
+  background: rgba(255, 77, 79, 0.08);
+}
+
+/* Анимация тряски */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+/* Успешное состояние - зелёная рамка */
+.deposit-popup__input-wrapper.success .deposit-popup__input {
+  border-color: rgba(39, 201, 63, 0.5);
+  background: rgba(39, 201, 63, 0.05);
+}
+
+/* ============================================
+   INPUT GROUP - КОМПАКТНЫЙ
+   ============================================ */
+
+.deposit-popup__input-group {
+  margin-bottom: 16px;
+}
+
+.deposit-popup__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+}
+
+.deposit-popup__input-icon {
+  position: absolute;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.deposit-popup__input-icon--stars {
+  filter: brightness(1.2) saturate(1.3);
+}
+
+/* Иконка подсвечивается при успехе */
+.deposit-popup__input-wrapper.success .deposit-popup__input-icon {
+  filter: brightness(1.3) drop-shadow(0 0 8px rgba(39, 201, 63, 0.4));
+}
+
+.deposit-popup__input {
+  width: 100%;
+  height: 52px;
+  padding: 0 80px 0 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.deposit-popup__input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deposit-popup__input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.deposit-popup__input-currency {
+  position: absolute;
+  right: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+}
+
+/* ============================================
+   WALLET INFO - КОМПАКТНЫЙ
+   ============================================ */
+
+.deposit-popup__wallet-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 16px;
+}
+
+.deposit-popup__wallet-icon {
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================
+   DIVIDER - ТОНЬШЕ
+   ============================================ */
+
+.deposit-popup__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 0 16px 0;
+}
+
+/* ============================================
+   BUTTON
+   ============================================ */
+
+.deposit-popup__button {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  background: #ffffff;
+  color: #000000;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.deposit-popup__button:hover:not(:disabled) {
+  background: #f0f0f0;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 255, 255, 0.15);
+}
+
+.deposit-popup__button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.deposit-popup__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   АДАПТИВНОСТЬ
+   ============================================ */
+
+@media (max-width: 420px) {
+  .deposit-popup__content--compact {
+    padding: 20px 16px 16px;
+  }
+  
+  .deposit-popup__title {
+    font-size: 18px;
+  }
+  
+  .deposit-popup__input {
+    height: 48px;
+    font-size: 16px;
+  }
+  
+  .deposit-popup__button {
+    height: 48px;
+    font-size: 15px;
+  }
+}
+
+@media (max-height: 600px) {
+  .deposit-popup__content--compact {
+    padding: 18px 16px 14px;
+  }
+  
+  .deposit-popup__input-group {
+    margin-bottom: 12px;
+  }
+  
+  .deposit-popup__wallet-info {
+    margin-bottom: 12px;
+  }
+  
+  .deposit-popup__divider {
+    margin: 0 0 12px 0;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .error-notification,
+  .deposit-popup__input-wrapper.error {
+    animation: none;
+  }
+  
+  .deposit-popup__input,
+  .deposit-popup__input-icon,
+  .deposit-popup__button {
+    transition: none;
+  }
+}
+
+
+
+
+
+/* ============================================
+   SPLASH SCREEN - FIXED (NO OVERFLOW)
+   ============================================ */
+
+   .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #000000;
+    overflow: hidden;
+  }
+  
+  /* Background Image */
+  .splash__background {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  
+  .splash__bg-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Overlay */
+  .splash__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.7) 0%,
+      rgba(0, 0, 0, 0.85) 100%
+    );
+  }
+  
+  /* Center Content */
+  .splash__center {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 20px;
+    animation: fadeInContent 0.4s ease-out;
+  }
+  
+  /* Brand Row */
+  .splash__brandRow {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    animation: slideInScale 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  /* Logo */
+  .splash__logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    border-radius: 14px;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+    animation: glow 2s ease-in-out infinite;
+  }
+  
+  /* Brand Name */
+  .splash__brand {
+    font-weight: 800;
+    font-size: 36px;
+    line-height: 1;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    text-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.6),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+    animation: fadeIn 0.6s ease-out 0.2s both;
+  }
+  
+  /* 🔥 FIXED: Progress Container */
+  .splash__progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 260px;
+    animation: fadeInUp 0.5s ease-out 0.3s both;
+  }
+  
+  /* 🔥 FIXED: Progress Bar Container */
+  .splash__bar {
+    position: relative; /* 🔥 IMPORTANT */
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    overflow: hidden; /* 🔥 CRITICAL: Clip overflow */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) inset;
+  }
+ 
+  
+/* 🔥 IMPROVED: Beautiful Progress Fill */
+.splash__bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  max-width: 100%;
+  background: linear-gradient(
+    90deg,
+    #ffd700 0%,
+    #ffed4e 30%,
+    #ffa500 60%,
+    #ff8c42 100%
+  );
+  border-radius: 999px;
+  transform-origin: left;
+  transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 0 24px rgba(255, 215, 0, 0.8),
+    0 0 12px rgba(255, 165, 0, 0.6),
+    0 2px 8px rgba(255, 215, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+  contain: strict;
+}
+
+/* 🔥 IMPROVED: Enhanced Shimmer */
+.splash__bar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 40%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.6) 60%,
+    transparent 100%
+  );
+  animation: shimmer 2s infinite;
+  overflow: hidden;
+}
+
+/* 🔥 IMPROVED: Larger Percent Text */
+.splash__percent {
+  font: 700 16px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: #ffd700;
+  letter-spacing: 1px;
+  text-shadow: 
+    0 2px 8px rgba(255, 215, 0, 0.6),
+    0 0 16px rgba(255, 215, 0, 0.4);
+}
+  /* Percent Text */
+  .splash__percent {
+    font: 600 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    color: rgba(255, 255, 255, 0.8);
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Hide Splash */
+  .splash--hide {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  
+  /* ============================================
+     ANIMATIONS
+     ============================================ */
+  
+  @keyframes fadeInContent {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideInScale {
+    0% {
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes glow {
+    0%, 100% {
+      filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.2));
+    }
+    50% {
+      filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.4));
+    }
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+  
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  
+  @media (max-width: 380px) {
+    .splash__logo {
+      width: 48px;
+      height: 48px;
+    }
+    
+    .splash__brand {
+      font-size: 30px;
+    }
+    
+    .splash__brandRow {
+      gap: 12px;
+    }
+    
+    .splash__progress {
+      max-width: 220px;
+    }
+  }
+  
+  @media (max-height: 600px) {
+    .splash__center {
+      gap: 24px;
+    }
+    
+    .splash__logo {
+      width: 48px;
+      height: 48px;
+    }
+    
+    .splash__brand {
+      font-size: 30px;
+    }
+  }
+  
+  @media (orientation: landscape) and (max-height: 500px) {
+    .splash__center {
+      gap: 20px;
+    }
+    
+    .splash__logo {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .splash__brand {
+      font-size: 26px;
+    }
+  }
+  
+  /* ============================================
+     ACCESSIBILITY
+     ============================================ */
+  
+  @media (prefers-reduced-motion: reduce) {
+    .splash__bar-fill {
+      transition: none;
+    }
+    
+    .splash--hide {
+      transition: none;
+    }
+    
+    .splash__center,
+    .splash__brandRow,
+    .splash__progress {
+      animation: none;
+    }
+    
+    .splash__bar-fill::after,
+    .splash__logo {
+      animation: none;
+    }
+  }
+  
+  @media (prefers-contrast: high) {
+    .splash__overlay {
+      background: rgba(0, 0, 0, 0.9);
+    }
+    
+    .splash__bar {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    
+    .splash__brand {
+      text-shadow: 
+        0 0 8px rgba(0, 0, 0, 1),
+        0 2px 4px rgba(0, 0, 0, 1);
+    }
+  }
+  
+
+
+  /* ========================================
+   🔴 АНИМАЦИЯ НЕДОСТАТОЧНОГО БАЛАНСА
+   ======================================== */
+
+/* Красная подсветка при недостатке средств */
+.bet-tile.insufficient-balance {
+  animation: insufficientShake 0.4s ease;
+  border-color: rgba(244, 67, 54, 0.8) !important;
+  background: rgba(244, 67, 54, 0.15) !important;
+  opacity: 50%;
+}
+
+@keyframes insufficientShake {
+  0%, 100% { 
+    transform: translateX(0); 
+  }
+  25% { 
+    transform: translateX(-8px); 
+  }
+  50% {
+    transform: translateX(8px);
+  }
+  75% { 
+    transform: translateX(-4px); 
+  }
+}
+
+
+
+      /* ============================================
+         WIN NOTIFICATION - TELEGRAM STYLE
+         ============================================ */
+      
+      #win-toast {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10001;
+        background: rgba(16, 185, 129, 0.15);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 16px;
+        padding: 16px 24px;
+        font-size: 20px;
+        font-weight: 700;
+        color: #10b981;
+        box-shadow: 
+          0 8px 24px rgba(16, 185, 129, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: winSlideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      
+      @keyframes winSlideDown {
+        0% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-40px) scale(0.8);
+        }
+        100% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0) scale(1);
+        }
+      }
+      
+      @keyframes winSlideUp {
+        0% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-40px) scale(0.8);
+        }
+      }
+      
+     
+      
+      /* ============================================
+         INSUFFICIENT BALANCE - TELEGRAM STYLE
+         ============================================ */
+      
+      #insufficient-balance-toast {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10001;
+        background: rgba(239, 68, 68, 0.15);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 16px;
+        padding: 14px 22px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #ef4444;
+        animation: errorShake 0.5s ease;
+      }
+      
+      @keyframes errorShake {
+        0%, 100% {
+          transform: translateX(-50%) translateY(0);
+        }
+        10%, 30%, 50%, 70%, 90% {
+          transform: translateX(calc(-50% - 4px)) translateY(0);
+        }
+        20%, 40%, 60%, 80% {
+          transform: translateX(calc(-50% + 4px)) translateY(0);
+        }
+      }
+      
+      @keyframes errorFadeOut {
+        0% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-20px);
+        }
+      }
+      
+      /* ============================================
+         TEST MODE BADGE - TELEGRAM STYLE
+         ============================================ */
+      
+      #test-mode-toast {
+        position: fixed;
+        top: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10001;
+        background: rgba(245, 158, 11, 0.15);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 14px;
+        padding: 10px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fbbf24;
+        animation: testModeSlide 0.4s ease;
+      }
+      
+      @keyframes testModeSlide {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+
+/* =========================================================
+   CONNECT WALLET BUTTON (TON) — matches "Connect Wallet" pill
+   ========================================================= */
+
+   .wt-connect-wallet{
+    width: 100%;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 10px 22px rgba(17, 140, 255, 0.22);
+  
+    /* FIX: space for the left icon */
+    padding-left: 54px;   /* 15(left) + 30(icon) + ~9 gap */
+    padding-right: 18px;
+  }
+  
+  .wt-connect-wallet:active{
+    transform: translateY(1px);
+  }
+  
+  .wt-connect-wallet__icon{
+    position: absolute;
+    left: 26px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    /* FIX: icon must not steal clicks */
+    pointer-events: none;
+  }
+  
+  .wt-connect-wallet__icon img{
+    width: 30px;
+    height: 30px;
+    display: block;
+  }
+  
+  .wt-connect-wallet__text{
+    line-height: 1;
+  
+    /* FIX: real centered label */
+    width: 100%;
+    text-align: center;
+    display: block;
+    pointer-events: none;
+  }
+  
+  .wt-connect-wallet[disabled]{
+    opacity: 0.75;
+    cursor: default;
+    transform: none;
+  }
+  
+  /* Optional spacing if you use it somewhere */
+  .wt-connect-wallet--profile{
+    margin-top: 15px;
+  }
+  
+  /* Compact version inside cards/popups */
+  .wt-connect-wallet--small{
+    height: 40px;
+    font-size: 16px;
+  }
+
+
+
+
+    /* =========================================================

@@ -935,7 +935,85 @@
       filter: drop-shadow(0 8px 14px rgba(0,0,0,.55));
     }
     
+     /* ===========================
+      WHEEL COUNTDOWN TIMER
+      (#countdown / #countNum)
+      =========================== */
 
+    #countdown.countdown{
+      position: absolute;
+      left: 50%;
+      top: 49.4%;
+      transform: translate(-50%, -50%) scale(0.88);
+    
+      width: clamp(64px, 18vw, 92px);
+      height: clamp(64px, 18vw, 92px);
+      border-radius: 999px;
+    
+      display: grid;
+      place-items: center;
+    
+      /* стеклянная капсула */
+      background:
+        
+        rgba(12, 18, 28, 0.09);
+    
+      box-shadow:
+        0 18px 40px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.08),
+        0 0 22px rgba(0,166,255,0.12);
+    
+      backdrop-filter: blur(2px);
+    
+      /* скрыт по умолчанию — JS включает .visible */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    
+      z-index: 9; /* под pointer(10), но над canvas */
+    }
+    
+    #countdown.countdown.visible{
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    
+    #countdown.countdown #countNum{
+      font-family: 'mf', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+      font-weight: 900;
+      font-size: clamp(15px, 9vw, 52px);
+      line-height: 1;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+    
+      /* “неоновый” градиент текста */
+      background: white;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: white;
+    
+      text-shadow:
+        0 3px 10px rgba(0,0,0,0.55),
+        0 0 18px rgba(219, 242, 255, 0.28);
+    }
+    
+    /* JS дёргает класс .pulse на каждом тике */
+    #countdown.countdown.pulse{
+      animation: wheelCountdownPulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    @keyframes wheelCountdownPulse{
+      0%   { transform: translate(-50%, -50%) scale(1); }
+      55%  { transform: translate(-50%, -50%) scale(1.14); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+    
+    /* Accessibility */
+    @media (prefers-reduced-motion: reduce){
+      #countdown.countdown{ transition: none; }
+      #countdown.countdown.pulse{ animation: none; }
+    }
+      
 /* ===========================
    УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
 =========================== */
@@ -959,204 +1037,6 @@
 }
 
 
-
-/* Таймер - улучшенный стиль */
-#countdown {
-  background: rgba(0, 17, 34, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(21,32,51,.5);
-  box-shadow: 
-    0 8px 24px rgba(21,32,51,.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transition: all 0.3s ease;
-}
-
-/* 🔥 Базовая пульсация (9-7 секунд - спокойная) */
-#countdown.pulse {
-  animation: countPulse 0.4s ease;
-}
-
-@keyframes countPulse {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(0, 166, 255, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.1);
-    box-shadow: 
-      0 12px 32px rgba(0, 166, 255, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(0, 166, 255, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-}
-
-/* 🔥 Предупреждение (6-4 секунды - жёлтый) */
-#countdown.warning {
-  background: rgba(255, 193, 7, 0.15);
-  border-color: rgba(255, 193, 7, 0.3);
-}
-
-#countdown.warning.pulse {
-  animation: countPulseWarning 0.4s ease;
-}
-
-@keyframes countPulseWarning {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(255, 193, 7, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.15);
-    box-shadow: 
-      0 16px 40px rgba(255, 193, 7, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(255, 193, 7, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-}
-
-#countdown.warning #countNum {
-  color: #ffc107;
-  text-shadow: 
-    0 0 20px rgba(255, 193, 7, 0.6),
-    0 0 40px rgba(255, 193, 7, 0.3);
-}
-
-/* 🔥 Опасность (3-2 секунды - оранжевый) */
-#countdown.danger {
-  background: rgba(255, 152, 0, 0.2);
-  border-color: rgba(255, 152, 0, 0.5);
-}
-
-#countdown.danger.pulse {
-  animation: countPulseDanger 0.4s ease;
-}
-
-@keyframes countPulseDanger {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(255, 152, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.2);
-    box-shadow: 
-      0 20px 48px rgba(255, 152, 0, 0.6),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 8px 24px rgba(255, 152, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-}
-
-#countdown.danger #countNum {
-  color: #ff9800;
-  text-shadow: 
-    0 0 30px rgba(255, 152, 0, 0.8),
-    0 0 60px rgba(255, 152, 0, 0.4);
-}
-
-/* 🔥 Критично (1 секунда - красный, большой) */
-#countdown.critical {
-  background: rgba(244, 67, 54, 0.25);
-  border-color: rgba(244, 67, 54, 0.7);
-}
-
-#countdown.critical.pulse {
-  animation: countPulseCritical 0.4s ease;
-}
-
-@keyframes countPulseCritical {
-  0% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 12px 32px rgba(244, 67, 54, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  }
-  50% {
-    transform: translateX(-50%) scale(1.3);
-    box-shadow: 
-      0 24px 64px rgba(244, 67, 54, 0.8),
-      inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-    box-shadow: 
-      0 12px 32px rgba(244, 67, 54, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  }
-}
-
-#countdown.critical #countNum {
-  color: #f44336;
-  font-size: 1.3em;
-  text-shadow: 
-    0 0 40px rgba(244, 67, 54, 1),
-    0 0 80px rgba(244, 67, 54, 0.6),
-    0 0 120px rgba(244, 67, 54, 0.3);
-}
-
-/* 🔥 Финал (0 - красный мигающий) */
-#countdown.final {
-  background: rgba(244, 67, 54, 0.35);
-  border-color: rgba(244, 67, 54, 0.9);
-  animation: finalBlink 0.2s ease infinite;
-}
-
-@keyframes finalBlink {
-  0%, 100% {
-    transform: translateX(-50%) scale(1.4);
-    box-shadow: 
-      0 32px 96px rgba(244, 67, 54, 1),
-      inset 0 2px 0 rgba(255, 255, 255, 0.4);
-    opacity: 1;
-  }
-  50% {
-    transform: translateX(-50%) scale(1.5);
-    box-shadow: 
-      0 48px 128px rgba(244, 67, 54, 1),
-      inset 0 4px 0 rgba(255, 255, 255, 0.6);
-    opacity: 0.8;
-  }
-}
-
-#countdown.final #countNum {
-  color: #fff;
-  font-size: 1.5em;
-  font-weight: 900;
-  text-shadow: 
-    0 0 50px rgba(244, 67, 54, 1),
-    0 0 100px rgba(244, 67, 54, 0.8),
-    0 0 150px rgba(244, 67, 54, 0.6),
-    0 0 200px rgba(244, 67, 54, 0.4);
-  animation: finalNumberPulse 0.2s ease infinite;
-}
-
-@keyframes finalNumberPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.2);
-  }
-}
 
 
 /* Адаптив для маленьких экранов */
@@ -4091,39 +3971,7 @@ body.case-sheet-open .case-sheet-panel{
 
 
           
-          
-          /* Таймер — по центру снизу колеса, яркий */
-            #countdown {
-              position: absolute;
-              left: 50%;
-              bottom: -10px;                 /* подвинь если нужно ближе/дальше от колеса */
-              transform: translateX(-50%);
-              z-index: 5;
-              padding: 6px 12px;
-              border-radius: 999px;
-              background: rgba(0, 17, 34, 0.75);
-              backdrop-filter: blur(6px);
-              border: 1px solid rgba(0,153,255,.35);
-              box-shadow: 0 6px 24px rgba(0,153,255,.25), inset 0 0 0 1px rgba(255,255,255,.06);
-              color: #eaf6ff;
-              font: 700 clamp(16px, 4.2vw, 24px) / 1.1 mf, system-ui, sans-serif;
-              letter-spacing: .02em;
-              opacity: 1;
-              transition: transform .2s ease, opacity .2s ease;
-            }
-
-            /* лёгкий «пульс», когда уменьшается число */
-              #countdown.pulse {
-                animation: countPulse .45s ease;
-              }
-              @keyframes countPulse {
-                0%   { transform: translateX(-50%) scale(1); }
-                50%  { transform: translateX(-50%) scale(1.12); }
-                100% { transform: translateX(-50%) scale(1); }
-              }
-
-
-
+  
               /* бет-панель во время спина */
       #betOverlay.disabled {
         pointer-events: none;
