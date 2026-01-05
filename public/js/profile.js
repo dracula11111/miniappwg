@@ -1,6 +1,6 @@
-// /public/js/profile.js - v4 (keep default empty Inventory panel + 3-col NFT grid + select/sell)
+// /public/js/profile.js - Complete v5
 (() => {
-  console.log('[Profile] ✅ Loaded v4');
+  console.log('[Profile] ✅ Loaded v5 - Redesigned');
 
   const tg = window.Telegram?.WebApp;
 
@@ -12,13 +12,25 @@
   const profileName = document.getElementById('profileName');
   const profileHandle = document.getElementById('profileHandle');
 
+  // ====== WALLET CARD ======
   const walletCard = document.getElementById('walletCard');
   const walletCardStatus = document.getElementById('walletCardStatus');
-  const walletCardBtn = document.getElementById('walletCardBtn');
+  const walletCardToggle = document.getElementById('walletCardToggle');
+
+  const walletCardConnect = document.getElementById('walletCardConnect');
+  const profileConnectWalletBtn = document.getElementById('profileConnectWalletBtn');
+
+  const walletHeaderDisconnect = document.getElementById('walletHeaderDisconnect');
+
   const walletCardDetails = document.getElementById('walletCardDetails');
   const walletCardAddress = document.getElementById('walletCardAddress');
   const walletCardCopy = document.getElementById('walletCardCopy');
   const walletCardDisconnect = document.getElementById('walletCardDisconnect');
+
+  // Disconnect modal
+  const walletDisconnectModal = document.getElementById('walletDisconnectModal');
+  const walletDisconnectAddr = document.getElementById('walletDisconnectAddr');
+  const walletDisconnectConfirm = document.getElementById('walletDisconnectConfirm');
 
   const inventoryPanel = document.getElementById('profileInventoryPanel');
 
@@ -65,7 +77,6 @@
   }
 
   function itemKey(item, idx) {
-    // Prefer stable unique identifiers
     return String(
       item?.uid ||
       item?.instanceId ||
@@ -80,7 +91,6 @@
     const icon = item?.icon || item?.image || item?.img;
     if (!icon) return '/icons/unknown.png';
 
-    // NFTs stored in /public/images/gifts/nfts/, gifts in /public/images/gifts/
     const t = itemType(item);
     if (t === 'nft') return `/images/gifts/nfts/${icon}`;
     return `/images/gifts/${icon}`;
@@ -110,7 +120,6 @@
   }
 
   async function postDeposit(delta, currency, userId, type = 'inventory_sell') {
-    // Server-side accounting (best-effort). No hard-fail for UI.
     const initData = tg?.initData || '';
     const depositId = `${type}_${userId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     try {
@@ -139,38 +148,194 @@
     if (profileName) profileName.textContent = user.first_name || user.username || 'Guest';
     if (profileHandle) profileHandle.textContent = user.username ? `@${user.username}` : `ID: ${user.id || 'Unknown'}`;
 
-    // Avatar (if project has endpoint; otherwise default)
+    // Avatar
     if (profileAvatar && user.id && user.id !== 'guest') {
-      profileAvatar.src = `/avatar/${user.id}?t=${Date.now()}`;
+      profileAvatar.src = `/api/tg/photo/${user.id}?t=${Date.now()}`;
+      profileAvatar.onerror = () => {
+        profileAvatar.src = '/icons/user-placeholder.png';
+      };
     }
   }
 
-  // ====== WALLET UI (does not change existing behavior) ======
-  function updateWalletUI() {
-    if (!walletCard) return;
+  // ====== WALLET UI ======
+  function shortAddr(addr) {
+    if (!addr || typeof addr !== 'string') return '';
+    if (addr.length <= 10) return addr;
+    return addr.slice(0, 4) + '…' + addr.slice(-4);
+  }
 
-    const addr = window.WildTimeTonConnect?.address || window.tonAddress || '';
+  function getWalletAddress() {
+    return (
+      window.WildTimeTonConnect?.getAddress?.() ||
+      window.WildTimeTonConnect?.address ||
+      window.tonConnectUI?.account?.address ||
+      null
+    );
+  }
+
+  async function openWalletConnect() {
+    try {
+      if (typeof window.WildTimeTonConnect?.connect === 'function') {
+        await window.WildTimeTonConnect.connect();
+        return;
+      }
+    } catch {}
+
+    try {
+      if (typeof window.WildTimeTonConnect?.openModal === 'function') {
+        await window.WildTimeTonConnect.openModal();
+        return;
+      }
+    } catch {}
+
+    try {
+      if (typeof window.tonConnectUI?.openModal === 'function') {
+        await window.tonConnectUI.openModal();
+        return;
+      }
+    } catch {}
+  }
+
+  async function doDisconnect() {
+    try {
+      if (typeof window.WildTimeTonConnect?.disconnect === 'function') {
+        await window.WildTimeTonConnect.disconnect();
+        return;
+      }
+    } catch {}
+
+    try {
+      if (typeof window.tonConnectUI?.disconnect === 'function') {
+        await window.tonConnectUI.disconnect();
+        return;
+      }
+    } catch {}
+  }
+
+  function openDisconnectModal(addr) {
+    if (!walletDisconnectModal) return;
+    if (walletDisconnectAddr) walletDisconnectAddr.textContent = shortAddr(addr || '—');
+    walletDisconnectModal.hidden = false;
+    haptic('light');
+  }
+
+  function closeDisconnectModal() {
+    if (!walletDisconnectModal) return;
+    walletDisconnectModal.hidden = true;
+  }
+
+  function updateWalletUI() {
+    const addr = getWalletAddress();
     const connected = !!addr;
 
-    if (walletCardStatus) walletCardStatus.textContent = connected ? 'Connected' : 'Not connected';
+    // Hide details section (not used in new design)
+    if (walletCardDetails) walletCardDetails.hidden = true;
 
-    if (walletCardBtn) walletCardBtn.hidden = connected;
-    if (walletCardDetails) walletCardDetails.hidden = !connected;
+    // Hide old toggle button
+    if (walletCardToggle) walletCardToggle.hidden = true;
+
+    if (connected) {
+      // CONNECTED STATE
+      // Status: show shortened address (clickable to copy)
+      if (walletCardStatus) {
+        walletCardStatus.textContent = shortAddr(addr);
+        walletCardStatus.style.cursor = 'pointer';
+        walletCardStatus.style.fontWeight = '700';
+        walletCardStatus.style.letterSpacing = '0.3px';
+        walletCardStatus.onclick = () => {
+          navigator.clipboard?.writeText(addr).catch(() => {});
+          haptic('light');
+          // Optional: show toast "Copied!"
+        };
+      }
+
+      // Hide connect button
+      if (walletCardConnect) walletCardConnect.hidden = true;
+
+      // Show red disconnect button on the right
+      if (walletHeaderDisconnect) {
+        walletHeaderDisconnect.hidden = false;
+        walletHeaderDisconnect.textContent = 'Disconnect';
+      }
+    } else {
+      // NOT CONNECTED STATE
+      // Status: "Not connected"
+      if (walletCardStatus) {
+        walletCardStatus.textContent = 'Not connected';
+        walletCardStatus.style.cursor = 'default';
+        walletCardStatus.style.fontWeight = '600';
+        walletCardStatus.style.letterSpacing = '0';
+        walletCardStatus.onclick = null;
+      }
+
+      // Show big connect button
+      if (walletCardConnect) walletCardConnect.hidden = false;
+
+      // Hide disconnect button
+      if (walletHeaderDisconnect) walletHeaderDisconnect.hidden = true;
+    }
+
+    // Address for copy button (if details section used)
     if (walletCardAddress) walletCardAddress.textContent = connected ? addr : '—';
+  }
 
+  // ====== WALLET EVENT LISTENERS (setup once) ======
+  function setupWalletListeners() {
+    // Connect button
+    if (profileConnectWalletBtn) {
+      profileConnectWalletBtn.addEventListener('click', async () => {
+        haptic('medium');
+        await openWalletConnect();
+      });
+    }
+
+    // Header disconnect button
+    if (walletHeaderDisconnect) {
+      walletHeaderDisconnect.addEventListener('click', () => {
+        const addr = getWalletAddress();
+        if (!addr) return;
+        haptic('medium');
+        openDisconnectModal(addr);
+      });
+    }
+
+    // Disconnect modal backdrop & close button
+    if (walletDisconnectModal) {
+      walletDisconnectModal.addEventListener('click', (e) => {
+        if (e.target.dataset.close) {
+          closeDisconnectModal();
+          haptic('light');
+        }
+      });
+    }
+
+    // Disconnect confirm button
+    if (walletDisconnectConfirm) {
+      walletDisconnectConfirm.addEventListener('click', async () => {
+        haptic('medium');
+        await doDisconnect();
+        closeDisconnectModal();
+        setTimeout(updateWalletUI, 150);
+      });
+    }
+
+    // Copy button (if details section used)
     if (walletCardCopy) {
-      walletCardCopy.onclick = () => {
+      walletCardCopy.addEventListener('click', () => {
+        const addr = getWalletAddress();
         if (!addr) return;
         navigator.clipboard?.writeText(addr).catch(() => {});
         haptic('light');
-      };
+      });
     }
 
+    // Old disconnect button inside details
     if (walletCardDisconnect) {
-      walletCardDisconnect.onclick = async () => {
-        try { await window.WildTimeTonConnect?.disconnect?.(); } catch {}
-        setTimeout(updateWalletUI, 150);
-      };
+      walletCardDisconnect.addEventListener('click', () => {
+        const addr = getWalletAddress();
+        openDisconnectModal(addr);
+        haptic('medium');
+      });
     }
   }
 
@@ -331,6 +496,7 @@
     }
 
     modal.hidden = false;
+    haptic('light');
   }
 
   function hideModal() {
@@ -384,15 +550,13 @@
       if (emptyIcon) emptyIcon.hidden = false;
       if (emptyText) {
         emptyText.hidden = false;
-        // keep exact default message
         emptyText.textContent = 'No gifts yet.';
       }
       if (dyn) dyn.hidden = true;
 
       selection.clear();
-      updateActionAmounts([]); // resets button labels if shown elsewhere
+      updateActionAmounts([]);
 
-      // hide shelf
       renderNftShelf([], null);
       return;
     }
@@ -487,9 +651,6 @@
       const toSell = keys.map(k => mapByKey.get(k)).filter(Boolean);
 
       const total = toSell.reduce((s, it) => s + itemValue(it, currency), 0);
-      if (!total) {
-        // remove anyway
-      }
 
       // Try server endpoint (optional)
       let serverOk = false;
@@ -503,7 +664,6 @@
           const j = await r.json().catch(() => null);
           if (j && j.ok === true) {
             serverOk = true;
-            // If server returned updated inventory/balance, apply
             if (Array.isArray(j.items)) {
               writeLocalInventory(userId, j.items);
             }
@@ -514,7 +674,7 @@
         }
       } catch {}
 
-      // Local fallback: remove from local inv and credit via deposit-notification
+      // Local fallback
       if (!serverOk) {
         const local = readLocalInventory(userId);
         const next = local.filter((it, idx) => !selection.has(itemKey(it, idx)));
@@ -543,14 +703,13 @@
       const items = lastInventory.slice();
       if (!items.length) return;
 
-      // select all keys
       const keys = items.map((it, idx) => itemKey(it, idx));
       selection.clear();
       keys.forEach(k => selection.add(k));
 
       const total = items.reduce((s, it) => s + itemValue(it, currency), 0);
 
-      // Try server endpoint (optional)
+      // Try server endpoint
       let serverOk = false;
       try {
         const r = await fetch('/api/inventory/sell-all', {
@@ -599,7 +758,6 @@
       if (r.ok) {
         const j = await r.json().catch(() => null);
         if (j && j.ok === true && Array.isArray(j.items)) {
-          // cache local for offline UI
           writeLocalInventory(userId, j.items);
           renderInventory(j.items);
           return;
@@ -612,10 +770,18 @@
   }
 
   // ====== REFRESH HOOKS ======
+  let walletsSetup = false;
+
   function refreshAll() {
     updateUserUI();
     updateWalletUI();
     loadInventory();
+
+    // Setup wallet event listeners only once
+    if (!walletsSetup) {
+      setupWalletListeners();
+      walletsSetup = true;
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -630,7 +796,6 @@
   });
 
   window.addEventListener('currency:changed', () => {
-    // Re-render amounts and selection values
     renderInventory(readLocalInventory(getTelegramUser().id));
   });
 

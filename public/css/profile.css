@@ -100,134 +100,160 @@
     }
   }
   
-  /* ============================================
-     WALLET CARD - FIXED ANIMATION
-     ============================================ */
-  
-  .wallet-card {
-    width: 100%;
-    max-width: 340px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-    transition: all 0.3s ease;
-  }
-  
-  .wallet-card__header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  .wallet-card__header:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-  
-  .wallet-card__header:active {
-    background: rgba(255, 255, 255, 0.05);
-  }
-  
 
 
-/* чтобы картинка внутри выглядела аккуратно */
-.wallet-card__icon img{
-  width: 36px;
-  height: 36px;
 
-  border-radius: 6px; /* мягко, если PNG с углами */
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+
+/* ===== Telegram Wallet connect button (reference-like) ===== */
+.wallet-card__connect{
+  padding: 12px 16px 16px;
 }
 
+.tg-wallet-btn{
+  width: 100%;
+  height: 56px;
+  border-radius: 18px;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  color: #fff;
+  font-weight: 900;
+  font-size: 16px;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tg-wallet-btn:active{ transform: translateY(1px); }
+
+.tg-wallet-btn__left,
+.tg-wallet-btn__right{
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.tg-wallet-btn__left img{
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
   
-  .wallet-card__info {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  .wallet-card__label {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 2px;
-  }
-  
-  .wallet-card__status {
-    font-size: 13px;
-    color: var(--muted);
-    font-family: 'Courier New', monospace;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .wallet-card__toggle {
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  .wallet-card__toggle:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text);
-  }
-  
-  .wallet-card__chevron {
-    transition: transform 0.3s ease;
-  }
-  
-  .wallet-card__toggle.open .wallet-card__chevron {
-    transform: rotate(180deg);
-  }
-  
-  /* Ð”ÐµÑ‚Ð°Ð»Ð¸ - FIXED: ÑƒÐ±Ñ€Ð°Ð½Ñ‹ Ð¿Ñ€Ñ‹Ð¶ÐºÐ¸ */
-  .wallet-card__details {
-    /* Ð£Ð±Ð¸Ñ€Ð°ÐµÐ¼ max-height Ð´Ð»Ñ Ð¿Ð»Ð°Ð²Ð½Ð¾Ð¹ Ð°Ð½Ð¸Ð¼Ð°Ñ†Ð¸Ð¸ */
-    overflow: hidden;
-    transition: opacity 0.3s ease, max-height 0.3s ease;
-    opacity: 0;
-    max-height: 0;
-  }
-  
-  .wallet-card__details:not([hidden]) {
-    opacity: 1;
-    max-height: 200px;
-    padding: 0 16px 16px;
-  }
-  
-  .wallet-card__address {
-    padding: 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    word-break: break-all;
-    line-height: 1.5;
-    margin-bottom: 12px;
-    user-select: text;
-  }
-  
-  .wallet-card__actions {
-    display: flex;
-    gap: 8px;
-  }
-  
+}
+
+.tg-wallet-btn__right{
+  color: #fff;
+}
+
+.tg-wallet-btn__text{
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== Header disconnect (red button on the right) ===== */
+.wallet-card__disconnect{
+  margin-left: auto;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,80,80,0.35);
+  background: rgba(255,80,80,0.14);
+  color: rgba(255,140,140,0.95);
+  font-weight: 900;
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wallet-card__disconnect:active{ transform: translateY(1px); }
+
+/* ===== Disconnect modal (reference-like) ===== */
+.wallet-disconnect{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.wallet-disconnect[hidden]{ display:none !important; }
+
+.wallet-disconnect__backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+}
+
+.wallet-disconnect__panel{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  width: min(420px, calc(100% - 32px));
+  border-radius: 22px;
+  background: rgba(0,0,0,0.78);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  padding: 22px 18px 18px;
+  text-align: center;
+}
+
+.wallet-disconnect__close{
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+}
+
+.wallet-disconnect__title{
+  font-size: 32px;
+  font-weight: 900;
+  margin: 10px 0 14px;
+}
+
+.wallet-disconnect__sub{
+  font-size: 16px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.55);
+}
+
+.wallet-disconnect__addr{
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.95);
+}
+
+.wallet-disconnect__confirm{
+  margin-top: 22px;
+  width: 100%;
+  height: 56px;
+  border-radius: 18px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 18px;
+  color: #fff;
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wallet-disconnect__confirm:active{ transform: translateY(1px); }
+
   .btn-action {
     flex: 1;
     display: flex;
@@ -2133,88 +2159,350 @@
         }
       }
 
-/* =========================================================
-   CONNECT WALLET BUTTON (TON) — matches "Connect Wallet" pill
-   ========================================================= */
+/* ============================================
+   WALLET CARD - COMPLETE
+   ============================================ */
 
-   .wt-connect-wallet{
+   .wallet-card {
     width: 100%;
-    height: 44px;
-    border: 0;
-    border-radius: 999px;
-    background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
-    color: #fff;
-    font-weight: 800;
-    font-size: 18px;
-    letter-spacing: 0.2px;
+    max-width: 340px;
+    margin: 0 auto;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+  
+  .wallet-card__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .wallet-card__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  
+  .wallet-card__icon img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  }
+  
+  .wallet-card__info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .wallet-card__label {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  
+  .wallet-card__status {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+  }
+  
+  .wallet-card__status:hover {
+    color: rgba(255, 255, 255, 0.95);
+  }
+  
+  .wallet-card__connect {
+    padding: 0;
+    margin-top: 4px;
+  }
+  
+  /* Big Connect Button (like Telegram Wallet reference) */
+  .tg-wallet-btn {
+    width: 100%;
+    height: 64px;
+    border-radius: 18px;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    color: #fff;
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+    background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+    box-shadow: 
+      0 12px 32px rgba(17, 140, 255, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+  }
+  
+  .tg-wallet-btn:hover {
+    box-shadow: 
+      0 16px 40px rgba(17, 140, 255, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  
+  .tg-wallet-btn:active { 
+    transform: translateY(2px);
+    box-shadow: 
+      0 8px 24px rgba(17, 140, 255, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  
+  .tg-wallet-btn__left,
+  .tg-wallet-btn__right {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  
+  .tg-wallet-btn__left img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    display: block;
+  }
+  
+  .tg-wallet-btn__right {
+    color: #fff;
+  }
+  
+  .tg-wallet-btn__right svg {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  }
+  
+  .tg-wallet-btn__text {
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Disconnect Button (red, compact, on the right) */
+  .wallet-card__disconnect {
+    margin-left: auto;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.3px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 10px 22px rgba(17, 140, 255, 0.22);
-  
-    /* FIX: space for the left icon */
-    padding-left: 54px;   /* 15(left) + 30(icon) + ~9 gap */
-    padding-right: 18px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
   }
   
-  .wt-connect-wallet:active{
+  .wallet-card__disconnect:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  }
+  
+  .wallet-card__disconnect:active { 
     transform: translateY(1px);
+    box-shadow: 0 1px 4px rgba(239, 68, 68, 0.15);
   }
   
-  .wt-connect-wallet__icon{
-    position: absolute;
-    left: 26px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 30px;
-    height: 30px;
-    border-radius: 999px;
-
+  /* Details section (legacy, hidden) */
+  .wallet-card__details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .wallet-card__address {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    margin-bottom: 12px;
+    font-family: monospace;
+    letter-spacing: 0.3px;
+  }
+  
+  .wallet-card__actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .btn-action {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-  
-    /* FIX: icon must not steal clicks */
-    pointer-events: none;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   
-  .wt-connect-wallet__icon img{
-    width: 30px;
-    height: 30px;
-    display: block;
+  .btn-action svg {
+    flex-shrink: 0;
   }
   
-  .wt-connect-wallet__text{
-    line-height: 1;
+  .btn-action:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
   
-    /* FIX: real centered label */
-    width: 100%;
+  .btn-action:active {
+    transform: translateY(0);
+  }
+  
+  .btn-action--secondary {
+    border-color: rgba(0, 166, 255, 0.3);
+    color: #00a6ff;
+  }
+  
+  .btn-action--secondary:hover {
+    background: rgba(0, 166, 255, 0.1);
+    border-color: rgba(0, 166, 255, 0.5);
+  }
+  
+  .btn-action--danger {
+    border-color: rgba(255, 77, 79, 0.3);
+    color: #ff4d4f;
+  }
+  
+  .btn-action--danger:hover {
+    background: rgba(255, 77, 79, 0.1);
+    border-color: rgba(255, 77, 79, 0.5);
+  }
+  
+  /* ============================================
+     DISCONNECT MODAL
+     ============================================ */
+  
+  .wallet-disconnect {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+  }
+  
+  .wallet-disconnect[hidden] { 
+    display: none !important; 
+  }
+  
+  .wallet-disconnect__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+  }
+  
+  .wallet-disconnect__panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(420px, calc(100% - 32px));
+    border-radius: 22px;
+    background: rgba(0, 0, 0, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    padding: 22px 18px 18px;
     text-align: center;
-    display: block;
-    pointer-events: none;
   }
   
-  .wt-connect-wallet[disabled]{
-    opacity: 0.75;
-    cursor: default;
-    transform: none;
-  }
-  
-  /* Optional spacing if you use it somewhere */
-  .wt-connect-wallet--profile{
-    margin-top: 15px;
-  }
-  
-  /* Compact version inside cards/popups */
-  .wt-connect-wallet--small{
+  .wallet-disconnect__close {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    width: 40px;
     height: 40px;
-    font-size: 16px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    transition: all 0.2s ease;
   }
-
-
-
-
-    
+  
+  .wallet-disconnect__close:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  
+  .wallet-disconnect__title {
+    font-size: 32px;
+    font-weight: 900;
+    margin: 10px 0 14px;
+    color: #fff;
+  }
+  
+  .wallet-disconnect__sub {
+    font-size: 16px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  
+  .wallet-disconnect__addr {
+    margin-top: 10px;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.95);
+  }
+  
+  .wallet-disconnect__confirm {
+    margin-top: 22px;
+    width: 100%;
+    height: 56px;
+    border-radius: 18px;
+    border: 0;
+    cursor: pointer;
+    font-weight: 900;
+    font-size: 18px;
+    color: #fff;
+    background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s ease;
+  }
+  
+  .wallet-disconnect__confirm:hover {
+    box-shadow: 0 8px 24px rgba(17, 140, 255, 0.3);
+  }
+  
+  .wallet-disconnect__confirm:active { 
+    transform: translateY(1px); 
+  }

@@ -1445,6 +1445,11 @@ function startCountdown(sec=9){
     if (left <= 0) {
       stopCountdown();
 
+      // 🔥 Hide countdown during spin
+      if (countdownBox) {
+        countdownBox.classList.remove('visible');
+      }
+
       setPhase('accelerate');
       setBetPanel(false);
       
