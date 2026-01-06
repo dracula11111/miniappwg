@@ -6,6 +6,8 @@ import crypto from "crypto";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import * as dbReal from "./database-pg.js";
+import { Readable } from "stream";
+
 
 dotenv.config();
 
@@ -253,7 +255,8 @@ app.get("/api/tg/photo/:userId", async (req, res) => {
 
     res.setHeader("Cache-Control", "public, max-age=3600, immutable");
     res.setHeader("Content-Type", fileResp.headers.get("content-type") || "image/jpeg");
-    fileResp.body.pipe(res);
+    Readable.fromWeb(fileResp.body).pipe(res);
+
   } catch (e) {
     console.error('[Avatar]', e);
     res.status(500).send("error");

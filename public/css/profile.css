@@ -2544,3 +2544,243 @@
   .wallet-disconnect__confirm:active { 
     transform: translateY(1px); 
   }
+
+  /* ============================================
+   INVENTORY STYLES - UPDATED
+   ============================================ */
+
+/* Grid for items with wrappers */
+.profile-invgrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 10px;
+}
+
+@media (max-width: 380px) {
+  .profile-invgrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* Wrapper for item + buttons */
+.profile-invitem-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* NFT Item Card */
+.profile-invitem {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-invitem:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(0,166,255,0.3);
+}
+
+.profile-invitem.selected {
+  border-color: rgba(0,166,255,0.6);
+  background: rgba(0,166,255,0.12);
+}
+
+.profile-invitem img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px;
+  display: block;
+  filter: drop-shadow(0 10px 22px rgba(0,0,0,0.35));
+}
+
+/* Checkmark */
+.profile-invcheck {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,166,255,0.2);
+  border: 2px solid rgba(0,166,255,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: transparent;
+  transition: all 0.2s ease;
+}
+
+.profile-invitem.selected .profile-invcheck {
+  background: rgba(0,166,255,0.9);
+  border-color: rgba(0,166,255,1);
+  color: #fff;
+}
+
+/* Action buttons under each item */
+.profile-invitem-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.profile-invitem-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.9);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-invitem-btn:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-1px);
+}
+
+.profile-invitem-btn:active {
+  transform: translateY(0);
+}
+
+.profile-invitem-btn--withdraw {
+  border-color: rgba(42,168,255,0.4);
+  background: rgba(42,168,255,0.12);
+  color: rgba(42,168,255,1);
+}
+
+.profile-invitem-btn--withdraw:hover {
+  background: rgba(42,168,255,0.18);
+  border-color: rgba(42,168,255,0.6);
+}
+
+.profile-invitem-btn--sell {
+  border-color: rgba(255,255,255,0.12);
+}
+
+.profile-invitem-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-invitem-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* INVENTORY ACTIONS (Sell selected / Sell all) */
+.profile-invactions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.inv-action-btn {
+  flex: 1;
+  height: 48px;
+  border-radius: 14px;
+  border: 0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.inv-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.inv-action-btn:active {
+  transform: translateY(0);
+}
+
+.inv-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.inv-action-btn--primary {
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(17,140,255,0.3);
+}
+
+.inv-action-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(17,140,255,0.4);
+}
+
+.inv-action-btn--secondary {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.9);
+}
+
+.inv-action-btn--secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.1);
+}
+
+.inv-action-btn__amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-action-btn.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Empty state */
+.profile-invpanel__icon {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0 10px;
+}
+
+.profile-invpanel__img {
+  width: 72px;
+  height: 72px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.45));
+  animation: invFloat 2.6s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+
+.profile-invpanel__text {
+  color: rgba(255,255,255,0.82);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: center;
+}
+
+@keyframes invFloat {
+  0%   { transform: translateY(0) scale(1); }
+  50%  { transform: translateY(-6px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}

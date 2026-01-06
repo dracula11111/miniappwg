@@ -1,6 +1,6 @@
-// /public/js/profile.js - Complete v5
+// /public/js/profile.js - Complete v5 - Updated without NFT shelf
 (() => {
-  console.log('[Profile] ✅ Loaded v5 - Redesigned');
+  console.log('[Profile] ✅ Loaded v5 - Redesigned (No NFT Shelf)');
 
   const tg = window.Telegram?.WebApp;
 
@@ -60,6 +60,16 @@
   // ====== HELPERS ======
   function haptic(type = 'light') {
     try { tg?.HapticFeedback?.impactOccurred?.(type); } catch {}
+  }
+
+  function showToast(msg) {
+    if (tg?.showPopup) { 
+      try { tg.showPopup({ message: msg }); return; } catch {} 
+    }
+    if (tg?.showAlert) { 
+      try { tg.showAlert(msg); return; } catch {} 
+    }
+    try { alert(msg); } catch {}
   }
 
   function getCurrency() {
@@ -144,17 +154,25 @@
   // ====== USER UI ======
   function updateUserUI() {
     const user = getTelegramUser();
-
+  
     if (profileName) profileName.textContent = user.first_name || user.username || 'Guest';
     if (profileHandle) profileHandle.textContent = user.username ? `@${user.username}` : `ID: ${user.id || 'Unknown'}`;
-
-    // Avatar
-    if (profileAvatar && user.id && user.id !== 'guest') {
-      profileAvatar.src = `/api/tg/photo/${user.id}?t=${Date.now()}`;
-      profileAvatar.onerror = () => {
-        profileAvatar.src = '/icons/user-placeholder.png';
-      };
-    }
+  
+    const avatarEls = [
+      document.getElementById('userAvatarImg'),
+      document.getElementById('profileAvatar'),
+      document.getElementById('navProfileAvatar'),
+    ].filter(Boolean);
+  
+    const tgUrl = user.photo_url && String(user.photo_url).trim() ? user.photo_url : null;
+    const apiUrl = (user.id && user.id !== 'guest') ? `/api/tg/photo/${user.id}?t=${Date.now()}` : null;
+  
+    const finalUrl = tgUrl || apiUrl || '/images/avatar-default.png';
+  
+    avatarEls.forEach((img) => {
+      img.src = finalUrl;
+      img.onerror = () => { img.src = '/images/avatar-default.png'; };
+    });
   }
 
   // ====== WALLET UI ======
@@ -228,15 +246,10 @@
     const addr = getWalletAddress();
     const connected = !!addr;
 
-    // Hide details section (not used in new design)
     if (walletCardDetails) walletCardDetails.hidden = true;
-
-    // Hide old toggle button
     if (walletCardToggle) walletCardToggle.hidden = true;
 
     if (connected) {
-      // CONNECTED STATE
-      // Status: show shortened address (clickable to copy)
       if (walletCardStatus) {
         walletCardStatus.textContent = shortAddr(addr);
         walletCardStatus.style.cursor = 'pointer';
@@ -245,21 +258,16 @@
         walletCardStatus.onclick = () => {
           navigator.clipboard?.writeText(addr).catch(() => {});
           haptic('light');
-          // Optional: show toast "Copied!"
         };
       }
 
-      // Hide connect button
       if (walletCardConnect) walletCardConnect.hidden = true;
 
-      // Show red disconnect button on the right
       if (walletHeaderDisconnect) {
         walletHeaderDisconnect.hidden = false;
         walletHeaderDisconnect.textContent = 'Disconnect';
       }
     } else {
-      // NOT CONNECTED STATE
-      // Status: "Not connected"
       if (walletCardStatus) {
         walletCardStatus.textContent = 'Not connected';
         walletCardStatus.style.cursor = 'default';
@@ -268,20 +276,15 @@
         walletCardStatus.onclick = null;
       }
 
-      // Show big connect button
       if (walletCardConnect) walletCardConnect.hidden = false;
-
-      // Hide disconnect button
       if (walletHeaderDisconnect) walletHeaderDisconnect.hidden = true;
     }
 
-    // Address for copy button (if details section used)
     if (walletCardAddress) walletCardAddress.textContent = connected ? addr : '—';
   }
 
-  // ====== WALLET EVENT LISTENERS (setup once) ======
+  // ====== WALLET EVENT LISTENERS ======
   function setupWalletListeners() {
-    // Connect button
     if (profileConnectWalletBtn) {
       profileConnectWalletBtn.addEventListener('click', async () => {
         haptic('medium');
@@ -289,7 +292,6 @@
       });
     }
 
-    // Header disconnect button
     if (walletHeaderDisconnect) {
       walletHeaderDisconnect.addEventListener('click', () => {
         const addr = getWalletAddress();
@@ -299,7 +301,6 @@
       });
     }
 
-    // Disconnect modal backdrop & close button
     if (walletDisconnectModal) {
       walletDisconnectModal.addEventListener('click', (e) => {
         if (e.target.dataset.close) {
@@ -309,7 +310,6 @@
       });
     }
 
-    // Disconnect confirm button
     if (walletDisconnectConfirm) {
       walletDisconnectConfirm.addEventListener('click', async () => {
         haptic('medium');
@@ -319,7 +319,6 @@
       });
     }
 
-    // Copy button (if details section used)
     if (walletCardCopy) {
       walletCardCopy.addEventListener('click', () => {
         const addr = getWalletAddress();
@@ -329,7 +328,6 @@
       });
     }
 
-    // Old disconnect button inside details
     if (walletCardDisconnect) {
       walletCardDisconnect.addEventListener('click', () => {
         const addr = getWalletAddress();
@@ -339,63 +337,7 @@
     }
   }
 
-  // ====== NFT SHELF (top) ======
-  function ensureNftShelf() {
-    if (!profileCard || !currencySwitch) return null;
-
-    let shelf = document.getElementById('profileNftShelf');
-    if (shelf) return shelf;
-
-    shelf = document.createElement('div');
-    shelf.id = 'profileNftShelf';
-    shelf.className = 'profile-nft-shelf';
-    shelf.hidden = true;
-
-    currencySwitch.insertAdjacentElement('beforebegin', shelf);
-    return shelf;
-  }
-
-  function renderNftShelf(items, onOpen) {
-    const shelf = ensureNftShelf();
-    if (!shelf) return;
-
-    const nfts = (items || []).filter(it => itemType(it) === 'nft');
-
-    if (!nfts.length) {
-      shelf.hidden = true;
-      shelf.innerHTML = '';
-      return;
-    }
-
-    shelf.hidden = false;
-
-    const icons = nfts.slice(0, 18).map((it, idx) => {
-      const key = itemKey(it, idx);
-      return `
-        <button class="profile-nft-item is-nft" type="button" data-key="${key}" aria-label="NFT">
-          <img src="${itemIconPath(it)}" alt="">
-        </button>
-      `;
-    }).join('');
-
-    shelf.innerHTML = `
-      <div class="profile-nft-shelf__header">
-        <div class="profile-nft-shelf__title">NFT</div>
-        <div class="profile-nft-shelf__count">${nfts.length}</div>
-      </div>
-      <div class="profile-nft-shelf__row">${icons}</div>
-    `;
-
-    shelf.querySelectorAll('.profile-nft-item').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.getAttribute('data-key');
-        const it = nfts.find((x, i) => itemKey(x, i) === key);
-        if (it && onOpen) onOpen(it);
-      });
-    });
-  }
-
-  // ====== INVENTORY PANEL: keep default empty state ======
+  // ====== INVENTORY PANEL ======
   const selection = new Set();
   let lastInventory = [];
 
@@ -545,7 +487,7 @@
 
     lastInventory = nfts;
 
-    // EMPTY STATE: keep original look (loupe + "No gifts yet.")
+    // EMPTY STATE
     if (!nfts.length) {
       if (emptyIcon) emptyIcon.hidden = false;
       if (emptyText) {
@@ -557,7 +499,6 @@
       selection.clear();
       updateActionAmounts([]);
 
-      renderNftShelf([], null);
       return;
     }
 
@@ -566,20 +507,34 @@
     if (emptyText) emptyText.hidden = true;
     if (dyn) dyn.hidden = false;
 
-    // NFT shelf on top of profile
-    renderNftShelf(nfts, (it) => showModal(it, nfts));
-
     const grid = document.getElementById('profileInvGrid');
     if (!grid) return;
+
+    const currency = getCurrency();
 
     grid.innerHTML = nfts.map((it, idx) => {
       const key = itemKey(it, idx);
       const selected = selection.has(key);
+      const val = itemValue(it, currency);
+      const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+      
       return `
-        <button class="profile-invitem${selected ? ' selected' : ''}" type="button" data-key="${key}">
-          <img src="${itemIconPath(it)}" alt="" />
-          <span class="profile-invcheck">✓</span>
-        </button>
+        <div class="profile-invitem-wrapper">
+          <button class="profile-invitem${selected ? ' selected' : ''}" type="button" data-key="${key}">
+            <img src="${itemIconPath(it)}" alt="" />
+            <span class="profile-invcheck">✓</span>
+          </button>
+          <div class="profile-invitem-actions">
+            <button class="profile-invitem-btn profile-invitem-btn--withdraw" type="button" data-key="${key}" data-action="withdraw">
+              Withdraw
+            </button>
+            <button class="profile-invitem-btn profile-invitem-btn--sell" type="button" data-key="${key}" data-action="sell">
+              <span>Sell</span>
+              <span class="profile-invitem-amount">${val}</span>
+              <img src="${icon}" alt="" class="profile-invitem-icon">
+            </button>
+          </div>
+        </div>
       `;
     }).join('');
 
@@ -587,7 +542,6 @@
     grid.querySelectorAll('.profile-invitem').forEach(btn => {
       const key = btn.getAttribute('data-key');
 
-      // tap -> toggle select
       btn.addEventListener('click', () => {
         if (!key) return;
         if (selection.has(key)) selection.delete(key);
@@ -596,7 +550,6 @@
         renderInventory(lastInventory);
       });
 
-      // long-press -> open modal
       let pressTimer = null;
       const startPress = () => {
         if (pressTimer) clearTimeout(pressTimer);
@@ -623,7 +576,25 @@
       });
     });
 
-    // action handlers
+    // Individual action buttons
+    grid.querySelectorAll('.profile-invitem-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const key = btn.getAttribute('data-key');
+        const action = btn.getAttribute('data-action');
+        
+        if (action === 'withdraw') {
+          haptic('medium');
+          showToast('Withdraw coming soon');
+        } else if (action === 'sell') {
+          if (!key) return;
+          selection.clear();
+          selection.add(key);
+          await sellSelected();
+        }
+      });
+    });
+
     const selBtn = document.getElementById('invSellSelected');
     const allBtn = document.getElementById('invSellAll');
 
@@ -652,7 +623,6 @@
 
       const total = toSell.reduce((s, it) => s + itemValue(it, currency), 0);
 
-      // Try server endpoint (optional)
       let serverOk = false;
       try {
         const r = await fetch('/api/inventory/sell', {
@@ -674,7 +644,6 @@
         }
       } catch {}
 
-      // Local fallback
       if (!serverOk) {
         const local = readLocalInventory(userId);
         const next = local.filter((it, idx) => !selection.has(itemKey(it, idx)));
@@ -709,7 +678,6 @@
 
       const total = items.reduce((s, it) => s + itemValue(it, currency), 0);
 
-      // Try server endpoint
       let serverOk = false;
       try {
         const r = await fetch('/api/inventory/sell-all', {
@@ -752,7 +720,6 @@
     const user = getTelegramUser();
     const userId = user.id;
 
-    // Prefer server inventory if exists
     try {
       const r = await fetch(`/api/user/inventory?userId=${encodeURIComponent(userId)}`, { method: 'GET' });
       if (r.ok) {
@@ -777,7 +744,6 @@
     updateWalletUI();
     loadInventory();
 
-    // Setup wallet event listeners only once
     if (!walletsSetup) {
       setupWalletListeners();
       walletsSetup = true;

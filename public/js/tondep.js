@@ -7,6 +7,69 @@
   const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
   const MIN_DEPOSIT = 0.1;
 
+  // ====== ADDRESS HELPERS (raw -> user-friendly "UQ...") ======
+  function crc16Xmodem(bytes) {
+    let crc = 0x0000;
+    for (let i = 0; i < bytes.length; i++) {
+      crc ^= (bytes[i] << 8);
+      for (let j = 0; j < 8; j++) {
+        if (crc & 0x8000) crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+        else crc = (crc << 1) & 0xFFFF;
+      }
+    }
+    return crc & 0xFFFF;
+  }
+
+  function base64UrlEncode(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function toUserFriendlyAddress(addr) {
+    if (!addr || typeof addr !== 'string') return null;
+
+    // already friendly (most TON-friendly addresses look like EQ... / UQ...)
+    if (/^(EQ|UQ|kQ|0Q)[A-Za-z0-9_-]{10,}$/.test(addr)) return addr;
+
+    // raw format: "0:abcdef..." or "-1:abcdef..." (64 hex chars)
+    const m = addr.match(/^(-?\d+):([0-9a-fA-F]{64})$/);
+    if (!m) return addr;
+
+    const wc = parseInt(m[1], 10);
+    const hex = m[2];
+    const hash = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) hash[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+
+    // 0x51 = non-bounceable (usually starts with "UQ" on mainnet)
+    const tag = 0x51;
+    const addr34 = new Uint8Array(34);
+    addr34[0] = tag;
+    addr34[1] = wc & 0xFF; // signed int8 in 2's complement
+    addr34.set(hash, 2);
+
+    const crc = crc16Xmodem(addr34);
+    const full = new Uint8Array(36);
+    full.set(addr34, 0);
+    full[34] = (crc >> 8) & 0xFF;
+    full[35] = crc & 0xFF;
+
+    return base64UrlEncode(full);
+  }
+
+  function getFriendlyConnectedAddress(tc) {
+    const raw = tc?.account?.address || null;
+    return toUserFriendlyAddress(raw);
+  }
+
+  function emitWalletChanged(tc) {
+    const address = getFriendlyConnectedAddress(tc);
+    window.dispatchEvent(new CustomEvent('wt-wallet-changed', {
+      detail: { connected: !!address, address }
+    }));
+  }
+
+
   // ====== DOM ======
   const popup = document.getElementById("tonDepositPopup");
   if (!popup) {
@@ -159,18 +222,24 @@
 
 window.tonConnectUI = tc;
 
-// единый адаптер под то, что ждёт profile.js
+// единый адаптер под то, что ждёт profile.js + другие страницы
 window.WildTimeTonConnect = {
   openModal: () => tc.openModal(),
   connect: () => tc.openModal(),
   disconnect: () => tc.disconnect(),
-  getAddress: () => tc.account?.address || null,
-  get address() { return tc.account?.address || null; }
+
+  // всегда возвращаем "юзер-френдли" адрес (UQ.../EQ...), а не raw "0:..."
+  getAddress: () => getFriendlyConnectedAddress(tc),
+  get address() { return getFriendlyConnectedAddress(tc); },
+
+  // чтобы Profile/другие модули могли подписаться и синхронизировать UI
+  onStatusChange: (cb) => tc.onStatusChange(cb)
 };
 
-
-  window.__wtTonConnect = tc;
+window.__wtTonConnect = tc;
   window.dispatchEvent(new Event("wt-tc-ready"));
+  // синхронизируем UI сразу после restoreConnection
+  setTimeout(() => emitWalletChanged(tc), 0);
   
   console.log('[TON] ✅ TonConnect ready');
 
@@ -203,6 +272,7 @@ window.WildTimeTonConnect = {
   // ====== STATUS ======
   tc.onStatusChange(async (wallet) => {
     console.log('[TON]', wallet ? '✅ Connected' : '❌ Disconnected');
+    emitWalletChanged(tc);
     if (wallet) await fetchWalletBalance();
     else if (walletBalance) walletBalance.textContent = '—';
     updateUI();
