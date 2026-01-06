@@ -155,6 +155,19 @@
     restoreConnection: true,
     actionsConfiguration: { twaReturnUrl: 'https://t.me' }
   });
+  // после: const tc = new TON_CONNECT_UI.TonConnectUI({...});
+
+window.tonConnectUI = tc;
+
+// единый адаптер под то, что ждёт profile.js
+window.WildTimeTonConnect = {
+  openModal: () => tc.openModal(),
+  connect: () => tc.openModal(),
+  disconnect: () => tc.disconnect(),
+  getAddress: () => tc.account?.address || null,
+  get address() { return tc.account?.address || null; }
+};
+
 
   window.__wtTonConnect = tc;
   window.dispatchEvent(new Event("wt-tc-ready"));

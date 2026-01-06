@@ -951,29 +951,6 @@
 }
 
 /* ============================================
-   WALLET INFO
-   ============================================ */
-
-.deposit-popup__wallet-info {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 16px;
-}
-
-.deposit-popup__wallet-icon {
-  width: 16px;
-  height: 16px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-/* ============================================
    DIVIDER
    ============================================ */
 
@@ -1050,9 +1027,7 @@
     margin-bottom: 12px;
   }
   
-  .deposit-popup__wallet-info {
-    margin-bottom: 12px;
-  }
+
   
   .deposit-popup__divider {
     margin: 0 0 12px 0;
@@ -1164,9 +1139,10 @@
     }
   }
 }
-      
-      
-      
+     
+
+
+                      
 
 
 
@@ -1547,25 +1523,27 @@
 /* ============================================
    WALLET INFO - КОМПАКТНЫЙ
    ============================================ */
-
-.deposit-popup__wallet-info {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 16px;
-}
-
-.deposit-popup__wallet-icon {
-  width: 16px;
-  height: 16px;
-  color: rgba(255, 255, 255, 0.5);
-}
+   .deposit-popup__wallet-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.65);
+    margin-bottom: 14px;
+  }
+  
+  .deposit-popup__wallet-icon img,
+  .deposit-popup__wallet-icon svg {
+    width: 26px;
+    height: 26px;
+    filter: brightness(50%);
+  }
+  
+  
 
 /* ============================================
    DIVIDER - ТОНЬШЕ
@@ -1644,9 +1622,7 @@
     margin-bottom: 12px;
   }
   
-  .deposit-popup__wallet-info {
-    margin-bottom: 12px;
-  }
+
   
   .deposit-popup__divider {
     margin: 0 0 12px 0;
@@ -1668,6 +1644,68 @@
   .deposit-popup__button {
     transition: none;
   }
+}
+
+
+ /* === TON Connect Wallet Button (isolated, safe) === */
+ .wt-connect-wallet{
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: linear-gradient(180deg,#2aa8ff 0%,#118cff 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 6px 16px rgba(17,140,255,.22);
+}
+
+.wt-connect-wallet:active{
+  transform: translateY(1px);
+}
+
+/* иконка  */
+.wt-connect-wallet .wt-connect-wallet__icon{
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* только для tgwallet.svg */
+.wt-tgwallet-icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+  filter: none;
+}
+
+/* текст — ИДЕАЛЬНО по центру */
+.wt-connect-wallet__text{
+  width: 100%;
+  text-align: center;
+  pointer-events: none;
+}
+
+.wt-connect-wallet[disabled]{
+  opacity: .6;
+  cursor: not-allowed;
 }
 
 

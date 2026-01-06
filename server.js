@@ -5,9 +5,161 @@ import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import * as db from "./database-sqlite.js";
+import * as dbReal from "./database-pg.js";
 
 dotenv.config();
+
+// =====================
+// ENV / DB MODE
+// =====================
+const NODE_ENV = process.env.NODE_ENV || "development";
+const IS_PROD = NODE_ENV === "production";
+// In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
+const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
+
+// ---- Memory DB (per-process; resets on restart). Used only when IS_TEST === true ----
+function createMemoryDb() {
+  const users = new Map();    // telegram_id(string) -> user
+  const balances = new Map(); // telegram_id(string) -> { ton_balance, stars_balance, updated_at }
+  const txs = new Map();      // telegram_id(string) -> tx[]
+  let txId = 1;
+  let betId = 1;
+
+  const nowSec = () => Math.floor(Date.now() / 1000);
+
+  function key(id) {
+    const s = String(id ?? "").trim();
+    if (!s) throw new Error("userId required");
+    return s;
+  }
+  function ensure(id) {
+    const k = key(id);
+    if (!users.has(k)) {
+      users.set(k, {
+        telegram_id: Number.isFinite(+k) ? +k : k,
+        username: null,
+        first_name: "Test",
+        last_name: "",
+        language_code: null,
+        is_premium: false,
+        created_at: nowSec(),
+        last_seen: nowSec(),
+      });
+    }
+    if (!balances.has(k)) {
+      balances.set(k, { ton_balance: "0", stars_balance: 0, updated_at: nowSec() });
+    }
+    if (!txs.has(k)) txs.set(k, []);
+    return k;
+  }
+
+  function addTx(k, t) {
+    const list = txs.get(k) || [];
+    list.unshift(t);
+    txs.set(k, list);
+  }
+
+  return {
+    async initDatabase() {
+      console.log("[DB] 🧪 Memory DB enabled (TEST_MODE=1). Nothing will be persisted.");
+    },
+    async saveUser(userData) {
+      const k = ensure(userData?.id ?? userData?.telegram_id ?? userData);
+      const u = users.get(k);
+      users.set(k, {
+        ...u,
+        username: userData?.username ?? u.username,
+        first_name: userData?.first_name ?? u.first_name,
+        last_name: userData?.last_name ?? u.last_name,
+        language_code: userData?.language_code ?? u.language_code,
+        is_premium: !!userData?.is_premium,
+        last_seen: nowSec(),
+      });
+      return true;
+    },
+    async getUserById(telegramId) {
+      const k = ensure(telegramId);
+      const u = users.get(k);
+      const b = balances.get(k);
+      return { ...u, ...b };
+    },
+    async getUserBalance(telegramId) {
+      const k = ensure(telegramId);
+      return balances.get(k);
+    },
+    async updateBalance(telegramId, currency, amount, type, description = null, metadata = {}) {
+      const k = ensure(telegramId);
+      const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+      const delta = Number(amount || 0);
+      if (!Number.isFinite(delta) || delta === 0) throw new Error("Invalid amount");
+
+      const b = balances.get(k);
+      const before = cur === "ton" ? Number(b.ton_balance || 0) : Number(b.stars_balance || 0);
+      const after = before + delta;
+      if (after < 0) throw new Error("Insufficient balance");
+
+      if (cur === "ton") b.ton_balance = String(after);
+      else b.stars_balance = Math.trunc(after);
+
+      b.updated_at = nowSec();
+      balances.set(k, b);
+
+      addTx(k, {
+        id: txId++,
+        telegram_id: Number.isFinite(+k) ? +k : k,
+        type: String(type || "test"),
+        currency: cur,
+        amount: delta,
+        balance_before: before,
+        balance_after: after,
+        description: description || null,
+        tx_hash: metadata?.txHash || null,
+        invoice_id: metadata?.invoiceId || null,
+        created_at: nowSec(),
+      });
+
+      return after;
+    },
+    async createBet(telegramId, roundId, betData, totalAmount, currency) {
+      const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+      const amt = Number(totalAmount || 0);
+      if (!Number.isFinite(amt) || amt <= 0) throw new Error("Invalid totalAmount");
+      await this.updateBalance(telegramId, cur, -amt, "bet", `Bet on round ${roundId}`, { roundId });
+      return betId++;
+    },
+    async getTransactionHistory(telegramId, limit = 50) {
+      const k = ensure(telegramId);
+      const lim = Math.max(1, Math.min(200, Number(limit) || 50));
+      return (txs.get(k) || []).slice(0, lim);
+    },
+    async getUserStats(telegramId) {
+      const k = ensure(telegramId);
+      const list = txs.get(k) || [];
+      const bets = list.filter(t => t.type === "bet" || t.type === "wheel_bet");
+      const wins = list.filter(t => t.type === "wheel_win");
+      const total_bets = bets.length;
+      const total_wagered = bets.reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0);
+      const total_won = wins.reduce((s, t) => s + Math.max(0, Number(t.amount || 0)), 0);
+      return {
+        wins: wins.length,
+        losses: Math.max(0, total_bets - wins.length),
+        total_won,
+        total_wagered,
+        total_bets
+      };
+    }
+  };
+}
+
+const dbMem = createMemoryDb();
+
+// Real DB init (Postgres)
+await dbReal.initDatabase();
+
+// Select DB
+const db = IS_TEST ? dbMem : dbReal;
+if (IS_TEST) await dbMem.initDatabase();
+
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -63,10 +215,10 @@ app.use(express.static(path.join(__dirname, "public"), {
 }));
 
 // ====== HEALTH ======
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/health", async (req, res) => res.json({ ok: true }));
 
 // ====== TonConnect manifest ======
-app.get('/tonconnect-manifest.json', (req, res) => {
+app.get('/tonconnect-manifest.json', async (req, res) => {
   const origin = `${req.protocol}://${req.get('host')}`;
 
   res.setHeader('Content-Type', 'application/json');
@@ -136,7 +288,7 @@ function addNftsToInventory(uid, list, claimId) {
 }
 
 // GET inventory (NFTs) for a user
-app.get("/api/user/inventory", (req, res) => {
+app.get("/api/user/inventory", async (req, res) => {
   const userId = String(req.query.userId || "");
   if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
 
@@ -147,7 +299,7 @@ app.get("/api/user/inventory", (req, res) => {
 
 // Add won NFTs to inventory (anti-dup via claimId)
 
-app.post("/api/inventory/nft/add", (req, res) => {
+app.post("/api/inventory/nft/add", async (req, res) => {
   try {
     const { userId, initData, items, item, claimId } = req.body || {};
     const uid = String(userId || "");
@@ -171,7 +323,7 @@ app.post("/api/inventory/nft/add", (req, res) => {
 });
 
 // Sell selected NFTs from inventory -> credit balance
-app.post("/api/inventory/sell", (req, res) => {
+app.post("/api/inventory/sell", async (req, res) => {
   try {
     const { userId, instanceIds, currency } = req.body || {};
     const uid = String(userId || "");
@@ -205,7 +357,7 @@ app.post("/api/inventory/sell", (req, res) => {
     const amount = (cur === "stars") ? Math.max(0, Math.round(total)) : Math.max(0, Math.round(total * 100) / 100);
     let newBalance = null;
     try {
-      newBalance = db.updateBalance(
+      newBalance = await db.updateBalance(
         uid,
         cur,
         amount,
@@ -225,7 +377,7 @@ app.post("/api/inventory/sell", (req, res) => {
 });
 
 // Sell ALL NFTs
-app.post("/api/inventory/sell-all", (req, res) => {
+app.post("/api/inventory/sell-all", async (req, res) => {
   try {
     const { userId, currency } = req.body || {};
     const uid = String(userId || "");
@@ -251,7 +403,7 @@ app.post("/api/inventory/sell-all", (req, res) => {
     const amount = (cur === "stars") ? Math.max(0, Math.round(total)) : Math.max(0, Math.round(total * 100) / 100);
     let newBalance = null;
     try {
-      newBalance = db.updateBalance(
+      newBalance = await db.updateBalance(
         uid,
         cur,
         amount,
@@ -272,7 +424,7 @@ app.post("/api/inventory/sell-all", (req, res) => {
 
 
 // Compatibility: front-end uses /api/inventory/add (same as /api/inventory/nft/add)
-app.post("/api/inventory/add", (req, res) => {
+app.post("/api/inventory/add", async (req, res) => {
   // accept same body shape as nft/add
   req.body = req.body || {};
   // Reuse helper directly
@@ -355,7 +507,7 @@ app.post("/api/deposit-notification", async (req, res) => {
       if (check.ok && check.params.user) {
         try { 
           user = JSON.parse(check.params.user);
-          db.saveUser(user);
+          await db.saveUser(user);
           console.log('[Deposit] User saved:', user.id);
         } catch (err) {
           console.error('[Deposit] Failed to parse user:', err);
@@ -378,7 +530,7 @@ app.post("/api/deposit-notification", async (req, res) => {
     // Process transaction
     try {
       if (currency === 'ton') {
-        const newBalance = db.updateBalance(
+        const newBalance = await db.updateBalance(
           userId,
           'ton',
           parseFloat(amount),
@@ -405,7 +557,7 @@ app.post("/api/deposit-notification", async (req, res) => {
         });
         
       } else if (currency === 'stars') {
-        const newBalance = db.updateBalance(
+        const newBalance = await db.updateBalance(
           userId,
           'stars',
           parseInt(amount),
@@ -474,7 +626,7 @@ function generateDescription(type, amount, txHash, roundId) {
 // ====== SSE для автообновления баланса ======
 const balanceClients = new Map(); // userId -> Set of response objects
 
-app.get("/api/balance/stream", (req, res) => {
+app.get("/api/balance/stream", async (req, res) => {
   const { userId } = req.query;
   
   if (!userId) {
@@ -497,7 +649,7 @@ app.get("/api/balance/stream", (req, res) => {
   
   // Send initial balance
   try {
-    const balance = db.getUserBalance(parseInt(userId));
+    const balance = await db.getUserBalance(parseInt(userId));
     res.write(`data: ${JSON.stringify({
       type: 'balance',
       ton: parseFloat(balance.ton_balance) || 0,
@@ -528,7 +680,7 @@ app.get("/api/balance/stream", (req, res) => {
 });
 
 // Function to broadcast balance updates
-function broadcastBalanceUpdate(userId) {
+async function broadcastBalanceUpdate(userId) {
   const clients = balanceClients.get(String(userId));
   if (!clients || clients.size === 0) {
     console.log('[SSE] No clients to notify for user:', userId);
@@ -539,7 +691,7 @@ function broadcastBalanceUpdate(userId) {
   
   // Get full balance
   try {
-    const balance = db.getUserBalance(parseInt(userId, 10));
+    const balance = await db.getUserBalance(parseInt(userId, 10));
     const data = JSON.stringify({
       type: 'balance',
       ton: parseFloat(balance.ton_balance) || 0,
@@ -609,7 +761,7 @@ app.get("/api/balance", async (req, res) => {
       });
     }
 
-    const balance = db.getUserBalance(parseInt(userId));
+    const balance = await db.getUserBalance(parseInt(userId));
 
     console.log('[Balance] ✅ Retrieved:', balance);
 
@@ -756,10 +908,10 @@ app.post("/api/stars/webhook", async (req, res) => {
         telegramPaymentChargeId: payment.telegram_payment_charge_id
       });
 
-      db.saveUser(userFrom);
+      await db.saveUser(userFrom);
 
       try {
-        const newBalance = db.updateBalance(
+        const newBalance = await db.updateBalance(
           userId,
           'stars',
           payment.total_amount,
@@ -802,7 +954,7 @@ app.get("/api/user/profile", async (req, res) => {
       });
     }
 
-    const user = db.getUserById(userId);
+    const user = await db.getUserById(userId);
     
     if (!user) {
       return res.status(404).json({
@@ -847,7 +999,7 @@ app.get("/api/user/stats", async (req, res) => {
       });
     }
 
-    const stats = db.getUserStats(userId);
+    const stats = await db.getUserStats(userId);
 
     res.json({
       ok: true,
@@ -882,7 +1034,7 @@ app.get("/api/user/transactions", async (req, res) => {
       });
     }
 
-    const transactions = db.getTransactionHistory(userId, parseInt(limit) || 50);
+    const transactions = await db.getTransactionHistory(userId, parseInt(limit) || 50);
 
     res.json({
       ok: true,
@@ -910,7 +1062,7 @@ app.get("/api/user/transactions", async (req, res) => {
 });
 
 // ====== WHEEL ROUND API ======
-app.get("/api/round/start", (req, res) => {
+app.get("/api/round/start", async (req, res) => {
   try {
     const sliceIndex = Math.floor(Math.random() * WHEEL_ORDER.length);
     const type = WHEEL_ORDER[sliceIndex];
@@ -972,10 +1124,10 @@ app.post("/api/round/place-bet", async (req, res) => {
     console.log('[Bets] Received:', { userId, bets, currency, totalAmount, roundId });
 
     // Save user
-    db.saveUser(user);
+    await db.saveUser(user);
 
     // Check balance
-    const balance = db.getUserBalance(parseInt(userId, 10));
+    const balance = await db.getUserBalance(parseInt(userId, 10));
     const currentBalance = currency === 'ton' ? balance.ton_balance : balance.stars_balance;
 
     if (currentBalance < totalAmount) {
@@ -988,10 +1140,10 @@ app.post("/api/round/place-bet", async (req, res) => {
     }
 
     // Create bet in DB
-    const betId = db.createBet(userId, roundId || `round_${Date.now()}`, bets, totalAmount, currency);
+    const betId = await db.createBet(userId, roundId || `round_${Date.now()}`, bets, totalAmount, currency);
 
     // Get new balance
-    const newBalance = db.getUserBalance(userId);
+    const newBalance = await db.getUserBalance(userId);
 
     res.json({
       ok: true,
@@ -1035,7 +1187,7 @@ app.post("/api/test/give-balance", async (req, res) => {
 
     // ensure user exists for FK
     try {
-      db.saveUser({
+      await db.saveUser({
         id: uid,
         is_bot: false,
         first_name: 'Test',
@@ -1051,7 +1203,7 @@ app.post("/api/test/give-balance", async (req, res) => {
     let results = {};
 
     if (ton && ton > 0) {
-      const newTonBalance = db.updateBalance(
+      const newTonBalance = await db.updateBalance(
         uid,
         'ton',
         parseFloat(ton),
@@ -1064,7 +1216,7 @@ app.post("/api/test/give-balance", async (req, res) => {
     }
 
     if (stars && stars > 0) {
-      const newStarsBalance = db.updateBalance(
+      const newStarsBalance = await db.updateBalance(
         uid,
         'stars',
         parseInt(stars, 10),
@@ -1080,7 +1232,7 @@ app.post("/api/test/give-balance", async (req, res) => {
       broadcastBalanceUpdate(uid);
     }
 
-    const finalBalance = db.getUserBalance(uid);
+    const finalBalance = await db.getUserBalance(uid);
 
     res.json({
       ok: true,
@@ -1116,7 +1268,7 @@ app.post("/api/test/reset-balance", async (req, res) => {
 
     // ensure user exists (на случай чистой БД)
     try {
-      db.saveUser({
+      await db.saveUser({
         id: uid,
         is_bot: false,
         first_name: 'Test',
@@ -1130,20 +1282,20 @@ app.post("/api/test/reset-balance", async (req, res) => {
     console.log('[TEST] 🔄 Resetting balance for user:', uid);
 
     // Reset to zero via deltas (updateBalance adds, so we subtract current)
-    const current = db.getUserBalance(uid);
+    const current = await db.getUserBalance(uid);
     const curTon = parseFloat(current.ton_balance) || 0;
     const curStars = parseInt(current.stars_balance) || 0;
 
     if (curTon !== 0) {
-      db.updateBalance(uid, 'ton', -curTon, 'test', '🧪 Balance reset (TON→0)', { test: true, reset: true });
+      await db.updateBalance(uid, 'ton', -curTon, 'test', '🧪 Balance reset (TON→0)', { test: true, reset: true });
     }
     if (curStars !== 0) {
-      db.updateBalance(uid, 'stars', -curStars, 'test', '🧪 Balance reset (Stars→0)', { test: true, reset: true });
+      await db.updateBalance(uid, 'stars', -curStars, 'test', '🧪 Balance reset (Stars→0)', { test: true, reset: true });
     }
 
     broadcastBalanceUpdate(uid);
 
-    const finalBalance = db.getUserBalance(uid);
+    const finalBalance = await db.getUserBalance(uid);
     res.json({
       ok: true,
       message: 'Balance reset to 0',
@@ -1174,7 +1326,7 @@ app.post("/api/test/set-balance", async (req, res) => {
 
     // ensure user exists (для FK)
     try {
-      db.saveUser({
+      await db.saveUser({
         id: uid,
         is_bot: false,
         first_name: 'Test',
@@ -1187,14 +1339,14 @@ app.post("/api/test/set-balance", async (req, res) => {
 
     console.log('[TEST] 💰 Setting exact balance:', { userId: uid, ton, stars });
 
-    const currentBalance = db.getUserBalance(uid);
+    const currentBalance = await db.getUserBalance(uid);
     let results = {};
 
     if (ton !== undefined) {
       const currentTon = parseFloat(currentBalance.ton_balance) || 0;
       const diff = parseFloat(ton) - currentTon;
       if (diff !== 0) {
-        results.ton = db.updateBalance(
+        results.ton = await db.updateBalance(
           uid, 'ton', diff, 'test', `🧪 Set TON balance to ${ton}`, { test: true, setBalance: true }
         );
       } else {
@@ -1206,7 +1358,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       const currentStars = parseInt(currentBalance.stars_balance) || 0;
       const diff = parseInt(stars, 10) - currentStars;
       if (diff !== 0) {
-        results.stars = db.updateBalance(
+        results.stars = await db.updateBalance(
           uid, 'stars', diff, 'test', `🧪 Set Stars balance to ${stars}`, { test: true, setBalance: true }
         );
       } else {
@@ -1216,7 +1368,7 @@ app.post("/api/test/set-balance", async (req, res) => {
 
     broadcastBalanceUpdate(uid);
 
-    const finalBalance = db.getUserBalance(uid);
+    const finalBalance = await db.getUserBalance(uid);
     res.json({
       ok: true,
       message: 'Balance set successfully',
@@ -1233,7 +1385,7 @@ app.post("/api/test/set-balance", async (req, res) => {
 
 
 // 📊 ПОЛУЧИТЬ ИНФОРМАЦИЮ О ТЕСТОВОМ РЕЖИМЕ
-app.get("/api/test/info", (req, res) => {
+app.get("/api/test/info", async (req, res) => {
   res.json({
     ok: true,
     testMode: process.env.NODE_ENV !== 'production',
