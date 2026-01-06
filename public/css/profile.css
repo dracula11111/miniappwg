@@ -1538,9 +1538,10 @@
   
   .deposit-popup__wallet-icon img,
   .deposit-popup__wallet-icon svg {
-    width: 26px;
-    height: 26px;
-    filter: brightness(50%);
+    width: 18px;
+    height: 18px;
+    filter:brightness(90%)
+     invert(100%) ;
   }
   
   
@@ -2784,3 +2785,59 @@
   50%  { transform: translateY(-6px) scale(1.02); }
   100% { transform: translateY(0) scale(1); }
 }
+/* ===== Inventory per-item actions (Withdraw / Sell) ===== */
+.profile-invpanel__icon[hidden],
+.profile-invpanel__text[hidden]{
+  display: none !important;
+}
+
+.profile-invgrid{
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 420px){
+  .profile-invgrid{ grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 580px){
+  .profile-invgrid{ grid-template-columns: repeat(4, 1fr); }
+}
+
+.profile-invitem-wrap{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-invitem-actions{
+  display: flex;
+  gap: 10px;
+}
+
+.profile-invitem-btn{
+  flex: 1;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: .2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+
+.profile-invitem-btn--sell{
+  border-color: rgba(0,166,255,.35);
+  background: linear-gradient(90deg, rgba(0,166,255,.30), rgba(0,166,255,.14));
+}
+
+.profile-invitem-btn:active{
+  transform: translateY(1px);
+}
+
+.profile-invitem-amount{ opacity: .95; }
+.profile-invitem-cur{ opacity: .9; }

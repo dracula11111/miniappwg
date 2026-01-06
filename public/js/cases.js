@@ -88,9 +88,9 @@ const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
 // Demo: NFT выпадает часто (почти каждый прокрут)
 // Paid (TON / Stars): NFT выпадает редко
 const NFT_DROP_RATES = {
-  demo: 0.90,          // 90% на выигрыш в демо
-  ton: 0.03,           // 3% на выигрыш за TON
-  stars: 0.02          // 2% на выигрыш за Stars
+  demo: 0.70,          // 90% на выигрыш в демо
+  ton: 0.73,           // 3% на выигрыш за TON
+  stars: 0.72          // 2% на выигрыш за Stars
 };
 
 // Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
@@ -1359,9 +1359,16 @@ async function showResult(currency, demoModeOverride) {
 
     const items = queue.map(q => q.item);
 
-    if (demoModeForRound || !serverEnabled) {
-      // demo / guest
+      if (demoModeForRound) {
       showToast('Demo: NFT не сохраняются');
+      return true;
+    }
+    if (!serverEnabled) {
+      // ЛОКАЛЬНЫЙ РЕЖИМ (не Telegram): сохраняем в localStorage,
+      // чтобы инвентарь работал на localhost
+      addToLocalInventory(tgUserId, items);
+      try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+      showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
       return true;
     }
 

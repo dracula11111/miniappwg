@@ -340,33 +340,140 @@
   // ====== INVENTORY PANEL ======
   const selection = new Set();
   let lastInventory = [];
-
+  function removeLegacyNftShelf() {
+    // Удаляем верхнюю бессмысленную панель "NFT", если она есть (в т.ч. из старых кешей)
+    document.querySelectorAll('#profileNftShelf, .profile-nft-shelf, .profile-nft-card, .profile-nft')
+      .forEach(el => { try { el.remove(); } catch {} });
+  }
+  
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.hidden = !visible;
+    // на всякий случай (если CSS принудительно display)
+    el.style.display = visible ? '' : 'none';
+  }
+  
+  function findInventoryItemByKey(key) {
+    if (!key) return null;
+    for (let i = 0; i < lastInventory.length; i++) {
+      const k = itemKey(lastInventory[i], i);
+      if (k === key) return { item: lastInventory[i], index: i, key: k };
+    }
+    return null;
+  }
+  
+  async function sellOne(key) {
+    const currency = getCurrency();
+    const user = getTelegramUser();
+    const userId = user.id;
+  
+    const found = findInventoryItemByKey(key);
+    if (!found) return;
+  
+    const item = found.item;
+    const value = itemValue(item, currency);
+  
+    // ВАЖНО: сервер /api/inventory/sell ждёт instanceIds
+    const instanceId = item?.instanceId ? String(item.instanceId) : null;
+    if (!instanceId) {
+      showToast('Sell error: instanceId not found');
+      return;
+    }
+  
+    let serverOk = false;
+  
+    try {
+      const r = await fetch('/api/inventory/sell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          currency,
+          instanceIds: [instanceId]
+        })
+      });
+  
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        if (j && j.ok === true) {
+          serverOk = true;
+  
+          // сервер возвращает items/nfts + newBalance
+          const items = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : null);
+          if (items) writeLocalInventory(userId, items);
+  
+          if (typeof j.newBalance === 'number') {
+            setBalance(currency, j.newBalance);
+          }
+        }
+      }
+    } catch {}
+  
+    // локальный fallback
+    if (!serverOk) {
+      const local = readLocalInventory(userId);
+      const next = local.filter((it, idx) => itemKey(it, idx) !== key);
+      writeLocalInventory(userId, next);
+      addBalance(currency, value);
+      await postDeposit(value, currency, userId, 'inventory_sell_one');
+    }
+  
+    await loadInventory();
+    haptic('medium');
+  }
+  
+  function onInventoryClick(e) {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+  
+    const action = target.getAttribute('data-action');
+    const key = target.getAttribute('data-key');
+    if (!key) return;
+  
+    if (action === 'withdraw') {
+      showToast('Withdraw скоро (пока в разработке)');
+      haptic('light');
+      return;
+    }
+  
+    if (action === 'sell') {
+      sellOne(key);
+      return;
+    }
+  
+    if (action === 'open') {
+      const found = findInventoryItemByKey(key);
+      if (found?.item) showModal(found.item, lastInventory);
+    }
+  }
+  
   function ensureInvDynamic() {
     if (!inventoryPanel) return null;
-
+  
     let dyn = document.getElementById('profileInvDynamic');
     if (dyn) return dyn;
-
+  
+    // убираем старую панель действий (если осталась)
+    const legacyActions = document.getElementById('profileInvActions');
+    if (legacyActions) legacyActions.remove();
+  
     dyn = document.createElement('div');
     dyn.id = 'profileInvDynamic';
     dyn.hidden = true;
-
+    dyn.style.display = 'none';
+  
     dyn.innerHTML = `
       <div id="profileInvGrid" class="profile-invgrid"></div>
-
-      <div id="profileInvActions" class="profile-invactions">
-        <button id="invSellSelected" class="inv-action-btn inv-action-btn--primary" type="button">
-          Sell selected <span id="invSellSelectedAmount" class="inv-action-btn__amount"></span>
-        </button>
-        <button id="invSellAll" class="inv-action-btn inv-action-btn--secondary" type="button">
-          Sell all <span id="invSellAllAmount" class="inv-action-btn__amount"></span>
-        </button>
-      </div>
     `;
-
+  
     inventoryPanel.appendChild(dyn);
+  
+    // один обработчик на все кнопки
+    dyn.addEventListener('click', onInventoryClick);
+  
     return dyn;
   }
+  
 
   function getEmptyIconEl() {
     return inventoryPanel?.querySelector('.profile-invpanel__icon') || null;
@@ -478,66 +585,62 @@
 
   function renderInventory(items) {
     if (!inventoryPanel) return;
-
+  
+    removeLegacyNftShelf();
+  
     const emptyIcon = getEmptyIconEl();
     const emptyText = getEmptyTextEl();
     const dyn = ensureInvDynamic();
-
-    const nfts = (items || []).filter(it => itemType(it) === 'nft');
-
-    lastInventory = nfts;
-
-    // EMPTY STATE
-    if (!nfts.length) {
-      if (emptyIcon) emptyIcon.hidden = false;
-      if (emptyText) {
-        emptyText.hidden = false;
-        emptyText.textContent = 'No gifts yet.';
-      }
-      if (dyn) dyn.hidden = true;
-
-      selection.clear();
-      updateActionAmounts([]);
-
+    const grid = dyn ? dyn.querySelector('#profileInvGrid') : null;
+    if (!grid) return;
+  
+    const inv = Array.isArray(items) ? items.filter(Boolean) : [];
+    lastInventory = inv;
+  
+    // EMPTY
+    if (!inv.length) {
+      setVisible(emptyIcon, true);
+      setVisible(emptyText, true);
+      setVisible(dyn, false);
+      grid.innerHTML = '';
       return;
     }
-
-    // NON-EMPTY: hide loupe/text, show grid/actions
-    if (emptyIcon) emptyIcon.hidden = true;
-    if (emptyText) emptyText.hidden = true;
-    if (dyn) dyn.hidden = false;
-
-    const grid = document.getElementById('profileInvGrid');
-    if (!grid) return;
-
+  
+    // HAS ITEMS
+    setVisible(emptyIcon, false);
+    setVisible(emptyText, false);
+    setVisible(dyn, true);
+  
     const currency = getCurrency();
-
-    grid.innerHTML = nfts.map((it, idx) => {
+  
+    grid.innerHTML = inv.map((it, idx) => {
       const key = itemKey(it, idx);
-      const selected = selection.has(key);
+      const img = itemIconPath(it);
       const val = itemValue(it, currency);
-      const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-      
+  
       return `
-        <div class="profile-invitem-wrapper">
-          <button class="profile-invitem${selected ? ' selected' : ''}" type="button" data-key="${key}">
-            <img src="${itemIconPath(it)}" alt="" />
-            <span class="profile-invcheck">✓</span>
+        <div class="profile-invitem-wrap" data-key="${key}">
+          <button class="profile-invitem" type="button" data-key="${key}" data-action="open" aria-label="Open item">
+            <img src="${img}" alt="" />
           </button>
+  
           <div class="profile-invitem-actions">
-            <button class="profile-invitem-btn profile-invitem-btn--withdraw" type="button" data-key="${key}" data-action="withdraw">
+            <button class="profile-invitem-btn profile-invitem-btn--withdraw"
+                    type="button" data-key="${key}" data-action="withdraw">
               Withdraw
             </button>
-            <button class="profile-invitem-btn profile-invitem-btn--sell" type="button" data-key="${key}" data-action="sell">
+  
+            <button class="profile-invitem-btn profile-invitem-btn--sell"
+                    type="button" data-key="${key}" data-action="sell">
               <span>Sell</span>
               <span class="profile-invitem-amount">${val}</span>
-              <img src="${icon}" alt="" class="profile-invitem-icon">
+              <span class="profile-invitem-cur">${currencyIcon(currency)}</span>
             </button>
           </div>
         </div>
       `;
     }).join('');
-
+    
     // click handlers (select)
     grid.querySelectorAll('.profile-invitem').forEach(btn => {
       const key = btn.getAttribute('data-key');
@@ -600,9 +703,7 @@
 
     if (selBtn) selBtn.onclick = () => sellSelected();
     if (allBtn) allBtn.onclick = () => sellAll();
-
-    updateActionAmounts(nfts);
-  }
+    updateActionAmounts(inv);}
 
   // ====== SELL FLOW ======
   async function sellSelected() {
@@ -760,6 +861,11 @@
     setTimeout(refreshAll, 50);
     setTimeout(refreshAll, 300);
   });
+  // обновлять UI профиля при любом изменении статуса кошелька
+window.addEventListener('wt-wallet-changed', () => {
+  setTimeout(updateWalletUI, 0);
+});
+
 
   window.addEventListener('currency:changed', () => {
     renderInventory(readLocalInventory(getTelegramUser().id));
