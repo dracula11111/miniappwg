@@ -2,8 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <!-- viewport-fit=cover нужен для корректных safe-area-inset-* на iPhone (home indicator) -->
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
   <title>Wild Gift</title>
 
   <!-- TonConnect UI (библиотека, без инициализации здесь) -->
@@ -604,6 +603,38 @@
 </div>
 
 
+<!-- ===== WALLET DISCONNECT MODAL (TonConnect-like) ===== -->
+<div id="walletDisconnectModal" class="tcw-modal" hidden>
+  <div class="tcw-modal__backdrop" data-close="1" aria-hidden="true"></div>
+
+  <div class="tcw-modal__sheet" role="dialog" aria-modal="true" aria-label="Wallet">
+    <button class="tcw-modal__close" type="button" data-close="1" aria-label="Close">×</button>
+
+    <div class="tcw-modal__title">Your wallet</div>
+
+    <div class="tcw-modal__balanceLabel">Balance</div>
+    <div id="walletDisconnectBalance" class="tcw-modal__balance">—</div>
+
+    <div class="tcw-modal__addrRow">
+      <div class="tcw-modal__addrIcon" aria-hidden="true">
+        <img src="/images/telegramwallet.png" alt="">
+      </div>
+
+      <div class="tcw-modal__addrText">
+        <div id="walletDisconnectAddr" class="tcw-modal__addr">—</div>
+        <div class="tcw-modal__addrHint">Address</div>
+      </div>
+
+      <button id="walletDisconnectCopy" class="tcw-modal__copy" type="button" aria-label="Copy address">⧉</button>
+    </div>
+
+    <div class="tcw-modal__question">Disconnect this wallet?</div>
+
+    <button id="walletDisconnectConfirm" class="tcw-modal__btn tcw-modal__btn--danger" type="button">
+      Disconnect
+    </button>
+  </div>
+</div>
   <!-- Скрипты проекта -->
  
   <script src="/js/splash.js" defer></script>
