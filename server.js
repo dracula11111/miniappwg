@@ -1,15 +1,17 @@
 // server.js - CLEAN VERSION
+// IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
+import "dotenv/config";
+
 import express from "express";
-import dotenv from "dotenv";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import * as dbReal from "./database-pg.js";
 import { Readable } from "stream";
 
-
-dotenv.config();
+// We import Postgres DB module dynamically AFTER dotenv has loaded.
+// This fixes the common issue when database-pg.js reads process.env during module initialization.
+let dbReal = null;
 
 // =====================
 // ENV / DB MODE
@@ -155,12 +157,16 @@ function createMemoryDb() {
 
 const dbMem = createMemoryDb();
 
-// Real DB init (Postgres)
-await dbReal.initDatabase();
+// Real DB init (Postgres) — load only after dotenv has run.
+if (!IS_TEST) {
+  dbReal = await import("./database-pg.js");
+  await dbReal.initDatabase();
+} else {
+  await dbMem.initDatabase();
+}
 
 // Select DB
 const db = IS_TEST ? dbMem : dbReal;
-if (IS_TEST) await dbMem.initDatabase();
 
 
 const app = express();

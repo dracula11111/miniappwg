@@ -1364,13 +1364,13 @@ async function showResult(currency, demoModeOverride) {
       return true;
     }
     if (!serverEnabled) {
-      // ЛОКАЛЬНЫЙ РЕЖИМ (не Telegram): сохраняем в localStorage,
-      // чтобы инвентарь работал на localhost
-      addToLocalInventory(tgUserId, items);
-      try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-      showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
-      return true;
-    }
+  // ЛОКАЛЬНЫЙ РЕЖИМ (не Telegram): сохраняем в localStorage,
+  // чтобы инвентарь работал на localhost
+  addToLocalInventory(tgUserId, items);
+  try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+  showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
+  return true;
+}
 
     let r = await fetchJsonSafe('/api/inventory/nft/add', {
       method: 'POST',

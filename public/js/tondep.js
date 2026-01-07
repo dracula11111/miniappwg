@@ -7,6 +7,75 @@
   const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
   const MIN_DEPOSIT = 0.1;
 
+  // ====== TEST MODE (localhost / dev) ======
+  const TEST_LS_KEY = 'WT_TON_TEST_WALLET_V1';
+
+  function isLocalDevHost() {
+    const h = (location.hostname || '').toLowerCase();
+    return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h.endsWith('.local');
+  }
+
+  function loadTestState() {
+    try {
+      const raw = localStorage.getItem(TEST_LS_KEY);
+      const j = raw ? JSON.parse(raw) : null;
+      if (!j || typeof j !== 'object') return { enabled: false };
+      return {
+        enabled: !!j.enabled,
+        address: typeof j.address === 'string' ? j.address : null,
+        balanceTon: (typeof j.balanceTon === 'number' && Number.isFinite(j.balanceTon)) ? j.balanceTon : 0.06
+      };
+    } catch {
+      return { enabled: false };
+    }
+  }
+
+  function saveTestState(state) {
+    try { localStorage.setItem(TEST_LS_KEY, JSON.stringify(state || { enabled: false })); } catch {}
+  }
+
+  function isTestConnected() {
+    const s = loadTestState();
+    return !!(s.enabled && s.address);
+  }
+
+  function getTestAddress() {
+    const s = loadTestState();
+    return (s.enabled && s.address) ? s.address : null;
+  }
+
+  function getTestBalanceTon() {
+    const s = loadTestState();
+    return (typeof s.balanceTon === 'number' && Number.isFinite(s.balanceTon)) ? s.balanceTon : 0.06;
+  }
+
+  function setTestConnected(enabled, address, balanceTon) {
+    // Включать тестовый режим имеет смысл только на localhost/dev.
+    if (!isLocalDevHost()) {
+      console.warn('[TON] ⚠️ setTestConnected called on non-localhost host. Ignored.');
+      return false;
+    }
+
+    if (!enabled) {
+      saveTestState({ enabled: false });
+      // обновим UI/слушателей
+      try { emitWalletChanged(tc); } catch {}
+      return true;
+    }
+
+    const prev = loadTestState();
+    const addr = (typeof address === 'string' && address.trim())
+      ? address.trim()
+      : (prev && typeof prev.address === 'string' && prev.address ? prev.address : PROJECT_TON_ADDRESS);
+
+    const bal = (typeof balanceTon === 'number' && Number.isFinite(balanceTon)) ? balanceTon : 0.06;
+    saveTestState({ enabled: true, address: addr, balanceTon: bal });
+
+    // обновим UI/слушателей
+    try { emitWalletChanged(tc); } catch {}
+    return true;
+  }
+
   // ====== ADDRESS HELPERS (raw -> user-friendly "UQ...") ======
   function crc16Xmodem(bytes) {
     let crc = 0x0000;
@@ -63,14 +132,14 @@
   }
 
   function emitWalletChanged(tc) {
-    const address = getFriendlyConnectedAddress(tc);
+    const test = isTestConnected();
+    const address = test ? getTestAddress() : getFriendlyConnectedAddress(tc);
+    const realConnected = !!getFriendlyConnectedAddress(tc);
     window.dispatchEvent(new CustomEvent('wt-wallet-changed', {
-      detail: { connected: !!address, address }
+      detail: { connected: !!address, address, test, realConnected }
     }));
   }
-
-
-  // ====== DOM ======
+// ====== DOM ======
   const popup = document.getElementById("tonDepositPopup");
   if (!popup) {
     console.error('[TON] ❌ tonDepositPopup not found!');
@@ -226,11 +295,32 @@ window.tonConnectUI = tc;
 window.WildTimeTonConnect = {
   openModal: () => tc.openModal(),
   connect: () => tc.openModal(),
-  disconnect: () => tc.disconnect(),
+
+  // disconnect:
+  // - в тест-режиме просто снимаем флаг (без TonConnect)
+  // - в реальном режиме вызываем tc.disconnect()
+  disconnect: async () => {
+    if (isTestConnected()) {
+      setTestConnected(false);
+      return;
+    }
+    return tc.disconnect();
+  },
 
   // всегда возвращаем "юзер-френдли" адрес (UQ.../EQ...), а не raw "0:..."
-  getAddress: () => getFriendlyConnectedAddress(tc),
-  get address() { return getFriendlyConnectedAddress(tc); },
+  // В тест-режиме возвращаем адрес из localStorage
+  getAddress: () => (isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)),
+  get address() { return (isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)); },
+
+  // raw адрес (нужен иногда для API/баланса)
+  getRawAddress: () => tc?.account?.address || null,
+
+  // статусы
+  isTestConnected: () => isTestConnected(),
+  setTestConnected: (enabled, address, balanceTon) => setTestConnected(enabled, address, balanceTon),
+  getTestBalanceTon: () => getTestBalanceTon(),
+  isConnected: () => !!(isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)),
+  isRealConnected: () => !!getFriendlyConnectedAddress(tc),
 
   // чтобы Profile/другие модули могли подписаться и синхронизировать UI
   onStatusChange: (cb) => tc.onStatusChange(cb)
@@ -238,9 +328,21 @@ window.WildTimeTonConnect = {
 
 window.__wtTonConnect = tc;
   window.dispatchEvent(new Event("wt-tc-ready"));
-  // синхронизируем UI сразу после restoreConnection
+  // быстрый initial sync (включая test mode)
   setTimeout(() => emitWalletChanged(tc), 0);
-  
+
+  // гарантированный sync после restoreConnection (иначе бывает "вроде подключен, вроде нет")
+  try {
+    const p = tc?.connectionRestored;
+    if (p && typeof p.then === "function") {
+      p.then(() => {
+        emitWalletChanged(tc);
+        try { updateUI(); } catch {}
+        if (tc?.account) { try { fetchWalletBalance(); } catch {} }
+      }).catch(() => {});
+    }
+  } catch {}
+
   console.log('[TON] ✅ TonConnect ready');
 
   // ====== WALLET BALANCE ======
