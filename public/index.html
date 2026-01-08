@@ -635,6 +635,43 @@
     </button>
   </div>
 </div>
+
+  <!-- Скрипты проекта -->
+
+  <!-- UX hardening for Telegram/iOS:
+       - убираем Copy/Select/Callout на PNG и тексте
+       - оставляем возможность копировать внутри input/textarea
+       Если нужно разрешить выделение где-то ещё: добавь атрибут data-allow-select на контейнер. -->
+       <script>
+        (function(){
+          const isAllowed = (el) => {
+            if (!el) return false;
+            return !!el.closest('input, textarea, [contenteditable="true"], [data-allow-select]');
+          };
+    
+          // Long-press меню (Copy/Save/Share) на iOS/Telegram
+          document.addEventListener('contextmenu', (e) => {
+            if (!isAllowed(e.target)) e.preventDefault();
+          }, { capture: true });
+    
+          // Запретить выделение текста в UI
+          document.addEventListener('selectstart', (e) => {
+            if (!isAllowed(e.target)) e.preventDefault();
+          }, { capture: true });
+    
+          // Запретить drag картинки (иногда тоже вызывает системные штуки)
+          document.addEventListener('dragstart', (e) => {
+            const t = e.target;
+            if (t && (t.tagName === 'IMG' || t.closest('img'))) e.preventDefault();
+          }, { capture: true });
+    
+          // На всякий: снимаем выделение после тапа
+          document.addEventListener('pointerdown', () => {
+            const sel = window.getSelection?.();
+            if (sel && sel.removeAllRanges) sel.removeAllRanges();
+          }, { passive: true });
+        })();
+      </script>
   <!-- Скрипты проекта -->
  
   <script src="/js/splash.js" defer></script>
