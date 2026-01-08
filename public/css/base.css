@@ -80,7 +80,9 @@
                                    /* Макс. ширина как у телефона */
           margin: 0 auto;                                /* Центрируем */
           min-height: 100dvh;                            /* Мин. высота (динамический viewport) */
-          padding-bottom: 90px;                          /* Отступ для нижней навигации */
+          /* Отступ для нижней навигации + safe-area снизу (iPhone home indicator) */
+          padding-bottom: calc(90px + constant(safe-area-inset-bottom));
+          padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
           position: relative;                            /* Относительное позиционирование */
           padding-top: 10px;                             /* Отступ сверху 10px */
         }
@@ -109,3 +111,28 @@
         }
 
        
+
+            /* === GLOBAL: убрать синюю подсветку тапа и выделение UI === */
+    * {
+      -webkit-tap-highlight-color: transparent !important;
+      -webkit-touch-callout: none !important;  /* iOS long-press menu */
+      -webkit-user-select: none !important;
+      user-select: none !important;
+      -webkit-user-drag: none !important;
+    }
+
+    /* Убираем фокус-обводки */
+    *:focus { outline: none !important; }
+    *:focus-visible { outline: none !important; }
+
+    /* Разрешаем выделение только в полях ввода */
+    input, textarea, [contenteditable="true"] {
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+    }
+
+    /* На случай если внутри кнопок есть img/svg — чтобы тапы не попадали по самой картинке */
+    button img, button svg, a img, a svg {
+      pointer-events: none;
+    }

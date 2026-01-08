@@ -440,6 +440,76 @@ function initTestModeBalance() {
   console.log('[Wheel] ✅ Test balance set:', userBalance);
 }
 
+
+//Sync Balance 
+async function syncBalanceDelta(delta, currency, type) {
+  try {
+    const tg = window.Telegram?.WebApp;
+    const userId = tg?.initDataUnsafe?.user?.id;
+
+    if (!userId) {
+      console.warn('[Wheel] No Telegram userId, cannot sync');
+      return false;
+    }
+
+    const initData = tg?.initData || '';
+    const depositId = `${type}_${userId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const resp = await fetch('/api/deposit-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: Number(delta),
+        currency,
+        userId,
+        initData,
+        depositId,
+        type,
+        notify: false
+      })
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || data.ok === false) {
+      console.error('[Wheel] Balance sync failed:', data);
+      return false;
+    }
+
+    return true;
+  } catch (e) {
+    console.error('[Wheel] Balance sync error:', e);
+    return false;
+  }
+}
+
+
+function deductBetAmount(amount, currency) {
+  if (TEST_MODE) {
+    if (currency === 'ton') userBalance.ton = Math.max(0, userBalance.ton - amount);
+    else userBalance.stars = Math.max(0, userBalance.stars - amount);
+    updateTestBalance();
+    return;
+  }
+
+  syncBalanceDelta(-amount, currency, 'wheel_bet');
+}
+
+function addWinAmount(amount, currency) {
+  if (TEST_MODE) {
+    if (currency === 'ton') userBalance.ton += amount;
+    else userBalance.stars += amount;
+    updateTestBalance();
+    return;
+  }
+
+  syncBalanceDelta(amount, currency, 'wheel_win');
+}
+
+// чтобы бонусы тоже могли использовать
+window.addWinAmount = addWinAmount;
+window.deductBetAmount = deductBetAmount;
+
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
   if (!TEST_MODE) return;
@@ -817,9 +887,9 @@ function initBettingUI(){
       betsMap.set(seg, next);
 
       // 🔥 Deduct balance immediately in test mode
-      if (TEST_MODE) {
+      
         deductBetAmount(currentAmount, currentCurrency);
-      }
+      
 
       setBetPill(tile, seg, next, currentCurrency);
 
@@ -1262,9 +1332,9 @@ function checkBetsAndShowResult(resultType) {
     });
     
     // 🔥 Add win to balance in test mode
-    if (TEST_MODE) {
+    
       addWinAmount(winAmount, currentCurrency);
-    }
+    
     
     showWinNotification(winAmount);
   } else {
@@ -1845,24 +1915,22 @@ if (!document.getElementById('wheel-animations')) {
 
 
 // Export functions for bonus
+// Export functions for bonus (WORKS in PROD + TEST)
 window.WheelGame = window.WheelGame || {};
+
 window.WheelGame.addWinAmount = function(amount, currency) {
-  if (window.TEST_MODE) {
-    if (currency === 'ton') {
-      window.userBalance.ton += amount;
-    } else {
-      window.userBalance.stars += amount;
-    }
-    
-    // Update UI
-    window.dispatchEvent(new CustomEvent('balance:update', {
-      detail: { 
-        ton: window.userBalance.ton, 
-        stars: window.userBalance.stars,
-        _testMode: true
-      }
-    }));
-  }
+  // вызываем основную функцию, она сама решит TEST/PROD
+  if (typeof addWinAmount === 'function') return addWinAmount(amount, currency);
+  if (typeof window.addWinAmount === 'function') return window.addWinAmount(amount, currency);
+
+  console.warn('[WheelGame] addWinAmount not found');
+};
+
+window.WheelGame.deductBetAmount = function(amount, currency) {
+  if (typeof deductBetAmount === 'function') return deductBetAmount(amount, currency);
+  if (typeof window.deductBetAmount === 'function') return window.deductBetAmount(amount, currency);
+
+  console.warn('[WheelGame] deductBetAmount not found');
 };
 
 window.WheelGame.getCurrentCurrency = function() {
@@ -2082,8 +2150,8 @@ function getMultiplier(type) {
               try { showWinNotification(winAmount); } catch (_) {}
             }
 
-            // Баланс (в этом проекте addWinAmount работает в TEST_MODE)
-            if (window.TEST_MODE && typeof addWinAmount === 'function') {
+            // Баланс 
+            if (typeof addWinAmount === 'function')  {
               try { addWinAmount(winAmount, currentCurrency); } catch (_) {}
             }
           }
