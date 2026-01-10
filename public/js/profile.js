@@ -446,21 +446,15 @@
       if (found?.item) showModal(found.item, lastInventory);
     }
   }
-  
   function ensureInvDynamic() {
     if (!inventoryPanel) return null;
   
     let dyn = document.getElementById('profileInvDynamic');
     if (dyn) return dyn;
   
-    // убираем старую панель действий (если осталась)
-    const legacyActions = document.getElementById('profileInvActions');
-    if (legacyActions) legacyActions.remove();
-  
     dyn = document.createElement('div');
     dyn.id = 'profileInvDynamic';
     dyn.hidden = true;
-    dyn.style.display = 'none';
   
     dyn.innerHTML = `
       <div id="profileInvGrid" class="profile-invgrid"></div>
@@ -468,11 +462,34 @@
   
     inventoryPanel.appendChild(dyn);
   
-    // один обработчик на все кнопки
-    dyn.addEventListener('click', onInventoryClick);
+    // Один обработчик на все кнопки в карточках
+    dyn.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action][data-key]');
+      if (!btn) return;
+  
+      e.preventDefault();
+      e.stopPropagation();
+  
+      const action = btn.dataset.action;
+      const key = btn.dataset.key;
+  
+      if (action === 'withdraw') {
+        showToast('Withdraw скоро будет');
+        haptic('light');
+        return;
+      }
+  
+      if (action === 'sell') {
+        selection.clear();
+        selection.add(key);
+        await sellSelected(); // ✅ добавит баланс + удалит подарок (как ты просил)
+        return;
+      }
+    });
   
     return dyn;
   }
+  
   
 
   function getEmptyIconEl() {
@@ -586,125 +603,71 @@
   function renderInventory(items) {
     if (!inventoryPanel) return;
   
-    removeLegacyNftShelf();
-  
     const emptyIcon = getEmptyIconEl();
     const emptyText = getEmptyTextEl();
     const dyn = ensureInvDynamic();
-    const grid = dyn ? dyn.querySelector('#profileInvGrid') : null;
-    if (!grid) return;
   
-    const inv = Array.isArray(items) ? items.filter(Boolean) : [];
-    lastInventory = inv;
+    const arr = Array.isArray(items) ? items : [];
+    lastInventory = arr;
   
-    // EMPTY
-    if (!inv.length) {
-      setVisible(emptyIcon, true);
-      setVisible(emptyText, true);
-      setVisible(dyn, false);
-      grid.innerHTML = '';
+    // убираем старые выделения (теперь не нужны)
+    selection.clear();
+  
+    // EMPTY STATE
+    if (!arr.length) {
+      if (emptyIcon) emptyIcon.hidden = false;
+      if (emptyText) {
+        emptyText.hidden = false;
+        emptyText.textContent = 'No gifts yet.';
+      }
+      if (dyn) dyn.hidden = true;
       return;
     }
   
-    // HAS ITEMS
-    setVisible(emptyIcon, false);
-    setVisible(emptyText, false);
-    setVisible(dyn, true);
+    // HAVE ITEMS
+    if (emptyIcon) emptyIcon.hidden = true;   // ✅ убираем лупу
+    if (emptyText) emptyText.hidden = true;
+    if (dyn) dyn.hidden = false;
+  
+    const grid = document.getElementById('profileInvGrid');
+    if (!grid) return;
   
     const currency = getCurrency();
+    const isStars = currency === 'stars';
   
-    grid.innerHTML = inv.map((it, idx) => {
+    // ⚠️ звёздную иконку ты просил именно такую:
+    // если файла нет — либо добавь /icons/tgStar.svg, либо поменяй на /icons/stars.svg
+    const icon = isStars ? '/icons/tgStar.svg' : '/icons/ton.svg';
+    const sellBtnClass = isStars ? 'inv-btn--stars' : 'inv-btn--ton';
+  
+    grid.innerHTML = arr.map((it, idx) => {
       const key = itemKey(it, idx);
-      const img = itemIconPath(it);
       const val = itemValue(it, currency);
   
       return `
-        <div class="profile-invitem-wrap" data-key="${key}">
-          <button class="profile-invitem" type="button" data-key="${key}" data-action="open" aria-label="Open item">
-            <img src="${img}" alt="" />
+        <div class="inv-card" data-key="${key}">
+          <div class="inv-card__imgwrap">
+            <img src="${itemIconPath(it)}" alt="" />
+          </div>
+  
+          <div class="inv-card__name">Name</div>
+  
+          <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
+                  data-action="sell" data-key="${key}">
+            <span class="inv-btn__label">Sell</span>
+            <span class="inv-btn__amount">${val}</span>
+            <img class="inv-btn__icon" src="${icon}" alt="">
           </button>
   
-          <div class="profile-invitem-actions">
-            <button class="profile-invitem-btn profile-invitem-btn--withdraw"
-                    type="button" data-key="${key}" data-action="withdraw">
-              Withdraw
-            </button>
-  
-            <button class="profile-invitem-btn profile-invitem-btn--sell"
-                    type="button" data-key="${key}" data-action="sell">
-              <span>Sell</span>
-              <span class="profile-invitem-amount">${val}</span>
-              <span class="profile-invitem-cur">${currencyIcon(currency)}</span>
-            </button>
-          </div>
+          <button class="inv-btn inv-btn--withdraw" type="button"
+                  data-action="withdraw" data-key="${key}">
+            Withdraw
+          </button>
         </div>
       `;
     }).join('');
-    
-    // click handlers (select)
-    grid.querySelectorAll('.profile-invitem').forEach(btn => {
-      const key = btn.getAttribute('data-key');
-
-      btn.addEventListener('click', () => {
-        if (!key) return;
-        if (selection.has(key)) selection.delete(key);
-        else selection.add(key);
-        haptic('light');
-        renderInventory(lastInventory);
-      });
-
-      let pressTimer = null;
-      const startPress = () => {
-        if (pressTimer) clearTimeout(pressTimer);
-        pressTimer = setTimeout(() => {
-          const it = lastInventory.find((x, i) => itemKey(x, i) === key);
-          if (it) showModal(it, lastInventory);
-        }, 420);
-      };
-      const cancelPress = () => {
-        if (pressTimer) clearTimeout(pressTimer);
-        pressTimer = null;
-      };
-
-      btn.addEventListener('touchstart', startPress, { passive: true });
-      btn.addEventListener('touchend', cancelPress);
-      btn.addEventListener('touchcancel', cancelPress);
-      btn.addEventListener('mousedown', startPress);
-      btn.addEventListener('mouseup', cancelPress);
-      btn.addEventListener('mouseleave', cancelPress);
-      btn.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        const it = lastInventory.find((x, i) => itemKey(x, i) === key);
-        if (it) showModal(it, lastInventory);
-      });
-    });
-
-    // Individual action buttons
-    grid.querySelectorAll('.profile-invitem-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const key = btn.getAttribute('data-key');
-        const action = btn.getAttribute('data-action');
-        
-        if (action === 'withdraw') {
-          haptic('medium');
-          showToast('Withdraw coming soon');
-        } else if (action === 'sell') {
-          if (!key) return;
-          selection.clear();
-          selection.add(key);
-          await sellSelected();
-        }
-      });
-    });
-
-    const selBtn = document.getElementById('invSellSelected');
-    const allBtn = document.getElementById('invSellAll');
-
-    if (selBtn) selBtn.onclick = () => sellSelected();
-    if (allBtn) allBtn.onclick = () => sellAll();
-    updateActionAmounts(inv);}
-
+  }
+  
   // ====== SELL FLOW ======
   async function sellSelected() {
     const currency = getCurrency();
@@ -867,9 +830,10 @@ window.addEventListener('wt-wallet-changed', () => {
 });
 
 
-  window.addEventListener('currency:changed', () => {
-    renderInventory(readLocalInventory(getTelegramUser().id));
-  });
+window.addEventListener('currency:changed', () => {
+  renderInventory(lastInventory);
+});
+
 
   window.addEventListener('inventory:update', () => loadInventory());
 })();

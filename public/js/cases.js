@@ -1359,10 +1359,18 @@ async function showResult(currency, demoModeOverride) {
 
     const items = queue.map(q => q.item);
 
-      if (demoModeForRound) {
+    if (demoModeForRound) {
       showToast('Demo: NFT не сохраняются');
       return true;
     }
+    
+    if (!serverEnabled) {
+      addToLocalInventory(tgUserId, items);
+      window.dispatchEvent(new Event('inventory:update'));
+      showToast('NFT сохранены (локально)');
+      return true;
+    }
+    
     if (!serverEnabled) {
   // ЛОКАЛЬНЫЙ РЕЖИМ (не Telegram): сохраняем в localStorage,
   // чтобы инвентарь работал на localhost

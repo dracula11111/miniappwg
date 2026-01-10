@@ -3026,3 +3026,107 @@
   .tcw-modal__balance{ font-size: 44px; }
   .tcw-modal__title{ font-size: 22px; }
 }
+
+
+
+
+/* =========================
+   Inventory cards (3 per row)
+   ========================= */
+
+   .profile-invgrid{
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* ✅ максимум 3 в ряд */
+    gap: 12px;
+  }
+  
+  /* если экран совсем узкий — 2 в ряд (всё равно не больше 3) */
+  @media (max-width: 360px){
+    .profile-invgrid{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  .inv-card{
+    border-radius: 22px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+  }
+  
+  .inv-card__imgwrap{
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 18px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  
+  .inv-card__imgwrap img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 8px;
+    display: block;
+    filter: drop-shadow(0 10px 22px rgba(0,0,0,0.35));
+  }
+  
+  .inv-card__name{
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.92);
+    text-align: left;
+    margin-top: 2px;
+  }
+  
+  .inv-btn{
+    width: 100%;
+    border: none;
+    border-radius: 16px;
+    padding: 10px 10px;
+    font-weight: 800;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  
+  .inv-btn--sell{
+    color: #fff;
+  }
+  
+  .inv-btn--ton{
+    background: linear-gradient(180deg, #2EA6FF 0%, #187BFF 100%);
+    box-shadow: 0 10px 22px rgba(46,166,255,0.28);
+  }
+  
+  .inv-btn--stars{
+    background: linear-gradient(180deg, #FFD54A 0%, #FFB800 100%);
+    color: #1a1a1a;
+    box-shadow: 0 10px 22px rgba(255,200,60,0.22);
+  }
+  
+  .inv-btn__icon{
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
+  
+  .inv-btn--withdraw{
+    background: #ffffff;
+    color: #111;
+    border: 1px solid rgba(0,0,0,0.12);
+  }
+  

@@ -824,19 +824,17 @@ body.bonus-active{
 }
 
 /* Tile (each bag/mult) */
+/* Tile (each bag/mult) */
 .lr-tile {
   position: relative;
   aspect-ratio: 1;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(219, 39, 119, 0.05));
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  background: transparent;
+  border: none;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   cursor: default;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   padding: 0;
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* Multiplier (hidden initially) */
@@ -912,47 +910,48 @@ body.bonus-active{
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-/* Row-specific animations for visual effect */
+/* Row-specific animations for visual effect (4x6 grid - 24 bags) */
 .lr-spinning[data-index="0"],
 .lr-spinning[data-index="1"],
 .lr-spinning[data-index="2"],
-.lr-spinning[data-index="3"],
-.lr-spinning[data-index="4"] {
+.lr-spinning[data-index="3"] {
   animation: lrShiftRight 0.3s ease-in-out infinite;
 }
 
+.lr-spinning[data-index="4"],
 .lr-spinning[data-index="5"],
 .lr-spinning[data-index="6"],
-.lr-spinning[data-index="7"],
-.lr-spinning[data-index="8"],
-.lr-spinning[data-index="9"] {
+.lr-spinning[data-index="7"] {
   animation: lrShiftLeft 0.3s ease-in-out infinite;
 }
 
+.lr-spinning[data-index="8"],
+.lr-spinning[data-index="9"],
 .lr-spinning[data-index="10"],
-.lr-spinning[data-index="11"],
-.lr-spinning[data-index="12"],
-.lr-spinning[data-index="13"],
-.lr-spinning[data-index="14"] {
+.lr-spinning[data-index="11"] {
   animation: lrShiftRight 0.3s ease-in-out infinite;
 }
 
-.lr-spinning[data-index="15"],
+.lr-spinning[data-index="12"],
+.lr-spinning[data-index="13"],
+.lr-spinning[data-index="14"],
+.lr-spinning[data-index="15"] {
+  animation: lrShiftLeft 0.3s ease-in-out infinite;
+}
+
 .lr-spinning[data-index="16"],
 .lr-spinning[data-index="17"],
 .lr-spinning[data-index="18"],
 .lr-spinning[data-index="19"] {
-  animation: lrShiftLeft 0.3s ease-in-out infinite;
+  animation: lrShiftRight 0.3s ease-in-out infinite;
 }
 
 .lr-spinning[data-index="20"],
 .lr-spinning[data-index="21"],
 .lr-spinning[data-index="22"],
-.lr-spinning[data-index="23"],
-.lr-spinning[data-index="24"] {
-  animation: lrShiftRight 0.3s ease-in-out infinite;
+.lr-spinning[data-index="23"] {
+  animation: lrShiftLeft 0.3s ease-in-out infinite;
 }
-
 @keyframes lrShiftRight {
   0%, 100% { transform: translateX(0); }
   50% { transform: translateX(4px); }
@@ -964,79 +963,234 @@ body.bonus-active{
 }
 
 /* Selectable */
+/* Selectable */
 .lr-tile.lr-selectable {
   cursor: pointer;
-  border-color: rgba(168, 85, 247, 0.3);
+}
+
+/* Selectable */
+.lr-tile.lr-selectable {
+  cursor: pointer;
 }
 
 .lr-tile.lr-selectable:hover {
-  transform: translateY(-4px) scale(1.03);
-  border-color: rgba(168, 85, 247, 0.5);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(219, 39, 119, 0.08));
-  box-shadow: 
-    0 8px 24px rgba(168, 85, 247, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-6px) scale(1.08);
 }
 
-/* Selected */
+/* 🔥 Active/Click state - animated press */
+.lr-tile.lr-selectable:active {
+  transform: translateY(-2px) scale(1.02);
+  transition: all 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 🔥 Touch feedback for mobile */
+.lr-tile.lr-selectable:active .lr-bag {
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.6)) brightness(1.1);
+}
+
+
+
+
+
+
+/* Selected - Epic fog/mist effect */
 .lr-tile.lr-selected {
-  border-color: rgba(255, 200, 40, 0.9);
-  background: linear-gradient(135deg, rgba(255, 200, 40, 0.15), rgba(255, 165, 40, 0.1));
+  position: relative;
+  border-color: rgba(255, 40, 248, 0.95);
+  background: radial-gradient(ellipse at center, 
+    rgba(105, 40, 255, 0.35) 0%, 
+    rgba(176, 40, 255, 0.2) 40%,
+    rgba(151, 40, 255, 0.1) 70%,
+    transparent 90%);
   box-shadow: 
-    0 0 0 3px rgba(255, 200, 40, 0.5),
-    0 0 40px rgba(255, 200, 40, 0.4),
-    inset 0 0 20px rgba(255, 200, 40, 0.1);
-  animation: lrSelectedPulse 1.5s ease-in-out infinite;
+    0 0 0 3px rgba(241, 40, 255, 0.9),
+    0 0 50px rgba(226, 40, 255, 0.7),
+    0 0 100px rgba(255, 40, 244, 0.5),
+    0 0 150px rgba(223, 40, 255, 0.3),
+    inset 0 0 50px rgba(248, 40, 255, 0.3);
+  animation: lrSelectedPulse 2.5s ease-in-out infinite;
+  z-index: 10;
+  transform: translateY(-6px) scale(1.08);
+  transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: visible;
+}
+
+/* Animated fog layer 1 - slow drift */
+.lr-tile.lr-selected::before {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  background: 
+    radial-gradient(ellipse 80% 50% at 20% 50%, rgba(208, 40, 255, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 70% 60% at 80% 30%, rgba(255, 40, 251, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 90% 40% at 50% 70%, rgba(203, 60, 255, 0.3) 0%, transparent 50%);
+  filter: blur(25px);
+  animation: lrFogDrift1 8s ease-in-out infinite;
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 50%;
+}
+
+/* Animated fog layer 2 - medium speed, opposite direction */
+.lr-tile.lr-selected::after {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: 
+    radial-gradient(ellipse 60% 70% at 60% 40%, rgba(245, 50, 255, 0.45) 0%, transparent 50%),
+    radial-gradient(ellipse 75% 55% at 30% 60%, rgba(198, 40, 255, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse 85% 65% at 70% 20%, rgba(255, 70, 255, 0.35) 0%, transparent 50%);
+  filter: blur(20px);
+  animation: lrFogDrift2 6s ease-in-out infinite;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: -2;
+  border-radius: 50%;
 }
 
 @keyframes lrSelectedPulse {
   0%, 100% {
     box-shadow: 
-      0 0 0 3px rgba(255, 200, 40, 0.5),
-      0 0 40px rgba(255, 200, 40, 0.4);
+      0 0 0 3px rgba(119, 40, 255, 0.9),
+      0 0 50px rgba(219, 40, 255, 0.7),
+      0 0 100px rgba(40, 176, 255, 0.5),
+      0 0 150px rgba(216, 40, 255, 0.3);
+    filter: brightness(1.05) saturate(1.1) drop-shadow(0 10px 30px rgba(219, 40, 255, 0.5));
   }
   50% {
     box-shadow: 
-      0 0 0 4px rgba(255, 200, 40, 0.7),
-      0 0 60px rgba(255, 200, 40, 0.6),
-      0 0 100px rgba(255, 200, 40, 0.3);
+      0 0 0 5px rgb(191, 40, 255),
+      0 0 70px rgba(255, 40, 226, 0.9),
+      0 0 130px rgba(201, 40, 255, 0.7),
+      0 0 200px rgba(216, 40, 255, 0.5),
+      0 0 270px rgba(40, 173, 255, 0.3);
+    filter: brightness(1.2) saturate(1.3) drop-shadow(0 15px 40px rgba(255, 200, 40, 0.7));
   }
 }
 
-/* Reveal (bag fades, mult shows) */
-.lr-tile.lr-reveal .lr-bag {
-  animation: lrBagFadeOut 0.4s ease forwards;
+/* Fog drift animation 1 - slow, smooth */
+@keyframes lrFogDrift1 {
+  0%, 100% { 
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 0.85;
+  }
+  25% {
+    transform: translate(-8px, -10px) scale(1.1) rotate(2deg);
+    opacity: 0.95;
+  }
+  50% {
+    transform: translate(-5px, 8px) scale(0.95) rotate(-1deg);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translate(10px, -5px) scale(1.05) rotate(1deg);
+    opacity: 0.9;
+  }
 }
 
-@keyframes lrBagFadeOut {
-  from {
+/* Fog drift animation 2 - faster, opposite direction */
+@keyframes lrFogDrift2 {
+  0%, 100% { 
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 0.9;
+  }
+  33% {
+    transform: translate(12px, 8px) scale(1.08) rotate(-2deg);
     opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
   }
-  to {
-    opacity: 0;
-    transform: translateY(-30px) scale(0.7) rotate(-15deg);
+  66% {
+    transform: translate(-10px, -12px) scale(0.98) rotate(2deg);
+    opacity: 0.85;
   }
+}
+
+
+/* Reveal - bag lifts up revealing mult underneath */
+.lr-tile.lr-reveal .lr-bag {
+  animation: lrBagLiftUp 1.2s ease-out forwards;
+  z-index: 3; /* bag on top of mult */
 }
 
 .lr-tile.lr-reveal .lr-mult {
-  animation: lrMultReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s forwards;
+  z-index: 1; /* mult stays underneath */
+  opacity: 1; /* mult is already there, just hidden by bag */
 }
 
-@keyframes lrMultReveal {
-  from {
-    opacity: 0;
-    transform: scale(0.6) rotate(-10deg);
-  }
-  60% {
-    transform: scale(1.15) rotate(2deg);
-  }
-  to {
+@keyframes lrBagLiftUp {
+  0% {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
+    transform: translateY(0) scale(1) rotate(0deg);
+    filter: blur(0px) brightness(1);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-12px) scale(1.02) rotate(1deg);
+    filter: blur(0px) brightness(1.05);
+  }
+  35% {
+    opacity: 0.95;
+    transform: translateY(-35px) scale(1.03) rotate(-2deg);
+    filter: blur(2px) brightness(1.1);
+  }
+  55% {
+    opacity: 0.7;
+    transform: translateY(-65px) scale(0.92) rotate(3deg);
+    filter: blur(6px) brightness(1.15);
+  }
+  75% {
+    opacity: 0.35;
+    transform: translateY(-100px) scale(0.7) rotate(-4deg);
+    filter: blur(14px) brightness(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-150px) scale(0.5) rotate(-6deg);
+    filter: blur(22px) brightness(1.25);
   }
 }
 
+/* Subtle white mist as bag lifts */
+.lr-tile.lr-reveal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 40% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 60% 45%, rgba(250, 250, 255, 0.12) 0%, transparent 35%),
+    radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 0.1) 0%, transparent 38%);
+  filter: blur(18px);
+  opacity: 0;
+  animation: lrMistRise 1.2s ease-out forwards;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes lrMistRise {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(0);
+  }
+  20% {
+    opacity: 0.3;
+    transform: scale(1) translateY(-15px);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.6) translateY(-35px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.5) translateY(-60px);
+  }
+}
+
+/* Multiplier is already visible, no animation needed */
+.lr-tile.lr-reveal .lr-mult {
+  /* Mult was always there, just covered by bag */
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+}
 /* Winner tile */
 .lr-tile.lr-winner .lr-mult {
   color: #ffd028;
@@ -1089,51 +1243,65 @@ body.bonus-active{
       0 0 120px rgba(255, 200, 40, 0.6);
   }
 }
+/* ===== 4x4 GRID LAYOUT ===== */
+.lr-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 12px;
+  max-width: 460px;
+}
 
+.lr-tile {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Bigger bags for 4x4 */
+.lr-bag {
+  width: 110% !important;
+  height: 110% !important;
+  padding: 5% !important;
+}
 /* ============================================
    RESPONSIVE
    ============================================ */
 
-@media (max-width: 420px) {
-  .lr-cutscene {
-    padding: 16px;
-    gap: 20px;
+   @media (max-width: 420px) {
+    .lr-cutscene {
+      padding: 16px;
+      gap: 20px;
+    }
+    
+    .lr-title {
+      font-size: 20px;
+    }
+    
+    .lr-timer {
+      font-size: 48px;
+    }
+    
+    .lr-grid {
+      gap: 10px;
+    }
+    
+    .lr-mult {
+      font-size: 20px;
+    }
   }
   
-  .lr-title {
-    font-size: 20px;
+  @media (max-width: 360px) {
+    .lr-grid {
+      gap: 8px;
+    }
+    
+    .lr-mult {
+      font-size: 18px;
+    }
+    
+    .lr-timer {
+      font-size: 42px;
+    }
   }
-  
-  .lr-timer {
-    font-size: 48px;
-  }
-  
-  .lr-grid {
-    gap: 8px;
-  }
-  
-  .lr-mult {
-    font-size: 18px;
-  }
-}
-
-@media (max-width: 360px) {
-  .lr-grid {
-    gap: 6px;
-  }
-  
-  .lr-mult {
-    font-size: 16px;
-  }
-  
-  .lr-timer {
-    font-size: 42px;
-  }
-  
-  .lr-tile {
-    border-radius: 12px;
-  }
-}
 
 /* ============================================
    ACCESSIBILITY

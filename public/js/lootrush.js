@@ -71,16 +71,16 @@ class LootRush {
     const pool = [];
     const pushN = (v, n) => { for (let i = 0; i < n; i++) pool.push(v); };
     
-    pushN(1.1, 7);
+    // 🎯 4x6 grid = 24 tiles
+    pushN(1.1, 8);
     pushN(1.5, 6);
-    pushN(2, 5);
+    pushN(2, 4);
     pushN(4, 3);
     pushN(8, 2);
-    pushN(10, 1);
     pushN(25, 1);
     
-    while (pool.length < 25) pool.push(1.1);
-    return pool.slice(0, 25);
+    while (pool.length < 24) pool.push(1.1);
+    return pool.slice(0, 24);
   }
 
   _shuffleArray(arr) {
@@ -96,7 +96,7 @@ class LootRush {
     return `${this.options.bagFolder}${this.options.bagPrefix}${n}${this.options.bagExt}`;
   }
   
-  // 🔥 Получить случайную сумку из пула
+  // 🔥 Get random bag from pool (4x4 = 16 bags)
   _getRandomBagSrc() {
     if (this._allBagSrcs.length === 0) return this._getBagSrc(0);
     const idx = Math.floor(Math.random() * this._allBagSrcs.length);
@@ -121,11 +121,11 @@ class LootRush {
 
   _render() {
     const bagSrcs = [];
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 24; i++) {
       bagSrcs.push(this._getBagSrc(i));
     }
     
-    // 🔥 Инициализируем пул всех сумок
+    // 🔥 Initialize pool of all bags (24 for 4x6)
     this._allBagSrcs = [...bagSrcs];
 
     // 🔥 FIXED LAYOUT: Grid first, then bottom section with title + timer (СКРЫТ)
@@ -149,10 +149,10 @@ class LootRush {
 
     this._tiles = Array.from(this.container.querySelectorAll('.lr-tile'));
     
-    for (let r = 0; r < 5; r++) {
+    for (let r = 0; r < 6; r++) {
       this._rowBagSrcs[r] = [];
-      for (let c = 0; c < 5; c++) {
-        this._rowBagSrcs[r].push(bagSrcs[r * 5 + c]);
+      for (let c = 0; c < 4; c++) {
+        this._rowBagSrcs[r].push(bagSrcs[r * 4 + c]);
       }
     }
 
@@ -164,14 +164,14 @@ class LootRush {
   }
 
   _rowMajorOrder() {
-    return Array.from({ length: 25 }, (_, i) => i);
+    return Array.from({ length: 24 }, (_, i) => i);
   }
 
   _colMajorOrder() {
     const order = [];
-    for (let c = 0; c < 5; c++) {
-      for (let r = 0; r < 5; r++) {
-        order.push(r * 5 + c);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 6; r++) {
+        order.push(r * 4 + c);
       }
     }
     return order;
@@ -238,11 +238,12 @@ class LootRush {
         currentSpeed = minSpeed + slowProgress * (maxSpeed - minSpeed);
       }
 
-      // 🔥 Shift each row (CS:GO style - alternating directions)
-      for (let r = 0; r < 5; r++) {
-        const direction = (r % 2 === 0) ? 1 : -1; // Even rows right, odd rows left
-        this._shiftRow(r, direction);
-      }
+     
+    // Shift each row (CS:GO style - alternating directions)
+    for (let r = 0; r < 6; r++) {
+      const direction = (r % 2 === 0) ? 1 : -1;
+      this._shiftRow(r, direction);
+    }
 
       if (progress >= 1) {
         this._spinning = false;
@@ -268,16 +269,17 @@ class LootRush {
 
   _shiftRow(row, direction) {
     const srcs = this._rowBagSrcs[row];
-    if (!srcs || srcs.length !== 5) return;
+    if (!srcs || srcs.length !== 4) return;
 
-    // 🔥 РАНДОМИЗАЦИЯ: вместо сдвига массива, генерируем случайные сумки
-    for (let c = 0; c < 5; c++) {
+    // 🔥 RANDOMIZATION: instead of shifting array, generate random bags
+    for (let c = 0; c < 4; c++) {
       srcs[c] = this._getRandomBagSrc();
     }
 
     // 🔥 Update DOM with SMOOTH fade transition
-    for (let c = 0; c < 5; c++) {
-      const idx = row * 5 + c;
+    for (let c = 0; c < 4; c++) {
+      const idx = row * 4 + c;
+
       const tile = this._tiles[idx];
       if (!tile) continue;
 
@@ -297,18 +299,19 @@ class LootRush {
       }
     }
 
-    // 🔥 Shift multipliers to match (тоже рандомизируем для эффекта)
-    const base = row * 5;
-    const rowMults = this._multipliers.slice(base, base + 5);
     
-    // Сдвигаем множители в противоположную сторону от direction для эффекта
+    //  Shift multipliers to match (also randomize for effect)
+    const base = row * 4;
+    const rowMults = this._multipliers.slice(base, base + 4);
+    
+    // Shift multipliers in opposite direction from direction for effect
     if (direction > 0) {
       rowMults.unshift(rowMults.pop());
     } else {
       rowMults.push(rowMults.shift());
     }
 
-    for (let c = 0; c < 5; c++) {
+    for (let c = 0; c < 4; c++) {
       this._multipliers[base + c] = rowMults[c];
       const tile = this._tiles[base + c];
       const multEl = tile?.querySelector('.lr-mult');
@@ -383,6 +386,8 @@ class LootRush {
       const idx = order[k];
       const tile = this._tiles[idx];
       if (tile) {
+        // 🔥 ВАЖНО: убираем lr-covered перед reveal
+        tile.classList.remove('lr-covered');
         tile.classList.add('lr-reveal');
         
         if (idx === pickedIdx) {
@@ -393,7 +398,7 @@ class LootRush {
       }
       await this._wait(30);
     }
-
+  
     await this._wait(4000);
   }
 
@@ -418,7 +423,7 @@ class LootRush {
       this._multipliers = this._buildMultipliersPool();
       this._shuffleArray(this._multipliers);
 
-      const bagSrcs = Array.from({ length: 25 }, (_, i) => this._getBagSrc(i));
+      const bagSrcs = Array.from({ length: 24 }, (_, i) => this._getBagSrc(i));
       await this._preloadImages(bagSrcs);
 
       const ui = this._render();
