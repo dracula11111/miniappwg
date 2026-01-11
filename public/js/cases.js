@@ -89,8 +89,8 @@ const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
 // Paid (TON / Stars): NFT выпадает редко
 const NFT_DROP_RATES = {
   demo: 0.70,          // 90% на выигрыш в демо
-  ton: 0.73,           // 3% на выигрыш за TON
-  stars: 0.72          // 2% на выигрыш за Stars
+  ton: 0.13,           // 3% на выигрыш за TON
+  stars: 0.12          // 2% на выигрыш за Stars
 };
 
 // Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
