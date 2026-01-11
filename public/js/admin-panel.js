@@ -222,12 +222,132 @@
         </div>
 
         <div class="ap-card">
+          <div class="ap-label">Inventory</div>
+          <div class="ap-sub" style="margin-top:-4px; opacity:.85">Add gifts / items to a user</div>
+
+          <div class="ap-row" style="margin-top:10px">
+            <input class="ap-input" id="apInvUserId" placeholder="Telegram userId (e.g. 1142079504)" />
+          </div>
+
+          <div class="ap-row">
+            <select class="ap-select" id="apInvType">
+              <option value="gift">gift</option>
+              <option value="nft">nft</option>
+            </select>
+            <select class="ap-select" id="apInvCurrency">
+              <option value="ton">ton</option>
+              <option value="stars">stars</option>
+            </select>
+            <input class="ap-input" id="apInvPrice" type="number" step="0.01" min="0" placeholder="Price" />
+          </div>
+
+          <div class="ap-row">
+            <input class="ap-input" id="apInvIcon" placeholder="Icon filename (e.g. bday_candle.webp)" />
+          </div>
+
+          <div class="ap-row">
+            <input class="ap-input" id="apInvName" placeholder="Name (optional)" />
+            <input class="ap-input" id="apInvCount" type="number" min="1" step="1" value="1" placeholder="Count" style="max-width:90px" />
+            <button class="ap-btn primary" id="apInvAdd">Add</button>
+          </div>
+
+          <div class="ap-sub" style="margin-top:8px; opacity:.75">
+            If ADMIN_KEY is set on server, also set localStorage ADMIN_KEY to use this.
+          </div>
+        </div>
+
+        <div class="ap-card">
           <div class="ap-label">Logs</div>
           <div class="ap-log" id="apLog"></div>
         </div>
       </div>
     `;
     document.body.appendChild(panel);
+    // ===== Inventory tool =====
+    const invUserIdEl = $('#apInvUserId', panel);
+    const invTypeEl = $('#apInvType', panel);
+    const invCurrencyEl = $('#apInvCurrency', panel);
+    const invPriceEl = $('#apInvPrice', panel);
+    const invIconEl = $('#apInvIcon', panel);
+    const invNameEl = $('#apInvName', panel);
+    const invCountEl = $('#apInvCount', panel);
+    const invAddBtn = $('#apInvAdd', panel);
+
+    // try to auto-fill userId from Telegram WebApp
+    try {
+      const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      if (tgId && !invUserIdEl.value) invUserIdEl.value = String(tgId);
+    } catch {}
+
+    const slugify = (s) =>
+      String(s || '')
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_\-]/g, '')
+        .slice(0, 48);
+
+    async function adminAddItems(userId, items) {
+      const headers = { 'Content-Type': 'application/json' };
+      const adminKey = localStorage.getItem('ADMIN_KEY');
+      if (adminKey) headers['x-admin-key'] = adminKey;
+
+      const r = await fetch('/api/admin/inventory/add', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ userId, items }),
+      });
+
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok !== true) {
+        throw new Error((j && j.error) ? j.error : `HTTP ${r.status}`);
+      }
+      return j;
+    }
+
+    invAddBtn.addEventListener('click', async () => {
+      try {
+        const uid = String(invUserIdEl.value || '').trim();
+        if (!uid) return log('Inventory: userId required');
+
+        const type = String(invTypeEl.value || 'gift');
+        const currency = (String(invCurrencyEl.value || 'ton') === 'stars') ? 'stars' : 'ton';
+
+        const rawPrice = Number(invPriceEl.value || 0);
+        const price = currency === 'stars' ? Math.max(0, Math.round(rawPrice)) : Math.max(0, Math.round(rawPrice * 100) / 100);
+
+        const icon = String(invIconEl.value || '').trim();
+        const name = String(invNameEl.value || '').trim() || 'Name';
+
+        const count = Math.max(1, parseInt(invCountEl.value || '1', 10) || 1);
+
+        const baseKey = slugify(icon || name || type) || type;
+        const baseId = (type === 'nft') ? `nft_${baseKey}` : `gift_${baseKey}`;
+
+        const items = Array.from({ length: count }).map(() => ({
+          type,
+          baseId,
+          name,
+          icon,
+          price: {
+            ton: currency === 'ton' ? price : 0,
+            stars: currency === 'stars' ? price : 0,
+          },
+          source: 'admin',
+        }));
+
+        invAddBtn.disabled = true;
+        invAddBtn.textContent = 'Adding...';
+        const res = await adminAddItems(uid, items);
+        log(`Inventory: added ${res.added} item(s) for user ${uid}`);
+      } catch (e) {
+        log(`Inventory error: ${e.message || e}`);
+      } finally {
+        invAddBtn.disabled = false;
+        invAddBtn.textContent = 'Add';
+      }
+    });
+
+
 
     // fill options
     const forceSelect = $('#apForceSelect', panel);

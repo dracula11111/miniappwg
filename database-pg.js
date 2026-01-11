@@ -1,5 +1,6 @@
 // database-pg.js - PostgreSQL Production Database
 import pg from "pg";
+import crypto from "crypto";
 
 const { Pool } = pg;
 
@@ -76,6 +77,25 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_bets_result ON bets(result);
     CREATE INDEX IF NOT EXISTS idx_bets_created ON bets(created_at DESC);
+
+    -- Inventory (gifts/NFTs)
+    CREATE TABLE IF NOT EXISTS inventory_claims (
+      claim_id TEXT PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_inventory_claims_user ON inventory_claims(telegram_id);
+
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id BIGSERIAL PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      instance_id TEXT UNIQUE,
+      item_json JSONB NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_inventory_items_user ON inventory_items(telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_items_created ON inventory_items(created_at DESC);
+
   `);
   console.log("[DB] ✅ Postgres schema ready");
 }
@@ -345,4 +365,191 @@ export async function getUserStats(telegramId) {
     total_wagered: Number(row.total_wagered || 0),
     total_bets: totalBets
   };
+}
+
+
+// =====================
+// INVENTORY (Postgres)
+// =====================
+
+export async function getUserInventory(telegramId) {
+  const id = BigInt(telegramId);
+  const r = await query(
+    `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
+    [id]
+  );
+  return r.rows.map(row => row.item_json);
+}
+
+export async function addInventoryItems(telegramId, items, claimId = null) {
+  const id = BigInt(telegramId);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const nowMs = Date.now();
+
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return await getUserInventory(id);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Ensure user exists
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, nowSec]
+    );
+
+    // Claim idempotency (prevents double add on retries)
+    if (claimId) {
+      const cr = await client.query(
+        `INSERT INTO inventory_claims (claim_id, telegram_id, created_at)
+         VALUES ($1,$2,$3)
+         ON CONFLICT DO NOTHING
+         RETURNING claim_id`,
+        [String(claimId), id, nowSec]
+      );
+
+      if (cr.rowCount === 0) {
+        // already processed
+        const inv = await client.query(
+          `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
+          [id]
+        );
+        await client.query("COMMIT");
+        return inv.rows.map(row => row.item_json);
+      }
+    }
+
+    // Insert items
+    for (const it of list) {
+      const instanceId = String(it?.instanceId || `${nowMs}_${crypto.randomBytes(6).toString("hex")}`);
+      const enriched = { ...it, type: it?.type || "nft", instanceId, acquiredAt: it?.acquiredAt || nowMs };
+
+      await client.query(
+        `INSERT INTO inventory_items (telegram_id, instance_id, item_json, created_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (instance_id) DO NOTHING`,
+        [id, instanceId, enriched, nowSec]
+      );
+    }
+
+    const inv = await client.query(
+      `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
+      [id]
+    );
+
+    await client.query("COMMIT");
+    return inv.rows.map(row => row.item_json);
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function sellInventoryItems(telegramId, instanceIds, currency = "ton") {
+  const id = BigInt(telegramId);
+  const cur = currency === "stars" ? "stars" : "ton";
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  if (!ids.length) return { sold: 0, amount: 0, newBalance: null };
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Ensure user and balances exist (so FK + lock always works)
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, now]
+    );
+    await client.query(
+      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
+       VALUES ($1,0,0,$2)
+       ON CONFLICT (telegram_id) DO NOTHING`,
+      [id, now]
+    );
+
+    // Delete items and return their JSON
+    const del = await client.query(
+      `DELETE FROM inventory_items
+       WHERE telegram_id = $1 AND instance_id = ANY($2::text[])
+       RETURNING item_json`,
+      [id, ids]
+    );
+
+    const soldItems = del.rows.map(r => r.item_json);
+
+    // Compute total sell value from item.price
+    let total = 0;
+    for (const it of soldItems) {
+      const raw = it?.price?.[cur];
+      const n = (typeof raw === "string") ? parseFloat(raw) : (typeof raw === "number" ? raw : 0);
+      if (!Number.isFinite(n)) continue;
+      total += n;
+    }
+
+    // Normalize totals
+    const amount = cur === "stars"
+      ? Math.max(0, Math.round(total))
+      : Math.max(0, Math.round(total * 100) / 100);
+
+    let newBalance = null;
+
+    if (amount > 0) {
+      // Lock balance row
+      const balRes = await client.query(
+        `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+        [id]
+      );
+
+      const ton = Number(balRes.rows[0].ton_balance || 0);
+      const stars = Number(balRes.rows[0].stars_balance || 0);
+      const before = (cur === "ton") ? ton : stars;
+      const after = before + Number(amount);
+
+      if (cur === "ton") {
+        await client.query(
+          `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+          [after, now, id]
+        );
+      } else {
+        await client.query(
+          `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+          [Math.trunc(after), now, id]
+        );
+      }
+
+      // Record transaction
+      await client.query(
+        `INSERT INTO transactions
+         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [
+          id,
+          "inventory_sell",
+          cur,
+          Number(amount),
+          Number(before),
+          Number(after),
+          "Sell gift/NFT",
+          now
+        ]
+      );
+
+      newBalance = after;
+    }
+
+    await client.query("COMMIT");
+    return { sold: soldItems.length, amount, newBalance };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }

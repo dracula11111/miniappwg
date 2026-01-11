@@ -637,7 +637,7 @@
   
     // ⚠️ звёздную иконку ты просил именно такую:
     // если файла нет — либо добавь /icons/tgStar.svg, либо поменяй на /icons/stars.svg
-    const icon = isStars ? '/icons/tgStar.svg' : '/icons/ton.svg';
+    const icon = isStars ? '/icons/tgStarWhite.svg' : '/icons/ton.svg';
     const sellBtnClass = isStars ? 'inv-btn--stars' : 'inv-btn--ton';
   
     grid.innerHTML = arr.map((it, idx) => {

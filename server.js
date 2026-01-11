@@ -301,10 +301,23 @@ app.get("/api/user/inventory", async (req, res) => {
   const userId = String(req.query.userId || "");
   if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
 
+  // Prefer Postgres (production)
+  try {
+    if (!IS_TEST && db && typeof db.getUserInventory === "function") {
+      const items = await db.getUserInventory(userId);
+      return res.json({ ok: true, items, nfts: items });
+    }
+  } catch (e) {
+    console.error("[Inventory] getUserInventory error:", e);
+    // fall through to legacy store
+  }
+
+  // Legacy fallback (local dev)
   const u = inventoryStore.users?.[userId] || { nfts: [] };
   const nfts = Array.isArray(u.nfts) ? u.nfts : [];
   return res.json({ ok: true, items: nfts, nfts });
 });
+
 
 // Add won NFTs to inventory (anti-dup via claimId)
 
@@ -323,18 +336,26 @@ app.post("/api/inventory/nft/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
+    // Prefer Postgres (production)
+    if (!IS_TEST && db && typeof db.addInventoryItems === "function") {
+      const saved = await db.addInventoryItems(uid, list, claimId || null);
+      return res.json({ ok: true, items: saved, nfts: saved });
+    }
+
+    // Legacy fallback (local dev)
     const result = addNftsToInventory(uid, list, claimId);
-    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
+    return res.json({ ok: true, ...result, items: result.items, nfts: result.items });
   } catch (e) {
     console.error("[Inventory] add error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
 
+
 // Sell selected NFTs from inventory -> credit balance
 app.post("/api/inventory/sell", async (req, res) => {
   try {
-    const { userId, instanceIds, currency } = req.body || {};
+    const { userId, currency, instanceIds } = req.body || {};
     const uid = String(userId || "");
     if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
     const cur = (currency === "stars") ? "stars" : "ton";
@@ -342,6 +363,22 @@ app.post("/api/inventory/sell", async (req, res) => {
     const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
     if (!ids.length) return res.status(400).json({ ok: false, error: "instanceIds required" });
 
+    // Prefer Postgres (production)
+    if (!IS_TEST && db && typeof db.sellInventoryItems === "function" && typeof db.getUserInventory === "function") {
+      const out = await db.sellInventoryItems(uid, ids, cur);
+      const items = await db.getUserInventory(uid);
+      return res.json({
+        ok: true,
+        sold: out.sold || 0,
+        amount: out.amount || 0,
+        currency: cur,
+        newBalance: out.newBalance ?? null,
+        items,
+        nfts: items
+      });
+    }
+
+    // Legacy fallback (local dev) — previous file-based logic
     const u = inventoryStore.users?.[uid] || { nfts: [] };
     const nfts = Array.isArray(u.nfts) ? u.nfts : [];
     const keep = [];
@@ -362,28 +399,23 @@ app.post("/api/inventory/sell", async (req, res) => {
     inventoryStore.users[uid].nfts = keep;
     saveInventoryStore();
 
-    // Credit balance in DB (same logic as deposits)
     const amount = (cur === "stars") ? Math.max(0, Math.round(total)) : Math.max(0, Math.round(total * 100) / 100);
     let newBalance = null;
     try {
-      newBalance = await db.updateBalance(
-        uid,
-        cur,
-        amount,
-        "inventory_sell",
-        `Sold ${ids.length} NFT(s)`,
-        { sold: ids }
-      );
+      if (amount > 0 && typeof db.updateBalance === "function") {
+        newBalance = await db.updateBalance(uid, cur, amount, "inventory_sell", "Sell gift/NFT", { instanceIds: ids });
+      }
     } catch (e) {
-      console.error("[Inventory] updateBalance failed:", e);
+      console.warn("[Inventory] balance credit failed:", e?.message || e);
     }
 
-    return res.json({ ok: true, sold: ids.length, amount, currency: cur, newBalance, items: keep, nfts: keep });
+    return res.json({ ok: true, sold: Math.max(0, nfts.length - keep.length), amount, currency: cur, newBalance, items: keep, nfts: keep });
   } catch (e) {
     console.error("[Inventory] sell error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
+
 
 // Sell ALL NFTs
 app.post("/api/inventory/sell-all", async (req, res) => {
@@ -433,10 +465,8 @@ app.post("/api/inventory/sell-all", async (req, res) => {
 
 
 // Compatibility: front-end uses /api/inventory/add (same as /api/inventory/nft/add)
+// Compatibility: front-end can call /api/inventory/add (same as /api/inventory/nft/add)
 app.post("/api/inventory/add", async (req, res) => {
-  // accept same body shape as nft/add
-  req.body = req.body || {};
-  // Reuse helper directly
   try {
     const { userId, initData, items, item, claimId } = req.body || {};
     const uid = String(userId || "");
@@ -450,13 +480,20 @@ app.post("/api/inventory/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
+    if (!IS_TEST && db && typeof db.addInventoryItems === "function") {
+      const saved = await db.addInventoryItems(uid, list, claimId || null);
+      return res.json({ ok: true, items: saved, nfts: saved });
+    }
+
     const result = addNftsToInventory(uid, list, claimId);
-    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
+    return res.json({ ok: true, ...result, items: result.items, nfts: result.items });
   } catch (e) {
-    console.error("[Inventory] add error:", e);
+    console.error("[Inventory] add compat error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
+
+
 
 
 

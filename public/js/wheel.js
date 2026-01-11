@@ -409,6 +409,9 @@ let currentCurrency = 'ton';
 let lastRoundResult = null;
 let bettingLocked = false;
 
+
+// Tracks in-flight debits so быстрые клики не позволяли уйти в минус до ответа сервера
+const pendingDebit = { ton: 0, stars: 0 };
 /* ===== 🔥 TEST MODE BALANCE ===== */
 function initTestModeBalance() {
   if (!TEST_MODE) return;
@@ -564,27 +567,38 @@ async function placeBetsOnServer() {
 }
 
 
-function deductBetAmount(amount, currency) {
+async function deductBetAmount(amount, currency) {
+  // normalize
+  const amt = (currency === 'stars')
+    ? Math.round(Number(amount))
+    : (Math.round(Number(amount) * 100) / 100);
+
   if (TEST_MODE) {
-    if (currency === 'ton') userBalance.ton = Math.max(0, userBalance.ton - amount);
-    else userBalance.stars = Math.max(0, userBalance.stars - amount);
+    if (currency === 'ton') userBalance.ton = Math.max(0, userBalance.ton - amt);
+    else userBalance.stars = Math.max(0, userBalance.stars - amt);
     updateTestBalance();
     return true;
   }
 
-  void syncBalanceDelta(-amount, currency, 'wheel_bet');
+  const r = await syncBalanceDelta(-amt, currency, 'wheel_bet', { roundId: currentWheelRoundId });
+  if (!r.ok) return false;
   return true;
 }
 
-function addWinAmount(amount, currency) {
+async function addWinAmount(amount, currency) {
+  const amt = (currency === 'stars')
+    ? Math.round(Number(amount))
+    : (Math.round(Number(amount) * 100) / 100);
+
   if (TEST_MODE) {
-    if (currency === 'ton') userBalance.ton += amount;
-    else userBalance.stars += amount;
+    if (currency === 'ton') userBalance.ton += amt;
+    else userBalance.stars += amt;
     updateTestBalance();
     return true;
   }
 
-  void syncBalanceDelta(amount, currency, 'wheel_win', { roundId: currentWheelRoundId });
+  const r = await syncBalanceDelta(amt, currency, 'wheel_win', { roundId: currentWheelRoundId });
+  if (!r.ok) return false;
   return true;
 }
 
@@ -898,78 +912,81 @@ function initBettingUI(){
 
 
 
-  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
-  betTiles.forEach(tile => {
-    tile.addEventListener('click', () => {
-      if (bettingLocked) {
-        console.log('[Wheel] ⛔ Betting locked - waiting for history update');
-        tile.classList.add('insufficient-balance');
-        setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
-        return;
-      }
-      
-      if (phase !== 'betting') return;
-      
-      const seg = normSeg(tile.dataset.seg);
+  // 🔥 BET TILES (balance снимаем сразу при клике)
+betTiles.forEach(tile => {
+  tile.addEventListener('click', async () => {
+    if (bettingLocked) {
+      console.log('[Wheel] ⛔ Betting locked - waiting for history update');
+      tile.classList.add('insufficient-balance');
+      setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
+      return;
+    }
 
-      const cur = betsMap.get(seg) || 0;
-      
-      // ✅ Balance check:
-//   - PROD: учитываем уже поставленные ставки в этом раунде (balance - sum(betsMap))
-//   - TEST: баланс уже списывается сразу, поэтому берём текущий balance
-      const balance = userBalance[currentCurrency] || 0;
-      const alreadyBet = TEST_MODE ? 0 : Array.from(betsMap.values()).reduce((s, v) => s + (Number(v) || 0), 0);
-      const remaining = balance - alreadyBet;
+    if (phase !== 'betting') return;
 
-      if (remaining < currentAmount) {
-        tile.classList.add('insufficient-balance');
-        setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
-        showInsufficientBalanceNotification();
-        return;
-      }
-      
+    const seg = normSeg(tile.dataset.seg);
+    const cur = betsMap.get(seg) || 0;
 
+    // ✅ Balance check (учитываем pendingDebit, чтобы спам кликов не уходил в минус до ответа сервера)
+    const balance = userBalance[currentCurrency] || 0;
+    const remaining = balance - (pendingDebit[currentCurrency] || 0);
 
+    if (remaining < currentAmount) {
+      tile.classList.add('insufficient-balance');
+      setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+      showInsufficientBalanceNotification();
+      return;
+    }
 
-      // ✅ Add bet
-      const next = currentCurrency === 'stars' 
-        ? Math.round(cur + currentAmount)
-        : +(cur + currentAmount).toFixed(2);
-      betsMap.set(seg, next);
+    // 🔒 фиксируем "pending" пока ждём ответ сервера
+    pendingDebit[currentCurrency] = (pendingDebit[currentCurrency] || 0) + currentAmount;
 
-      // ✅ Deduct only in TEST mode (в PROD списываем один раз перед спином через /api/round/place-bet)
-      if (TEST_MODE) {
-        deductBetAmount(currentAmount, currentCurrency);
-      }
-      
+    const ok = await deductBetAmount(currentAmount, currentCurrency);
 
-      setBetPill(tile, seg, next, currentCurrency);
+    pendingDebit[currentCurrency] = Math.max(0, (pendingDebit[currentCurrency] || 0) - currentAmount);
 
-      tile.classList.add('has-bet');
-      setTimeout(() => tile.classList.remove('active'), 160);
-    });
+    if (!ok) {
+      // сервер отказал (например, баланс уже изменился в другом месте)
+      tile.classList.add('insufficient-balance');
+      setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+      showInsufficientBalanceNotification();
+      return;
+    }
+
+    // ✅ Add bet to UI only after successful debit
+    const next = currentCurrency === 'stars'
+      ? Math.round(cur + currentAmount)
+      : +(cur + currentAmount).toFixed(2);
+
+    betsMap.set(seg, next);
+    setBetPill(tile, seg, next, currentCurrency);
+
+    tile.classList.add('has-bet');
+    setTimeout(() => tile.classList.remove('active'), 160);
   });
+});
+// Clear bets (возврат денег, т.к. списание теперь на каждый клик)
+const clearBtn = document.querySelector('[data-action="clear"]');
+if (clearBtn) {
+  clearBtn.addEventListener('click', async () => {
+    if (phase !== 'betting') return;
 
+    const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + (Number(val) || 0), 0);
 
-
-  // Clear bets
-  const clearBtn = document.querySelector('[data-action="clear"]');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      if (phase !== 'betting') return;
-      
-      // 🔥 Refund bets in test mode
-      if (TEST_MODE) {
-        const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-        if (totalBets > 0) {
-          addWinAmount(totalBets, currentCurrency);
-          console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
-        }
+    if (totalBets > 0) {
+      const ok = await addWinAmount(totalBets, currentCurrency);
+      if (!ok) {
+        console.warn('[Wheel] ❌ Refund failed, keep bets as-is');
+        return;
       }
-      
-      clearBets();
-    });
-  }
+      console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
+    }
+
+    pendingDebit.ton = 0;
+    pendingDebit.stars = 0;
+    clearBets();
+  });
+}
 }
 
 
@@ -1547,7 +1564,10 @@ function startCountdown(sec=9){
   if (isCountdownActive) return;
 
   stopCountdown();
-  currentWheelRoundId = null;
+  // New round id (used in tx metadata for wheel_bet / wheel_win)
+  currentWheelRoundId = `wheel_${Date.now()}`;
+  pendingDebit.ton = 0;
+  pendingDebit.stars = 0;
   isCountdownActive = true;
   setPhase('betting');
   setOmega(IDLE_OMEGA);
@@ -1575,21 +1595,7 @@ function startCountdown(sec=9){
         countdownBox.classList.remove('visible');
       }
 
-      // ✅ Commit bets on server (PROD only) right before spin
-      const __totalBets = Array.from(betsMap.values()).reduce((s, v) => s + (Number(v) || 0), 0);
-      if (!TEST_MODE && __totalBets > 0) {
-        const placed = await placeBetsOnServer();
-        if (!placed.ok) {
-          console.warn('[Wheel] Bet rejected by server:', placed.error);
-          showInsufficientBalanceNotification();
-          clearBets();
-          setPhase('betting');
-          setOmega(IDLE_OMEGA);
-          setBetPanel(true);
-          startCountdown(9);
-          return;
-        }
-      }
+      // ✅ Bets are debited on each click now (no server commit at round start)
 
       setPhase('accelerate');
       setBetPanel(false);
