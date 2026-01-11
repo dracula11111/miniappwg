@@ -30,6 +30,8 @@
   // Disconnect modal
   const walletDisconnectModal = document.getElementById('walletDisconnectModal');
   const walletDisconnectAddr = document.getElementById('walletDisconnectAddr');
+  const walletDisconnectBalance = document.getElementById('walletDisconnectBalance');
+  const walletDisconnectCopy = document.getElementById('walletDisconnectCopy');
   const walletDisconnectConfirm = document.getElementById('walletDisconnectConfirm');
 
   const inventoryPanel = document.getElementById('profileInventoryPanel');
@@ -182,6 +184,47 @@
     return addr.slice(0, 4) + '…' + addr.slice(-4);
   }
 
+  function nanoToTon(nanoStr) {
+    try {
+      const nano = BigInt(String(nanoStr || '0'));
+      return (Number(nano) / 1_000_000_000).toFixed(2);
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchTonWalletBalance(address) {
+    if (!walletDisconnectBalance) return;
+    if (!address) {
+      walletDisconnectBalance.textContent = '—';
+      return;
+    }
+
+    try {
+      walletDisconnectBalance.textContent = 'Loading...';
+      // Prefer same-origin endpoint to avoid CORS issues inside Telegram WebView
+      try {
+        const r1 = await fetch(`/api/ton/balance?address=${encodeURIComponent(address)}`);
+        const j1 = await r1.json().catch(() => null);
+        if (r1.ok && j1?.ok && (j1?.nano || j1?.result || j1?.ton)) {
+          const nano = j1.nano ?? j1.result;
+          const tonText = j1.ton ?? (nano ? nanoToTon(nano) : null);
+          walletDisconnectBalance.textContent = tonText ? `${tonText} TON` : '—';
+          return;
+        }
+      } catch {}
+
+      // Fallback (may be blocked by CORS in some environments)
+      const res = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`);
+      const data = await res.json();
+      const ton = data?.ok && data?.result ? nanoToTon(data.result) : null;
+      walletDisconnectBalance.textContent = ton ? `${ton} TON` : '—';
+    } catch (e) {
+      console.warn('[Profile] Wallet balance error:', e);
+      walletDisconnectBalance.textContent = '—';
+    }
+  }
+
   function getWalletAddress() {
     return (
       window.WildTimeTonConnect?.getAddress?.() ||
@@ -233,6 +276,9 @@
   function openDisconnectModal(addr) {
     if (!walletDisconnectModal) return;
     if (walletDisconnectAddr) walletDisconnectAddr.textContent = shortAddr(addr || '—');
+    if (walletDisconnectCopy) walletDisconnectCopy.dataset.addr = addr || '';
+    // load actual TON wallet balance into modal
+    fetchTonWalletBalance(addr);
     walletDisconnectModal.hidden = false;
     haptic('light');
   }
@@ -316,6 +362,15 @@
         await doDisconnect();
         closeDisconnectModal();
         setTimeout(updateWalletUI, 150);
+      });
+    }
+
+    if (walletDisconnectCopy) {
+      walletDisconnectCopy.addEventListener('click', () => {
+        const addr = walletDisconnectCopy.dataset.addr || getWalletAddress();
+        if (!addr) return;
+        navigator.clipboard?.writeText(addr).catch(() => {});
+        haptic('light');
       });
     }
 
@@ -410,13 +465,12 @@
     } catch {}
   
     // локальный fallback
-    if (!serverOk) {
-      const local = readLocalInventory(userId);
-      const next = local.filter((it, idx) => itemKey(it, idx) !== key);
-      writeLocalInventory(userId, next);
-      addBalance(currency, value);
-      await postDeposit(value, currency, userId, 'inventory_sell_one');
-    }
+    // вместо локального fallback:
+      if (!serverOk) {
+        showToast('Sell failed: server not reachable');
+        return;
+}
+
   
     await loadInventory();
     haptic('medium');
@@ -480,11 +534,10 @@
       }
   
       if (action === 'sell') {
-        selection.clear();
-        selection.add(key);
-        await sellSelected(); // ✅ добавит баланс + удалит подарок (как ты просил)
+        await sellOne(key);
         return;
       }
+      
     });
   
     return dyn;
@@ -554,11 +607,10 @@
     if (sellBtn) {
       sellBtn.onclick = async () => {
         if (!modalItemKey) return;
-        selection.clear();
-        selection.add(modalItemKey);
-        await sellSelected();
+        await sellOne(modalItemKey);
         hideModal();
       };
+      
     }
 
     modal.hidden = false;
@@ -671,51 +723,45 @@
   // ====== SELL FLOW ======
   async function sellSelected() {
     const currency = getCurrency();
-    const user = getTelegramUser();
-    const userId = user.id;
-
+    const userId = getTelegramUser().id;
+  
     const dynActions = document.getElementById('profileInvActions');
     if (dynActions) dynActions.classList.add('loading');
-
+  
     try {
       if (!selection.size) return;
-
+  
       const items = lastInventory.slice();
       const keys = Array.from(selection);
+  
       const mapByKey = new Map(items.map((it, idx) => [itemKey(it, idx), it]));
       const toSell = keys.map(k => mapByKey.get(k)).filter(Boolean);
-
-      const total = toSell.reduce((s, it) => s + itemValue(it, currency), 0);
-
-      let serverOk = false;
-      try {
-        const r = await fetch('/api/inventory/sell', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, currency, itemKeys: keys, items: toSell, initData: tg?.initData || '' })
-        });
-        if (r.ok) {
-          const j = await r.json().catch(() => null);
-          if (j && j.ok === true) {
-            serverOk = true;
-            if (Array.isArray(j.items)) {
-              writeLocalInventory(userId, j.items);
-            }
-            if (typeof j.balance === 'number') {
-              setBalance(currency, j.balance);
-            }
-          }
-        }
-      } catch {}
-
-      if (!serverOk) {
-        const local = readLocalInventory(userId);
-        const next = local.filter((it, idx) => !selection.has(itemKey(it, idx)));
-        writeLocalInventory(userId, next);
-        addBalance(currency, total);
-        await postDeposit(total, currency, userId, 'inventory_sell');
+  
+      const instanceIds = toSell.map(it => String(it?.instanceId || '')).filter(Boolean);
+      if (!instanceIds.length) {
+        showToast('Sell error: instanceId not found');
+        return;
       }
-
+  
+      const r = await fetch('/api/inventory/sell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, currency, instanceIds })
+      });
+  
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        showToast(j?.error || 'Sell failed');
+        return;
+      }
+  
+      const left = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : []);
+      writeLocalInventory(userId, left);
+  
+      if (typeof j.newBalance === 'number') {
+        setBalance(currency, j.newBalance);
+      }
+  
       selection.clear();
       await loadInventory();
       haptic('medium');
@@ -723,54 +769,35 @@
       if (dynActions) dynActions.classList.remove('loading');
     }
   }
+  
 
   async function sellAll() {
     const currency = getCurrency();
-    const user = getTelegramUser();
-    const userId = user.id;
-
+    const userId = getTelegramUser().id;
+  
     const dynActions = document.getElementById('profileInvActions');
     if (dynActions) dynActions.classList.add('loading');
-
+  
     try {
-      const items = lastInventory.slice();
-      if (!items.length) return;
-
-      const keys = items.map((it, idx) => itemKey(it, idx));
-      selection.clear();
-      keys.forEach(k => selection.add(k));
-
-      const total = items.reduce((s, it) => s + itemValue(it, currency), 0);
-
-      let serverOk = false;
-      try {
-        const r = await fetch('/api/inventory/sell-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, currency, initData: tg?.initData || '' })
-        });
-        if (r.ok) {
-          const j = await r.json().catch(() => null);
-          if (j && j.ok === true) {
-            serverOk = true;
-            if (Array.isArray(j.items)) {
-              writeLocalInventory(userId, j.items);
-            } else {
-              writeLocalInventory(userId, []);
-            }
-            if (typeof j.balance === 'number') {
-              setBalance(currency, j.balance);
-            }
-          }
-        }
-      } catch {}
-
-      if (!serverOk) {
-        writeLocalInventory(userId, []);
-        addBalance(currency, total);
-        await postDeposit(total, currency, userId, 'inventory_sell_all');
+      if (!lastInventory.length) return;
+  
+      const r = await fetch('/api/inventory/sell-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, currency })
+      });
+  
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        showToast(j?.error || 'Sell-all failed');
+        return;
       }
-
+  
+      writeLocalInventory(userId, []);
+      if (typeof j.newBalance === 'number') {
+        setBalance(currency, j.newBalance);
+      }
+  
       selection.clear();
       await loadInventory();
       haptic('medium');
@@ -778,6 +805,7 @@
       if (dynActions) dynActions.classList.remove('loading');
     }
   }
+  
 
   // ====== LOAD INVENTORY ======
   async function loadInventory() {
