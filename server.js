@@ -202,9 +202,9 @@ loadInventoryStore();
 
 // Wheel configuration (must match wheel.js)
 const WHEEL_ORDER = [
-  'Wild Time','1x','3x','Loot Rush','1x','7x','50&50','1x',
-  '3x','11x','1x','3x','Loot Rush','1x','7x','50&50',
-  '1x','3x','1x','11x','3x','1x','7x','50&50'
+  'Wild Time','1x','1.5x','Loot Rush','1x','5x','50&50','1x',
+  '1.5x','11x','1x','1.5x','Loot Rush','1x','5x','50&50',
+  '1x','1.5x','1x','11x','1.5x','1x','5x','50&50'
 ];
 
 // --- Base settings

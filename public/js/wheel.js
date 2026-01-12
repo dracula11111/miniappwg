@@ -76,7 +76,7 @@ if (window.TEST_MODE) {
       // Обрабатываем в зависимости от типа сегмента
       const multipliers = {
         '1x': 1,
-        '3x': 3,
+        '1.5x': 1.5,
         '5x': 5,
         '11x': 11
       };
@@ -149,7 +149,7 @@ if (window.TEST_MODE) {
       
       const historyIcons = {
         '1.1x': '/images/history/1.1x_small.png',
-        '3x': '/images/history/3x_small.png',
+        '1.5x': '/images/history/1.5_small.png',
         '5x': '/images/history/5x_small.png',
         '11x': '/images/history/11x_small.png',
         '50&50': '/images/history/50-50_small.png',
@@ -228,14 +228,16 @@ if (window.TEST_MODE) {
 // ===== КОНЕЦ ПАТЧА =====
 
 const WHEEL_ORDER = [
-  '1.1x','3x','Loot Rush','1.1x','5x','50&50','1.1x',
-  '3x','11x','1.1x','3x','Loot Rush','1.1x','5x','50&50',
-  '1.1x','3x','1.1x','Wild Time','11x','3x','1.1x','5x','50&50'
+  '1.1x','1.5x','Loot Rush','1.1x','5x','50&50','1.1x',
+  '1.5x','11x','1.1x','1.5x','Loot Rush','1.1x','5x','50&50',
+  '1.1x','1.5x','1.1x','Wild Time','11x','1.5x','1.1x','5x','50&50'
 ];
 // ===== SEGMENT KEY NORMALIZER (compat with old keys) =====
 const SEGMENT_ALIAS = {
   '1.1x': '1.1x',
   '5x': '5x',
+  '3x': '1.5x',
+
 };
 
 function normSeg(s) {
@@ -245,7 +247,7 @@ function normSeg(s) {
 
 const COLORS = {
   '1.1x'       : { fill: '#6f6a00', text: '#fff' },
-  '3x'       : { fill: '#6e4200', text: '#fff' },
+  '1.5x'       : { fill: '#6e4200', text: '#fff' },
   '5x'       : { fill: '#0f5a2e', text: '#fff' },
   '11x'      : { fill: '#0a3f64', text: '#fff' },
   '50&50'    : { fill: '#d9197a', text: '#fff' },
@@ -255,7 +257,7 @@ const COLORS = {
 
 const IMAGES = {
   '1.1x'       : '/images/wheel/1.1x.webp',
-  '3x'       : '/images/wheel/3x.webp',
+  '1.5x'       : '/images/wheel/1.5x.webp',
   '5x'       : '/images/wheel/5x.webp',
   '11x'      : '/images/wheel/11x.webp',
   '50&50'    : '/images/wheel/50-50.webp',
@@ -279,7 +281,7 @@ const BONUS_TEXT_STYLE_DEFAULT = {
 };
 
 const LABELS = { 
-  '1.1x':'1.1×','3x':'3×','5x':'5×','11x':'11×',
+  '1.1x':'1.1×','1.5x':'1.5x','5x':'5×','11x':'11×',
   '50&50':'50&50','Loot Rush':'Loot','Wild Time':'Wild' 
 };
 
@@ -1420,7 +1422,7 @@ function checkBetsAndShowResult(resultType) {
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
-    '3x': 3,
+    '1.5x': 1.5,
     '5x': 5,
     '11x': 11,
     '50&50': 2,
@@ -1827,7 +1829,7 @@ function pushHistory(typeKey){
   
   const historyIcons = {
     '1.1x': '/images/history/1.1x_small.png',
-    '3x': '/images/history/3x_small.png',
+    '1.5x': '/images/history/1.5x_small.png',
     '5x': '/images/history/5x_small.png',
     '11x': '/images/history/11x_small.png',
     '50&50': '/images/history/50-50_small.png',
@@ -2142,7 +2144,7 @@ function showTestModeNotification() {
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
-    '3x': 3,
+    '1.5x': 1.5,
     '5x': 5,
     '11x': 11,
     '50&50': 2,
