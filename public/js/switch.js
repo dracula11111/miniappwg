@@ -299,7 +299,7 @@
             const amount = starsAmounts[index];
             btn.dataset.amount = amount;
             btn.innerHTML = `
-              <img src="/icons/stars.svg" alt="" class="amount-icon" />
+              <img src="/icons/tgStarsBlack.svg" alt="" class="amount-icon" />
               <span class="amount-value">${amount}</span>
             `;
           }

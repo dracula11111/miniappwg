@@ -1,0 +1,109 @@
+/* =========================
+   Tasks page
+   ========================= */
+
+   .tasks-page{
+    padding: 18px 16px 90px;
+  }
+  
+  .tasks-title{
+    font-size: 28px;
+    font-weight: 900;
+    color: rgba(255,255,255,.92);
+    text-align: center;
+    margin: 10px 0 6px;
+  }
+  
+  .tasks-subtitle{
+    text-align: center;
+    font-size: 14px;
+    font-weight: 650;
+    color: rgba(255,255,255,.55);
+    margin: 0 0 14px;
+  }
+  
+  .tasks-card{
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    padding: 10px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .task-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 10px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  
+  .task-left{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  
+  .task-icon{
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: rgba(255,255,255,0.08);
+  }
+  
+  .task-icon--blue{ background: rgba(46,166,255,0.18); }
+  .task-icon--green{ background: rgba(30,220,120,0.16); }
+  
+  .task-icon img{
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+  }
+  
+  .task-meta{
+    min-width: 0;
+  }
+  
+  .task-name{
+    font-size: 16px;
+    font-weight: 850;
+    color: rgba(255,255,255,.92);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .task-reward{
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255,255,255,.65);
+    font-size: 13px;
+    font-weight: 750;
+  }
+  
+  .task-btn{
+    border: 0;
+    cursor: pointer;
+    padding: 10px 16px;
+    border-radius: 14px;
+    font-weight: 900;
+    background: linear-gradient(180deg, #2EA6FF 0%, #187BFF 100%);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(46,166,255,0.22);
+  }
+  
+  .task-btn:active{ transform: translateY(1px); }
+  

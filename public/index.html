@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/css/components.css">
   <link rel="stylesheet" href="/css/wheel.css">
   <link rel="stylesheet" href="/css/cases.css">
+  <link rel="stylesheet" href="/css/tasks.css">
   <link rel="stylesheet" href="/css/profile.css">
   <link rel="stylesheet" href="/css/bonus.css">
 
@@ -126,65 +127,67 @@
       </section>
 
       <!-- ===== BET OVERLAY ===== -->
-      <section id="betOverlay" class="bet-overlay" aria-label="Betting panel">
-        <div class="bet-controls">
-          <!-- Кнопка очистки слева -->
-          <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
-            <img src="/icons/clear.svg" alt="" />
+      <section id="betOverlay" class="bet-overlay bet-overlay--redesign" aria-label="Betting panel">
+        <!-- Сетка лотов (большие картинки) + центральная колонка ставок -->
+        <div class="bet-grid bet-grid--redesign" role="grid" aria-label="Select segment">
+          <!-- ряд 1 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="1.1x">
+            <img class="bet-img" src="/images/bets/1.1x.webp" alt="1.1x" />
           </button>
-          
-          <!-- Суммы (центрированы) -->
-          <div class="bet-amounts" aria-label="Bet amount">
-            <button class="amount-btn" data-amount="0.1">
-              <img src="/icons/ton.svg" alt="" class="amount-icon" />
-              <span class="amount-value">0.1</span>
-            </button>
-            <button class="amount-btn" data-amount="0.5">
-              <img src="/icons/ton.svg" alt="" class="amount-icon" />
-              <span class="amount-value">0.5</span>
-            </button>
-            <button class="amount-btn" data-amount="1">
-              <img src="/icons/ton.svg" alt="" class="amount-icon" />
-              <span class="amount-value">1</span>
-            </button>
-            <button class="amount-btn" data-amount="2.5">
-              <img src="/icons/ton.svg" alt="" class="amount-icon" />
-              <span class="amount-value">2.5</span>
-            </button>
-          </div>
-         
-        </div>
 
-         
-      
-      <!-- Сетка лотов (большие картинки) -->
-      <div class="bet-grid" role="grid" aria-label="Select segment">
-        <!-- ряд 1 -->
-        <button class="bet-tile muted" role="gridcell" data-seg="1.1x">
-          <img class="bet-img" src="/images/bets/1.1x.webp" alt="1.1x" />
-        </button>
-        <button class="bet-tile muted" role="gridcell" data-seg="1.5x">
-          <img class="bet-img" src="/images/bets/1.5x.webp" alt="1.5x" />
-        </button>
-        <!-- ряд 2 -->
-        <button class="bet-tile muted" role="gridcell" data-seg="5x">
-          <img class="bet-img" src="/images/bets/5x.webp" alt="5x" />
-        </button>
-        <button class="bet-tile muted" role="gridcell" data-seg="11x">
-          <img class="bet-img" src="/images/bets/11x.webp" alt="11x" />
-        </button>
-        <!-- ряд 3 (бонусы) -->
-        <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
-          <img class="bet-img" src="/images/bets/50-50.webp" alt="50&50" />
-        </button>
-        <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
-          <img class="bet-img" src="/images/bets/loot.webp" alt="Loot Rush" />
-        </button>
-        <!-- ряд 4 (широкий бонус) -->
-        <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
-          <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
-        </button>
-      </div>
+          <button class="bet-tile muted" role="gridcell" data-seg="1.5x">
+            <img class="bet-img" src="/images/bets/1.5x.webp" alt="1.5x" />
+          </button>
+
+          <!-- ряд 2 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="5x">
+            <img class="bet-img" src="/images/bets/5x.webp" alt="5x" />
+          </button>
+
+          <button class="bet-tile muted" role="gridcell" data-seg="11x">
+            <img class="bet-img" src="/images/bets/11x.webp" alt="11x" />
+          </button>
+
+          <!-- ряд 3 (бонусы) -->
+          <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
+            <img class="bet-img" src="/images/bets/50-50.webp" alt="50&50" />
+          </button>
+
+          <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
+            <img class="bet-img" src="/images/bets/loot.webp" alt="Loot Rush" />
+          </button>
+
+          <!-- Центральная колонка: back/clear + суммы -->
+          <div class="bet-center bet-controls" role="presentation" aria-label="Bet controls">
+            <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
+              <img src="/icons/clear.svg" alt="" />
+            </button>
+
+            <div class="bet-amounts bet-amounts--stack" aria-label="Bet amount">
+              <button class="amount-btn" data-amount="0.1">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">0.1</span>
+              </button>
+              <button class="amount-btn" data-amount="0.5">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">0.5</span>
+              </button>
+              <button class="amount-btn" data-amount="1">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">1</span>
+              </button>
+              <button class="amount-btn" data-amount="2.5">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">2.5</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ряд 4 (широкий бонус) -->
+          <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
+            <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
+          </button>
+        </div>
       </section>
       </main>
 
@@ -254,8 +257,42 @@
 
 
 
-
-
+  <!-- ===== Tasks Page ===== -->
+  <main id="tasksPage" class="page">
+    <section class="tasks-page" aria-label="Tasks">
+      <h1 class="tasks-title">Tasks</h1>
+      <p class="tasks-subtitle">Complete easy tasks to earn tickets. Use tickets to open free cases!</p>
+  
+      <div class="tasks-card">
+        <div class="task-row">
+          <div class="task-left">
+            <div class="task-icon task-icon--blue">
+              <img src="/icons/tasks.svg" alt="">
+            </div>
+            <div class="task-meta">
+              <div class="task-name">Text 1</div>
+              <div class="task-reward"><span class="task-reward-icon">🎟️</span><span class="task-reward-num">1</span></div>
+            </div>
+          </div>
+          <button class="task-btn" type="button">Start</button>
+        </div>
+  
+        <div class="task-row">
+          <div class="task-left">
+            <div class="task-icon task-icon--green">
+              <img src="/icons/cases.svg" alt="">
+            </div>
+            <div class="task-meta">
+              <div class="task-name">Text 2</div>
+              <div class="task-reward"><span class="task-reward-icon">🎟️</span><span class="task-reward-num">1</span></div>
+            </div>
+          </div>
+          <button class="task-btn" type="button">Start</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  
 
 
 
@@ -361,7 +398,14 @@
         <img src="/icons/cases.svg" alt="" class="nav-icon" />
         <span class="nav-label">Cases</span>
       </button>
+      <button class="nav-item" data-target="tasksPage" aria-label="Tasks">
+        <img src="/icons/tasks.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Tasks</span>
+      </button>
+      
+      
      
+
       
       <button class="nav-item" data-target="profilePage" aria-label="Profile">
         <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
@@ -667,3 +711,8 @@
   
 </body>
 </html>
+
+  
+
+
+     

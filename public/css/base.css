@@ -136,3 +136,28 @@
     button img, button svg, a img, a svg {
       pointer-events: none;
     }
+
+
+
+               /* ===========================
+                       OTHER PAGES
+              =========================== */
+              .page{ 
+                display:none; 
+              }
+              .page-active, .page.page-active{ 
+                display:block; 
+              }
+              .coming{
+                margin:18px; 
+                padding:16px; 
+                text-align:center;
+                background:var(--panel); 
+                border:1px solid var(--border); 
+                border-radius:14px; 
+                color:var(--muted);
+              }
+              
+              
+      
+      

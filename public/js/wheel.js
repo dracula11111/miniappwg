@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 // Если TEST_MODE включен, экспортируем дополнительные функции
@@ -75,7 +75,7 @@ if (window.TEST_MODE) {
       
       // Обрабатываем в зависимости от типа сегмента
       const multipliers = {
-        '1x': 1,
+        '1.1x': 1.1,
         '1.5x': 1.5,
         '5x': 5,
         '11x': 11
@@ -139,6 +139,8 @@ if (window.TEST_MODE) {
       this.addToHistory(segmentName);
     },
     
+
+    
     // Добавление в историю
     addToHistory: function(segmentName) {
       const historyList = document.getElementById('historyList');
@@ -149,7 +151,7 @@ if (window.TEST_MODE) {
       
       const historyIcons = {
         '1.1x': '/images/history/1.1x_small.png',
-        '1.5x': '/images/history/1.5_small.png',
+        '1.5x': '/images/history/1.5x_small.png',
         '5x': '/images/history/5x_small.png',
         '11x': '/images/history/11x_small.png',
         '50&50': '/images/history/50-50_small.png',
@@ -236,8 +238,6 @@ const WHEEL_ORDER = [
 const SEGMENT_ALIAS = {
   '1.1x': '1.1x',
   '5x': '5x',
-  '3x': '1.5x',
-
 };
 
 function normSeg(s) {
@@ -411,9 +411,6 @@ let currentCurrency = 'ton';
 let lastRoundResult = null;
 let bettingLocked = false;
 
-
-// Tracks in-flight debits so быстрые клики не позволяли уйти в минус до ответа сервера
-const pendingDebit = { ton: 0, stars: 0 };
 /* ===== 🔥 TEST MODE BALANCE ===== */
 function initTestModeBalance() {
   if (!TEST_MODE) return;
@@ -445,168 +442,40 @@ function initTestModeBalance() {
   console.log('[Wheel] ✅ Test balance set:', userBalance);
 }
 
-
-//Sync Balance 
-let currentWheelRoundId = null;
-
-async function syncBalanceDelta(delta, currency, type, extra = {}) {
-  try {
-    const tg = window.Telegram?.WebApp;
-    const userId = tg?.initDataUnsafe?.user?.id;
-
-    if (!userId) {
-      console.warn('[Wheel] No Telegram userId, cannot sync');
-      return { ok: false, error: 'NO_USER' };
-    }
-
-    const initData = tg?.initData || '';
-    const depositId = `${type}_${userId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-    // Normalize amounts
-    const amt = (currency === 'stars')
-      ? Math.round(Number(delta))
-      : Math.round(Number(delta) * 100) / 100;
-
-    const resp = await fetch('/api/deposit-notification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: amt,
-        currency,
-        userId,
-        initData,
-        depositId,
-        type,
-        roundId: extra.roundId || currentWheelRoundId || undefined,
-        notify: false
-      })
-    });
-
-    const data = await resp.json().catch(() => ({}));
-
-    if (!resp.ok || data.ok === false) {
-      console.error('[Wheel] Balance sync failed:', data);
-      return { ok: false, error: data.error || data.details || 'SYNC_FAILED', data };
-    }
-
-    // Apply returned balance immediately (SSE will also broadcast, but we update instantly for UI)
-    if (data.newBalance !== undefined) {
-      if (currency === 'ton') userBalance.ton = parseFloat(data.newBalance) || 0;
-      if (currency === 'stars') userBalance.stars = parseInt(data.newBalance, 10) || 0;
-
-      window.dispatchEvent(new CustomEvent('balance:update', {
-        detail: { ton: userBalance.ton, stars: userBalance.stars }
-      }));
-    }
-
-    return { ok: true, newBalance: data.newBalance, data };
-  } catch (e) {
-    console.error('[Wheel] Balance sync error:', e);
-    return { ok: false, error: 'EXCEPTION', details: String(e?.message || e) };
+/* ===== 🔥 DEDUCT BET AMOUNT ===== */
+function deductBetAmount(amount, currency) {
+  if (!TEST_MODE) return;
+  
+  console.log('[Wheel] 💸 Deducting bet:', amount, currency);
+  
+  if (currency === 'ton') {
+    userBalance.ton = Math.max(0, userBalance.ton - amount);
+  } else {
+    userBalance.stars = Math.max(0, userBalance.stars - amount);
   }
-}
-
-/**
- * PROD: списываем ставку один раз перед спином через /api/round/place-bet (там есть серверная проверка баланса).
- * TEST: списываем на каждый клик по плитке.
- */
-async function placeBetsOnServer() {
-  try {
-    const tg = window.Telegram?.WebApp;
-    const initData = tg?.initData || '';
-
-    if (!initData) {
-      console.warn('[Wheel] No initData, cannot place bet');
-      return { ok: false, error: 'NO_INITDATA' };
-    }
-
-    const bets = Object.fromEntries(
-      Array.from(betsMap.entries())
-        .filter(([_, v]) => Number(v) > 0)
-        .map(([k, v]) => [k, (currentCurrency === 'stars') ? Math.round(v) : (Math.round(Number(v) * 100) / 100)])
-    );
-
-    const total = Object.values(bets).reduce((s, v) => s + (Number(v) || 0), 0);
-    if (total <= 0) return { ok: true, skipped: true };
-
-    const roundId = `wheel_${Date.now()}`;
-    currentWheelRoundId = roundId;
-
-    const resp = await fetch('/api/round/place-bet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bets,
-        currency: currentCurrency,
-        roundId,
-        initData
-      })
-    });
-
-    const data = await resp.json().catch(() => ({}));
-
-    if (!resp.ok || data.ok === false) {
-      console.error('[Wheel] place-bet failed:', data);
-      currentWheelRoundId = null;
-      return { ok: false, error: data.error || data.details || 'PLACE_BET_FAILED', data };
-    }
-
-    // Update balance immediately
-    if (data.balance) {
-      userBalance.ton = parseFloat(data.balance.ton) || 0;
-      userBalance.stars = parseInt(data.balance.stars, 10) || 0;
-      window.dispatchEvent(new CustomEvent('balance:update', {
-        detail: { ton: userBalance.ton, stars: userBalance.stars }
-      }));
-    }
-
-    return { ok: true, roundId, betId: data.betId, totalAmount: data.totalAmount, data };
-  } catch (e) {
-    console.error('[Wheel] placeBetsOnServer error:', e);
-    currentWheelRoundId = null;
-    return { ok: false, error: 'EXCEPTION', details: String(e?.message || e) };
-  }
+  
+  updateTestBalance();
 }
 
 
-async function deductBetAmount(amount, currency) {
-  // normalize
-  const amt = (currency === 'stars')
-    ? Math.round(Number(amount))
-    : (Math.round(Number(amount) * 100) / 100);
 
-  if (TEST_MODE) {
-    if (currency === 'ton') userBalance.ton = Math.max(0, userBalance.ton - amt);
-    else userBalance.stars = Math.max(0, userBalance.stars - amt);
-    updateTestBalance();
-    return true;
+
+/* =====  ADD WIN AMOUNT ===== */
+function addWinAmount(amount, currency) {
+  if (!TEST_MODE) return;
+  
+  console.log('[Wheel] 💰 Adding win:', amount, currency);
+  
+  if (currency === 'ton') {
+    userBalance.ton += amount;
+  } else {
+    userBalance.stars += amount;
   }
-
-  const r = await syncBalanceDelta(-amt, currency, 'wheel_bet', { roundId: currentWheelRoundId });
-  if (!r.ok) return false;
-  return true;
+  
+  updateTestBalance();
 }
 
-async function addWinAmount(amount, currency) {
-  const amt = (currency === 'stars')
-    ? Math.round(Number(amount))
-    : (Math.round(Number(amount) * 100) / 100);
 
-  if (TEST_MODE) {
-    if (currency === 'ton') userBalance.ton += amt;
-    else userBalance.stars += amt;
-    updateTestBalance();
-    return true;
-  }
-
-  const r = await syncBalanceDelta(amt, currency, 'wheel_win', { roundId: currentWheelRoundId });
-  if (!r.ok) return false;
-  return true;
-}
-
-// чтобы бонусы тоже могли использовать
-window.addWinAmount = addWinAmount;
-window.deductBetAmount = deductBetAmount;
 
 
 /* =====  UPDATE TEST BALANCE UI ===== */
@@ -688,8 +557,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   historyList  = document.getElementById('historyList');
   countdownBox = document.getElementById('countdown');
   countNumEl   = document.getElementById('countNum') || countdownBox?.querySelector('span');
-  amountBtns   = Array.from(document.querySelectorAll('.amount-btn'));
-  betTiles     = Array.from(document.querySelectorAll('.bet-tile'));
+  // Берём элементы ставок только из оверлея (чтобы не цеплять элементы с других страниц)
+  const __betScope = betOverlay || document;
+  amountBtns = Array.from(__betScope.querySelectorAll('.amount-btn'));
+  betTiles   = Array.from(__betScope.querySelectorAll('.bet-tile'));
 
   if (!canvas) return;
 
@@ -850,29 +721,33 @@ window.updateCurrentAmount = function(amount) {
   console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
 };
 
-
-
+/* ===== Betting UI ===== */
 /* ===== Betting UI ===== */
 function initBettingUI(){
-  // Amount buttons
+  // ===== AMOUNT BUTTONS WITH SELECTION HIGHLIGHT =====
   amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       if (phase !== 'betting') return;
       
-      amountBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      // Убираем selected со всех кнопок
+      amountBtns.forEach(b => {
+        b.classList.remove('selected');
+        b.removeAttribute('data-selected');
+      });
+      
+      // Добавляем selected к текущей кнопке
+      btn.classList.add('selected');
+      btn.setAttribute('data-selected', 'true');
+      
       currentAmount = parseFloat(btn.dataset.amount);
       
       console.log('[Wheel] 🎯 Amount selected:', currentAmount, currentCurrency);
     });
   });
 
-
-
-
   // Balance events
   window.addEventListener('balance:loaded', (e) => {
-    if (TEST_MODE) return; // Skip in test mode
+    if (TEST_MODE) return;
     
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
@@ -882,7 +757,7 @@ function initBettingUI(){
   });
 
   window.addEventListener('balance:update', (e) => {
-    if (TEST_MODE && !e.detail._testMode) return; // Skip external updates in test mode
+    if (TEST_MODE && !e.detail._testMode) return;
     
     if (e.detail) {
       if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
@@ -890,9 +765,6 @@ function initBettingUI(){
       console.log('[Wheel] Balance updated:', userBalance);
     }
   });
-
-
-
 
   // Currency change
   window.addEventListener('currency:changed', (e) => {
@@ -911,86 +783,70 @@ function initBettingUI(){
     }
   });
 
-
-
-
-  // 🔥 BET TILES (balance снимаем сразу при клике)
-betTiles.forEach(tile => {
-  tile.addEventListener('click', async () => {
-    if (bettingLocked) {
-      console.log('[Wheel] ⛔ Betting locked - waiting for history update');
-      tile.classList.add('insufficient-balance');
-      setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
-      return;
-    }
-
-    if (phase !== 'betting') return;
-
-    const seg = normSeg(tile.dataset.seg);
-    const cur = betsMap.get(seg) || 0;
-
-    // ✅ Balance check (учитываем pendingDebit, чтобы спам кликов не уходил в минус до ответа сервера)
-    const balance = userBalance[currentCurrency] || 0;
-    const remaining = balance - (pendingDebit[currentCurrency] || 0);
-
-    if (remaining < currentAmount) {
-      tile.classList.add('insufficient-balance');
-      setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
-      showInsufficientBalanceNotification();
-      return;
-    }
-
-    // 🔒 фиксируем "pending" пока ждём ответ сервера
-    pendingDebit[currentCurrency] = (pendingDebit[currentCurrency] || 0) + currentAmount;
-
-    const ok = await deductBetAmount(currentAmount, currentCurrency);
-
-    pendingDebit[currentCurrency] = Math.max(0, (pendingDebit[currentCurrency] || 0) - currentAmount);
-
-    if (!ok) {
-      // сервер отказал (например, баланс уже изменился в другом месте)
-      tile.classList.add('insufficient-balance');
-      setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
-      showInsufficientBalanceNotification();
-      return;
-    }
-
-    // ✅ Add bet to UI only after successful debit
-    const next = currentCurrency === 'stars'
-      ? Math.round(cur + currentAmount)
-      : +(cur + currentAmount).toFixed(2);
-
-    betsMap.set(seg, next);
-    setBetPill(tile, seg, next, currentCurrency);
-
-    tile.classList.add('has-bet');
-    setTimeout(() => tile.classList.remove('active'), 160);
-  });
-});
-// Clear bets (возврат денег, т.к. списание теперь на каждый клик)
-const clearBtn = document.querySelector('[data-action="clear"]');
-if (clearBtn) {
-  clearBtn.addEventListener('click', async () => {
-    if (phase !== 'betting') return;
-
-    const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + (Number(val) || 0), 0);
-
-    if (totalBets > 0) {
-      const ok = await addWinAmount(totalBets, currentCurrency);
-      if (!ok) {
-        console.warn('[Wheel] ❌ Refund failed, keep bets as-is');
+  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
+  betTiles.forEach(tile => {
+    tile.addEventListener('click', () => {
+      if (bettingLocked) {
+        console.log('[Wheel] ⛔ Betting locked - waiting for history update');
+        tile.classList.add('insufficient-balance');
+        setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
         return;
       }
-      console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
-    }
+      
+      if (phase !== 'betting') return;
+      
+      const seg = normSeg(tile.dataset.seg);
 
-    pendingDebit.ton = 0;
-    pendingDebit.stars = 0;
-    clearBets();
+      const cur = betsMap.get(seg) || 0;
+      
+      // 🔥 Balance check (works in test mode too!)
+      const balance = userBalance[currentCurrency] || 0;
+      
+      if (balance < currentAmount) {
+        tile.classList.add('insufficient-balance');
+        setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
+        showInsufficientBalanceNotification();
+        return;
+      }
+
+      // ✅ Add bet
+      const next = currentCurrency === 'stars' 
+        ? Math.round(cur + currentAmount)
+        : +(cur + currentAmount).toFixed(2);
+      betsMap.set(seg, next);
+
+      // 🔥 Deduct balance immediately in test mode
+      if (TEST_MODE) {
+        deductBetAmount(currentAmount, currentCurrency);
+      }
+
+      setBetPill(tile, seg, next, currentCurrency);
+
+      tile.classList.add('has-bet');
+      setTimeout(() => tile.classList.remove('active'), 160);
+    });
   });
-}
-}
 
+  // Clear bets
+  const clearBtn = (betOverlay || document).querySelector('[data-action="clear"]');
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (phase !== 'betting') return;
+      
+      // 🔥 Refund bets in test mode
+      if (TEST_MODE) {
+        const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+        if (totalBets > 0) {
+          addWinAmount(totalBets, currentCurrency);
+          console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
+        }
+      }
+      
+      clearBets();
+    });
+  }
+}
 
 
 
@@ -1391,9 +1247,7 @@ function checkBetsAndShowResult(resultType) {
   
   if (betOnResult > 0) {
     const multiplier = getMultiplier(resultType);
-    let winAmount = betOnResult * multiplier;
-    if (currentCurrency === 'stars') winAmount = Math.round(winAmount);
-    else winAmount = Math.round(winAmount * 100) / 100;
+    const winAmount = betOnResult * multiplier;
     
     console.log('[Wheel] 🎉 WIN!', {
       result: resultType,
@@ -1405,9 +1259,9 @@ function checkBetsAndShowResult(resultType) {
     });
     
     // 🔥 Add win to balance in test mode
-    
+    if (TEST_MODE) {
       addWinAmount(winAmount, currentCurrency);
-    
+    }
     
     showWinNotification(winAmount);
   } else {
@@ -1566,10 +1420,6 @@ function startCountdown(sec=9){
   if (isCountdownActive) return;
 
   stopCountdown();
-  // New round id (used in tx metadata for wheel_bet / wheel_win)
-  currentWheelRoundId = `wheel_${Date.now()}`;
-  pendingDebit.ton = 0;
-  pendingDebit.stars = 0;
   isCountdownActive = true;
   setPhase('betting');
   setOmega(IDLE_OMEGA);
@@ -1596,8 +1446,6 @@ function startCountdown(sec=9){
       if (countdownBox) {
         countdownBox.classList.remove('visible');
       }
-
-      // ✅ Bets are debited on each click now (no server commit at round start)
 
       setPhase('accelerate');
       setBetPanel(false);
@@ -1776,20 +1624,26 @@ function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInQuad(t){ return t*t; }
 
 /* ===== Bet panel modes ===== */
-function setBetPanel(enable){
-  if (!betOverlay) return;
+function setBetPanel(enabled){
+  // betOverlay может быть объявлен выше
+  const overlay = (typeof betOverlay !== 'undefined' && betOverlay)
+    ? betOverlay
+    : document.querySelector('.bet-overlay');
+
+  if (overlay) overlay.classList.toggle('disabled', !enabled);
+
   const app = document.querySelector('.app');
-  
-  if (enable){
-    betOverlay.classList.remove('disabled');
-    betOverlay.style.pointerEvents = 'auto';
-    if (app) app.classList.remove('is-spinning');
-  } else {
-    betOverlay.classList.add('disabled');
-    betOverlay.style.pointerEvents = 'none';
-    if (app) app.classList.add('is-spinning');
+  if (app){
+    // Ставки открыты → панель поднимается (is-betting)
+    app.classList.toggle('is-betting', !!enabled);
+    // Раунд крутится → панель опускается/темнеет (is-spinning)
+    app.classList.toggle('is-spinning', !enabled);
   }
+
+  // Лочим скролл только во время фазы ставок (чтобы не нужно было скроллить вниз)
+  document.body.classList.toggle('wheel-lock', !!enabled);
 }
+
 
 /* ===== 🔥 HISTORY - ONLY ON WHEEL PAGE ===== */
 function checkHistoryVisibility() {
@@ -1994,22 +1848,24 @@ if (!document.getElementById('wheel-animations')) {
 
 
 // Export functions for bonus
-// Export functions for bonus (WORKS in PROD + TEST)
 window.WheelGame = window.WheelGame || {};
-
 window.WheelGame.addWinAmount = function(amount, currency) {
-  // вызываем основную функцию, она сама решит TEST/PROD
-  if (typeof addWinAmount === 'function') return addWinAmount(amount, currency);
-  if (typeof window.addWinAmount === 'function') return window.addWinAmount(amount, currency);
-
-  console.warn('[WheelGame] addWinAmount not found');
-};
-
-window.WheelGame.deductBetAmount = function(amount, currency) {
-  if (typeof deductBetAmount === 'function') return deductBetAmount(amount, currency);
-  if (typeof window.deductBetAmount === 'function') return window.deductBetAmount(amount, currency);
-
-  console.warn('[WheelGame] deductBetAmount not found');
+  if (window.TEST_MODE) {
+    if (currency === 'ton') {
+      window.userBalance.ton += amount;
+    } else {
+      window.userBalance.stars += amount;
+    }
+    
+    // Update UI
+    window.dispatchEvent(new CustomEvent('balance:update', {
+      detail: { 
+        ton: window.userBalance.ton, 
+        stars: window.userBalance.stars,
+        _testMode: true
+      }
+    }));
+  }
 };
 
 window.WheelGame.getCurrentCurrency = function() {
@@ -2144,7 +2000,7 @@ function showTestModeNotification() {
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
-    '1.5x': 1.5,
+    '1.5': 1.5,
     '5x': 5,
     '11x': 11,
     '50&50': 2,
@@ -2229,8 +2085,8 @@ function getMultiplier(type) {
               try { showWinNotification(winAmount); } catch (_) {}
             }
 
-            // Баланс 
-            if (typeof addWinAmount === 'function')  {
+            // Баланс (в этом проекте addWinAmount работает в TEST_MODE)
+            if (window.TEST_MODE && typeof addWinAmount === 'function') {
               try { addWinAmount(winAmount, currentCurrency); } catch (_) {}
             }
           }

@@ -10,7 +10,7 @@
   }
     #wheelCanvas{
       display:block;
-      width:min(92vw, 420px); 
+      width:min(92vw, 420px, 44vh); 
       height:auto;
       margin:0 auto; 
       border-radius:50%;
@@ -21,6 +21,12 @@
       inset 0 0 40px rgba(0,0,0,.35),
       0 0 24px rgba(21,32,51,.4);
     }
+
+@supports (height: 1svh){
+  #wheelCanvas{
+    width:min(92vw, 420px, 44svh);
+  }
+}
 
     /* Pointer */
     .pointer{
@@ -149,8 +155,8 @@
   }
   }
       /* ===========================
-   BET PILLS - Color-coded by segment
-   =========================== */
+       BET PILLS - Color-coded by segment
+      =========================== */
 .bet-pill {
   position: absolute;
   top: 8px;
@@ -161,7 +167,7 @@
   padding: 6px 10px;
   border-radius: 999px;
   font-weight: 900;
-  font-size: 13px;
+  font-size: 12px;
   backdrop-filter: blur(8px);
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.3),
@@ -181,6 +187,11 @@
   flex-shrink: 0;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
+
+
+
+
+
 
 /* Segment-specific colors (matching wheel sectors) */
 .bet-pill[data-segment="1.1x"] {
@@ -419,8 +430,8 @@
 }
 
 .clear-bets-btn img {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) hue-rotate(335deg) brightness(100%) contrast(92%);
   opacity: 0.9;
 }
@@ -437,6 +448,177 @@
   gap: 12px;
   padding: 4px 4px 0;
 }
+
+/* ===========================
+   BET PANEL — REDESIGN (компактно, без скролла)
+   3 колонки: слева/центр/справа + нижний широкий бонус
+   ВАЖНО: центр НЕ должен раздувать высоту рядов — уменьшаем размеры
+   =========================== */
+
+
+.bet-overlay--redesign{
+  /* компактнее отступы */
+  padding: 4px 10px 10px;
+
+  /* размеры (адаптивно) */
+  --bet-gap: clamp(6px, 1.1vw, 9px);
+  --center-w: clamp(58px, 15vw, 78px);
+
+  /* высоты элементов панели */
+  --tile-h: clamp(50px, 7.6vh, 70px);
+  --wild-h: clamp(56px, 8.8vh, 82px);
+
+  /* центр: считаем так, чтобы он гарантированно помещался в высоту 3-х рядов */
+  --center-h: calc(3 * var(--tile-h) + 2 * var(--bet-gap));
+  --clear-h: clamp(38px, 5.2vh, 48px);
+  --chip-h: calc((var(--center-h) - var(--clear-h) - 4 * var(--bet-gap)) / 4);
+}
+
+
+.bet-grid.bet-grid--redesign{
+  grid-template-columns: minmax(0,1fr) var(--center-w) minmax(0,1fr);
+  grid-template-areas:
+    "left1 center right1"
+    "left2 center right2"
+    "left3 center right3"
+    "wild  wild  wild";
+  gap: var(--bet-gap);
+  align-items: center;
+  padding: 2px 2px 0;
+}
+
+/* Сбрасываем поведение .wide (раньше span 2 для 2-х колонок) */
+.bet-grid--redesign .bet-tile.wide{ 
+  grid-column: auto;
+}
+
+/* Раскладка по зонам */
+.bet-grid--redesign .bet-tile[data-seg="1.1x"]{ grid-area: left1; }
+.bet-grid--redesign .bet-tile[data-seg="1.5x"]{ grid-area: right1; }
+.bet-grid--redesign .bet-tile[data-seg="5x"]{ grid-area: left2; }
+.bet-grid--redesign .bet-tile[data-seg="11x"]{ grid-area: right2; }
+.bet-grid--redesign .bet-tile[data-seg="50&50"]{ grid-area: left3; }
+.bet-grid--redesign .bet-tile[data-seg="Loot Rush"]{ grid-area: right3; }
+.bet-grid--redesign .bet-tile[data-seg="Wild Time"]{ 
+  grid-area: wild;
+  justify-self: center;
+  width: min(100%, 520px);
+}
+
+/* Центральная колонка */
+.bet-grid--redesign .bet-center{
+  grid-area: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--bet-gap);
+  padding: 0;
+  height: var(--center-h);
+  min-height: 0;
+}
+
+/* Ставки вертикально */
+.bet-overlay--redesign .bet-amounts.bet-amounts--stack{
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--bet-gap);
+  padding: 0;
+  min-height: 0;
+}
+
+/* Делаем элементы центра по ширине колонки */
+.bet-overlay--redesign .bet-center > .clear-bets-btn,
+.bet-overlay--redesign .bet-center .amount-btn{
+  width: 100%;
+}
+
+/* Высота/типографика для компактности */
+.bet-overlay--redesign .amount-btn{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: var(--chip-h);
+  min-width: unset;
+  padding: 1px 4px;
+  border-radius: 14px;
+  gap: 0px;
+  background: rgba(14, 19, 29, 0.78);
+  border: 1px solid rgba(0, 166, 255, 0.22);
+  box-shadow:
+    0 10px 20px rgba(0,0,0,.32),
+    inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+.bet-overlay--redesign .amount-icon{
+  width: 12px;
+  height: 12px;
+}
+
+.bet-overlay--redesign .amount-value{
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* Верхняя кнопка (back/clear) в центре */
+.bet-overlay--redesign .clear-bets-btn{
+  width: 7px;
+  height: 40px;
+  background: rgba(255, 77, 79, 0.10);
+  border: 1px solid rgba(255, 77, 79, 0.22);
+  box-shadow:
+    0 12px 26px rgba(0,0,0,.38),
+    inset 0 1px 0 rgba(255,255,255,.07);
+}
+
+.bet-overlay--redesign .clear-bets-btn img{
+  width: 20px;
+  height: 20px;
+}
+
+
+
+.bet-overlay--redesign .bet-tile.wide{
+  height: var(--wild-h);
+  padding: 4px;
+}
+
+/* Картинки заполняют плитку по высоте */
+.bet-overlay--redesign .bet-tile > img.bet-img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+/* Убираем лишний “подъём” на мобиле (экономим место) */
+@media (hover: none){
+  .bet-overlay--redesign .bet-tile:hover{ transform: none; }
+}
+
+/* Доп. ужатие по высоте (маленькие экраны) */
+@media (max-height: 720px){
+  .bet-overlay--redesign{
+    --tile-h: clamp(48px, 7.4vh, 66px);
+    --wild-h: clamp(52px, 8.6vh, 78px);
+    --clear-h: clamp(36px, 5.0vh, 44px);
+    --bet-gap: clamp(5px, 1.0vw, 8px);
+  }
+}
+
+@media (max-height: 560px){
+  .bet-overlay--redesign{
+    --tile-h: 44px;
+    --wild-h: 54px;
+    --clear-h: 34px;
+    --bet-gap: 5px;
+  }
+  .bet-overlay--redesign .amount-icon{ width: 11px; height: 11px; }
+  .bet-overlay--redesign .amount-value{ font-size: 10px; }
+}
+
 
 .bet-tile {
   position: relative;
@@ -626,40 +808,378 @@
     gap: 4px;
   }
 }
+/* REDESIGN: NO BACKPLATES (оставляем только картинки) */
+
+/* Убираем «тёмные карточки»/рамки у всех ставок в редизайне */
+.bet-overlay--redesign .bet-tile{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  overflow: visible !important; /* не режем свечение на картинках */
+  filter: none !important;      /* убираем muted/bonus фильтры */
+  transform: none !important;
+}
+
+/* Отключаем внутреннее свечение/подложку через псевдоэлемент */
+.bet-overlay--redesign .bet-tile::before{
+  display: none !important;
+}
+
+/* Картинки ровно как есть (без скейла/рамок) */
+.bet-overlay--redesign .bet-tile > img.bet-img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+/* На ховере/тапе ничего не подпрыгивает */
+.bet-overlay--redesign .bet-tile:hover,
+.bet-overlay--redesign .bet-tile:active{
+  transform: none !important;
+}
+
+/* На всякий случай: глушим бонусные свечения, чтобы не было второго «кольца» */
+.bet-overlay--redesign .bet-tile.bonus,
+.bet-overlay--redesign .bet-tile.bonus:hover{
+  box-shadow: none !important;
+}
 
 
 
+/* Fix: Wild Time wrapper был во всю строку (прозрачный), поэтому bet-pill улетал вправо.
+   Сжимаем кнопку Wild Time по ширине картинки. */
+
+   .bet-overlay--redesign .bet-grid--redesign .bet-tile[data-seg="Wild Time"]{
+    width: fit-content !important;
+    max-width: 100% !important;
+    justify-self: center;
+    align-self: center;
+  }
+  
+  /* Переопределяем global img{width:100%} только внутри Wild Time */
+  .bet-overlay--redesign .bet-grid--redesign .bet-tile[data-seg="Wild Time"] > img.bet-img{
+    width: auto !important;
+    height: 100% !important;
+    max-width: min(520px, 92vw) !important;
+    object-fit: contain;
+  }
+  
 
 
+/* =========================================================
+   BET AMOUNTS (CENTER COLUMN): pill like refs
+   TON -> blue pill with ton.svg
+   STARS -> yellow pill with tgStarBlack.svg (ONLY HERE)
+   ========================================================= */
 
+/* Анимация пульса для свечения */
+@keyframes pillGlow {
+  0%, 100% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 20px rgba(26, 168, 255, 0.3),
+      inset 0 0 20px rgba(26, 168, 255, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 40px rgba(26, 168, 255, 0.5),
+      inset 0 0 30px rgba(26, 168, 255, 0.2);
+  }
+}
 
+@keyframes starsGlow {
+  0%, 100% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 20px rgba(255, 208, 74, 0.4),
+      inset 0 0 20px rgba(255, 208, 74, 0.15);
+  }
+  50% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 40px rgba(255, 208, 74, 0.6),
+      inset 0 0 30px rgba(255, 208, 74, 0.25);
+  }
+}
 
+@keyframes buttonShine {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
 
-              /* ===========================
-                       OTHER PAGES
-              =========================== */
-        .page{ 
-          display:none; 
-        }
-        .page-active, .page.page-active{ 
-          display:block; 
-        }
-        .coming{
-          margin:18px; 
-          padding:16px; 
-          text-align:center;
-          background:var(--panel); 
-          border:1px solid var(--border); 
-          border-radius:14px; 
-          color:var(--muted);
-        }
-        
-        
+/* База для кнопок сумм (только в редизайне, центр-колонка) */
+.bet-overlay--redesign .bet-center .amount-btn {
+  position: relative;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
 
+  height: var(--chip-h) !important;
+  width: 50% !important;
 
+  padding: 0 44px 0 17px !important; /* справа место под иконку */
 
-    
+  border-radius: 9999px !important;
 
+  border: 2px solid rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35) !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  background: #1aa8ff; /* дефолт под TON */
+  
+  /* Плавные переходы */
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  cursor: pointer !important;
+  
+  /* Дефолтное свечение */
+  animation: pillGlow 3s ease-in-out infinite;
+}
 
+/* Текст значения (крупно как на рефе) */
+/* Текст — центрирован и не заезжает на иконку */
+.bet-overlay--redesign .bet-center .amount-value {
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
 
-       
+  display: block !important;
+  flex: 1 !important;
+  text-align: center !important;
+  padding-right: 5px !important; /* отступ чтобы не заезжал на иконку */
+
+  font-weight: 900 !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+
+  font-variant-numeric: tabular-nums; /* чтобы 1/5/10/25 не прыгали по ширине */
+  color: #fff !important;
+  
+  position: relative !important;
+  z-index: 2 !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Иконка (справа) */
+.bet-overlay--redesign .bet-center .amount-icon {
+  position: absolute !important;
+  right: 5px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+
+  width: 20px !important;
+  height: 20px !important;
+  filter: none !important;
+  
+  transition: all 0.3s ease !important;
+  z-index: 2 !important;
+}
+
+/* ===== HOVER ЭФФЕКТЫ ===== */
+.bet-overlay--redesign .bet-center .amount-btn:hover {
+  transform: translateY(-4px) scale(1.05) !important;
+  animation: pillGlow 1.5s ease-in-out infinite !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:hover .amount-icon {
+  filter: brightness(1.3) !important;
+  transform: translateY(-50%) scale(1.2) rotate(10deg) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:hover .amount-value {
+  transform: scale(1.1) !important;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Блеск на hover */
+.bet-overlay--redesign .bet-center .amount-btn:hover::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.3), 
+    transparent) !important;
+  animation: buttonShine 0.6s !important;
+  z-index: 1 !important;
+}
+
+/* ===== ACTIVE (нажатие) ===== */
+.bet-overlay--redesign .bet-center .amount-btn:active {
+  transform: translateY(-2px) scale(0.98) !important;
+  animation: pillGlow 0.8s ease-in-out infinite !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:active::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%) !important;
+  animation: none !important;
+  z-index: 1 !important;
+}
+
+/* Нажатие без "прыжков" */
+.bet-overlay--redesign .bet-center .amount-btn:active {
+  transform: none !important;
+}
+
+/* ===== TGSTAR* MODE ===== */
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) {
+  background: linear-gradient(135deg, #ffe54f 0%, #ffdb5f 100%) !important;
+  animation: starsGlow 3s ease-in-out infinite !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) .amount-value {
+  color: #1a1a1a !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) .amount-icon {
+  opacity: 0 !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 5px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 22px !important;
+  height: 22px !important;
+  background: url("/icons/tgStarsBlack.svg") center / contain no-repeat !important;
+  z-index: 2 !important;
+  transition: all 0.3s ease !important;
+}
+
+/* TGSTAR hover */
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
+  background: linear-gradient(135deg, #fff5b8 0%, #fffce0 100%) !important;
+  animation: starsGlow 1.5s ease-in-out infinite !important;
+  box-shadow: 
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    0 0 50px rgba(255, 234, 124, 0.7),
+    inset 0 0 20px rgba(255, 255, 255, 0.3) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]):hover::after {
+  filter: drop-shadow(0 0 10px rgba(255, 208, 74, 0.9));
+  transform: translateY(-50%) scale(1.4) rotate(15deg) !important;
+}
+
+/* Focus state для доступности */
+.bet-overlay--redesign .bet-center .amount-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5) !important;
+  outline-offset: 2px !important;
+}
+
+/* ===== SELECTED STATE ===== */
+.bet-overlay--redesign .bet-center .amount-btn.selected,
+.bet-overlay--redesign .bet-center .amount-btn[data-selected="true"] {
+  border: 2px solid rgba(255, 255, 255, 0.9) !important;
+  background: linear-gradient(135deg, #1aa8ff 0%, #1890d6 100%) !important;
+  box-shadow: 
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(26, 168, 255, 0.8),
+    0 0 50px rgba(26, 168, 255, 0.5),
+    inset 0 0 20px rgba(255, 255, 255, 0.2) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn.selected .amount-value,
+.bet-overlay--redesign .bet-center .amount-btn[data-selected="true"] .amount-value {
+  font-weight: 900 !important;
+  text-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.9),
+    0 0 20px rgba(26, 168, 255, 0.6) !important;
+  transform: scale(1.05) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn.selected .amount-icon,
+.bet-overlay--redesign .bet-center .amount-btn[data-selected="true"] .amount-icon {
+  filter: brightness(1.4) drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) !important;
+}
+
+/* Анимация пульса для selected состояния */
+@keyframes selectedPulse {
+  0%, 100% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 30px rgba(26, 168, 255, 0.8),
+      0 0 50px rgba(26, 168, 255, 0.5),
+      inset 0 0 20px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 50px rgba(26, 168, 255, 1),
+      0 0 80px rgba(26, 168, 255, 0.7),
+      inset 0 0 30px rgba(255, 255, 255, 0.3);
+  }
+}
+
+.bet-overlay--redesign .bet-center .amount-btn.selected,
+.bet-overlay--redesign .bet-center .amount-btn[data-selected="true"] {
+  animation: selectedPulse 2s ease-in-out infinite !important;
+}
+
+/* SELECTED для TGSTAR режима */
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
+  background: linear-gradient(135deg, #fffce0 0%, #fff9c4 100%) !important;
+  border: 2px solid rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    0 0 40px rgba(255, 208, 74, 0.9),
+    0 0 70px rgba(255, 208, 74, 0.6),
+    inset 0 0 20px rgba(255, 255, 255, 0.3) !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected .amount-value,
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] .amount-value {
+  color: #1a1a1a !important;
+  text-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    0 0 12px rgba(255, 208, 74, 0.8) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Анимация для выбранного TGSTAR */
+@keyframes selectedStarsPulse {
+  0%, 100% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 40px rgba(255, 208, 74, 0.9),
+      0 0 70px rgba(255, 208, 74, 0.6),
+      inset 0 0 20px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 10px 22px rgba(0, 0, 0, 0.35),
+      0 0 60px rgba(255, 208, 74, 1),
+      0 0 100px rgba(255, 208, 74, 0.8),
+      inset 0 0 30px rgba(255, 255, 255, 0.4);
+  }
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
+  animation: selectedStarsPulse 2s ease-in-out infinite !important;
+}
+
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected::after,
+.bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"]::after {
+  filter: drop-shadow(0 0 12px rgba(255, 208, 74, 1)) drop-shadow(0 0 4px rgba(255, 208, 74, 0.8)) !important;
+}
