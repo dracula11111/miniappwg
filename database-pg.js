@@ -78,23 +78,26 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_bets_result ON bets(result);
     CREATE INDEX IF NOT EXISTS idx_bets_created ON bets(created_at DESC);
 
-    -- Inventory (gifts/NFTs)
-    CREATE TABLE IF NOT EXISTS inventory_claims (
-      claim_id TEXT PRIMARY KEY,
-      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
-      created_at BIGINT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_inventory_claims_user ON inventory_claims(telegram_id);
-
+    -- ===== Inventory (NFT gifts) =====
     CREATE TABLE IF NOT EXISTS inventory_items (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
-      instance_id TEXT UNIQUE,
+      instance_id TEXT NOT NULL,
       item_json JSONB NOT NULL,
-      created_at BIGINT NOT NULL
+      acquired_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL,
+      UNIQUE (telegram_id, instance_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_inventory_items_user ON inventory_items(telegram_id);
-    CREATE INDEX IF NOT EXISTS idx_inventory_items_created ON inventory_items(created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_user ON inventory_items(telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_inventory_acquired ON inventory_items(acquired_at DESC);
+
+    CREATE TABLE IF NOT EXISTS inventory_claims (
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      claim_id TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      PRIMARY KEY (telegram_id, claim_id)
+    );
 
   `);
   console.log("[DB] ✅ Postgres schema ready");
@@ -367,189 +370,124 @@ export async function getUserStats(telegramId) {
   };
 }
 
+// ===== Inventory (Postgres) =====
+// We store each won gift as a separate row (instance_id) so duplicates are allowed.
 
-// =====================
-// INVENTORY (Postgres)
-// =====================
+async function ensureUserRow(telegramId) {
+  const id = BigInt(telegramId);
+  const now = Math.floor(Date.now() / 1000);
+  await query(
+    `INSERT INTO users (telegram_id, username, first_name, last_name, language_code, is_premium, created_at, last_seen)
+     VALUES ($1, '', '', '', '', FALSE, $2, $2)
+     ON CONFLICT (telegram_id) DO NOTHING`,
+    [id, now]
+  );
+}
 
 export async function getUserInventory(telegramId) {
   const id = BigInt(telegramId);
+  // If user doesn't exist yet, just return empty inventory
   const r = await query(
-    `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
+    `SELECT item_json
+     FROM inventory_items
+     WHERE telegram_id = $1
+     ORDER BY acquired_at DESC, id DESC`,
     [id]
   );
-  return r.rows.map(row => row.item_json);
+  return r.rows.map((x) => x.item_json);
 }
 
-export async function addInventoryItems(telegramId, items, claimId = null) {
+export async function addInventoryItems(telegramId, items = [], claimId = null) {
   const id = BigInt(telegramId);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const nowMs = Date.now();
 
-  const list = Array.isArray(items) ? items : [];
-  if (!list.length) return await getUserInventory(id);
+  if (!Array.isArray(items) || items.length === 0) {
+    return { added: 0, duplicated: false, items: await getUserInventory(id) };
+  }
 
+  await ensureUserRow(id);
+
+  const now = Date.now();
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await client.query('BEGIN');
 
-    // Ensure user exists
-    await client.query(
-      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
-       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
-      [id, nowSec]
-    );
-
-    // Claim idempotency (prevents double add on retries)
     if (claimId) {
+      const claim = String(claimId);
       const cr = await client.query(
-        `INSERT INTO inventory_claims (claim_id, telegram_id, created_at)
-         VALUES ($1,$2,$3)
-         ON CONFLICT DO NOTHING
+        `INSERT INTO inventory_claims (telegram_id, claim_id, created_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (telegram_id, claim_id) DO NOTHING
          RETURNING claim_id`,
-        [String(claimId), id, nowSec]
+        [id, claim, now]
       );
-
       if (cr.rowCount === 0) {
-        // already processed
-        const inv = await client.query(
-          `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
-          [id]
-        );
-        await client.query("COMMIT");
-        return inv.rows.map(row => row.item_json);
+        await client.query('COMMIT');
+        return { added: 0, duplicated: true, items: await getUserInventory(id) };
       }
     }
 
-    // Insert items
-    for (const it of list) {
-      const instanceId = String(it?.instanceId || `${nowMs}_${crypto.randomBytes(6).toString("hex")}`);
-      const enriched = { ...it, type: it?.type || "nft", instanceId, acquiredAt: it?.acquiredAt || nowMs };
+    let added = 0;
 
-      await client.query(
-        `INSERT INTO inventory_items (telegram_id, instance_id, item_json, created_at)
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT (instance_id) DO NOTHING`,
-        [id, instanceId, enriched, nowSec]
+    for (const raw of items) {
+      const instanceId = String(
+        raw?.instanceId || `inv_${now}_${crypto.randomBytes(6).toString('hex')}`
       );
+      const acquiredAt = Number(raw?.acquiredAt || now);
+      const obj = {
+        ...(raw || {}),
+        type: raw?.type || 'nft',
+        instanceId,
+        acquiredAt
+      };
+
+      const ir = await client.query(
+        `INSERT INTO inventory_items (telegram_id, instance_id, item_json, acquired_at, created_at)
+         VALUES ($1, $2, $3::jsonb, $4, $5)
+         ON CONFLICT (telegram_id, instance_id) DO NOTHING`,
+        [id, instanceId, JSON.stringify(obj), acquiredAt, now]
+      );
+
+      if (ir.rowCount === 1) added += 1;
     }
 
-    const inv = await client.query(
-      `SELECT item_json FROM inventory_items WHERE telegram_id = $1 ORDER BY id DESC`,
-      [id]
-    );
-
-    await client.query("COMMIT");
-    return inv.rows.map(row => row.item_json);
+    await client.query('COMMIT');
+    return { added, duplicated: false, items: await getUserInventory(id) };
   } catch (e) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
     throw e;
   } finally {
     client.release();
   }
 }
 
-export async function sellInventoryItems(telegramId, instanceIds, currency = "ton") {
+export async function removeInventoryItems(telegramId, instanceIds = []) {
   const id = BigInt(telegramId);
-  const cur = currency === "stars" ? "stars" : "ton";
-  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
-  if (!ids.length) return { sold: 0, amount: 0, newBalance: null };
+  const ids = (Array.isArray(instanceIds) ? instanceIds : [])
+    .map((x) => String(x))
+    .filter(Boolean);
 
-  const now = Math.floor(Date.now() / 1000);
+  if (!ids.length) return [];
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  const r = await query(
+    `DELETE FROM inventory_items
+     WHERE telegram_id = $1
+       AND instance_id = ANY($2::text[])
+     RETURNING item_json`,
+    [id, ids]
+  );
 
-    // Ensure user and balances exist (so FK + lock always works)
-    await client.query(
-      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
-       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
-      [id, now]
-    );
-    await client.query(
-      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-       VALUES ($1,0,0,$2)
-       ON CONFLICT (telegram_id) DO NOTHING`,
-      [id, now]
-    );
+  return r.rows.map((x) => x.item_json);
+}
 
-    // Delete items and return their JSON
-    const del = await client.query(
-      `DELETE FROM inventory_items
-       WHERE telegram_id = $1 AND instance_id = ANY($2::text[])
-       RETURNING item_json`,
-      [id, ids]
-    );
-
-    const soldItems = del.rows.map(r => r.item_json);
-
-    // Compute total sell value from item.price
-    let total = 0;
-    for (const it of soldItems) {
-      const raw = it?.price?.[cur];
-      const n = (typeof raw === "string") ? parseFloat(raw) : (typeof raw === "number" ? raw : 0);
-      if (!Number.isFinite(n)) continue;
-      total += n;
-    }
-
-    // Normalize totals
-    const amount = cur === "stars"
-      ? Math.max(0, Math.round(total))
-      : Math.max(0, Math.round(total * 100) / 100);
-
-    let newBalance = null;
-
-    if (amount > 0) {
-      // Lock balance row
-      const balRes = await client.query(
-        `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
-        [id]
-      );
-
-      const ton = Number(balRes.rows[0].ton_balance || 0);
-      const stars = Number(balRes.rows[0].stars_balance || 0);
-      const before = (cur === "ton") ? ton : stars;
-      const after = before + Number(amount);
-
-      if (cur === "ton") {
-        await client.query(
-          `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
-          [after, now, id]
-        );
-      } else {
-        await client.query(
-          `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
-          [Math.trunc(after), now, id]
-        );
-      }
-
-      // Record transaction
-      await client.query(
-        `INSERT INTO transactions
-         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [
-          id,
-          "inventory_sell",
-          cur,
-          Number(amount),
-          Number(before),
-          Number(after),
-          "Sell gift/NFT",
-          now
-        ]
-      );
-
-      newBalance = after;
-    }
-
-    await client.query("COMMIT");
-    return { sold: soldItems.length, amount, newBalance };
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+export async function clearUserInventory(telegramId) {
+  const id = BigInt(telegramId);
+  const r = await query(
+    `DELETE FROM inventory_items
+     WHERE telegram_id = $1
+     RETURNING item_json`,
+    [id]
+  );
+  return r.rows.map((x) => x.item_json);
 }

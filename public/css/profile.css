@@ -2,6 +2,278 @@
    PROFILE PAGE - REDESIGNED STYLES
    ============================================ */
 
+/* =========================================
+   FLOATING CURRENCY ICONS (TON / STARS)
+========================================= */
+
+.profile-avatar-wrapper{
+  position: relative;
+  display: inline-block;
+  isolation: isolate;
+}
+
+/* аватар выше, иконки под ним */
+.profile-avatar-wrapper #profileAvatar,
+.profile-avatar-wrapper .profile-ava{
+  position: relative;
+  z-index: 2;
+}
+
+/* зона полёта вокруг авы */
+.currency-icons-float{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, 100vw);
+  height: 420px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+/* один элемент-иконка */
+.currency-icon-item{
+  position: absolute;
+  right: -70px;      /* старт справа */
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  will-change: transform, opacity;
+
+  animation-name: flyAcrossAvatar;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-duration: var(--dur, 5.2s);
+  animation-delay: var(--delay, 0s);
+}
+
+.currency-icon-item img{
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0.9;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.25));
+}
+
+/* Разные траектории/масштабы через nth-child (у тебя 8 иконок) */
+.currency-icon-item:nth-child(1){ --dur:4.6s; --y1:-95px; --y2:-70px; --s1:.60; --s2:.72; --op:.30; }
+.currency-icon-item:nth-child(2){ --dur:5.2s; --y1:-55px; --y2:-40px; --s1:.70; --s2:.82; --op:.32; }
+.currency-icon-item:nth-child(3){ --dur:4.9s; --y1:-10px; --y2:-5px;  --s1:.78; --s2:.88; --op:.34; }
+.currency-icon-item:nth-child(4){ --dur:5.6s; --y1: 25px; --y2: 20px; --s1:.66; --s2:.76; --op:.28; }
+.currency-icon-item:nth-child(5){ --dur:5.0s; --y1: 60px; --y2: 50px; --s1:.58; --s2:.70; --op:.26; }
+.currency-icon-item:nth-child(6){ --dur:5.8s; --y1:-120px;--y2:-95px; --s1:.52; --s2:.64; --op:.22; }
+.currency-icon-item:nth-child(7){ --dur:5.4s; --y1: 95px; --y2: 80px; --s1:.50; --s2:.62; --op:.20; }
+.currency-icon-item:nth-child(8){ --dur:4.8s; --y1:-30px; --y2:-20px; --s1:.74; --s2:.86; --op:.33; }
+
+@keyframes flyAcrossAvatar{
+  0%{
+    transform: translate(0, var(--y1)) scale(var(--s1)) rotate(0deg);
+    opacity: 0;
+  }
+  12%{ opacity: var(--op); }
+  88%{ opacity: var(--op); }
+  100%{
+    transform: translate(-640px, var(--y2)) scale(var(--s2)) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+/* ============ СВЕЧЕНИЕ ИКОНОК ============ */
+
+/* TON - синее свечение */
+#profilePage .currency-icon-item img {
+  filter: drop-shadow(0 2px 8px rgba(0, 166, 255, 0.5));
+}
+
+/* Stars - золотое свечение */
+html[data-currency="stars"] #profilePage .currency-icon-item img,
+.currency-stars #profilePage .currency-icon-item img {
+  filter: drop-shadow(0 2px 8px rgba(255, 165, 0, 0.6));
+}
+
+/* ============ АНИМАЦИЯ ПОЛЕТА ============ */
+
+@keyframes flyAcrossAvatar {
+  0% {
+    transform: translate(var(--start-x, 0), var(--start-y)) scale(var(--start-scale)) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--max-opacity);
+  }
+  90% {
+    opacity: var(--max-opacity);
+  }
+  100% {
+    transform: translate(var(--distance), var(--end-y)) scale(var(--end-scale)) rotate(var(--rotation));
+    opacity: 0;
+  }
+}
+#profilePage .currency-icon-item {
+  animation: flyAcrossAvatar var(--duration) ease-in-out var(--delay) infinite;
+}
+
+/* ============ РАЗМЕРЫ ИКОНОК ============ */
+
+/* Маленькие иконки (18px) */
+#profilePage .currency-icon-item--small {
+  width: 18px;
+  height: 18px;
+  --start-scale: 0.7;
+  --end-scale: 0.5;
+  --max-opacity: 0.4;
+}
+
+/* Средние иконки (26px) */
+#profilePage .currency-icon-item--medium {
+  width: 26px;
+  height: 26px;
+  --start-scale: 1;
+  --end-scale: 0.8;
+  --max-opacity: 0.65;
+}
+
+/* Большие иконки (36px) */
+#profilePage .currency-icon-item--large {
+  width: 36px;
+  height: 36px;
+  --start-scale: 1.2;
+  --end-scale: 1;
+  --max-opacity: 0.8;
+}
+
+/* Очень большие иконки (44px) */
+#profilePage .currency-icon-item--xlarge {
+  width: 44px;
+  height: 44px;
+  --start-scale: 1.4;
+  --end-scale: 1.2;
+  --max-opacity: 0.9;
+}
+
+/* ============================================================================
+   GRADIENT BACKGROUND - ПРОФИЛЬ
+   ============================================================================ */
+
+/* ============================================================================
+   GRADIENT BACKGROUND - ПРОФИЛЬ
+   ============================================================================ */
+
+   #profilePage {
+    position: relative;
+    overflow: hidden;
+    min-height: 100vh;
+  }
+  
+  /* Базовый синий градиент (TON) */
+  /* Базовый синий градиент (TON) */
+#profilePage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    #0d0e0f 0%,
+    #0a4a7a 15%,      /* Тёмно-синий */
+    #0d68c3 30%,      /* Яркий голубой */
+    #1a8cff 35%,      /* Насыщенный синий */
+    #0d68c3 40%,      /* Обратно к яркому */
+    #0a3d66 50%,      /* Глубокий синий */
+    #0d0e0f 70%
+  );
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Золотистый градиент (Stars) поверх */
+#profilePage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    #0d0e0f 0%,
+    #8b5a12 15%,      /* Тёмное золото */
+    #d4941f 30%,      /* Насыщенное золото */
+    #ffce52 35%,      /* Яркий золотистый */
+    #d4941f 40%,      /* Обратно к насыщенному */
+    #6b4510 50%,      /* Тёмно-медный */
+    #0d0e0f 70%
+  );
+  opacity: 0;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Stars mode - показываем золотистый градиент */
+html[data-currency="stars"] #profilePage::after,
+html.currency-stars #profilePage::after {
+  opacity: 1 !important;
+}
+
+/* Контент поверх фона */
+#profilePage > * {
+  position: relative;
+  z-index: 10;
+}
+
+/* ============================================================================
+   АДАПТИВНОСТЬ
+   ============================================================================ */
+
+/* Для маленьких экранов */
+@media (max-width: 768px) {
+  #profilePage .currency-icons-float {
+    width: 400px;
+    height: 300px;
+  }
+  
+  #profilePage .currency-icon-item--small {
+    width: 14px;
+    height: 14px;
+  }
+  
+  #profilePage .currency-icon-item--medium {
+    width: 20px;
+    height: 20px;
+  }
+  
+  #profilePage .currency-icon-item--large {
+    width: 28px;
+    height: 28px;
+  }
+  
+  #profilePage .currency-icon-item--xlarge {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+/* Для очень маленьких экранов */
+@media (max-width: 480px) {
+  #profilePage .currency-icons-float {
+    width: 320px;
+    height: 240px;
+  }
+}
+
+
+
+
+
+
+  
+  /*  */
+  .currency-icon-item img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+
    .profile-card {
     max-width: 430px;
     margin: 0 auto;
@@ -12,20 +284,31 @@
     gap: 16px;
   }
   
-  /* ÐÐ²Ð°Ñ‚Ð°Ñ€ */
-  .profile-ava {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 4px solid rgba(0, 166, 255, 0.3);
-    box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.6),
-      0 0 0 8px rgba(0, 166, 255, 0.1),
-      inset 0 2px 6px rgba(255, 255, 255, 0.1);
-    transition: all .3s ease;
-    cursor: default;
-  }
+  
+ /* Аватар - базовый стиль (TON - синий) */
+.profile-ava {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid rgba(0, 166, 255, 0.3);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.6),
+    0 0 0 8px rgba(0, 166, 255, 0.1),
+    inset 0 2px 6px rgba(255, 255, 255, 0.1);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+}
+
+/* Аватар - Stars режим (золотистый) */
+html[data-currency="stars"] .profile-ava,
+.currency-stars .profile-ava {
+  border-color: rgba(255, 193, 7, 0.4);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.6),
+    0 0 0 8px rgba(255, 193, 7, 0.15),
+    inset 0 2px 6px rgba(255, 255, 255, 0.1);
+}
   
   .profile-name {
     margin: 16px 0 4px;
@@ -4699,3 +4982,6 @@
   width: 16px;
   height: 16px;
 }
+
+
+

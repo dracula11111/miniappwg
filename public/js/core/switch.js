@@ -1,6 +1,6 @@
 /**
  * switch.js - Currency Switch System (TON / Telegram Stars)
- * ФИНАЛЬНАЯ ВЕРСИЯ - Идеальная синхронизация валют
+ * ИСПРАВЛЕННАЯ ВЕРСИЯ - Убраны дубликаты, добавлен watchProfilePageActive
  */
 
 (function() {
@@ -15,15 +15,21 @@
 
   // Telegram Web App API
   const tg = window.Telegram?.WebApp;
-
+  
+  function applyCurrencyTheme() {
+    const root = document.documentElement;
+    root.dataset.currency = currentCurrency;
+    root.classList.toggle('currency-ton', currentCurrency === 'ton');
+    root.classList.toggle('currency-stars', currentCurrency === 'stars');
+  }
+  
   // ================== INIT ==================
   function init() {
     console.log('[Switch] 🚀 Initializing currency system...');
     
-    // 1. Загружаем сохранённую валюту
     loadCurrency();
-    
-    // 2. Ждем загрузки DOM
+    applyCurrencyTheme();
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', onDOMReady);
     } else {
@@ -34,31 +40,26 @@
   }
 
   function onDOMReady() {
-    console.log('[Switch] 📄 DOM ready, setting up UI...');
+    console.log('[Switch] 🔄 DOM ready, setting up UI...');
     
-    // 1. Инициализация UI
     initUI();
-    
-    // 2. События
     attachEventListeners();
+    watchProfilePageActive();
     
-    // 3. Синхронизация кнопок ставок
     setTimeout(() => {
       syncAmountButtons();
-    }, 100);
+      // Попытка создать иконки при загрузке
+      createFloatingIcons();
+    }, 300);
     
-    // 4. Загрузка баланса
     loadBalanceFromServer();
-    
-    // 5. Обновление отображения
     updateBalanceDisplay();
   }
-
+  
   // ================== UI SETUP ==================
   function initUI() {
     console.log('[Switch] 🎨 Initializing UI...');
     
-    // Обновляем переключатели валют
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
       const currency = btn.dataset.currency;
@@ -69,15 +70,14 @@
       }
     });
     
-    // Обновляем иконку в topbar
     updateTopbarIcon();
+    applyCurrencyTheme();
     
     console.log('[Switch] ✅ UI initialized');
   }
 
   // ================== EVENT LISTENERS ==================
   function attachEventListeners() {
-    // Переключатели валюты в профиле
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -85,7 +85,6 @@
         e.stopPropagation();
         const currency = btn.dataset.currency;
         console.log('[Switch] 📘 Currency button clicked:', currency);
-        // 🔒 Block currency switch if user already has an active bet in current round
         switchCurrency(currency, btn);
       });
       
@@ -94,7 +93,6 @@
       btn.style.webkitTapHighlightColor = 'transparent';
     });
 
-    // Кнопка баланса в topbar
     const tonPill = document.getElementById('tonPill');
     if (tonPill) {
       tonPill.addEventListener('click', (e) => {
@@ -103,7 +101,6 @@
       });
     }
 
-    // События баланса
     window.addEventListener('balance:update', (e) => {
       if (e.detail) {
         updateBalance(e.detail);
@@ -112,18 +109,66 @@
     
     window.addEventListener('balance:loaded', (e) => {
       if (e.detail) {
-        console.log('[Switch] 📥 Balance loaded event:', e.detail);
+        console.log('[Switch] 🔥 Balance loaded event:', e.detail);
         updateBalance(e.detail);
       }
     });
 
-    // Live updates от SSE
     window.addEventListener('balance:live-update', (e) => {
       if (e.detail) {
         console.log('[Switch] 📡 Live balance update:', e.detail);
         updateBalance(e.detail);
       }
     });
+
+    // 🔥 НОВОЕ: Слушаем событие смены страницы
+    window.addEventListener('page:changed', (e) => {
+      console.log('[Switch] 🔄 Page changed to:', e.detail?.page);
+      
+      if (e.detail?.page === 'profilePage') {
+        setTimeout(() => {
+          createFloatingIcons();
+        }, 300);
+      } else {
+        clearFloatingIcons();
+      }
+    });
+  }
+
+  // ================== WATCH PROFILE PAGE ==================
+  function watchProfilePageActive() {
+    const profilePage = document.getElementById('profilePage');
+    if (!profilePage) return;
+
+    // Создаем наблюдатель за изменением классов
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          const isActive = profilePage.classList.contains('page--active');
+          console.log('[Switch] 👀 Profile page active:', isActive);
+          
+          if (isActive) {
+            setTimeout(() => {
+              createFloatingIcons();
+            }, 200);
+          } else {
+            clearFloatingIcons();
+          }
+        }
+      });
+    });
+
+    observer.observe(profilePage, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    // Проверяем текущее состояние
+    if (profilePage.classList.contains('page--active')) {
+      setTimeout(() => {
+        createFloatingIcons();
+      }, 200);
+    }
   }
 
   // ================== ROUND LOCK (ACTIVE BET) ==================
@@ -145,7 +190,6 @@
 
     document.body.appendChild(toast);
 
-    // Start animation on next frame
     requestAnimationFrame(() => toast.classList.add('show'));
 
     setTimeout(() => {
@@ -161,7 +205,6 @@
 
     if (sw) {
       sw.classList.remove('currency-switch--error');
-      // restart animation
       void sw.offsetWidth;
       sw.classList.add('currency-switch--error');
       setTimeout(() => sw.classList.remove('currency-switch--error'), 450);
@@ -175,6 +218,95 @@
     }
   }
 
+  // ================== FLOATING ICONS ==================
+  function createFloatingIcons() {
+    console.log('[Switch] ✨ createFloatingIcons called');
+    
+    const profilePage = document.getElementById('profilePage');
+    
+    // 🔥 УЛУЧШЕННАЯ ПРОВЕРКА: проверяем несколько условий
+    const isProfileVisible = profilePage && (
+      profilePage.classList.contains('page--active') ||
+      profilePage.style.display !== 'none' ||
+      getComputedStyle(profilePage).display !== 'none'
+    );
+
+    if (!isProfileVisible) {
+      console.log('[Switch] ⭐️ Profile page not visible, skipping icons');
+      return;
+    }
+
+    const avatar = document.getElementById('profileAvatar') || 
+                   document.querySelector('#profilePage .profile-ava');
+    
+    if (!avatar) {
+      console.warn('[Switch] 🔍 Avatar not found for floating icons');
+      return;
+    }
+
+    let wrapper = avatar.parentElement;
+    if (!wrapper.classList.contains('profile-avatar-wrapper')) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'profile-avatar-wrapper';
+      avatar.parentNode.insertBefore(wrapper, avatar);
+      wrapper.appendChild(avatar);
+    }
+
+    const oldContainer = wrapper.querySelector('.currency-icons-float');
+    if (oldContainer) {
+      oldContainer.remove();
+    }
+
+    const container = document.createElement('div');
+    container.className = 'currency-icons-float';
+
+    const iconSrc = currentCurrency === 'ton' 
+      ? '/icons/tgTonWhite.svg' 
+      : '/icons/tgStarWhite.svg';
+
+    const iconConfigs = [
+      { size: 'small', duration: 4.5, delay: 0, yStart: -80, yEnd: -70, distance: -620, rotation: 120, xStart: 80 },
+      { size: 'small', duration: 5, delay: 1, yStart: 20, yEnd: 25, distance: -600, rotation: -90, xStart: 100 },
+      { size: 'small', duration: 4.8, delay: 2.5, yStart: -40, yEnd: -35, distance: -610, rotation: 150, xStart: 70 },
+      { size: 'small', duration: 5.2, delay: 4, yStart: 80, yEnd: 85, distance: -630, rotation: -140, xStart: 90 },
+      { size: 'small', duration: 4.6, delay: 5.5, yStart: -10, yEnd: -5, distance: -595, rotation: 100, xStart: 110 },
+      { size: 'small', duration: 5.1, delay: 7, yStart: 50, yEnd: 55, distance: -615, rotation: -110, xStart: 75 },
+      { size: 'medium', duration: 4.2, delay: 0.5, yStart: -60, yEnd: -55, distance: -610, rotation: -160, xStart: 85 },
+      { size: 'medium', duration: 4.8, delay: 2, yStart: 40, yEnd: 45, distance: -620, rotation: 140, xStart: 95 },
+    ];
+
+    iconConfigs.forEach((config) => {
+      const iconItem = document.createElement('div');
+      iconItem.className = `currency-icon-item currency-icon-item--${config.size}`;
+      
+      iconItem.style.setProperty('--duration', `${config.duration}s`);
+      iconItem.style.setProperty('--delay', `${config.delay}s`);
+      iconItem.style.setProperty('--start-y', `${config.yStart}px`);
+      iconItem.style.setProperty('--end-y', `${config.yEnd}px`);
+      iconItem.style.setProperty('--distance', `${config.distance}px`);
+      iconItem.style.setProperty('--rotation', `${config.rotation}deg`);
+      iconItem.style.setProperty('--start-x', `${config.xStart || 0}px`); // 🔥 НОВОЕ: стартовая позиция справа
+      
+      const img = document.createElement('img');
+      img.src = iconSrc;
+      img.alt = '';
+      img.draggable = false;
+      
+      iconItem.appendChild(img);
+      container.appendChild(iconItem);
+    });
+
+    wrapper.appendChild(container);
+
+    console.log(`[Switch] ✨ Created ${iconConfigs.length} flying icons around avatar`);
+  }
+
+  function clearFloatingIcons() {
+    const containers = document.querySelectorAll('.currency-icons-float');
+    containers.forEach(c => c.remove());
+    console.log('[Switch] 🧹 Cleared floating icons');
+  }
+
   // ================== CURRENCY SWITCHING ==================
   function switchCurrency(currency, sourceBtn) {
     if (currency === currentCurrency) {
@@ -182,38 +314,31 @@
       return;
     }
 
-    // 🔒 If there is an active bet in the current round, do not allow switching currency
     if (isCurrencyChangeLocked()) {
       console.log('[Switch] ⛔ Currency switch blocked - active bet detected');
       showCurrencyLockNotification();
       triggerCurrencySwitchError(sourceBtn);
       if (tg?.HapticFeedback?.notificationOccurred) {
         tg.HapticFeedback.notificationOccurred('error');
-      } else if (tg?.HapticFeedback?.impactOccurred) {
-        tg.HapticFeedback.impactOccurred('rigid');
       }
       return;
     }
     
     console.log(`[Switch] 🔄 Switching from ${currentCurrency} to ${currency}`);
     
-    // Закрываем все попапы
     closeAllPopups();
+    clearFloatingIcons();
     
-    // Обновляем состояние
     currentCurrency = currency;
-    
-    // Сохраняем
     saveCurrency();
-    
-    // Обновляем UI
     updateCurrencyUI();
     updateBalanceDisplay(true);
-    
-    // Синхронизируем кнопки ставок
     syncAmountButtons();
     
-    // Уведомляем другие модули
+    setTimeout(() => {
+      createFloatingIcons();
+    }, 150);
+    
     window.dispatchEvent(new CustomEvent('currency:changed', {
       detail: { currency }
     }));
@@ -226,7 +351,6 @@
   function updateCurrencyUI() {
     console.log('[Switch] 🎨 Updating UI for currency:', currentCurrency);
     
-    // Обновляем кнопки переключателя
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
       const currency = btn.dataset.currency;
@@ -237,8 +361,8 @@
       }
     });
 
-    // Обновляем иконку
     updateTopbarIcon();
+    applyCurrencyTheme();
   }
 
   function updateTopbarIcon() {
@@ -253,7 +377,6 @@
     
     console.log('[Switch] 🎨 Changing icon to:', currentCurrency);
     
-    // Плавная смена с анимацией
     pillIcon.style.opacity = '0';
     pillIcon.style.transform = 'scale(0.8) rotate(-15deg)';
     
@@ -268,18 +391,16 @@
   function syncAmountButtons() {
     const amountBtns = document.querySelectorAll('.amount-btn');
     if (amountBtns.length === 0) {
-      console.log('[Switch] ⏭️ No amount buttons found, skipping');
+      console.log('[Switch] ⭐️ No amount buttons found, skipping');
       return;
     }
 
     console.log('[Switch] 🔄 Syncing amount buttons for:', currentCurrency);
     
-    // Добавляем класс анимации
     amountBtns.forEach(btn => btn.classList.add('currency-switching'));
     
     setTimeout(() => {
       if (currentCurrency === 'ton') {
-        // TON: 0.1, 0.5, 1, 2.5
         const tonAmounts = [0.1, 0.5, 1, 2.5];
         amountBtns.forEach((btn, index) => {
           if (index < tonAmounts.length) {
@@ -292,7 +413,6 @@
           }
         });
       } else {
-        // STARS: 1, 5, 10, 25
         const starsAmounts = [1, 5, 10, 25];
         amountBtns.forEach((btn, index) => {
           if (index < starsAmounts.length) {
@@ -306,17 +426,14 @@
         });
       }
       
-      // Убираем класс анимации
       amountBtns.forEach(btn => btn.classList.remove('currency-switching'));
     }, 150);
     
-    // Активируем первую кнопку и обновляем currentAmount в wheel.js
     setTimeout(() => {
       amountBtns.forEach((btn, index) => {
         if (index === 0) {
           btn.classList.add('active');
           
-          // Обновляем глобальную переменную в wheel.js
           if (window.updateCurrentAmount) {
             const amount = parseFloat(btn.dataset.amount);
             window.updateCurrentAmount(amount);
@@ -383,7 +500,6 @@
     
     updateBalanceDisplay(true);
     
-    // Обновляем балансы в модулях
     if (balances.ton !== undefined && window.WTTonDeposit?.setBalance) {
       window.WTTonDeposit.setBalance(balances.ton);
     }
@@ -480,7 +596,6 @@
             stars: parseInt(data.stars) || 0
           });
           
-          // Уведомляем модули о загрузке
           window.dispatchEvent(new CustomEvent('balance:loaded', {
             detail: { 
               ton: parseFloat(data.ton) || 0, 
@@ -506,7 +621,7 @@
       const saved = localStorage.getItem('wt-currency');
       if (saved && (saved === 'ton' || saved === 'stars')) {
         currentCurrency = saved;
-        console.log('[Switch] 📥 Loaded currency from storage:', currentCurrency);
+        console.log('[Switch] 🔥 Loaded currency from storage:', currentCurrency);
       }
     } catch (e) {
       console.warn('[Switch] Failed to load currency:', e);
@@ -546,7 +661,10 @@
     
     syncButtons: syncAmountButtons,
     
-    // Debug
+    // 🔥 НОВОЕ: API для ручного управления иконками
+    createIcons: createFloatingIcons,
+    clearIcons: clearFloatingIcons,
+    
     debug: {
       getState: () => ({
         currency: currentCurrency,
@@ -557,6 +675,12 @@
         console.log('[Switch] 🔧 Force sync');
         updateTopbarIcon();
         syncAmountButtons();
+      },
+      // 🔥 Отладочная функция
+      testIcons: () => {
+        console.log('[Switch] 🧪 Testing icons...');
+        clearFloatingIcons();
+        setTimeout(createFloatingIcons, 100);
       }
     }
   };
@@ -591,184 +715,315 @@
       will-change: opacity, transform;
     }
 
-    .currency-switch {
-      display: flex;
-      gap: 8px;
-      padding: 4px;
-      background: var(--panel, #121823);
-      border: 1px solid var(--border, #253247);
-      border-radius: 16px;
-      margin: 16px 0;
-      position: relative;
-      overflow: hidden;
-      --wt-indicator-x: 0px;
-    }
+    /* ============================================
+   MODERN CURRENCY SWITCH - REDESIGNED
+   ============================================ */
 
-    .currency-switch::before {
-      content: "";
-      position: absolute;
-      top: 4px;
-      bottom: 4px;
-      left: 4px;
-      width: calc(50% - 8px);
-      border-radius: 12px;
-      background: linear-gradient(135deg, rgba(0,166,255,.15), rgba(13,104,195,.15));
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      pointer-events: none;
-      z-index: 0;
-      transform: translateX(var(--wt-indicator-x));
-    }
+.currency-switch {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  margin: 16px 0;
+  position: relative;
+  overflow: hidden;
+  --wt-indicator-x: 0px;
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
 
-    .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active) {
-      --wt-indicator-x: calc(100% + 8px);
-    }
+/* Анимированный индикатор выбора */
+.currency-switch::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 5px;
+  width: calc(50% - 8px);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg, 
+    rgba(0, 166, 255, 0.25) 0%,
+    rgba(13, 104, 195, 0.20) 100%
+  );
+  box-shadow: 
+    0 4px 16px rgba(0, 166, 255, 0.3),
+    0 0 0 1px rgba(0, 166, 255, 0.2) inset,
+    0 1px 2px rgba(255, 255, 255, 0.1) inset;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  z-index: 0;
+  transform: translateX(var(--wt-indicator-x));
+}
 
-    /* ===== Locked switch feedback (active bet) ===== */
-    @keyframes wtSwitchShake {
-      0% { transform: translateX(0); }
-      20% { transform: translateX(6px); }
-      45% { transform: translateX(-5px); }
-      70% { transform: translateX(4px); }
-      100% { transform: translateX(0); }
-    }
+/* Индикатор для Stars */
+.currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 193, 7, 0.28) 0%,
+    rgba(255, 152, 0, 0.22) 100%
+  );
+  box-shadow: 
+    0 4px 16px rgba(255, 193, 7, 0.35),
+    0 0 0 1px rgba(255, 193, 7, 0.25) inset,
+    0 1px 2px rgba(255, 255, 255, 0.15) inset;
+}
 
-    @keyframes wtIndicatorError {
-      0%   { transform: translateX(var(--wt-indicator-x)); }
-      25%  { transform: translateX(calc(var(--wt-indicator-x) + 10px)); }
-      55%  { transform: translateX(calc(var(--wt-indicator-x) - 8px)); }
-      100% { transform: translateX(var(--wt-indicator-x)); }
-    }
+.currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active) {
+  --wt-indicator-x: calc(100% + 4px);
+}
 
-    @keyframes wtBtnErrorPop {
-      0%   { transform: scale(1); }
-      35%  { transform: scale(.94); }
-      65%  { transform: scale(1.02); }
-      100% { transform: scale(1); }
-    }
+/* Кнопки валют */
+.curr-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
+  position: relative;
+  z-index: 1;
+}
 
-    .currency-switch.currency-switch--error {
-      border-color: rgba(255, 77, 79, 0.45);
-      box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.12);
-      animation: wtSwitchShake 0.35s ease;
-    }
+.curr-btn:hover {
+  color: rgba(255, 255, 255, 0.75);
+  transform: scale(1.02);
+}
 
-    .currency-switch.currency-switch--error::before {
-      background: linear-gradient(135deg, rgba(255, 77, 79, .20), rgba(255, 77, 79, .10));
-      animation: wtIndicatorError 0.35s ease;
-    }
+.curr-btn:active {
+  transform: scale(0.98);
+}
 
-    .curr-btn.curr-btn--error {
-      color: #ff6b6b;
-      animation: wtBtnErrorPop 0.35s ease;
-    }
+/* Активная кнопка TON */
+.curr-btn--active {
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 166, 255, 0.4);
+}
 
-    .curr-btn.curr-btn--error .curr-icon {
-      opacity: 1;
-      filter: drop-shadow(0 0 6px rgba(255, 77, 79, .35));
-    }
+/* Активная кнопка Stars */
+.curr-btn[data-currency="stars"].curr-btn--active {
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(255, 193, 7, 0.5);
+}
 
-    /* ===== Toast ===== */
-    #currency-lock-toast {
-      position: fixed;
-      top: 120px;
-      left: 50%;
-      transform: translateX(-50%) translateY(-14px);
-      opacity: 0;
-      z-index: 10000;
-      background: linear-gradient(135deg, rgba(127, 29, 29, 0.16), rgba(153, 27, 27, 0.10));
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(185, 28, 28, 0.22);
-      border-radius: 18px;
-      padding: 12px 16px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #ff6b6b;
-      max-width: min(92vw, 360px);
-      text-align: center;
-      pointer-events: none;
-    }
+/* Иконки */
+.curr-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.6;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
 
-    @keyframes wtToastIn {
-      0%   { opacity: 0; transform: translateX(-50%) translateY(-22px) scale(0.96); }
-      60%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.02); }
-      100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-    }
+.curr-btn:hover .curr-icon {
+  opacity: 0.85;
+  transform: scale(1.08) rotate(-5deg);
+}
 
-    @keyframes wtToastOut {
-      0%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-      100% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(0.98); }
-    }
+.curr-btn:active .curr-icon {
+  transform: scale(0.95);
+}
 
-    #currency-lock-toast.show {
-      animation: wtToastIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-    }
+/* Активная иконка TON */
+.curr-btn--active .curr-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.6));
+  animation: iconPulse 2s ease-in-out infinite;
+}
 
-    #currency-lock-toast.hide {
-      animation: wtToastOut 0.25s ease forwards;
-    }
+/* Активная иконка Stars */
+.curr-btn[data-currency="stars"].curr-btn--active .curr-icon {
+  filter: drop-shadow(0 0 8px rgba(255, 193, 7, 0.7));
+}
 
-    .curr-btn {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px 20px;
-      border-radius: 12px;
-      background: transparent;
-      border: none;
-      color: var(--muted, #99a7bb);
-      font-weight: 700;
-      font-size: 14px;
-      transition: color .2s ease, transform .15s ease;
-      cursor: pointer;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      min-height: 44px;
-      position: relative;
-      z-index: 1;
-    }
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
 
-    .curr-btn:hover {
-      color: var(--text, #e7edf7);
-    }
+/* ============================================
+   ERROR STATES (когда блокировка)
+   ============================================ */
 
-    .curr-btn:active {
-      transform: scale(.96);
-    }
+@keyframes wtSwitchShake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-8px) rotate(-1deg); }
+  30% { transform: translateX(7px) rotate(1deg); }
+  45% { transform: translateX(-6px) rotate(-0.5deg); }
+  60% { transform: translateX(5px) rotate(0.5deg); }
+  75% { transform: translateX(-3px); }
+}
 
-    .curr-btn--active {
-      color: var(--accent, #00a6ff);
-    }
+@keyframes wtIndicatorError {
+  0%   { transform: translateX(var(--wt-indicator-x)) scale(1); }
+  25%  { transform: translateX(calc(var(--wt-indicator-x) + 12px)) scale(0.98); }
+  50%  { transform: translateX(calc(var(--wt-indicator-x) - 10px)) scale(1.02); }
+  75%  { transform: translateX(calc(var(--wt-indicator-x) + 6px)) scale(0.99); }
+  100% { transform: translateX(var(--wt-indicator-x)) scale(1); }
+}
 
-    .curr-icon {
-      width: 20px;
-      height: 20px;
-      opacity: .7;
-      transition: opacity .3s ease, transform .2s ease;
-      pointer-events: none;
-    }
+@keyframes wtBtnErrorPop {
+  0%   { transform: scale(1); }
+  25%  { transform: scale(0.92); }
+  50%  { transform: scale(1.04); }
+  75%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
 
-    .curr-btn:hover .curr-icon {
-      opacity: .9;
-      transform: scale(1.05);
-    }
+.currency-switch.currency-switch--error {
+  border-color: rgba(255, 77, 79, 0.5);
+  box-shadow: 
+    0 0 0 3px rgba(255, 77, 79, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: wtSwitchShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
 
-    .curr-btn--active .curr-icon {
-      opacity: 1;
-      filter: drop-shadow(0 0 4px rgba(0,166,255,.3));
-    }
+.currency-switch.currency-switch--error::before {
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 77, 79, 0.3) 0%,
+    rgba(239, 68, 68, 0.2) 100%
+  );
+  box-shadow: 
+    0 4px 16px rgba(255, 77, 79, 0.4),
+    0 0 0 1px rgba(255, 77, 79, 0.3) inset;
+  animation: wtIndicatorError 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
 
-    .pill--ton {
-      transition: all 0.25s ease;
-    }
+.curr-btn.curr-btn--error {
+  color: #ff6b6b;
+  animation: wtBtnErrorPop 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
 
-    .pill--ton:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 
-        0 0 0 1px rgba(0,166,255,.35) inset,
-        0 8px 24px rgba(0,166,255,.25);
-    }
+.curr-btn.curr-btn--error .curr-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(255, 77, 79, 0.5));
+}
+
+/* ============================================
+   TOAST NOTIFICATION
+   ============================================ */
+
+#currency-lock-toast {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  opacity: 0;
+  z-index: 10000;
+  background: rgba(30, 30, 35, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 16px;
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff6b6b;
+  max-width: min(92vw, 380px);
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 
+    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 77, 79, 0.15) inset;
+}
+
+@keyframes wtToastIn {
+  0%   { 
+    opacity: 0; 
+    transform: translateX(-50%) translateY(-30px) scale(0.9); 
+  }
+  60%  { 
+    opacity: 1; 
+    transform: translateX(-50%) translateY(0) scale(1.02); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateX(-50%) translateY(0) scale(1); 
+  }
+}
+
+@keyframes wtToastOut {
+  0%   { 
+    opacity: 1; 
+    transform: translateX(-50%) translateY(0) scale(1); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateX(-50%) translateY(-20px) scale(0.95); 
+  }
+}
+
+#currency-lock-toast.show {
+  animation: wtToastIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+#currency-lock-toast.hide {
+  animation: wtToastOut 0.3s ease forwards;
+}
+
+/* ============================================
+   ADAPTIVE
+   ============================================ */
+
+@media (max-width: 380px) {
+  .currency-switch {
+    gap: 5px;
+    padding: 4px;
+  }
+
+  .curr-btn {
+    padding: 12px 16px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .curr-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .currency-switch::before,
+  .curr-btn,
+  .curr-icon,
+  #currency-lock-toast {
+    transition: none;
+    animation: none;
+  }
+  
+  .curr-btn--active .curr-icon {
+    animation: none;
+  }
+}
   `;
 
   const styleSheet = document.createElement('style');
@@ -778,7 +1033,6 @@
   // ================== AUTO-INIT ==================
   init();
   
-  // Автосинхронизация каждые 30 секунд
   setInterval(() => {
     loadBalanceFromServer();
   }, 30000);
