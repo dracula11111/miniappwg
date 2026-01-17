@@ -444,7 +444,8 @@ function initTestModeBalance() {
 
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  // ✅ Убрали проверку - функция теперь работает всегда
+  if (!TEST_MODE) return;
+  
   console.log('[Wheel] 💸 Deducting bet:', amount, currency);
   
   if (currency === 'ton') {
@@ -458,9 +459,11 @@ function deductBetAmount(amount, currency) {
 
 
 
+
 /* =====  ADD WIN AMOUNT ===== */
 function addWinAmount(amount, currency) {
-  // ✅ Убрали проверку - функция теперь работает всегда
+  if (!TEST_MODE) return;
+  
   console.log('[Wheel] 💰 Adding win:', amount, currency);
   
   if (currency === 'ton') {
@@ -477,7 +480,7 @@ function addWinAmount(amount, currency) {
 
 /* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
-  // ✅ Убрали проверку - функция теперь работает всегда
+  if (!TEST_MODE) return;
   
   // Update currency system
   if (window.WildTimeCurrency) {
@@ -780,12 +783,9 @@ function initBettingUI(){
     }
   });
 
- 
-
-
-
+  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
   betTiles.forEach(tile => {
-    tile.addEventListener('click', () => {
+    tile.addEventListener('click', async () => {
       if (bettingLocked) {
         console.log('[Wheel] ⛔ Betting locked - waiting for history update');
         tile.classList.add('insufficient-balance');
@@ -798,7 +798,7 @@ function initBettingUI(){
       const seg = normSeg(tile.dataset.seg);
       const cur = betsMap.get(seg) || 0;
       
-      // 🔥 Balance check (works in test mode too!)
+      // 🔥 Balance check
       const balance = userBalance[currentCurrency] || 0;
       
       if (balance < currentAmount) {
@@ -808,44 +808,67 @@ function initBettingUI(){
         return;
       }
   
-      // ✅ Add bet
+      // ✅ Add bet locally
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
       betsMap.set(seg, next);
   
-      // 🔥 NEW: ВСЕГДА списываем локально для UI (быстрая реакция)
-      // На сервере спишется реально при placeBetsOnServer()
-      deductBetAmount(currentAmount, currentCurrency);
+      // 🔥 SEND BET TO SERVER (not just in test mode!)
+      if (!TEST_MODE) {
+        try {
+          const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
+          
+          // Don't process guest bets on server
+          if (userId !== 'guest') {
+            const response = await fetch('/api/deposit-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: userId,
+                amount: -currentAmount, // negative = deduct
+                currency: currentCurrency,
+                type: 'wheel_bet',
+                depositId: `bet_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                timestamp: Date.now(),
+                notify: false // don't send telegram message for bets
+              })
+            });
+  
+            const result = await response.json();
+            
+            if (!result.ok) {
+              console.error('[Wheel] Server rejected bet:', result.error);
+              // Rollback bet
+              if (next === currentAmount) {
+                betsMap.delete(seg);
+              } else {
+                betsMap.set(seg, cur);
+              }
+              showInsufficientBalanceNotification();
+              return;
+            }
+  
+            console.log('[Wheel] ✅ Bet sent to server:', result);
+          }
+        } catch (error) {
+          console.error('[Wheel] Failed to send bet to server:', error);
+          // Don't rollback - allow offline mode
+        }
+      }
+      
+      // 🔥 Deduct balance in test mode
+      if (TEST_MODE) {
+        deductBetAmount(currentAmount, currentCurrency);
+      }
   
       setBetPill(tile, seg, next, currentCurrency);
-  
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
     });
   });
-  
-  // ==========================================
-  // ВАЖНО: При очистке ставок - возвращаем баланс
-  // ==========================================
-  
-  const clearBtn = (betOverlay || document).querySelector('[data-action="clear"]');
-  
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      if (phase !== 'betting') return;
-      
-      // 🔥 ВСЕГДА возвращаем ставки в баланс
-      const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-      if (totalBets > 0) {
-        addWinAmount(totalBets, currentCurrency);
-        console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
-      }
-      
-      clearBets();
-    });
-  }
 }
+
 
 
 /* ===== Canvas ===== */
@@ -1449,23 +1472,9 @@ function startCountdown(sec=9){
       setBetPanel(false);
       
       try {
-        // ✅ 1. создаём roundId
-    const roundId = `wheel_${Date.now()}`;
-
-    // ✅ 2. СПИСЫВАЕМ СТАВКИ НА СЕРВЕРЕ
-    await placeBetsOnServer(roundId);
-
-    // ✅ 3. только ПОСЛЕ этого крутим колесо
-    await accelerateTo(FAST_OMEGA, 1200);
-
-    // ✅ 4. получаем результат с тем же roundId
-    const { sliceIndex, type } = await fetchRoundOutcome(roundId);
-
-    const dur = 5000 + Math.floor(Math.random() * 2000);
-    await decelerateToSlice(sliceIndex, dur, 4, type);
-       
-        
-        
+        await accelerateTo(FAST_OMEGA, 1200);
+        const { sliceIndex, type } = await fetchRoundOutcome();
+        const dur = 5000 + Math.floor(Math.random()*2000);
         await decelerateToSlice(sliceIndex, dur, 4, type);
       } catch (error) {
         console.error('[Wheel] Error during spin:', error);
@@ -1486,47 +1495,6 @@ function stopCountdown(){
   }
   isCountdownActive = false;
 }
-
-
-
-async function placeBetsOnServer(roundId) {
-  if (window.TEST_MODE) return;
-
-  const initData = window.Telegram?.WebApp?.initData || "";
-  const bets = Object.fromEntries(betsMap.entries());
-
-  // ⭐ Stars только целые
-  if (currentCurrency === "stars") {
-    for (const k in bets) {
-      bets[k] = Math.max(1, Math.round(Number(bets[k] || 0)));
-    }
-  }
-
-  const r = await fetch("/api/round/place-bet", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      bets,
-      currency: currentCurrency,
-      roundId,
-      initData
-    })
-  });
-
-  const data = await r.json();
-  if (!r.ok || !data.ok) {
-    throw new Error(data?.error || "place-bet failed");
-  }
-
-  window.dispatchEvent(new CustomEvent("balance:update", {
-    detail: data.balance
-  }));
-}
-
-
-
-
-
 
 /* ===== Accel/Decel ===== */
 function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
@@ -2204,4 +2172,3 @@ console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
     obs.observe(document.body, { childList: true, subtree: true });
   } catch (_) {}
 })();
-
