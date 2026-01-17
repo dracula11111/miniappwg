@@ -780,7 +780,10 @@ function initBettingUI(){
     }
   });
 
-  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
+ 
+
+
+
   betTiles.forEach(tile => {
     tile.addEventListener('click', () => {
       if (bettingLocked) {
@@ -793,7 +796,6 @@ function initBettingUI(){
       if (phase !== 'betting') return;
       
       const seg = normSeg(tile.dataset.seg);
-
       const cur = betsMap.get(seg) || 0;
       
       // 🔥 Balance check (works in test mode too!)
@@ -805,46 +807,45 @@ function initBettingUI(){
         showInsufficientBalanceNotification();
         return;
       }
-
+  
       // ✅ Add bet
       const next = currentCurrency === 'stars' 
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
       betsMap.set(seg, next);
-
-      // 🔥 Deduct balance immediately in test mode
-      if (TEST_MODE) {
-        deductBetAmount(currentAmount, currentCurrency);
-      }
-
+  
+      // 🔥 NEW: ВСЕГДА списываем локально для UI (быстрая реакция)
+      // На сервере спишется реально при placeBetsOnServer()
+      deductBetAmount(currentAmount, currentCurrency);
+  
       setBetPill(tile, seg, next, currentCurrency);
-
+  
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
     });
   });
-
-  // Clear bets
+  
+  // ==========================================
+  // ВАЖНО: При очистке ставок - возвращаем баланс
+  // ==========================================
+  
   const clearBtn = (betOverlay || document).querySelector('[data-action="clear"]');
-
+  
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       if (phase !== 'betting') return;
       
-      // 🔥 Refund bets in test mode
-      if (TEST_MODE) {
-        const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
-        if (totalBets > 0) {
-          addWinAmount(totalBets, currentCurrency);
-          console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
-        }
+      // 🔥 ВСЕГДА возвращаем ставки в баланс
+      const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
+      if (totalBets > 0) {
+        addWinAmount(totalBets, currentCurrency);
+        console.log('[Wheel] 💰 Refunded:', totalBets, currentCurrency);
       }
       
       clearBets();
     });
   }
 }
-
 
 
 /* ===== Canvas ===== */
