@@ -444,8 +444,7 @@ function initTestModeBalance() {
 
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  if (!TEST_MODE) return;
-  
+  // ✅ Убрали проверку - функция теперь работает всегда
   console.log('[Wheel] 💸 Deducting bet:', amount, currency);
   
   if (currency === 'ton') {
@@ -459,11 +458,9 @@ function deductBetAmount(amount, currency) {
 
 
 
-
 /* =====  ADD WIN AMOUNT ===== */
 function addWinAmount(amount, currency) {
-  if (!TEST_MODE) return;
-  
+  // ✅ Убрали проверку - функция теперь работает всегда
   console.log('[Wheel] 💰 Adding win:', amount, currency);
   
   if (currency === 'ton') {
@@ -480,7 +477,7 @@ function addWinAmount(amount, currency) {
 
 /* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
-  if (!TEST_MODE) return;
+  // ✅ Убрали проверку - функция теперь работает всегда
   
   // Update currency system
   if (window.WildTimeCurrency) {
@@ -1451,9 +1448,23 @@ function startCountdown(sec=9){
       setBetPanel(false);
       
       try {
-        await accelerateTo(FAST_OMEGA, 1200);
-        const { sliceIndex, type } = await fetchRoundOutcome();
-        const dur = 5000 + Math.floor(Math.random()*2000);
+        // ✅ 1. создаём roundId
+    const roundId = `wheel_${Date.now()}`;
+
+    // ✅ 2. СПИСЫВАЕМ СТАВКИ НА СЕРВЕРЕ
+    await placeBetsOnServer(roundId);
+
+    // ✅ 3. только ПОСЛЕ этого крутим колесо
+    await accelerateTo(FAST_OMEGA, 1200);
+
+    // ✅ 4. получаем результат с тем же roundId
+    const { sliceIndex, type } = await fetchRoundOutcome(roundId);
+
+    const dur = 5000 + Math.floor(Math.random() * 2000);
+    await decelerateToSlice(sliceIndex, dur, 4, type);
+       
+        
+        
         await decelerateToSlice(sliceIndex, dur, 4, type);
       } catch (error) {
         console.error('[Wheel] Error during spin:', error);
@@ -1474,6 +1485,47 @@ function stopCountdown(){
   }
   isCountdownActive = false;
 }
+
+
+
+async function placeBetsOnServer(roundId) {
+  if (window.TEST_MODE) return;
+
+  const initData = window.Telegram?.WebApp?.initData || "";
+  const bets = Object.fromEntries(betsMap.entries());
+
+  // ⭐ Stars только целые
+  if (currentCurrency === "stars") {
+    for (const k in bets) {
+      bets[k] = Math.max(1, Math.round(Number(bets[k] || 0)));
+    }
+  }
+
+  const r = await fetch("/api/round/place-bet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      bets,
+      currency: currentCurrency,
+      roundId,
+      initData
+    })
+  });
+
+  const data = await r.json();
+  if (!r.ok || !data.ok) {
+    throw new Error(data?.error || "place-bet failed");
+  }
+
+  window.dispatchEvent(new CustomEvent("balance:update", {
+    detail: data.balance
+  }));
+}
+
+
+
+
+
 
 /* ===== Accel/Decel ===== */
 function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
