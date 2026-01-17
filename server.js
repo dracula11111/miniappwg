@@ -170,9 +170,14 @@ const db = IS_TEST ? dbMem : dbReal;
 
 
 const app = express();
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
+app.use(express.static(path.join(__dirname, 'public')))
 // ====== INVENTORY (Postgres in PROD) ======
 // On Render the filesystem is ephemeral: any JSON/SQLite file will be reset on restart/deploy.
 // Therefore in PROD we store inventory in Postgres (database-pg.js).
