@@ -461,19 +461,60 @@ function deductBetAmount(amount, currency) {
 
 
 /* =====  ADD WIN AMOUNT ===== */
-function addWinAmount(amount, currency) {
-  if (!TEST_MODE) return;
-  
+async function addWinAmount(amount, currency) {
   console.log('[Wheel] 💰 Adding win:', amount, currency);
   
-  if (currency === 'ton') {
-    userBalance.ton += amount;
-  } else {
-    userBalance.stars += amount;
+  // 🔥 TEST MODE - update local balance
+  if (TEST_MODE) {
+    if (currency === 'ton') {
+      userBalance.ton += amount;
+    } else {
+      userBalance.stars += amount;
+    }
+    updateTestBalance();
+    return;
   }
   
-  updateTestBalance();
+  // 🔥 PRODUCTION MODE - send to server
+  try {
+    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
+    
+    if (userId === 'guest') {
+      console.log('[Wheel] ⚠️ Guest user, win not saved');
+      return;
+    }
+    
+    const response = await fetch('/api/deposit-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: userId,
+        amount: amount,
+        currency: currency,
+        type: 'wheel_win',
+        depositId: `bonus_win_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: Date.now(),
+        notify: false
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.ok) {
+      console.log('[Wheel] ✅ Bonus win sent to server:', result);
+    } else {
+      console.error('[Wheel] Server rejected bonus win:', result.error);
+    }
+  } catch (error) {
+    console.error('[Wheel] Failed to send bonus win to server:', error);
+  }
 }
+
+// 🔥 Make sure it's exported globally
+window.addWinAmount = addWinAmount;
+
+
+
 
 
 
@@ -1235,7 +1276,7 @@ function tick(ts){
 
 
 /* ===== Check bets and show result ===== */
-function checkBetsAndShowResult(resultType) {
+async function checkBetsAndShowResult(resultType) {
   resultType = normSeg(resultType);
 
   const totalBets = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
@@ -1245,7 +1286,7 @@ function checkBetsAndShowResult(resultType) {
   if (isBonusRound) {
     console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
     
-    // 🔥 ИЗМЕНЕНО: используем BonusManager
+    // 🔥 Используем BonusManager
     if (window.BonusManager && window.BonusManager.isOnWheelPage()) {
       showBonusNotification(resultType);
     }
@@ -1256,8 +1297,6 @@ function checkBetsAndShowResult(resultType) {
     
     return;
   }
-  
-
   
   if (totalBets <= 0) {
     console.log('[Wheel] No bets placed');
@@ -1279,6 +1318,46 @@ function checkBetsAndShowResult(resultType) {
       testMode: TEST_MODE
     });
     
+    // 🔥 SEND WIN TO SERVER (production mode)
+    if (!TEST_MODE) {
+      try {
+        const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
+        
+        if (userId !== 'guest') {
+          const response = await fetch('/api/deposit-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: userId,
+              amount: winAmount, // positive = add
+              currency: currentCurrency,
+              type: 'wheel_win',
+              depositId: `win_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              timestamp: Date.now(),
+              notify: false, // don't send telegram message
+              roundId: `round_${Date.now()}`,
+              bets: {
+                result: resultType,
+                betAmount: betOnResult,
+                multiplier: multiplier,
+                winAmount: winAmount
+              }
+            })
+          });
+
+          const result = await response.json();
+          
+          if (result.ok) {
+            console.log('[Wheel] ✅ Win sent to server:', result);
+          } else {
+            console.error('[Wheel] Server rejected win:', result.error);
+          }
+        }
+      } catch (error) {
+        console.error('[Wheel] Failed to send win to server:', error);
+      }
+    }
+    
     // 🔥 Add win to balance in test mode
     if (TEST_MODE) {
       addWinAmount(winAmount, currentCurrency);
@@ -1286,7 +1365,7 @@ function checkBetsAndShowResult(resultType) {
     
     showWinNotification(winAmount);
   } else {
-    console.log('[Wheel] 😢 LOSS', {
+    console.log('[Wheel]  LOSS', {
       result: resultType,
       yourBets: Array.from(betsMap.entries()).map(([k,v]) => `${k}: ${v}`),
       totalLost: totalBets,
@@ -1294,6 +1373,13 @@ function checkBetsAndShowResult(resultType) {
     });
   }
 }
+ 
+
+
+
+
+
+
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
@@ -1748,8 +1834,16 @@ window.WheelGame = {
     const total = Array.from(betsMap.values()).reduce((sum, val) => sum + val, 0);
     return total > 0;
   },
-  clearBets: clearBets
+  clearBets: clearBets,
+  
+  // 🔥 FIXED: addWinAmount now works in both test and production
+  addWinAmount: async function(amount, currency) {
+    console.log('[WheelGame] 💰 Adding win via export:', amount, currency);
+    await addWinAmount(amount, currency);
+  }
 };
+
+console.log('[Wheel] ✅ WheelGame exported with fixed addWinAmount');
 
 /* ===== Inject Animation Styles ===== */
 if (!document.getElementById('wheel-animations')) {
@@ -1869,25 +1963,8 @@ if (!document.getElementById('wheel-animations')) {
 
 
 // Export functions for bonus
-window.WheelGame = window.WheelGame || {};
-window.WheelGame.addWinAmount = function(amount, currency) {
-  if (window.TEST_MODE) {
-    if (currency === 'ton') {
-      window.userBalance.ton += amount;
-    } else {
-      window.userBalance.stars += amount;
-    }
-    
-    // Update UI
-    window.dispatchEvent(new CustomEvent('balance:update', {
-      detail: { 
-        ton: window.userBalance.ton, 
-        stars: window.userBalance.stars,
-        _testMode: true
-      }
-    }));
-  }
-};
+
+
 
 window.WheelGame.getCurrentCurrency = function() {
   return window.currentCurrency || 'ton';
