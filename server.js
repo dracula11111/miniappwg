@@ -1389,7 +1389,7 @@ app.listen(PORT, () => {
     console.log('✅ BOT_TOKEN configured');
   }
   
-  console.log(`✅ Wheel configured with ${WHEEL_ORDER.length} segments`);
+  
 });
 
 // ========== HELPERS ==========
