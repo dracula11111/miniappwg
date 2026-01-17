@@ -157,185 +157,35 @@ function createMemoryDb() {
 
 const dbMem = createMemoryDb();
 
-// =====================
-// SELECT DATABASE
-// Priority:
-// 1) TEST_MODE=1 (local only) => memory DB (no persistence)
-// 2) DATABASE_URL present => Postgres (production)
-// 3) else => SQLite (local persistence)
-// =====================
-let db = null;
-
-if (IS_TEST) {
-  await dbMem.initDatabase();
-  db = dbMem;
-} else if (HAS_PG) {
-  // Postgres
+// Real DB init (Postgres) — load only after dotenv has run.
+if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
   await dbReal.initDatabase();
-  db = dbReal;
 } else {
-  // SQLite fallback
-  dbReal = await import("./database-sqlite.js");
-  db = dbReal;
+  await dbMem.initDatabase();
 }
+
+// Select DB
+const db = IS_TEST ? dbMem : dbReal;
 
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-// ====== INVENTORY BACKEND (Postgres first, JSON fallback for local) ======
-const HAS_DB_INVENTORY = (
-  typeof db.getUserInventory === 'function' &&
-  typeof db.addInventoryItems === 'function' &&
-  typeof db.sellInventoryItems === 'function'
-);
-
-// JSON fallback (used only when DB inventory is not available)
-const INVENTORY_PATH = path.join(__dirname, "inventory-store.json");
-let inventoryStore = { users: {}, processedClaims: {} };
-
-function loadInventoryStore() {
-  if (HAS_DB_INVENTORY) return;
-  try {
-    if (fs.existsSync(INVENTORY_PATH)) {
-      const raw = fs.readFileSync(INVENTORY_PATH, "utf8");
-      const j = JSON.parse(raw);
-      if (j && typeof j === "object") inventoryStore = j;
-    }
-  } catch (e) {
-    console.warn("[Inventory] Failed to load JSON store:", e?.message || e);
-  }
-}
-
-function saveInventoryStore() {
-  if (HAS_DB_INVENTORY) return;
-  try {
-    fs.writeFileSync(INVENTORY_PATH, JSON.stringify(inventoryStore, null, 2));
-  } catch (e) {
-    console.warn("[Inventory] Failed to save JSON store:", e?.message || e);
-  }
-}
-
-loadInventoryStore();
-
-function normalizeInvItem(it) {
-  const now = Date.now();
-  const instanceId = String(it?.instanceId || `${now}_${crypto.randomBytes(6).toString("hex")}`);
-  return {
-    ...it,
-    type: it?.type || "nft",
-    instanceId,
-    acquiredAt: it?.acquiredAt || now,
-  };
-}
-
-async function invGet(uid) {
-  const userId = String(uid || "");
-  if (!userId) throw new Error("userId required");
-
-  if (HAS_DB_INVENTORY) {
-    return await db.getUserInventory(userId);
-  }
-
-  const u = inventoryStore.users?.[userId] || { nfts: [] };
-  return Array.isArray(u.nfts) ? u.nfts : [];
-}
-
-async function invAdd(uid, list, claimId) {
-  const userId = String(uid || "");
-  if (!userId) throw new Error("userId required");
-
-  const items = Array.isArray(list) ? list : [];
-  if (!items.length) return { items: await invGet(userId), added: 0, duplicated: false };
-
-  if (HAS_DB_INVENTORY) {
-    // Ensure user exists (FK)
-    try { await db.saveUser({ id: Number(userId) || userId }); } catch (_) {}
-
-    const before = await db.getUserInventory(userId);
-    const after = await db.addInventoryItems(userId, items.map(normalizeInvItem), claimId);
-    const added = Math.max(0, after.length - before.length);
-    const duplicated = !!claimId && added === 0;
-    return { items: after, added, duplicated };
-  }
-
-  // JSON fallback with claimId dedupe
-  inventoryStore.users = inventoryStore.users || {};
-  inventoryStore.users[userId] = inventoryStore.users[userId] || { nfts: [] };
-  inventoryStore.users[userId].nfts = Array.isArray(inventoryStore.users[userId].nfts) ? inventoryStore.users[userId].nfts : [];
-  inventoryStore.processedClaims = inventoryStore.processedClaims || {};
-
-  const key = String(claimId || "");
-  if (key && inventoryStore.processedClaims[key]) {
-    return { items: inventoryStore.users[userId].nfts, added: 0, duplicated: true };
-  }
-
-  const addedItems = items.map(normalizeInvItem);
-  inventoryStore.users[userId].nfts.push(...addedItems);
-  if (key) inventoryStore.processedClaims[key] = true;
-  saveInventoryStore();
-  return { items: inventoryStore.users[userId].nfts, added: addedItems.length, duplicated: false };
-}
-
-async function invSell(uid, instanceIds, currency) {
-  const userId = String(uid || "");
-  if (!userId) throw new Error("userId required");
-  const cur = (currency === 'stars') ? 'stars' : 'ton';
-  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
-
-  if (HAS_DB_INVENTORY) {
-    const r = await db.sellInventoryItems(userId, ids, cur);
-    const items = await db.getUserInventory(userId);
-    return { ...r, items };
-  }
-
-  const nfts = await invGet(userId);
-  const keep = [];
-  let total = 0;
-  let sold = 0;
-
-  for (const it of nfts) {
-    const iid = String(it?.instanceId || '');
-    if (ids.includes(iid)) {
-      sold += 1;
-      const p = it?.price?.[cur];
-      total += (cur === 'stars') ? (parseInt(p, 10) || 0) : (parseFloat(p) || 0);
-    } else {
-      keep.push(it);
-    }
-  }
-
-  inventoryStore.users = inventoryStore.users || {};
-  inventoryStore.users[userId] = inventoryStore.users[userId] || { nfts: [] };
-  inventoryStore.users[userId].nfts = keep;
-  saveInventoryStore();
-
-  const amount = (cur === 'stars') ? Math.max(0, Math.round(total)) : Math.max(0, Math.round(total * 100) / 100);
-  let newBalance = null;
-  try {
-    newBalance = await db.updateBalance(userId, cur, amount, 'inventory_sell', `Sold ${sold} NFT(s)`, { sold: ids });
-  } catch (e) {
-    console.error('[Inventory] updateBalance failed:', e);
-  }
-
-  return { ok: true, sold, amount, currency: cur, newBalance, items: keep };
-}
-
-// Wheel configuration (must match wheel.js)
+// Wheel configuration (must match public/js/wheel.js)
 const WHEEL_ORDER = [
-  'Wild Time','1x','1.5x','Loot Rush','1x','5x','50&50','1x',
-  '1.5x','11x','1x','1.5x','Loot Rush','1x','5x','50&50',
-  '1x','1.5x','1x','11x','1.5x','1x','5x','50&50'
+  '1.1x','1.5x','Loot Rush','1.1x','5x','50&50','1.1x',
+  '1.5x','11x','1.1x','1.5x','Loot Rush','1.1x','5x','50&50',
+  '1.1x','1.5x','1.1x','Wild Time','11x','1.5x','1.1x','5x','50&50'
 ];
 
 // --- Base settings
 app.set("trust proxy", true);
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 
-// --- Static files from ./public
+// --- Static files from ./public (Render)
 app.use(express.static(path.join(__dirname, "public"), {
   extensions: ["html"],
   setHeaders: (res, filePath) => {
@@ -345,93 +195,60 @@ app.use(express.static(path.join(__dirname, "public"), {
   }
 }));
 
-// ====== HEALTH ======
-app.get("/health", async (req, res) => res.json({ ok: true }));
 
-// ====== TON wallet balance (server-side to avoid CORS in Telegram WebView) ======
-app.get('/api/ton/balance', async (req, res) => {
-  const address = String(req.query.address || '').trim();
-  if (!address) return res.status(400).json({ ok: false, error: 'address required' });
+// ====== INVENTORY (Postgres) ======
+// Inventory is persisted in Postgres via database-pg.js.
+// Endpoints return { items, nfts } for backward compatibility.
 
-  try {
-    const r = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`);
-    const data = await r.json().catch(() => null);
+async function inventoryGet(userId) {
+  if (typeof db.getUserInventory === "function") return await db.getUserInventory(userId);
+  return [];
+}
 
-    if (data?.ok && data?.result) {
-      const nano = String(data.result);
-      let ton = null;
-      try { ton = (Number(BigInt(nano)) / 1_000_000_000).toFixed(2); } catch {}
-      return res.json({ ok: true, nano, ton });
-    }
+async function inventoryAdd(userId, items, claimId) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return { added: 0, items: await inventoryGet(userId), duplicated: false };
 
-    return res.status(502).json({ ok: false, error: 'toncenter failed', data });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  if (typeof db.addInventoryItems === "function") {
+    const prev = await inventoryGet(userId);
+    const next = await db.addInventoryItems(userId, list, claimId || null);
+    // best-effort: added = delta length (may be 0 if claimId duplicated)
+    const added = Math.max(0, (next?.length || 0) - (prev?.length || 0));
+    return { added, items: next || [], duplicated: (added === 0 && !!claimId) };
   }
-});
 
-// ====== TonConnect manifest ======
-app.get('/tonconnect-manifest.json', async (req, res) => {
-  const origin = `${req.protocol}://${req.get('host')}`;
+  // Fallback: no inventory support in current DB driver
+  return { added: 0, items: await inventoryGet(userId), duplicated: false };
+}
 
-  res.setHeader('Content-Type', 'application/json');
-  res.status(200).json({
-    manifestVersion: 2,
-    name: 'Wild Gift',
-    url: origin,
-    iconUrl: `${origin}/icons/app-icon.png`
-  });
-});
+async function inventorySell(userId, instanceIds, currency) {
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  const cur = (currency === "stars") ? "stars" : "ton";
+  if (!ids.length) return { ok: false, sold: 0, amount: 0, newBalance: null, items: await inventoryGet(userId) };
 
-// ====== Telegram avatar proxy ======
-app.get("/api/tg/photo/:userId", async (req, res) => {
-  try {
-    const token = process.env.BOT_TOKEN;
-    const userId = req.params.userId;
-    if (!token) return res.status(500).send("BOT_TOKEN not set");
-
-    const p1 = await fetch(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${userId}&limit=1`);
-    const j1 = await p1.json();
-    const photos = j1?.result?.photos?.[0];
-    if (!photos) return res.status(404).send("no photo");
-
-    const fileId = photos[photos.length - 1].file_id;
-    const p2 = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
-    const j2 = await p2.json();
-    const fpath = j2?.result?.file_path;
-    if (!fpath) return res.status(404).send("no file path");
-
-    const fileResp = await fetch(`https://api.telegram.org/file/bot${token}/${fpath}`);
-    if (!fileResp.ok) return res.status(502).send("tg file fetch failed");
-
-    res.setHeader("Cache-Control", "public, max-age=3600, immutable");
-    res.setHeader("Content-Type", fileResp.headers.get("content-type") || "image/jpeg");
-    Readable.fromWeb(fileResp.body).pipe(res);
-
-  } catch (e) {
-    console.error('[Avatar]', e);
-    res.status(500).send("error");
+  if (typeof db.sellInventoryItems === "function") {
+    const res = await db.sellInventoryItems(userId, ids, cur);
+    const items = await inventoryGet(userId);
+    return { ok: true, currency: cur, ...res, items, nfts: items };
   }
-});
 
-
-// ====== INVENTORY API ======
+  return { ok: true, currency: cur, sold: 0, amount: 0, newBalance: null, items: await inventoryGet(userId), nfts: await inventoryGet(userId) };
+}
 
 // GET inventory (NFTs) for a user
 app.get("/api/user/inventory", async (req, res) => {
-  const userId = String(req.query.userId || "");
-  if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
-
   try {
-    const items = await invGet(userId);
+    const userId = String(req.query.userId || "");
+    if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+    const items = await inventoryGet(userId);
     return res.json({ ok: true, items, nfts: items });
   } catch (e) {
-    console.error('[Inventory] get error:', e);
-    return res.status(500).json({ ok: false, error: 'inventory error' });
+    console.error("[Inventory] get error:", e);
+    return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
 
-// Add won NFTs to inventory (anti-dup via claimId)
+// Add won NFTs to inventory (idempotent via claimId)
 app.post("/api/inventory/nft/add", async (req, res) => {
   try {
     const { userId, initData, items, item, claimId } = req.body || {};
@@ -447,7 +264,7 @@ app.post("/api/inventory/nft/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    const result = await invAdd(uid, list, claimId);
+    const result = await inventoryAdd(uid, list, claimId);
     return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
   } catch (e) {
     console.error("[Inventory] add error:", e);
@@ -455,7 +272,7 @@ app.post("/api/inventory/nft/add", async (req, res) => {
   }
 });
 
-// Compatibility: front-end uses /api/inventory/add (same as /api/inventory/nft/add)
+// Compatibility: front-end uses /api/inventory/add
 app.post("/api/inventory/add", async (req, res) => {
   try {
     const { userId, initData, items, item, claimId } = req.body || {};
@@ -470,7 +287,7 @@ app.post("/api/inventory/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    const result = await invAdd(uid, list, claimId);
+    const result = await inventoryAdd(uid, list, claimId);
     return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
   } catch (e) {
     console.error("[Inventory] add error:", e);
@@ -484,24 +301,12 @@ app.post("/api/inventory/sell", async (req, res) => {
     const { userId, instanceIds, currency } = req.body || {};
     const uid = String(userId || "");
     if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
-    const cur = (currency === "stars") ? "stars" : "ton";
 
     const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
     if (!ids.length) return res.status(400).json({ ok: false, error: "instanceIds required" });
 
-    const r = await invSell(uid, ids, cur);
-    const bal = await db.getUserBalance(uid);
-
-    return res.json({
-      ok: true,
-      sold: r.sold || 0,
-      amount: r.amount || 0,
-      currency: cur,
-      newBalance: r.newBalance ?? null,
-      balance: { ton: bal?.ton_balance ?? "0", stars: bal?.stars_balance ?? 0 },
-      items: r.items || [],
-      nfts: r.items || []
-    });
+    const result = await inventorySell(uid, ids, currency);
+    return res.json(result);
   } catch (e) {
     console.error("[Inventory] sell error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
@@ -514,34 +319,42 @@ app.post("/api/inventory/sell-all", async (req, res) => {
     const { userId, currency } = req.body || {};
     const uid = String(userId || "");
     if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
-    const cur = (currency === "stars") ? "stars" : "ton";
 
-    const items = await invGet(uid);
-    const ids = items.map(it => String(it?.instanceId || "")).filter(Boolean);
-    if (!ids.length) {
-      const bal = await db.getUserBalance(uid);
-      return res.json({ ok: true, sold: 0, amount: 0, currency: cur, items: [], nfts: [], balance: { ton: bal?.ton_balance ?? "0", stars: bal?.stars_balance ?? 0 } });
-    }
+    const items = await inventoryGet(uid);
+    const ids = items.map(it => it?.instanceId).filter(Boolean).map(String);
+    if (!ids.length) return res.json({ ok: true, sold: 0, amount: 0, currency: (currency === "stars") ? "stars" : "ton", items: [], nfts: [] });
 
-    const r = await invSell(uid, ids, cur);
-    const bal = await db.getUserBalance(uid);
-
-    return res.json({
-      ok: true,
-      sold: r.sold || ids.length,
-      amount: r.amount || 0,
-      currency: cur,
-      newBalance: r.newBalance ?? null,
-      balance: { ton: bal?.ton_balance ?? "0", stars: bal?.stars_balance ?? 0 },
-      items: r.items || [],
-      nfts: r.items || []
-    });
+    const result = await inventorySell(uid, ids, currency);
+    return res.json(result);
   } catch (e) {
     console.error("[Inventory] sell-all error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
 
+// Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
+app.post("/api/admin/inventory/add", async (req, res) => {
+  try {
+    const adminKey = process.env.ADMIN_KEY;
+    if (adminKey) {
+      const hdr = String(req.headers["x-admin-key"] || "");
+      if (hdr !== adminKey) return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+
+    const { userId, items, item, claimId } = req.body || {};
+    const uid = String(userId || "");
+    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+
+    const list = Array.isArray(items) ? items : (item ? [item] : []);
+    if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
+
+    const result = await inventoryAdd(uid, list, claimId || `admin_${Date.now()}`);
+    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items });
+  } catch (e) {
+    console.error("[Admin Inventory] add error:", e);
+    return res.status(500).json({ ok: false, error: "inventory error" });
+  }
+});
 
 // ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
@@ -577,7 +390,8 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     // 🔥 Разрешаем отрицательные суммы (списание)
-    if (amount === 0 || !Number.isFinite(amount)) {
+    const amountNum = Number(amount);
+    if (!Number.isFinite(amountNum) || amountNum === 0) {
       return res.status(400).json({ ok: false, error: 'Invalid amount' });
     }
 
