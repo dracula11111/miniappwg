@@ -24,6 +24,8 @@ async function query(text, params) {
 
 export async function initDatabase() {
   console.log("[DB] 🚀 Initializing Postgres schema...");
+
+  // --- Core tables ---
   await query(`
     CREATE TABLE IF NOT EXISTS users (
       telegram_id BIGINT PRIMARY KEY,
@@ -77,29 +79,83 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_bets_user ON bets(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_bets_result ON bets(result);
     CREATE INDEX IF NOT EXISTS idx_bets_created ON bets(created_at DESC);
+  `);
 
-    -- ===== Inventory (NFT gifts) =====
+  // --- Inventory tables (NFT gifts) ---
+  // IMPORTANT:
+  // On Render you may already have an older inventory_items schema from previous deploys.
+  // CREATE TABLE IF NOT EXISTS does NOT alter existing tables, so we run a small migration
+  // to add missing columns (acquired_at / item_json / created_at) safely.
+
+  await query(`
     CREATE TABLE IF NOT EXISTS inventory_items (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
       instance_id TEXT NOT NULL,
-      item_json JSONB NOT NULL,
-      acquired_at BIGINT NOT NULL,
-      created_at BIGINT NOT NULL,
+      item_json JSONB,
+      acquired_at BIGINT,
+      created_at BIGINT,
       UNIQUE (telegram_id, instance_id)
     );
+  `);
 
-    CREATE INDEX IF NOT EXISTS idx_inventory_user ON inventory_items(telegram_id);
-    CREATE INDEX IF NOT EXISTS idx_inventory_acquired ON inventory_items(acquired_at DESC);
-
+  await query(`
     CREATE TABLE IF NOT EXISTS inventory_claims (
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
       claim_id TEXT NOT NULL,
       created_at BIGINT NOT NULL,
       PRIMARY KEY (telegram_id, claim_id)
     );
-
   `);
+
+  // ---- Migration helpers ----
+  async function colExists(table, col) {
+    const r = await query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2 LIMIT 1`,
+      [table, col]
+    );
+    return r.rowCount > 0;
+  }
+
+  // Add missing columns (older deployments may have different names)
+  if (!(await colExists('inventory_items', 'item_json'))) {
+    await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS item_json JSONB;`);
+  }
+  if (!(await colExists('inventory_items', 'acquired_at'))) {
+    await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS acquired_at BIGINT;`);
+  }
+  if (!(await colExists('inventory_items', 'created_at'))) {
+    await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS created_at BIGINT;`);
+  }
+
+  // Backfill from legacy column name "item" -> "item_json" if needed
+  const hasLegacyItem = await colExists('inventory_items', 'item');
+  if (hasLegacyItem) {
+    await query(`UPDATE inventory_items SET item_json = COALESCE(item_json, item) WHERE item_json IS NULL;`);
+  }
+
+  // Backfill timestamps so ORDER BY / inserts are consistent
+  await query(`
+    UPDATE inventory_items
+    SET acquired_at = COALESCE(acquired_at, created_at, EXTRACT(EPOCH FROM NOW())::BIGINT)
+    WHERE acquired_at IS NULL;
+  `);
+
+  await query(`
+    UPDATE inventory_items
+    SET created_at = COALESCE(created_at, acquired_at, EXTRACT(EPOCH FROM NOW())::BIGINT)
+    WHERE created_at IS NULL;
+  `);
+
+  // Ensure indexes/constraints exist (safe even if table existed before)
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS ux_inventory_user_instance ON inventory_items(telegram_id, instance_id);`);
+
+  // Only create acquired_at index if the column exists (it should after migration)
+  if (await colExists('inventory_items', 'acquired_at')) {
+    await query(`CREATE INDEX IF NOT EXISTS idx_inventory_user ON inventory_items(telegram_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_inventory_acquired ON inventory_items(acquired_at DESC);`);
+  }
+
   console.log("[DB] ✅ Postgres schema ready");
 }
 
