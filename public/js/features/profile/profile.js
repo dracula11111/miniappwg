@@ -1,4 +1,4 @@
-// /public/js/profile.js - Complete v5 - Updated without NFT shelf
+// /public/js/profile.js - Complete v5
 (() => {
   console.log('[Profile] ✅ Loaded v5 - Redesigned (No NFT Shelf)');
 

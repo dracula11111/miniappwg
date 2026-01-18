@@ -2098,7 +2098,7 @@ function showTestModeNotification() {
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
-    '1.5': 1.5,
+    '1.5x': 1.5,
     '5x': 5,
     '11x': 11,
     '50&50': 2,

@@ -196,6 +196,94 @@ app.use(express.static(path.join(__dirname, "public"), {
 }));
 
 
+// ==============================
+// CASES GLOBAL HISTORY (in-memory)
+// ==============================
+// NOTE: This is per-server-instance. If you need persistence across restarts or
+// multiple instances, move this to Postgres.
+const CASES_HISTORY_MAX = 20;
+const casesHistory = []; // newest first
+
+function clampHistoryLimit(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return CASES_HISTORY_MAX;
+  return Math.max(1, Math.min(CASES_HISTORY_MAX, Math.floor(v)));
+}
+
+function safeShortText(s, max = 48) {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  return t.length > max ? t.slice(0, max) : t;
+}
+
+function safePath(p) {
+  const t = String(p ?? "").trim();
+  // allow only local images under /images/
+  if (!t.startsWith("/images/")) return "";
+  // avoid accidental protocols
+  if (t.includes("://")) return "";
+  return t;
+}
+
+function pushCasesHistory(entry) {
+  casesHistory.unshift(entry);
+  if (casesHistory.length > CASES_HISTORY_MAX) casesHistory.length = CASES_HISTORY_MAX;
+}
+
+// GET latest case drops
+app.get("/api/cases/history", (req, res) => {
+  const limit = clampHistoryLimit(req.query.limit);
+  return res.json({ ok: true, items: casesHistory.slice(0, limit) });
+});
+
+// POST one or multiple history entries
+app.post("/api/cases/history", (req, res) => {
+  try {
+    const { userId, initData, entries } = req.body || {};
+
+    // Optional initData verification (same pattern as other endpoints)
+    if (initData && process.env.BOT_TOKEN) {
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+      if (!check.ok) return res.status(403).json({ ok: false, error: "Invalid initData" });
+    }
+
+    const list = Array.isArray(entries) ? entries : (req.body && typeof req.body === "object" ? [req.body] : []);
+    const now = Date.now();
+
+    for (const raw of list) {
+      if (!raw) continue;
+      const u = raw.user || {};
+      const clean = {
+        id: safeShortText(raw.id || crypto.randomUUID(), 96),
+        ts: Number.isFinite(+raw.ts) ? +raw.ts : now,
+        user: {
+          id: safeShortText(u.id || userId || raw.userId || "", 64),
+          name: safeShortText(u.name || raw.userName || "", 48),
+          username: safeShortText(u.username || raw.username || "", 48)
+        },
+        caseId: safeShortText(raw.caseId || "", 32),
+        caseName: safeShortText(raw.caseName || "", 48),
+        drop: {
+          id: safeShortText(raw.drop?.id || raw.itemId || "", 48),
+          type: safeShortText(raw.drop?.type || raw.itemType || "", 16),
+          icon: safePath(raw.drop?.icon || raw.itemIcon || ""),
+          label: safeShortText(raw.drop?.label || raw.itemLabel || raw.drop?.id || raw.itemId || "", 48)
+        }
+      };
+
+      // minimal sanity: must have caseId and drop id/icon
+      if (!clean.caseId || !clean.drop.id) continue;
+      pushCasesHistory(clean);
+    }
+
+    return res.json({ ok: true, items: casesHistory.slice(0, CASES_HISTORY_MAX) });
+  } catch (e) {
+    console.error("[cases.history]", e);
+    return res.status(500).json({ ok: false, error: "Server error" });
+  }
+});
+
+
 // ====== INVENTORY (Postgres) ======
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.

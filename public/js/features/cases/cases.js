@@ -30,24 +30,45 @@
     }
 ,
 // Case 2: NFT + Gifts
-case2: {
-  id: 'case2',
-  name: 'NFT + Gifts',
-  price: { ton: 0.02, stars: 4 },
-  items: [
-    // NFTs (put images into /public/images/nfts/)
-    { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
-    { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
-    { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
+    case2: {
+      id: 'case2',
+      name: 'NFT Hunt',
+      price: { ton: 0.02, stars: 4 },
+      items: [
+        // NFTs (put images into /public/images/nfts/)
+        { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'nft2', type: 'nft', icon: 'IceCreamNFT.png', price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
+        { id: 'nft3', type: 'nft', icon: 'RamenNFT.png',    price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
 
-    // Gifts
-    { id: 'gift1',  icon: 'gift1.png',  price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-    { id: 'gift4',  icon: 'gift4.png',  price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
-    { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
-    { id: 'gift9',  icon: 'gift9.png',  price: { ton: 0.23, stars: 25  }, rarity: 'common' },
-    { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-  ]
-}
+        // Gifts
+        { id: 'gift1',  icon: 'gift1.png',  price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift4',  icon: 'gift4.png',  price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
+        { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
+        { id: 'gift9',  icon: 'gift9.png',  price: { ton: 0.23, stars: 25  }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+      ]
+    }
+
+    ,
+    case3: {
+      id: 'case3',
+      name: 'Sweet Sugar',
+      price: { ton: 0.05, stars: 10 },
+      items: [
+        // Premium NFTs
+        { id: 'nft1', type: 'nft', icon: 'IceCreamNFtSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'nft2', type: 'nft', icon: 'CookieHeartNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
+        { id: 'nft3', type: 'nft', icon: 'MousseCakeNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'nft3', type: 'nft', icon: 'LolPopNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'nft3', type: 'nft', icon: 'BerryBoxNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+
+        // High-value Gifts       
+        { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },   
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+      ]
+      
+    }
   };
 
   // ====== STATE ======
@@ -96,7 +117,7 @@ const NFT_DROP_RATES = {
 // Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
 const STRIP_NFT_CHANCE = {
   demo: 0.28,          // в демо пусть иногда мелькают
-  paid: 0.06           // в обычном режиме редко
+  paid: 0.26           // в обычном режиме редко
 };
 
 const _casePoolsCache = new Map();
@@ -275,6 +296,189 @@ function getBalanceSafe(currency) {
   let countBtns = [];
   let demoToggle = null;
 
+  // ====== CASES PAGE UI: HERO + GLOBAL HISTORY ======
+  const MAX_CASES_HISTORY = 20;
+  let heroTickerEl = null;
+  let historyListEl = null;
+  let historyPollTimer = null;
+  let historyInFlight = false;
+  let historyState = [];
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function getTgUserMeta() {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const name = [u?.first_name, u?.last_name].filter(Boolean).join(' ').trim();
+    const username = u?.username ? `@${u.username}` : '';
+    return {
+      id: u?.id ? String(u.id) : 'guest',
+      name: name || 'User',
+      username: username || ''
+    };
+  }
+
+  function isCasesPageActive() {
+    const p = document.getElementById('casesPage');
+    return !!(p && p.classList.contains('page-active'));
+  }
+
+  function initHeroTicker() {
+    heroTickerEl = document.getElementById('casesHeroTicker');
+    if (!heroTickerEl) return;
+
+    // Clear and (re)build
+    heroTickerEl.innerHTML = '';
+    const list = Object.values(CASES);
+    const slotMs = 2200; // each case visible ~2.2s
+    const totalMs = Math.max(slotMs * Math.max(1, list.length), 3000);
+
+    list.forEach((caseData, idx) => {
+      const item = document.createElement('div');
+      item.className = 'cases-hero__ticker-item';
+      item.style.animationDuration = `${totalMs}ms`;
+      item.style.animationDelay = `${idx * slotMs}ms`;
+      item.innerHTML = `<img src="/images/cases/${escapeHtml(caseData.id)}.png" alt="${escapeHtml(caseData.name)}">`;
+      heroTickerEl.appendChild(item);
+    });
+  }
+
+  function renderHistory(items) {
+    if (!historyListEl) return;
+    const arr = Array.isArray(items) ? items : [];
+    historyListEl.innerHTML = arr.map((h) => {
+      const u = h.user || {};
+      const userLabel = escapeHtml(u.username || u.name || 'User');
+      const itemLabel = escapeHtml(h.drop?.label || h.drop?.id || '');
+      const caseId = escapeHtml(h.caseId || 'case1');
+      const dropIcon = escapeHtml(h.drop?.icon || ITEM_ICON_FALLBACK);
+      return `
+        <div class="cases-history-item" title="${userLabel} • ${itemLabel}">
+          <div class="cases-history-item__thumb">
+            <img class="cases-history-item__case" src="/images/cases/${caseId}.png" alt="${caseId}">
+            <div class="cases-history-item__drop"><img src="${dropIcon}" alt="${itemLabel}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'"></div>
+          </div>
+          <div class="cases-history-item__meta">
+            <div class="cases-history-item__user">${userLabel}</div>
+            <div class="cases-history-item__item">${itemLabel}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function mergeHistoryLocal(newItems) {
+    const arr = Array.isArray(newItems) ? newItems : [];
+    // Newest first
+    historyState = arr.concat(historyState);
+    // De-dup by id if present
+    const seen = new Set();
+    historyState = historyState.filter((e) => {
+      const k = e?.id || `${e?.ts || 0}_${e?.user?.id || ''}_${e?.caseId || ''}_${e?.drop?.id || ''}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    historyState = historyState.slice(0, MAX_CASES_HISTORY);
+    renderHistory(historyState);
+  }
+
+  async function fetchAndRenderHistory() {
+    if (historyInFlight) return;
+    historyInFlight = true;
+    try {
+      const r = await fetchJsonSafe(`/api/cases/history?limit=${MAX_CASES_HISTORY}`);
+      if (r.ok && r.json && Array.isArray(r.json.items)) {
+        historyState = r.json.items.slice(0, MAX_CASES_HISTORY);
+        renderHistory(historyState);
+      } else if (!historyState.length) {
+        renderHistory([]);
+      }
+    } finally {
+      historyInFlight = false;
+    }
+  }
+
+  function startHistoryPolling() {
+    if (!historyListEl) return;
+    if (historyPollTimer) return;
+    // initial
+    fetchAndRenderHistory();
+    historyPollTimer = setInterval(() => {
+      if (!isCasesPageActive()) return;
+      fetchAndRenderHistory();
+    }, 6500);
+  }
+
+  function stopHistoryPolling() {
+    if (historyPollTimer) {
+      clearInterval(historyPollTimer);
+      historyPollTimer = null;
+    }
+  }
+
+  function setupCasesPageActivityObservers() {
+    const casesPage = document.getElementById('casesPage');
+    if (!casesPage) return;
+
+    const apply = () => {
+      if (casesPage.classList.contains('page-active')) {
+        startHistoryPolling();
+      } else {
+        stopHistoryPolling();
+      }
+    };
+
+    apply();
+    new MutationObserver(apply).observe(casesPage, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  function makeHistoryEntries(caseData, winEntries, userMeta) {
+    const c = caseData || {};
+    const u = userMeta || { id: 'guest', name: 'User', username: '' };
+    const now = Date.now();
+    return (Array.isArray(winEntries) ? winEntries : [])
+      .map((e, idx) => {
+        const it = e?.item;
+        if (!it) return null;
+        const id = `h_${now}_${idx}_${Math.random().toString(16).slice(2)}`;
+        return {
+          id,
+          ts: now,
+          user: { id: u.id, name: u.name, username: u.username },
+          caseId: c.id || '',
+          caseName: c.name || '',
+          drop: {
+            id: it.id || '',
+            type: itemType(it),
+            icon: itemIconPath(it),
+            label: it.id || ''
+          }
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function sendHistoryToServer(entries, userId, initData) {
+    const list = Array.isArray(entries) ? entries : [];
+    if (!list.length) return;
+
+    try {
+      // fire-and-forget (don’t block UX)
+      fetchJsonSafe('/api/cases/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, initData, entries: list })
+      }, 3500).catch(() => {});
+    } catch (_) {}
+  }
+
   // ====== PAGE STATE FLAG ======
   function setupCasesPageBodyFlag() {
     const casesPage = document.getElementById('casesPage');
@@ -292,6 +496,12 @@ function getBalanceSafe(currency) {
   function init() {
     console.log('[Cases] Initializing...');
     setupCasesPageBodyFlag();
+
+    // Poster + global history (Cases page)
+    heroTickerEl = document.getElementById('casesHeroTicker');
+    historyListEl = document.getElementById('casesHistoryList');
+    initHeroTicker();
+    setupCasesPageActivityObservers();
 
     overlay = document.getElementById('caseOverlay');
     sheetPanel = document.querySelector('.case-sheet-panel');
@@ -361,7 +571,7 @@ function getBalanceSafe(currency) {
     Object.values(CASES).forEach(caseData => {
       const currency = window.WildTimeCurrency?.current || 'ton';
       const price = caseData.price[currency];
-      const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+      const icon = currency === 'ton' ? '/icons/tgTonWhite.svg' : '/icons/stars.svg';
 
       const card = document.createElement('div');
       card.className = 'case-card';
@@ -1302,6 +1512,19 @@ async function showResult(currency, demoModeOverride) {
 
   const giftEntries = winEntries.filter(e => itemType(e.item) !== 'nft');
   const nftEntries  = winEntries.filter(e => itemType(e.item) === 'nft');
+
+  // Global history (server + local)
+  try {
+    const meta = getTgUserMeta();
+    const entries = makeHistoryEntries(currentCase, winEntries, meta);
+    // Always show locally (useful on localhost); send to server only when not demo
+    if (entries.length) {
+      mergeHistoryLocal(entries);
+      if (!demoModeForRound && serverEnabled) {
+        sendHistoryToServer(entries, tgUserId, initData);
+      }
+    }
+  } catch (_) {}
 
   const itemValue = (it) => ((it?.price?.[currency]) ? (parseFloat(it.price[currency]) || 0) : 0);
 
