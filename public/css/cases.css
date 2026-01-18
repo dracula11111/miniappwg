@@ -468,6 +468,32 @@
   }
   .case-sheet-panel.active{ transform: translateY(0); }
   
+  /* Case 1: White gradient background */
+  .case-sheet-panel[data-case-id="case1"]{
+    background: 
+      radial-gradient(450px 300px at 50% -100px, rgba(255, 255, 255, 0.12) 0%, transparent 65%),
+      radial-gradient(350px 250px at 80% 40%, rgba(200, 200, 255, 0.08) 0%, transparent 70%),
+      radial-gradient(400px 300px at 20% 80%, rgba(255, 255, 255, 0.06) 0%, transparent 70%),
+      var(--bg);
+  }
+  
+  /* Case 2: Turquoise gradient */
+  .case-sheet-panel[data-case-id="case2"]{
+    background: 
+      radial-gradient(450px 300px at 50% -100px, rgba(64, 224, 208, 0.10) 0%, transparent 65%),
+      radial-gradient(350px 250px at 80% 40%, rgba(64, 224, 208, 0.06) 0%, transparent 70%),
+      var(--bg);
+  }
+  
+  /* Case 3: Pink/Purple gradient */
+  .case-sheet-panel[data-case-id="case3"]{
+    background: 
+      radial-gradient(450px 300px at 50% -100px, rgba(224, 64, 171, 0.10) 0%, transparent 65%),
+      radial-gradient(350px 250px at 80% 40%, rgba(224, 64, 216, 0.06) 0%, transparent 70%),
+      var(--bg);
+  }
+
+  
   /* Header */
   .case-sheet-header{
     flex-shrink:0;
@@ -574,13 +600,44 @@
     background: rgba(255,255,255,0.035);
   }
   
+
+
+
   /* Winning highlight (very clear) */
-  .case-carousel-item.winning::before{
-    background: rgba(0, 166, 255, 0.26);
-    box-shadow:
-      inset 0 0 0 1px rgba(0, 166, 255, 0.34),
-      0 0 26px rgba(0, 166, 255, 0.35);
-  }
+  
+.case-carousel-item.winning::before{
+  background: rgba(0, 166, 255, 0.26);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 166, 255, 0.34),
+    0 0 26px rgba(0, 166, 255, 0.35);
+}
+
+/* Case 1: White winning highlight */
+.case-sheet-panel[data-case-id="case1"] .case-carousel-item.winning::before{
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 26px rgba(255, 255, 255, 0.35);
+}
+
+/* Case 2: Turquoise winning highlight */
+.case-sheet-panel[data-case-id="case2"] .case-carousel-item.winning::before{
+  background: rgba(64, 224, 208, 0.26);
+  box-shadow:
+    inset 0 0 0 1px rgba(64, 224, 208, 0.34),
+    0 0 26px rgba(64, 224, 208, 0.35);
+}
+
+/* Case 3: Pink winning highlight */
+.case-sheet-panel[data-case-id="case3"] .case-carousel-item.winning::before{
+  background: rgba(224, 64, 171, 0.26);
+  box-shadow:
+    inset 0 0 0 1px rgba(224, 64, 171, 0.34),
+    0 0 26px rgba(224, 64, 171, 0.35);
+}
+
+
+
   .case-carousel-item.winning::after{
     content:"";
     position:absolute;
@@ -602,6 +659,21 @@
     pointer-events:none;
     transition: all .2s ease;
   }
+  /* Case-specific carousel indicator colors */
+.case-sheet-panel[data-case-id="case1"] .case-carousel-indicator{
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 0 24px rgba(255, 255, 255, 0.4);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-carousel-indicator{
+  background: rgba(64, 224, 208, 0.8);
+  box-shadow: 0 0 12px rgba(64, 224, 208, 0.6), 0 0 24px rgba(64, 224, 208, 0.4);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-carousel-indicator{
+  background: rgba(224, 64, 171, 0.8);
+  box-shadow: 0 0 12px rgba(224, 64, 171, 0.6), 0 0 24px rgba(224, 64, 171, 0.4);
+}
   .case-carousel-indicator.winning{
     width:4px;
     background: var(--ok);
@@ -629,14 +701,38 @@
   /* ----------------------------
      Count switch + demo
      ---------------------------- */
-  .case-count-section{
-    flex-shrink:0;
-    padding: 12px 20px 20px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap: 16px;
-  }
+     .case-count-section{
+      flex-shrink:0;
+      padding: 12px 20px 20px;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap: 16px;
+      position: relative;
+    }
+    
+    /* Case image next to demo toggle */
+    .case-count-section::after{
+      content: '';
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 80px;
+      height: 80px;
+      background-image: var(--current-case-image, none);
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.35));
+      opacity: 0.85;
+      pointer-events: none;
+    }
+    
+    /* Hide case image on small screens */
+    @media (max-width: 400px){
+      .case-count-section::after{ display: none; }
+    }
   
   .case-count-switch{
     display:flex;
@@ -659,6 +755,30 @@
     color:#fff;
     box-shadow: 0 2px 8px rgba(0,166,255,0.40);
   }
+  
+  /* Case 1: White active button */
+  .case-sheet-panel[data-case-id="case1"] .case-count-btn.active{
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(200, 200, 255, 0.15));
+    color:#fff;
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.30);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  
+  /* Case 2: Turquoise active button */
+  .case-sheet-panel[data-case-id="case2"] .case-count-btn.active{
+    background: rgba(64, 224, 208, 0.25);
+    color:#fff;
+    box-shadow: 0 2px 8px rgba(64, 224, 208, 0.40);
+  }
+  
+  /* Case 3: Pink active button */
+  .case-sheet-panel[data-case-id="case3"] .case-count-btn.active{
+    background: rgba(224, 64, 171, 0.25);
+    color:#fff;
+    box-shadow: 0 2px 8px rgba(224, 64, 171, 0.40);
+  }
+
+
   .case-count-btn:active{ transform: scale(0.96); }
   
   .case-demo-toggle{
@@ -784,6 +904,29 @@
     box-shadow: 0 4px 16px rgba(0,166,255,0.30);
     transition: transform .12s ease;
   }
+
+  /* Case 1: White open button */
+.case-sheet-panel[data-case-id="case1"] .case-open-btn{
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.20), rgba(200, 200, 255, 0.18));
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+}
+
+/* Case 2: Turquoise open button */
+.case-sheet-panel[data-case-id="case2"] .case-open-btn{
+  background: linear-gradient(135deg, rgba(64, 224, 208, 0.35), rgba(32, 180, 168, 0.30));
+  box-shadow: 0 4px 16px rgba(64, 224, 208, 0.30);
+}
+
+/* Case 3: Pink open button */
+.case-sheet-panel[data-case-id="case3"] .case-open-btn{
+  background: linear-gradient(135deg, rgba(224, 64, 171, 0.35), rgba(200, 40, 150, 0.30));
+  box-shadow: 0 4px 16px rgba(224, 64, 171, 0.30);
+}
+
+
+
+
   .case-open-btn:active{ transform: scale(0.99); }
   
   .case-open-btn.demo-mode{
@@ -1056,23 +1199,79 @@
   }
   
   /* ВЫИГРЫШНЫЙ слот: яркий, крупный, с подсветкой */
-  .case-carousel.cases-finished .case-carousel-item.winning{
-    opacity: 1;
-    transform: scale(1.10);
-    filter: none;
-    box-shadow:
-      0 0 0 2px rgba(0,166,255,0.95),
-      0 0 26px rgba(0,166,255,0.90);
-  }
+  /* ВЫИГРЫШНЫЙ слот: яркий, крупный, с подсветкой */
+.case-carousel.cases-finished .case-carousel-item.winning{
+  opacity: 1;
+  transform: scale(1.10);
+  filter: none;
+  box-shadow:
+    0 0 0 2px rgba(0,166,255,0.95),
+    0 0 26px rgba(0,166,255,0.90);
+}
+
+/* Case 1: White winning item */
+.case-sheet-panel[data-case-id="case1"] .case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 26px rgba(255, 255, 255, 0.90);
+}
+
+/* Case 2: Turquoise winning item */
+.case-sheet-panel[data-case-id="case2"] .case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px rgba(64, 224, 208, 0.95),
+    0 0 26px rgba(64, 224, 208, 0.90);
+}
+
+/* Case 3: Pink winning item */
+.case-sheet-panel[data-case-id="case3"] .case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px rgba(224, 64, 171, 0.95),
+    0 0 26px rgba(224, 64, 171, 0.90);
+}
+
+
   
-  .case-carousel.cases-finished .case-carousel-item.winning::before{
-    background: radial-gradient(
-      circle at 50% 40%,
-      rgba(0,166,255,0.45),
-      rgba(0,166,255,0.16) 55%,
-      rgba(0,0,0,0.90) 100%
-    );
-  }
+.case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(0,166,255,0.45),
+    rgba(0,166,255,0.16) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
+
+/* Case 1: White gradient */
+.case-sheet-panel[data-case-id="case1"] .case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(255, 255, 255, 0.35),
+    rgba(255, 255, 255, 0.12) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
+
+/* Case 2: Turquoise gradient */
+.case-sheet-panel[data-case-id="case2"] .case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(64, 224, 208, 0.45),
+    rgba(64, 224, 208, 0.16) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
+
+/* Case 3: Pink gradient */
+.case-sheet-panel[data-case-id="case3"] .case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(224, 64, 171, 0.45),
+    rgba(224, 64, 171, 0.16) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
+
+
   
   /* PNG внутри приза чуть крупнее */
   .case-carousel.cases-finished .case-carousel-item.winning img{
@@ -1362,24 +1561,49 @@
   
   
   /* ===== CASES: Center square (the "winner box") ===== */
-  .case-carousel-centerbox{
-    position: absolute;
-    top: 8px;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    aspect-ratio: 1 / 1;
-  
-    border-radius: 14px;
-    pointer-events: none;
-    z-index: 9;
-  
-    /* default (blue) */
-    background: rgba(0, 166, 255, 0.06);
-    box-shadow:
-      0 0 0 2px rgba(0, 166, 255, 0.55),
-      0 0 26px rgba(0, 166, 255, 0.25);
-  }
+  /* ===== CASES: Center square (the "winner box") ===== */
+.case-carousel-centerbox{
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  aspect-ratio: 1 / 1;
+
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 9;
+
+  /* default (blue) */
+  background: rgba(0, 166, 255, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(0, 166, 255, 0.55),
+    0 0 26px rgba(0, 166, 255, 0.25);
+}
+
+/* Case 1: White centerbox */
+.case-sheet-panel[data-case-id="case1"] .case-carousel-centerbox{
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.55),
+    0 0 26px rgba(255, 255, 255, 0.25);
+}
+
+/* Case 2: Turquoise centerbox */
+.case-sheet-panel[data-case-id="case2"] .case-carousel-centerbox{
+  background: rgba(64, 224, 208, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(64, 224, 208, 0.55),
+    0 0 26px rgba(64, 224, 208, 0.25);
+}
+
+/* Case 3: Pink centerbox */
+.case-sheet-panel[data-case-id="case3"] .case-carousel-centerbox{
+  background: rgba(224, 64, 171, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(224, 64, 171, 0.55),
+    0 0 26px rgba(224, 64, 171, 0.25);
+}
   
   /* becomes green when stopped */
   .case-carousel-centerbox.winning{
@@ -1416,16 +1640,53 @@
     display:none !important; 
   }
   
-  /* Подсветка NFT только в CONTENTS (как на скрине) */
-  .case-contents-grid .case-content-item[data-item-type="nft"]{
-    border-color: rgba(0,166,255,.55);
-    box-shadow:
-      0 0 0 1px rgba(0,166,255,.22),
-      0 10px 24px rgba(0,166,255,.10);
-    background:
-      radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%),
-      var(--panel);
-  }
+  /* Подсветка NFT только в CONTENTS  */
+  
+.case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(0,166,255,.55);
+  box-shadow:
+    0 0 0 1px rgba(0,166,255,.22),
+    0 10px 24px rgba(0,166,255,.10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(0,166,255,.18) 0%, rgba(0,166,255,0) 60%),
+    var(--panel);
+}
+
+/* Case 1: White NFT highlight */
+.case-sheet-panel[data-case-id="case1"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(255, 255, 255, .55);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .22),
+    0 10px 24px rgba(255, 255, 255, .10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(255, 255, 255, .18) 0%, rgba(255, 255, 255, 0) 60%),
+    var(--panel);
+}
+
+/* Case 2: Turquoise NFT highlight */
+.case-sheet-panel[data-case-id="case2"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(64, 224, 208, .55);
+  box-shadow:
+    0 0 0 1px rgba(64, 224, 208, .22),
+    0 10px 24px rgba(64, 224, 208, .10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(64, 224, 208, .18) 0%, rgba(64, 224, 208, 0) 60%),
+    var(--panel);
+}
+
+/* Case 3: Pink NFT highlight */
+.case-sheet-panel[data-case-id="case3"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(224, 64, 171, .55);
+  box-shadow:
+    0 0 0 1px rgba(224, 64, 171, .22),
+    0 10px 24px rgba(224, 64, 171, .10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(224, 64, 171, .18) 0%, rgba(224, 64, 171, 0) 60%),
+    var(--panel);
+}
+
+
+
   
   /* гарантируем, что hidden реально скрывает панель */
   .case-decision-panel[hidden] { display: none !important; }
@@ -1572,4 +1833,128 @@
           
   
           
-       
+       /* ============================================
+   CASE-SPECIFIC UI COLORS
+   ============================================ */
+
+/* ----- CASE 1: WHITE THEME ----- */
+
+/* Panel backgrounds */
+.case-sheet-panel[data-case-id="case1"] .case-carousel{
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case1"] .case-count-switch{
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.case-sheet-panel[data-case-id="case1"] .case-demo-toggle{
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case1"] .case-content-item{
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.case-sheet-panel[data-case-id="case1"] .case-content-price{
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Edge gradients for carousel */
+.case-sheet-panel[data-case-id="case1"] .case-carousel::before{
+  background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+}
+
+.case-sheet-panel[data-case-id="case1"] .case-carousel::after{
+  background: linear-gradient(-90deg, var(--bg) 0%, transparent 100%);
+}
+
+/* ----- CASE 2: TURQUOISE THEME ----- */
+
+/* Panel backgrounds */
+.case-sheet-panel[data-case-id="case2"] .case-carousel{
+  background: rgba(64, 224, 208, 0.04);
+  border-color: rgba(64, 224, 208, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-count-switch{
+  background: rgba(64, 224, 208, 0.06);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-demo-toggle{
+  background: rgba(64, 224, 208, 0.06);
+  border-color: rgba(64, 224, 208, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-content-item{
+  background: rgba(64, 224, 208, 0.04);
+  border-color: rgba(64, 224, 208, 0.10);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-content-price{
+  background: rgba(64, 224, 208, 0.06);
+}
+
+/* Edge gradients for carousel */
+.case-sheet-panel[data-case-id="case2"] .case-carousel::before{
+  background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+}
+
+.case-sheet-panel[data-case-id="case2"] .case-carousel::after{
+  background: linear-gradient(-90deg, var(--bg) 0%, transparent 100%);
+}
+
+/* ----- CASE 3: PINK THEME ----- */
+
+/* Panel backgrounds */
+.case-sheet-panel[data-case-id="case3"] .case-carousel{
+  background: rgba(224, 64, 171, 0.04);
+  border-color: rgba(224, 64, 171, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-count-switch{
+  background: rgba(224, 64, 171, 0.06);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-demo-toggle{
+  background: rgba(224, 64, 171, 0.06);
+  border-color: rgba(224, 64, 171, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-content-item{
+  background: rgba(224, 64, 171, 0.04);
+  border-color: rgba(224, 64, 171, 0.10);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-content-price{
+  background: rgba(224, 64, 171, 0.06);
+}
+
+/* Edge gradients for carousel */
+.case-sheet-panel[data-case-id="case3"] .case-carousel::before{
+  background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+}
+
+.case-sheet-panel[data-case-id="case3"] .case-carousel::after{
+  background: linear-gradient(-90deg, var(--bg) 0%, transparent 100%);
+}
+
+/* ----- INACTIVE COUNT BUTTONS ----- */
+
+/* Case 1: White inactive buttons */
+.case-sheet-panel[data-case-id="case1"] .case-count-btn:not(.active){
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Case 2: Turquoise inactive buttons */
+.case-sheet-panel[data-case-id="case2"] .case-count-btn:not(.active){
+  color: rgba(64, 224, 208, 0.5);
+}
+
+/* Case 3: Pink inactive buttons */
+.case-sheet-panel[data-case-id="case3"] .case-count-btn:not(.active){
+  color: rgba(224, 64, 171, 0.5);
+}

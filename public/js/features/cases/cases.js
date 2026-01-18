@@ -652,29 +652,42 @@ function getBalanceSafe(currency) {
   // ====== UPDATE SHEET CONTENT ======
   function updateSheetContent() {
     if (!currentCase) return;
-
+  
     const currency = window.WildTimeCurrency?.current || 'ton';
     const price = currentCase.price[currency];
     const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-
+  
     const title = document.getElementById('caseSheetTitle');
     if (title) title.textContent = currentCase.name;
-
+  
     const priceEl = document.getElementById('casePrice');
     const iconEl = document.getElementById('caseCurrencyIcon');
     if (priceEl) priceEl.textContent = price;
     if (iconEl) iconEl.src = icon;
-
+  
+    // Set case ID on panel for gradient styling
+    if (sheetPanel) {
+      sheetPanel.setAttribute('data-case-id', currentCase.id);
+    }
+  
+    // Set case image for count section
+    const countSection = document.querySelector('.case-count-section');
+    if (countSection) {
+      countSection.style.setProperty('--current-case-image', `url('/images/cases/${currentCase.id}.png')`);
+    }
+  
     renderCarousels(selectedCount);
     renderContents(currency);
     updateOpenButton();
-
+  
     countBtns.forEach(btn => {
       btn.classList.toggle('active', parseInt(btn.dataset.count) === selectedCount);
     });
-
+  
     if (demoToggle) demoToggle.classList.toggle('active', isDemoMode);
   }
+
+
 
   // ====== UPDATE OPEN BUTTON ======
   function updateOpenButton() {
@@ -1698,10 +1711,12 @@ async function showResult(currency, demoModeOverride) {
           demo: pr.demo,
           currency,
           currencyIcon: pr.icon,
+          caseId: currentCase?.id || 'case1', // Pass case ID for theme
           nfts: uiNfts,
-          // в примере часто показывают value под заголовком — включаем, когда выпало >= 1 NFT
+          // В примере часто показывают value под заголовком — включаем, когда выпало >= 1 NFT
           showTotal: true,
           total,
+          
           onPrimary: async () => {
             // Claim/Continue pressed
             if (!pr.demo) {

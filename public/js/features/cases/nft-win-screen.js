@@ -39,20 +39,36 @@
     const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
   
     // Generate random blue shades for background
-    function generateBlueShades() {
-      // Random blue variant: pure blue (200-220), cyan-blue (190-210), or purple-blue (220-240)
-      const variant = Math.random();
+    // Generate color shades based on case theme
+    function generateThemeShades(caseId) {
       let baseHue;
+      const variant = Math.random();
       
-      if (variant < 0.5) {
-        // Pure blue (most common)
-        baseHue = 200 + Math.random() * 20; // 200-220
-      } else if (variant < 0.8) {
-        // Cyan-blue
-        baseHue = 190 + Math.random() * 20; // 190-210
-      } else {
-        // Purple-blue (rare, for variety)
-        baseHue = 220 + Math.random() * 20; // 220-240
+      // Case 3 (Sweet Sugar) - Pink/Rose theme
+      if (caseId === 'case3') {
+        if (variant < 0.5) {
+          // Pure pink (most common)
+          baseHue = 320 + Math.random() * 20; // 320-340
+        } else if (variant < 0.8) {
+          // Rose pink
+          baseHue = 340 + Math.random() * 15; // 340-355
+        } else {
+          // Magenta pink (rare, for variety)
+          baseHue = 300 + Math.random() * 20; // 300-320
+        }
+      } 
+      // Default - Blue theme (for all other cases)
+      else {
+        if (variant < 0.5) {
+          // Pure blue (most common)
+          baseHue = 200 + Math.random() * 20; // 200-220
+        } else if (variant < 0.8) {
+          // Cyan-blue
+          baseHue = 190 + Math.random() * 20; // 190-210
+        } else {
+          // Purple-blue (rare, for variety)
+          baseHue = 220 + Math.random() * 20; // 220-240
+        }
       }
       
       // Generate 3 shades: light, medium, dark
@@ -88,12 +104,14 @@
       
       return shades;
     }
-  
-    function applyRandomBlueBackground() {
+
+
+
+    function applyRandomBackground(caseId) {
       const bg = overlayEl?.querySelector('.nftwo-bg');
       if (!bg) return;
       
-      const shades = generateBlueShades();
+      const shades = generateThemeShades(caseId);
       
       // Create gradient with random shades
       const gradient = `
@@ -758,10 +776,12 @@
   
       const currency = (opts.currency === 'stars') ? 'stars' : 'ton';
       const currencyIcon = opts.currencyIcon || (currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg');
+      const caseId = opts.caseId || 'case1'; // Get case ID from options
   
-      // Apply random blue background each time
-      applyRandomBlueBackground();
-  
+      // Apply themed background (blue for most, pink for case3)
+      applyRandomBackground(caseId);
+
+
       titleEl.textContent = String(opts.title || (opts.demo ? 'You could have won' : "You've won!"));
       primaryBtn.textContent = String(opts.buttonText || (opts.demo ? 'Continue' : 'Claim'));
       errEl.textContent = '';
