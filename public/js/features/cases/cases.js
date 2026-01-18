@@ -105,6 +105,80 @@ function itemIconPath(item) {
 // общий фолбэк (если картинка не найдена)
 const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
 
+
+
+// ====== PEEK FLOOR PRICES (in-memory on client) ======
+const NFT_PEEK_NAME_BY_ICON = {
+  'RaketaNFT.png': 'Stellar Rocket',
+  'RamenNFT.png': 'Instant Ramen',
+  'IceCreamNFT.png': 'Ice Cream',
+
+  'BerryBoxNFTSkin.png': 'Berry Box',
+  'LolPopNFTSkin.png': 'Lol Pop',
+  'CookieHeartNFTSkin.png': 'Cookie Heart',
+  'MousseCakeNFTSkin.png': 'Mousse Cake',
+
+  // у тебя в case3 есть IceCreamNFtSkin.png (буквы разные)
+  'IceCreamNFtSkin.png': 'Ice Cream'
+};
+
+let peekFloorMap = null;      // Map(lowerName -> priceTon)
+let peekFloorUpdatedAt = 0;   // ms
+
+function getPeekNameForItem(item) {
+  if (!item || itemType(item) !== 'nft') return null;
+  const icon = String(item.icon || '');
+  return NFT_PEEK_NAME_BY_ICON[icon] || null;
+}
+
+async function ensurePeekFloorsLoaded() {
+  // обновлять чаще смысла нет, у нас сервер обновляет раз в час
+  if (peekFloorMap && (Date.now() - peekFloorUpdatedAt) < 10 * 60 * 1000) return;
+
+  try {
+    let j = null;
+
+    // 1) same-origin (works in production / when UI served by this server)
+    try {
+      const r1 = await fetch('/api/gifts/prices');
+      if (r1.ok) j = await r1.json();
+    } catch (e) {}
+
+    // 2) dev fallback: if UI opened on another port (Live Server/Vite), try Node on :3000
+    if (!j) {
+      try {
+        const r2 = await fetch('http://localhost:3000/api/gifts/prices');
+        if (r2.ok) j = await r2.json();
+      } catch (e) {}
+    }
+
+    if (!j) return;
+    const items = Array.isArray(j?.items) ? j.items : [];
+
+    const m = new Map();
+    for (const it of items) {
+      const name = String(it.name || '').trim();
+      const priceTon = Number(it.priceTon);
+      if (!name || !Number.isFinite(priceTon)) continue;
+      m.set(name.toLowerCase(), priceTon);
+    }
+
+    peekFloorMap = m;
+    peekFloorUpdatedAt = Date.now();
+  } catch (e) {
+    // тихо игнорим — просто не покажем floor
+  }
+}
+
+function getFloorTonForItem(item) {
+  const peekName = getPeekNameForItem(item);
+  if (!peekName || !peekFloorMap) return null;
+  const v = peekFloorMap.get(peekName.toLowerCase());
+  return (Number.isFinite(v) && v > 0) ? v : null;
+}
+
+
+
 // ====== DROP RATES (NFT rarity) ======
 // Demo: NFT выпадает часто (почти каждый прокрут)
 // Paid (TON / Stars): NFT выпадает редко
@@ -209,6 +283,27 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
     ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
+   
+
+
+   // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
+      const TON_FOR_50_STARS = 0.4332;
+      const STARS_FOR_50 = 50;
+
+      const STARS_PER_TON = STARS_FOR_50 / TON_FOR_50_STARS;
+      const TON_PER_STAR = TON_FOR_50_STARS / STARS_FOR_50;
+
+      function tonToStars(ton) {
+        const v = Number(ton);
+        if (!Number.isFinite(v) || v <= 0) return 0;
+        return Math.max(0, Math.round(v * STARS_PER_TON));
+      }
+
+      function starsToTon(stars) {
+        const v = Number(stars);
+        if (!Number.isFinite(v) || v <= 0) return 0;
+        return Math.max(0, Math.round(v * TON_PER_STAR * 100) / 100);
+      }
 
 
   function formatAmount(currency, value) {
@@ -678,6 +773,11 @@ function getBalanceSafe(currency) {
   
     renderCarousels(selectedCount);
     renderContents(currency);
+    ensurePeekFloorsLoaded().then(() => {
+      // перерисуем, когда цены подтянулись
+      renderContents(window.WildTimeCurrency?.current || 'ton');
+    });
+    
     updateOpenButton();
   
     countBtns.forEach(btn => {
@@ -913,19 +1013,50 @@ function getBalanceSafe(currency) {
   // ====== RENDER CONTENTS ======
   function renderContents(currency) {
     if (!contentsGrid) return;
-
+  
     const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  
+    contentsGrid.innerHTML = currentCase.items.map(item => {
+      const isNft = itemType(item) === 'nft';
+      const floorTon = isNft ? getFloorTonForItem(item) : null;
 
-    contentsGrid.innerHTML = currentCase.items.map(item => `
-      <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${itemType(item)}">
-        <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
-        <div class="case-content-price">
-          <span>${item.price[currency]}</span>
-          <img src="${icon}" alt="${currency}">
+        let priceText = '—';
+        let priceIcon = icon;
+
+        if (isNft) {
+          if (floorTon) {
+            if (currency === 'stars') {
+              priceText = String(tonToStars(floorTon));
+              priceIcon = '/icons/stars.svg';
+            } else {
+              priceText = (+floorTon).toFixed(2);
+              priceIcon = '/icons/ton.svg';
+            }
+          } else {
+            // если не успели загрузить floor — просто показываем выбранную валюту с прочерком
+            priceIcon = (currency === 'stars') ? '/icons/stars.svg' : '/icons/ton.svg';
+          }
+        } else {
+          priceText = (item.price && typeof item.price[currency] !== 'undefined') ? item.price[currency] : '—';
+          priceIcon = icon;
+        }
+
+      const badge = '';
+
+  
+      return `
+        <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${itemType(item)}">
+          <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+          <div class="case-content-price">
+            ${badge}
+            <span>${priceText}</span>
+            <img src="${priceIcon}" alt="ton">
+          </div>
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
+  
 
   // ====== SELECT COUNT ======
   function selectCount(count) {
@@ -1550,20 +1681,38 @@ async function showResult(currency, demoModeOverride) {
 
   // Use one roundId for the whole open -> claim flow
   const roundId = activeSpin?.roundId || `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+ // чтобы getFloorTonForItem() уже знал цены
+  try { await ensurePeekFloorsLoaded(); } catch (_) {}
 
   // Build NFT queue (we will CLAIM ALL from overlay at once)
   const nftQueue = nftEntries.map((e, idx) => {
-    const valRaw = itemValue(e.item);
-    const amount = (currency === 'stars') ? Math.max(0, Math.round(valRaw)) : Math.max(0, +(+valRaw).toFixed(2));
+    const floorTon = getFloorTonForItem(e.item);
+    const tonVal = (floorTon != null) ? Number(floorTon) : Number(e.item?.price?.ton || 0);
+  
+    const fixedTon = (Number.isFinite(tonVal) && tonVal > 0) ? Math.round(tonVal * 100) / 100 : 0;
+    const starsVal = (fixedTon > 0) ? tonToStars(fixedTon) : 0;
+  
+    // ВАЖНО: сохраняем цену в item.price => попадёт в Inventory
+    const item = {
+      ...e.item,
+      price: {
+        ...(e.item?.price || {}),
+        ton: fixedTon,
+        stars: starsVal
+      }
+    };
+  
+    // amount -> это то, что увидит Winning Screen (nft-win-screen.js берет nft.amount) :contentReference[oaicite:3]{index=3}
+    const amount = (currency === 'stars') ? starsVal : fixedTon;
+  
     return {
-      idx,
-      item: { ...e.item, type: 'nft' },
-      carousel: e.carousel,
+      ...e,
+      item,
       amount,
-      claimId: `case_nft_claim_${roundId}_${idx}`,
-      sellDepositId: `case_nft_sell_${roundId}_${idx}`,
+      claimId: `case_nft_claim_${currentCase?.id || 'case'}_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}_${idx}`
     };
   });
+  
 
   const bar = ensureClaimBar();
 

@@ -284,6 +284,134 @@ app.post("/api/cases/history", (req, res) => {
 });
 
 
+
+// ==============================
+// GIFT PRICES CACHE (in-memory)
+// ==============================
+// NOTE: Per-process cache. Resets on server restart.
+const GIFT_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+const GIFT_CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000; // every 6 hours (catalog changes not that often)
+const GIFT_REQUEST_TIMEOUT_MS = 15_000;
+
+let giftsCatalog = [
+  "Stellar Rocket",
+  "Instant Ramen",
+  "Ice Cream",
+  "Berry Box",
+  "Lol Pop",
+  "Cookie Heart",
+  "Mousse Cake"
+]; // tracked gift collection names (strings)
+let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
+let giftsLastUpdate = 0;
+let giftsCatalogLastUpdate = 0;
+
+// small helper
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchWithTimeout(url, opts = {}, timeoutMs = GIFT_REQUEST_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function normalizeGiftName(s) {
+  return String(s || "").trim();
+}
+
+// (A) Каталог:
+// В Portals есть открытый endpoint для поиска коллекций, но полноценный "лист всех коллекций"
+// обычно завязан на mini-app/auth. Поэтому в MVP держим список отслеживаемых подарков вручную
+// (см. giftsCatalog выше). Если захочешь мониторить вообще ВСЕ подарки — добавим отдельный каталог.
+async function refreshGiftsCatalogStatic() {
+  giftsCatalog = (Array.isArray(giftsCatalog) ? giftsCatalog : []).map(normalizeGiftName).filter(Boolean);
+  giftsCatalogLastUpdate = Date.now();
+  return giftsCatalog.length;
+}
+
+// (B) Цены: Portals collections endpoint (без auth) — берём floor_price по поиску.
+// Источник: пример использования /api/collections?search=...&limit=10 -> collections[0].floor_price
+async function refreshGiftsPricesFromPortals() {
+  if (!giftsCatalog.length) {
+    await refreshGiftsCatalogStatic();
+  }
+
+  const now = Date.now();
+  let updatedCount = 0;
+
+  for (const giftName of giftsCatalog) {
+    const q = normalizeGiftName(giftName);
+    if (!q) continue;
+
+    const url = `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`;
+
+    try {
+      const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (!res.ok) throw new Error(`portals http ${res.status}`);
+      const data = await res.json();
+
+      const cols = Array.isArray(data?.collections) ? data.collections
+                : Array.isArray(data?.items) ? data.items
+                : [];
+      if (!cols.length) continue;
+
+      const target = q.toLowerCase();
+      let best = cols[0];
+
+      for (const c of cols) {
+        const nm = normalizeGiftName(c?.name || c?.title || c?.gift || "");
+        if (nm && nm.toLowerCase() === target) { best = c; break; }
+      }
+
+      const floorRaw = (best && (best.floor_price ?? best.floorPrice ?? best.floor)) ?? null;
+      const price = Number(floorRaw);
+      if (!Number.isFinite(price) || price <= 0) continue;
+
+      giftsPrices.set(giftName, {
+        priceTon: price,
+        updatedAt: now,
+        source: "portals"
+      });
+      updatedCount++;
+    } catch (e) {
+      // не падаем, просто пропускаем этот gift
+      console.warn('[gifts] portals fetch failed for', q, '-', e?.message || e);
+    }
+
+    // небольшая пауза, чтобы не долбить сервис
+    await sleep(150);
+  }
+
+  giftsLastUpdate = now;
+  return updatedCount;
+}
+
+async function refreshGiftsAll() {
+  // каталог — реже (но у нас он статический, это просто "sanity" + метка времени)
+  if (!giftsCatalogLastUpdate || Date.now() - giftsCatalogLastUpdate > GIFT_CATALOG_REFRESH_MS) {
+    try {
+      await refreshGiftsCatalogStatic();
+      console.log(`[gifts] catalog loaded: ${giftsCatalog.length}`);
+    } catch (e) {
+      console.warn('[gifts] catalog refresh failed:', e?.message || e);
+    }
+  }
+
+  // цены — раз в час
+  try {
+    const n = await refreshGiftsPricesFromPortals();
+    console.log(`[gifts] prices updated: ${n} records (tracked=${giftsCatalog.length})`);
+  } catch (e) {
+    console.warn('[gifts] prices refresh failed (keeping old cache):', e?.message || e);
+  }
+}
+
+
 // ====== INVENTORY (Postgres) ======
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.
@@ -1154,9 +1282,11 @@ app.post("/api/round/place-bet", async (req, res) => {
     });
   }
 });
+
+
 // ============================================
 // 🧪 TEST BALANCE SYSTEM
-// Добавь эти эндпоинты в server.js ПЕРЕД строкой "// ====== SPA fallback ======"
+//  "// ====== SPA fallback ======"
 // ============================================
 
 // 🎁 ДАТЬ ТЕСТОВЫЕ ДЕНЬГИ (только в development)
@@ -1388,6 +1518,55 @@ app.get("/api/test/info", async (req, res) => {
   });
 });
 
+
+
+
+
+
+// ====== CORS for gifts endpoints (dev) ======
+app.use(['/api/gifts/prices','/api/gifts/catalog'], (req,res,next)=>{
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// GET prices cache
+app.get("/api/gifts/prices", (req, res) => {
+  // dev-friendly CORS (helps if you open UI on another port like 5500)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const list = [];
+  for (const name of giftsCatalog) {
+    const p = giftsPrices.get(name);
+    if (!p) continue;
+    list.push({ name, ...p });
+  }
+  return res.json({
+    ok: true,
+    updatedAt: giftsLastUpdate,
+    catalogUpdatedAt: giftsCatalogLastUpdate,
+    count: list.length,
+    items: list
+  });
+});
+
+// GET catalog only
+app.get("/api/gifts/catalog", (req, res) => {
+  // dev-friendly CORS (helps if you open UI on another port like 5500)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  return res.json({
+    ok: true,
+    updatedAt: giftsCatalogLastUpdate,
+    count: giftsCatalog.length,
+    items: giftsCatalog
+  });
+});
+
+
+
 // ====== SPA fallback ======
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") {
@@ -1404,6 +1583,10 @@ app.use((err, req, res, next) => {
     error: err.message || 'Internal server error'
   });
 });
+
+
+
+
 
 // ====== START ======
 const PORT = process.env.PORT || 3000;
@@ -1424,6 +1607,39 @@ app.listen(PORT, () => {
   }
   
   console.log(`✅ Wheel configured with ${WHEEL_ORDER.length} segments`);
+});
+
+
+// ====== GIFT PRICES SCHEDULER ======
+(function startGiftScheduler() {
+  // стартуем не мгновенно, а в пределах 5–25 секунд (чтобы меньше совпадать с другими)
+  const firstDelay = 5000 + Math.floor(Math.random() * 20000);
+
+  setTimeout(async () => {
+    await refreshGiftsAll();
+    setInterval(refreshGiftsAll, GIFT_REFRESH_MS);
+  }, firstDelay);
+})();
+
+
+app.get('/api/gifts/portals-search', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.status(400).json({ ok:false, error:'q required' });
+
+  const url = `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const j = await r.json();
+
+  const cols = Array.isArray(j?.collections) ? j.collections : [];
+  res.json({
+    ok: true,
+    q,
+    results: cols.map(c => ({
+      name: c.name,
+      short_name: c.short_name,
+      floor_price: c.floor_price
+    }))
+  });
 });
 
 // ========== HELPERS ==========

@@ -1958,3 +1958,30 @@
 .case-sheet-panel[data-case-id="case3"] .case-count-btn:not(.active){
   color: rgba(224, 64, 171, 0.5);
 }
+
+
+
+
+/* Фиксируем баланс при открытой панели кейсов */
+body.case-sheet-open .balance {
+  position: fixed;
+  top: 93px;
+  right: -2px;
+  z-index: 10002;
+  background: rgba(10, 14, 39, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 8px 12px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Скрываем остальные элементы topbar */
+body.case-sheet-open .topbar__left {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.case-sheet-open .logo-header {
+  opacity: 0;
+  pointer-events: none;
+}

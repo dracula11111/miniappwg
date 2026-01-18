@@ -81,7 +81,31 @@
   function currencyIcon(currency) {
     return currency === 'stars' ? '⭐' : '💎';
   }
+ 
 
+
+  const NFT_DISPLAY_NAME_BY_ICON = {
+    'RaketaNFT.png': 'Stellar Rocket',
+    'RamenNFT.png': 'Instant Ramen',
+    'IceCreamNFT.png': 'Ice Cream',
+    'BerryBoxNFTSkin.png': 'Berry Box',
+    'LolPopNFTSkin.png': 'Lol Pop',
+    'CookieHeartNFTSkin.png': 'Cookie Heart',
+    'MousseCakeNFTSkin.png': 'Mousse Cake',
+    'IceCreamNFtSkin.png': 'Ice Cream'
+  };
+  
+  function itemDisplayName(item) {
+    if (!item) return 'Item';
+    const t = itemType(item);
+    const icon = String(item.icon || '');
+    if (t === 'nft' && NFT_DISPLAY_NAME_BY_ICON[icon]) return NFT_DISPLAY_NAME_BY_ICON[icon];
+    return String(item.name || item.title || item.baseId || item.id || 'Item');
+  }
+
+  
+
+  
   function itemType(item) {
     if (item?.type) return item.type;
     const id = String(item?.baseId || item?.id || '');
@@ -108,12 +132,44 @@
     return `/images/gifts/${icon}`;
   }
 
+
+  const TON_FOR_50_STARS = 0.4332;
+    const STARS_FOR_50 = 50;
+    const STARS_PER_TON = STARS_FOR_50 / TON_FOR_50_STARS;
+    const TON_PER_STAR = TON_FOR_50_STARS / STARS_FOR_50;
+
+    function tonToStars(ton) {
+      const v = Number(ton);
+      if (!Number.isFinite(v) || v <= 0) return 0;
+      return Math.max(0, Math.round(v * STARS_PER_TON));
+    }
+    function starsToTon(stars) {
+      const v = Number(stars);
+      if (!Number.isFinite(v) || v <= 0) return 0;
+      return Math.max(0, Math.round(v * TON_PER_STAR * 100) / 100);
+    }
+
   function itemValue(item, currency) {
-    const v = item?.price?.[currency];
-    const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : 0);
-    if (!Number.isFinite(n)) return 0;
-    return currency === 'ton' ? Math.round(n * 100) / 100 : Math.round(n);
+  const v = item?.price?.[currency];
+  let n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : NaN);
+
+  // fallback: если нет stars — считаем из ton, и наоборот
+  if (!Number.isFinite(n) || n <= 0) {
+    if (currency === 'stars') {
+      const t = item?.price?.ton;
+      const ton = typeof t === 'string' ? parseFloat(t) : (typeof t === 'number' ? t : NaN);
+      if (Number.isFinite(ton) && ton > 0) n = tonToStars(ton);
+    } else {
+      const s = item?.price?.stars;
+      const stars = typeof s === 'string' ? parseFloat(s) : (typeof s === 'number' ? s : NaN);
+      if (Number.isFinite(stars) && stars > 0) n = starsToTon(stars);
+    }
   }
+
+  if (!Number.isFinite(n)) return 0;
+  return currency === 'ton' ? Math.round(n * 100) / 100 : Math.round(n);
+}
+
 
   function setBalance(currency, value) {
     if (window.WildTimeCurrency?.setBalance) {
@@ -702,7 +758,8 @@
             <img src="${itemIconPath(it)}" alt="" />
           </div>
   
-          <div class="inv-card__name">Name</div>
+          <div class="inv-card__name">${itemDisplayName(it)}</div>
+
   
           <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
                   data-action="sell" data-key="${key}">
