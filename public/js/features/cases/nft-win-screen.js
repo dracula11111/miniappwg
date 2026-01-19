@@ -40,6 +40,7 @@
 
   // Generate random blue shades for background
   // Generate color shades based on case theme
+  // Generate color shades based on case theme
   function generateThemeShades(caseId) {
     let baseHue;
     const variant = Math.random();
@@ -56,7 +57,20 @@
         // Magenta pink (rare, for variety)
         baseHue = 300 + Math.random() * 20; // 300-320
       }
-    } 
+    }
+    // Case 4 - Blue theme (specific blue for this case)
+    else if (caseId === 'case4') {
+      if (variant < 0.5) {
+        // Pure blue (most common)
+        baseHue = 200 + Math.random() * 20; // 200-220
+      } else if (variant < 0.8) {
+        // Cyan-blue
+        baseHue = 190 + Math.random() * 20; // 190-210
+      } else {
+        // Deep blue (rare)
+        baseHue = 220 + Math.random() * 15; // 220-235
+      }
+    }
     // Default - Blue theme (for all other cases)
     else {
       if (variant < 0.5) {

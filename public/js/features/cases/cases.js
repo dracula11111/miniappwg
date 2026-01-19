@@ -9,7 +9,7 @@
     case1: {
       id: 'case1',
       name: 'Case 1',
-      price: { ton: 0.01, stars: 2 },
+      price: { ton: 0.10, stars: 20 },
       items: [
 
         { id: 'gift1', icon: 'gift1.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
@@ -33,7 +33,7 @@
     case2: {
       id: 'case2',
       name: 'NFT Hunt',
-      price: { ton: 0.02, stars: 4 },
+      price: { ton: 0.15, stars: 30 },
       items: [
         // NFTs (put images into /public/images/nfts/)
         { id: 'nft1', type: 'nft', icon: 'RaketaNFT.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
@@ -53,7 +53,7 @@
     case3: {
       id: 'case3',
       name: 'Sweet Sugar',
-      price: { ton: 0.05, stars: 10 },
+      price: { ton: 0.20, stars: 40 },
       items: [
         // Premium NFTs
         { id: 'nft1', type: 'nft', icon: 'IceCreamNFtSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
@@ -66,6 +66,27 @@
         { id: 'gift7',  icon: 'gift7.png',  price: { ton: 0.46, stars: 50  }, rarity: 'rare' },   
         { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+      ]
+      
+    }
+    ,
+    case4: {
+      id: 'case4',
+      name: 'Ice Blue',
+      price: { ton: 0.25, stars: 50 },
+      items: [
+        // Premium NFTs
+        { id: 'nft1', type: 'nft', icon: 'ElectricSkullNFTSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'nft2', type: 'nft', icon: 'VintageCigarNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
+        { id: 'nft3', type: 'nft', icon: 'VoodooDollNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'nft3', type: 'nft', icon: 'FlyingBroomNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'nft3', type: 'nft', icon: 'HexPotNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+
+        // High-value Gifts       
+        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        
       ]
       
     }
@@ -99,12 +120,38 @@ function itemIconPath(item) {
   // Если потом перенесёшь в /images/nfts/, просто поменяй строку ниже.
   var base = itemType(item) === 'nft' ? '/images/gifts/nfts/' : '/images/gifts/';
   var icon = (item && item.icon) ? String(item.icon) : 'stars.webp';
-  return base + icon;
+    if (icon.startsWith('/') || icon.startsWith('http')) return icon; // важно для /icons/ton.svg
+    return base + icon;
+
 }
 
 // общий фолбэк (если картинка не найдена)
 const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
 
+
+function isStarsPrizeGift(item) {
+  return itemType(item) !== 'nft' && String(item?.icon || '').toLowerCase() === 'stars.webp';
+}
+
+function normalizeItemForCurrency(item, currency) {
+  if (!item) return item;
+  if (currency !== 'ton') return item;
+  if (!isStarsPrizeGift(item)) return item;
+
+  const stars = Number(item?.price?.stars || 0);
+  const ton = starsToTon(stars);
+
+  return {
+    ...item,
+    displayName: 'TON',
+    icon: '/icons/ton.svg',
+    price: {
+      ...(item.price || {}),
+      ton
+    }
+  };
+  
+}
 
 
 // ====== PEEK FLOOR PRICES (in-memory on client) ======
@@ -119,7 +166,16 @@ const NFT_PEEK_NAME_BY_ICON = {
   'MousseCakeNFTSkin.png': 'Mousse Cake',
 
   // у тебя в case3 есть IceCreamNFtSkin.png (буквы разные)
-  'IceCreamNFtSkin.png': 'Ice Cream'
+  'IceCreamNFtSkin.png': 'Ice Cream',
+
+
+  //case 4
+  'ElectricSkullNFTSkin.png': 'Electric Skull',
+  'VintageCigarNFTSkin.png': 'Vintage Cigar',
+  'VoodooDollNFTSkin.png': 'Voodoo Doll',
+  'FlyingBroomNFTSkin.png': 'Flying Broom',
+  'HexPotNFTSkin.png': 'Hex Pot'
+
 };
 
 let peekFloorMap = null;      // Map(lowerName -> priceTon)
@@ -143,14 +199,14 @@ async function ensurePeekFloorsLoaded() {
       const r1 = await fetch('/api/gifts/prices');
       if (r1.ok) j = await r1.json();
     } catch (e) {}
-
-    // 2) dev fallback: if UI opened on another port (Live Server/Vite), try Node on :3000
-    if (!j) {
-      try {
-        const r2 = await fetch('http://localhost:3000/api/gifts/prices');
-        if (r2.ok) j = await r2.json();
-      } catch (e) {}
-    }
+      // 2) dev fallback: try Node on :7700
+      if (!j) {
+        try {
+          const r2a = await fetch('http://localhost:7700/api/gifts/prices');
+          if (r2a.ok) j = await r2a.json();
+        } catch (e) {}
+      }
+    
 
     if (!j) return;
     const items = Array.isArray(j?.items) ? j.items : [];
@@ -165,8 +221,13 @@ async function ensurePeekFloorsLoaded() {
 
     peekFloorMap = m;
     peekFloorUpdatedAt = Date.now();
+    
+    console.log('[Cases] ✅ Loaded floor prices:', {
+      count: m.size,
+      prices: Array.from(m.entries())
+    });
   } catch (e) {
-    // тихо игнорим — просто не покажем floor
+    console.error('[Cases] ❌ Failed to load floor prices:', e);
   }
 }
 
@@ -287,12 +348,46 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
 
 
    // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
-      const TON_FOR_50_STARS = 0.4332;
-      const STARS_FOR_50 = 50;
+      // ====== TON <-> STARS rate (0.4332 TON = 50 ⭐) ======
+        const TON_FOR_50_STARS = 0.4332;
+        const STARS_FOR_50 = 50;
 
-      const STARS_PER_TON = STARS_FOR_50 / TON_FOR_50_STARS;
-      const TON_PER_STAR = TON_FOR_50_STARS / STARS_FOR_50;
+        const STARS_PER_TON = STARS_FOR_50 / TON_FOR_50_STARS;
+        const TON_PER_STAR = TON_FOR_50_STARS / STARS_FOR_50;
 
+        function tonToStars(ton) {
+          const v = Number(ton);
+          if (!Number.isFinite(v) || v <= 0) return 0;
+          return Math.max(0, Math.round(v * STARS_PER_TON));
+        }
+
+        function starsToTon(stars) {
+          const v = Number(stars);
+          if (!Number.isFinite(v) || v <= 0) return 0;
+          // 4 знака чтобы мелочь не терялась
+          return Math.round(v * TON_PER_STAR * 10000) / 10000;
+        }
+
+      
+      function prizeValue(item, currency) {
+        const p = item?.price || {};
+      
+        if (currency === 'ton') {
+          // ⭐-приз -> конвертим в TON по курсу
+          if (isStarsPrizeGift(item)) {
+            const s = Number(p.stars);
+            return (Number.isFinite(s) && s > 0) ? starsToTon(s) : 0;
+          }
+          const t = Number(p.ton);
+          return (Number.isFinite(t) && t > 0) ? t : 0;
+        }
+      
+        // currency === 'stars'
+        const s = Number(p.stars);
+        return (Number.isFinite(s) && s > 0) ? s : 0;
+      }
+
+      
       function tonToStars(ton) {
         const v = Number(ton);
         if (!Number.isFinite(v) || v <= 0) return 0;
@@ -305,10 +400,16 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
         return Math.max(0, Math.round(v * TON_PER_STAR * 100) / 100);
       }
 
+  // ====== Stars -> TON rate (0.4332 TON = 50 ⭐) ======
+ 
+
 
   function formatAmount(currency, value) {
     if (currency === 'ton') return (Math.round((parseFloat(value) || 0) * 100) / 100).toFixed(2);
     return String(Math.round(parseFloat(value) || 0));
+
+
+    
   }
 
   function setBalanceValue(currency, value) {
@@ -335,6 +436,14 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
   window.dispatchEvent(new CustomEvent('balance:update', { detail: { [c]: next } }));
   return next;
 }
+
+
+
+
+
+
+
+
 
 function applyBalanceDelta(currency, delta) {
   const c = (currency === 'stars') ? 'stars' : 'ton';
@@ -610,6 +719,11 @@ function getBalanceSafe(currency) {
     attachListeners();
     generateCasesGrid();
 
+    // Загрузить floor prices при старте
+    ensurePeekFloorsLoaded().catch(e => {
+      console.warn('[Cases] Failed to load floor prices:', e);
+    });
+
     console.log('[Cases] ✅ Ready');
   }
 
@@ -771,12 +885,17 @@ function getBalanceSafe(currency) {
       countSection.style.setProperty('--current-case-image', `url('/images/cases/${currentCase.id}.png')`);
     }
   
-    renderCarousels(selectedCount);
-    renderContents(currency);
-    ensurePeekFloorsLoaded().then(() => {
-      // перерисуем, когда цены подтянулись
-      renderContents(window.WildTimeCurrency?.current || 'ton');
-    });
+    renderCarousels(selectedCount, currency);
+
+
+    
+    // подтянем floors и перерисуем contents
+        ensurePeekFloorsLoaded().then(() => {
+          if (!currentCase) return;
+          const cur = window.WildTimeCurrency?.current || 'ton';
+          renderContents(cur);
+        });
+
     
     updateOpenButton();
   
@@ -805,7 +924,7 @@ function getBalanceSafe(currency) {
   }
 
   // ====== RENDER CAROUSELS ======
-  function renderCarousels(count) {
+  function renderCarousels(count, currency) {
     if (!carouselsWrapper || !currentCase) return;
 
     carouselsWrapper.innerHTML = '';
@@ -816,7 +935,7 @@ function getBalanceSafe(currency) {
     const height = heights[count] || 100;
 
     for (let i = 0; i < count; i++) {
-      const carousel = createCarousel(height, i);
+      const carousel = createCarousel(height, i, currency);
       carouselsWrapper.appendChild(carousel.element);
       carousels.push(carousel);
 
@@ -825,7 +944,7 @@ function getBalanceSafe(currency) {
   }
 
   // ====== CREATE SINGLE CAROUSEL ======
-  function createCarousel(height) {
+  function createCarousel(height, _idx, currency) {
     const container = document.createElement('div');
     container.className = 'case-carousel';
     container.style.height = `${height}px`;
@@ -837,7 +956,8 @@ function getBalanceSafe(currency) {
     const IDLE_BASE_COUNT = 70;
     const baseItems = [];
     for (let i = 0; i < IDLE_BASE_COUNT; i++) {
-      baseItems.push(pickStripItem(currentCase, !!isDemoMode) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+      const raw = pickStripItem(currentCase, !!isDemoMode) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+      baseItems.push(normalizeItemForCurrency(raw, currency));
     }
 
     // Делаем 2 копии, чтобы лента реально была бесконечной
@@ -870,6 +990,8 @@ function getBalanceSafe(currency) {
   function getCarouselMetrics(carousel) {
     const cont = carousel.itemsContainer;
     const firstItem = cont.querySelector('.case-carousel-item');
+
+
     if (!firstItem) return null;
 
     const itemWidth = firstItem.getBoundingClientRect().width;
@@ -1016,46 +1138,36 @@ function getBalanceSafe(currency) {
   
     const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
   
-    contentsGrid.innerHTML = currentCase.items.map(item => {
-      const isNft = itemType(item) === 'nft';
-      const floorTon = isNft ? getFloorTonForItem(item) : null;
-
-        let priceText = '—';
-        let priceIcon = icon;
-
-        if (isNft) {
-          if (floorTon) {
-            if (currency === 'stars') {
-              priceText = String(tonToStars(floorTon));
-              priceIcon = '/icons/stars.svg';
-            } else {
-              priceText = (+floorTon).toFixed(2);
-              priceIcon = '/icons/ton.svg';
-            }
-          } else {
-            // если не успели загрузить floor — просто показываем выбранную валюту с прочерком
-            priceIcon = (currency === 'stars') ? '/icons/stars.svg' : '/icons/ton.svg';
-          }
-        } else {
-          priceText = (item.price && typeof item.price[currency] !== 'undefined') ? item.price[currency] : '—';
-          priceIcon = icon;
+    contentsGrid.innerHTML = currentCase.items.map(raw => {
+      const item = normalizeItemForCurrency(raw, currency);
+      
+      // Для NFT: показываем floor price если есть, иначе fallback
+      let val = item?.price?.[currency];
+      
+      if (itemType(item) === 'nft') {
+        const floorTon = getFloorTonForItem(item);
+        if (floorTon != null && floorTon > 0) {
+          val = (currency === 'ton') ? floorTon : tonToStars(floorTon);
         }
-
-      const badge = '';
-
+      }
   
+      const text = (currency === 'ton')
+        ? (Math.round((Number(val) || 0) * 100) / 100).toFixed(2)
+        : String(Math.round(Number(val) || 0));
+
+
       return `
         <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${itemType(item)}">
-          <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+          <img src="${itemIconPath(item)}" alt="${item.displayName || item.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
           <div class="case-content-price">
-            ${badge}
-            <span>${priceText}</span>
-            <img src="${priceIcon}" alt="ton">
+            <span>${text}</span>
+            <img src="${icon}" alt="${currency}">
           </div>
         </div>
       `;
     }).join('');
   }
+  
   
 
   // ====== SELECT COUNT ======
@@ -1073,7 +1185,9 @@ function getBalanceSafe(currency) {
     stopAllAnimations();
 
     setTimeout(() => {
-      renderCarousels(count);
+      const currency = window.WildTimeCurrency?.current || 'ton';
+        renderCarousels(count, currency);
+
       setTimeout(() => startIdleAnimation(), 300);
     }, 100);
 
@@ -1225,8 +1339,10 @@ function getBalanceSafe(currency) {
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise((resolve) => {
         // 1) Выбираем выигрыш
-        const winItem = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
-        carousel.winningItem = winItem;
+        const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+            const winItem = normalizeItemForCurrency(winRaw, currency);
+            carousel.winningItem = winItem;
+
 
         // 2) Берём текущую ленту как базу (чтобы не было резкого "скачка")
         let strip = (Array.isArray(carousel.items) && carousel.items.length) ? carousel.items.slice() : [];
@@ -1234,7 +1350,9 @@ function getBalanceSafe(currency) {
         if (!strip.length) {
           const idleCount = 70;
           for (let i = 0; i < idleCount; i++) {
-            strip.push(pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+            const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+                strip.push(normalizeItemForCurrency(raw, currency));
+
           }
         }
 
@@ -1257,7 +1375,8 @@ function getBalanceSafe(currency) {
             for (let k = -safeRadius; k <= safeRadius; k++) {
               const ii = winAt + k;
               if (ii < 0 || ii >= strip.length) continue;
-              strip[ii] = pickRandom(giftsPool) || strip[ii];
+              strip[ii] = normalizeItemForCurrency(pickRandom(giftsPool) || strip[ii], currency);
+
             }
             // гарантируем сам выигрыш
             strip[winAt] = winItem;
@@ -1670,7 +1789,8 @@ async function showResult(currency, demoModeOverride) {
     }
   } catch (_) {}
 
-  const itemValue = (it) => ((it?.price?.[currency]) ? (parseFloat(it.price[currency]) || 0) : 0);
+  const itemValue = (it) => prizeValue(it, currency);
+
 
   const giftsRaw = giftEntries.reduce((sum, e) => sum + itemValue(e.item), 0);
   const giftsAmount = (currency === 'stars')

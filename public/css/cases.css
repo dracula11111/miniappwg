@@ -301,9 +301,8 @@
       gap:12px;
       padding: 0 12px;
     }
-    @media (max-width: 380px){
-      .cases-grid{ gap:10px; padding: 0 10px; }
-    }
+   
+
     
     .case-card{
       position:relative;
@@ -360,6 +359,17 @@
       .case-card[data-case-id="case2"]:hover .case-card__glow{
         background: radial-gradient(circle at center, rgba(64,224,208,0.28), transparent 70%);
       }
+
+      /* Case 4: Blue glow */
+      .case-card[data-case-id="case4"]:hover{
+        box-shadow:
+          0 0 0 2px rgba(64, 150, 255, 0.6),
+          0 16px 40px rgba(0,0,0,0.50),
+          0 0 32px rgba(100, 180, 255, 0.35);
+      }
+      .case-card[data-case-id="case4"]:hover .case-card__glow{
+        background: radial-gradient(circle at center, rgba(64, 150, 255, 0.28), transparent 70%);
+      }
     }
     .case-card:active{
       transform: translateY(-2px) scale(0.98);
@@ -367,19 +377,40 @@
     }
     
     .case-card__image{
+
       position:relative;
-      aspect-ratio: 1;
+    
+      /* FIX: не даём схлопываться в flex-карточке на маленьких экранах */
+      flex: 0 0 auto;
+      width: 100%;
+      min-height: 140px;
+    
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    
+      aspect-ratio: 1 / 1;
       overflow:hidden;
       background: linear-gradient(135deg, #3a3d48 0%, #2a2d36 100%);
       padding: 20px;
     }
+    
     .case-img{
       width:100%;
       height:100%;
+      display:block;          /* чтобы не было “inline-gap”/глюков */
       object-fit: contain;
       transition: transform .35s ease;
       filter: drop-shadow(0 8px 16px rgba(0,0,0,0.4));
     }
+    
+    @media (max-width: 380px){
+      .case-card__image{
+        min-height: 128px;
+        padding: 16px;
+      }
+    }
+    
     .case-card__glow{
       position:absolute;
       inset:0;
@@ -404,9 +435,7 @@
       line-height:1.2;
       text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
-    @media (max-width: 380px){
-      .case-card__title{ font-size:14px; }
-    }
+    
     .case-card__price{
       display:flex;
       align-items:center;
@@ -424,6 +453,20 @@
       height:18px;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
     }
+
+    /* Добавить после существующих правил .case-card */
+
+/* Адаптация для очень узких экранов (360px) */
+
+
+/* Для экранов 360px и меньше */
+@media (max-width: 360px){
+  .cases-grid{ 
+    gap: 8px; 
+    padding: 0 8px; 
+  }
+}
+  
   
   /* ----------------------------
      Bottom sheet overlay
@@ -492,6 +535,14 @@
       radial-gradient(350px 250px at 80% 40%, rgba(224, 64, 216, 0.06) 0%, transparent 70%),
       var(--bg);
   }
+
+    /* Case 4: Blue gradient */
+    .case-sheet-panel[data-case-id="case4"]{
+      background: 
+        radial-gradient(450px 300px at 50% -100px, rgba(64, 150, 255, 0.10) 0%, transparent 65%),
+        radial-gradient(350px 250px at 80% 40%, rgba(100, 180, 255, 0.06) 0%, transparent 70%),
+        var(--bg);
+    }
 
   
   /* Header */
@@ -636,6 +687,14 @@
     0 0 26px rgba(224, 64, 171, 0.35);
 }
 
+/* Case 4: Blue winning highlight */
+.case-sheet-panel[data-case-id="case4"] .case-carousel-item.winning::before{
+  background: rgba(64, 150, 255, 0.26);
+  box-shadow:
+    inset 0 0 0 1px rgba(64, 150, 255, 0.34),
+    0 0 26px rgba(64, 150, 255, 0.35);
+}
+
 
 
   .case-carousel-item.winning::after{
@@ -674,6 +733,12 @@
   background: rgba(224, 64, 171, 0.8);
   box-shadow: 0 0 12px rgba(224, 64, 171, 0.6), 0 0 24px rgba(224, 64, 171, 0.4);
 }
+
+/* Case 4: Blue carousel indicator */
+.case-sheet-panel[data-case-id="case4"] .case-carousel-indicator{
+  background: rgba(64, 150, 255, 0.8);
+  box-shadow: 0 0 12px rgba(64, 150, 255, 0.6), 0 0 24px rgba(64, 150, 255, 0.4);
+}
   .case-carousel-indicator.winning{
     width:4px;
     background: var(--ok);
@@ -698,14 +763,14 @@
   .case-carousel::before{ left:0; background: linear-gradient(90deg, var(--panel) 0%, transparent 100%); }
   .case-carousel::after{ right:0; background: linear-gradient(-90deg, var(--panel) 0%, transparent 100%); }
   
-  /* ----------------------------
+ /* ----------------------------
      Count switch + demo
      ---------------------------- */
      .case-count-section{
       flex-shrink:0;
       padding: 12px 20px 20px;
       display:flex;
-      justify-content:center;
+      justify-content: flex-start; /* Выравнивание влево */
       align-items:center;
       gap: 16px;
       position: relative;
@@ -729,10 +794,30 @@
       pointer-events: none;
     }
     
-    /* Hide case image on small screens */
-    @media (max-width: 400px){
-      .case-count-section::after{ display: none; }
+    /* Адаптивные размеры иконки */
+    @media (max-width: 500px){
+      .case-count-section::after{ 
+        width: 70px;
+        height: 70px;
+      }
     }
+    
+    @media (max-width: 420px){
+      .case-count-section::after{ 
+        width: 60px;
+        height: 60px;
+        right: 16px;
+      }
+    }
+    
+    @media (max-width: 360px){
+      .case-count-section::after{ 
+        width: 50px;
+        height: 50px;
+        right: 12px;
+      }
+    }
+    
   
   .case-count-switch{
     display:flex;
@@ -777,6 +862,13 @@
     color:#fff;
     box-shadow: 0 2px 8px rgba(224, 64, 171, 0.40);
   }
+
+    /* Case 4: Blue active button */
+    .case-sheet-panel[data-case-id="case4"] .case-count-btn.active{
+      background: rgba(64, 150, 255, 0.25);
+      color:#fff;
+      box-shadow: 0 2px 8px rgba(64, 150, 255, 0.40);
+    }
 
 
   .case-count-btn:active{ transform: scale(0.96); }
@@ -924,7 +1016,11 @@
   box-shadow: 0 4px 16px rgba(224, 64, 171, 0.30);
 }
 
-
+/* Case 4: Blue open button */
+.case-sheet-panel[data-case-id="case4"] .case-open-btn{
+  background: linear-gradient(135deg, rgba(64, 150, 255, 0.35), rgba(40, 120, 220, 0.30));
+  box-shadow: 0 4px 16px rgba(64, 150, 255, 0.30);
+}
 
 
   .case-open-btn:active{ transform: scale(0.99); }
@@ -1230,6 +1326,13 @@
     0 0 26px rgba(224, 64, 171, 0.90);
 }
 
+/* Case 4: Blue winning item */
+.case-sheet-panel[data-case-id="case4"] .case-carousel.cases-finished .case-carousel-item.winning{
+  box-shadow:
+    0 0 0 2px rgba(64, 150, 255, 0.95),
+    0 0 26px rgba(64, 150, 255, 0.90);
+}
+
 
   
 .case-carousel.cases-finished .case-carousel-item.winning::before{
@@ -1271,7 +1374,15 @@
   );
 }
 
-
+/* Case 4: Blue gradient */
+.case-sheet-panel[data-case-id="case4"] .case-carousel.cases-finished .case-carousel-item.winning::before{
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(64, 150, 255, 0.45),
+    rgba(64, 150, 255, 0.16) 55%,
+    rgba(0,0,0,0.90) 100%
+  );
+}
   
   /* PNG внутри приза чуть крупнее */
   .case-carousel.cases-finished .case-carousel-item.winning img{
@@ -1385,6 +1496,16 @@
   }
   
   @media (max-width: 380px){
+    .cases-grid{ 
+      gap:10px; 
+      padding: 0 10px; 
+    }
+    
+        
+    .case-card__title{ 
+      font-size:14px; 
+    }
+    
     .case-claim-row{ gap: 10px; }
     .case-claim-btn{ font-size: 15px; }
     .case-nft-btn-inline{ font-size: 12px; height: 34px; gap: 5px; }
@@ -1604,6 +1725,14 @@
     0 0 0 2px rgba(224, 64, 171, 0.55),
     0 0 26px rgba(224, 64, 171, 0.25);
 }
+
+/* Case 4: Blue centerbox */
+.case-sheet-panel[data-case-id="case4"] .case-carousel-centerbox{
+  background: rgba(64, 150, 255, 0.06);
+  box-shadow:
+    0 0 0 2px rgba(64, 150, 255, 0.55),
+    0 0 26px rgba(64, 150, 255, 0.25);
+}
   
   /* becomes green when stopped */
   .case-carousel-centerbox.winning{
@@ -1685,7 +1814,16 @@
     var(--panel);
 }
 
-
+/* Case 4: Blue NFT highlight */
+.case-sheet-panel[data-case-id="case4"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+  border-color: rgba(64, 150, 255, .55);
+  box-shadow:
+    0 0 0 1px rgba(64, 150, 255, .22),
+    0 10px 24px rgba(64, 150, 255, .10);
+  background:
+    radial-gradient(220px 120px at 50% -40px, rgba(64, 150, 255, .18) 0%, rgba(64, 150, 255, 0) 60%),
+    var(--panel);
+}
 
   
   /* гарантируем, что hidden реально скрывает панель */
@@ -1942,6 +2080,47 @@
   background: linear-gradient(-90deg, var(--bg) 0%, transparent 100%);
 }
 
+
+
+
+/* ----- CASE 4: BLUE THEME ----- */
+
+/* Panel backgrounds */
+.case-sheet-panel[data-case-id="case4"] .case-carousel{
+  background: rgba(64, 150, 255, 0.04);
+  border-color: rgba(64, 150, 255, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case4"] .case-count-switch{
+  background: rgba(64, 150, 255, 0.06);
+}
+
+.case-sheet-panel[data-case-id="case4"] .case-demo-toggle{
+  background: rgba(64, 150, 255, 0.06);
+  border-color: rgba(64, 150, 255, 0.12);
+}
+
+.case-sheet-panel[data-case-id="case4"] .case-content-item{
+  background: rgba(64, 150, 255, 0.04);
+  border-color: rgba(64, 150, 255, 0.10);
+}
+
+.case-sheet-panel[data-case-id="case4"] .case-content-price{
+  background: rgba(64, 150, 255, 0.06);
+}
+
+/* Edge gradients for carousel */
+.case-sheet-panel[data-case-id="case4"] .case-carousel::before{
+  background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+}
+
+.case-sheet-panel[data-case-id="case4"] .case-carousel::after{
+  background: linear-gradient(-90deg, var(--bg) 0%, transparent 100%);
+}
+
+
+
+
 /* ----- INACTIVE COUNT BUTTONS ----- */
 
 /* Case 1: White inactive buttons */
@@ -1959,7 +2138,10 @@
   color: rgba(224, 64, 171, 0.5);
 }
 
-
+/* Case 4: Blue inactive buttons */
+.case-sheet-panel[data-case-id="case4"] .case-count-btn:not(.active){
+  color: rgba(64, 150, 255, 0.5);
+}
 
 
 /* Фиксируем баланс при открытой панели кейсов */
@@ -1985,3 +2167,32 @@ body.case-sheet-open .logo-header {
   opacity: 0;
   pointer-events: none;
 }
+
+
+/* FIX: на маленьких экранах не даём карточке быть квадратом,
+   иначе обрезает title/price */
+   @media (max-width: 420px){
+    .case-card{
+      aspect-ratio: auto !important;
+      height: auto !important;
+    }
+  
+    /* принудительно показываем инфо и цену */
+    .case-card__info{ 
+      display: flex !important;
+    }
+    .case-card__price{
+      display: flex !important;
+    }
+  
+    /* делаем картинку аккуратнее */
+    .case-card__image{
+      aspect-ratio: 1 / 1;
+      padding: 14px;
+    }
+    .case-img{
+      object-fit: contain !important;
+      display: block;
+    }
+  }
+  

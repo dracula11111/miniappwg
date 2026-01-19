@@ -297,10 +297,15 @@ let giftsCatalog = [
   "Stellar Rocket",
   "Instant Ramen",
   "Ice Cream",
-  "Berry Box",
-  "Lol Pop",
-  "Cookie Heart",
-  "Mousse Cake"
+    "Berry Box",
+    "Lol Pop",
+    "Cookie Heart",
+    "Mousse Cake",
+      "Electric Skull",
+      "Vintage Cigar",
+      "Voodoo Doll",
+      "Flying Broom",
+      "Hex Pot"
 ]; // tracked gift collection names (strings)
 let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
