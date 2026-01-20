@@ -20,8 +20,8 @@
     const BET_TEXT_ID = "crashBetText";
     const STATUS_ID = "crashStatus";
   
-    const ICON_TON = "/Icons/tgTonWhite.svg";
-    const ICON_STAR = "/Icons/tgStarWhite.svg";
+    const ICON_TON = "/icons/tgTonWhite.svg";
+    const ICON_STAR = "/icons/tgStarWhite.svg";
   
     // Game settings
     const HOUSE_EDGE = 0.07;      // (1 - 0.07) like in your formula screenshot
