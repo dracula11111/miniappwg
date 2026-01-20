@@ -232,6 +232,10 @@ function pushCasesHistory(entry) {
 
 // GET latest case drops
 app.get("/api/cases/history", (req, res) => {
+  // Prevent caching in Telegram WebView / proxies
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+
   const limit = clampHistoryLimit(req.query.limit);
   return res.json({ ok: true, items: casesHistory.slice(0, limit) });
 });
@@ -240,11 +244,14 @@ app.get("/api/cases/history", (req, res) => {
 app.post("/api/cases/history", (req, res) => {
   try {
     const { userId, initData, entries } = req.body || {};
-
-    // Optional initData verification (same pattern as other endpoints)
+    // Optional initData verification. NOTE: Telegram initData has auth_date and can become "too old"
+    // while the user keeps the WebApp open. For history feed we don't want to break UX,
+    // so we verify when possible, but we do NOT reject on failure/expiration.
     if (initData && process.env.BOT_TOKEN) {
-      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-      if (!check.ok) return res.status(403).json({ ok: false, error: "Invalid initData" });
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, 365 * 24 * 60 * 60);
+      if (!check.ok) {
+        console.warn('[cases.history] invalid/expired initData (accepted)');
+      }
     }
 
     const list = Array.isArray(entries) ? entries : (req.body && typeof req.body === "object" ? [req.body] : []);

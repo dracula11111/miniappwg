@@ -597,7 +597,7 @@ function getBalanceSafe(currency) {
     if (historyInFlight) return;
     historyInFlight = true;
     try {
-      const r = await fetchJsonSafe(`/api/cases/history?limit=${MAX_CASES_HISTORY}`);
+      const r = await fetchJsonSafe(`/api/cases/history?limit=${MAX_CASES_HISTORY}&t=${Date.now()}`, { cache: 'no-store' });
       if (r.ok && r.json && Array.isArray(r.json.items)) {
         historyState = r.json.items.slice(0, MAX_CASES_HISTORY);
         renderHistory(historyState);
@@ -669,17 +669,32 @@ function getBalanceSafe(currency) {
       .filter(Boolean);
   }
 
-  async function sendHistoryToServer(entries, userId, initData) {
+  function sendHistoryToServer(entries, userId, initData) {
     const list = Array.isArray(entries) ? entries : [];
     if (!list.length) return;
+
+    const payloadWithInit = { userId, initData, entries: list };
+    const payloadNoInit   = { userId, entries: list };
 
     try {
       // fire-and-forget (don’t block UX)
       fetchJsonSafe('/api/cases/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, initData, entries: list })
-      }, 3500).catch(() => {});
+        body: JSON.stringify(payloadWithInit)
+      }, 3500)
+        .then((r) => {
+          // Telegram initData expires (server verifies age). If we got 401/403 — retry without initData.
+          if (!r.ok && (r.status === 401 || r.status === 403)) {
+            return fetchJsonSafe('/api/cases/history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payloadNoInit)
+            }, 3500);
+          }
+          return null;
+        })
+        .catch(() => {});
     } catch (_) {}
   }
 
