@@ -8,6 +8,7 @@ import crypto from "crypto";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
+import { createServer } from 'http';
 
 // We import Postgres DB module dynamically AFTER dotenv has loaded.
 // This fixes the common issue when database-pg.js reads process.env during module initialization.
@@ -170,8 +171,281 @@ const db = IS_TEST ? dbMem : dbReal;
 
 
 const app = express();
+const httpServer = createServer(app);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
+
+const PORT = process.env.PORT || 3000; // port
+
+
+
+
+
+// ==============================
+// CRASH GAME WebSocket Server
+// ==============================
+import { WebSocketServer } from 'ws';
+
+const wss = new WebSocketServer({ noServer: true });
+
+const crashGame = {
+  phase: 'betting',
+  phaseStart: Date.now(),
+  roundId: 1,
+  crashPoint: 2.0,
+  currentMult: 1.0,
+  players: [],
+  history: [],
+  tickInterval: null,
+  bettingInterval: null,
+  phaseTimeout: null
+};
+
+const BETTING_TIME = 10000; // 10 seconds
+const CRASH_MIN = 1.01;
+const CRASH_MAX = 100;
+
+function generateCrashPoint() {
+  const rand = Math.random();
+  if (rand < 0.05) return 1.0 + Math.random() * 0.5; // 5% -> 1.0-1.5x
+  if (rand < 0.20) return 1.5 + Math.random() * 0.5; // 15% -> 1.5-2.0x
+  if (rand < 0.50) return 2.0 + Math.random() * 3.0; // 30% -> 2.0-5.0x
+  if (rand < 0.80) return 5.0 + Math.random() * 10; // 30% -> 5-15x
+  return 15 + Math.random() * 85; // 20% -> 15-100x
+}
+
+function broadcastGameState() {
+  const msg = JSON.stringify({
+    type: 'gameState',
+    phase: crashGame.phase,
+    phaseStart: crashGame.phaseStart,
+    roundId: crashGame.roundId,
+    crashPoint: (crashGame.phase === 'crash' || crashGame.phase === 'wait') ? crashGame.crashPoint : null,
+    currentMult: crashGame.currentMult,
+    players: crashGame.players,
+    history: crashGame.history.slice(0, 15)
+  });
+
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(msg);
+  });
+}
+
+function startBetting() {
+  // Cleanup any leftovers (safety)
+  if (crashGame.tickInterval) {
+    clearInterval(crashGame.tickInterval);
+    crashGame.tickInterval = null;
+  }
+  if (crashGame.phaseTimeout) {
+    clearTimeout(crashGame.phaseTimeout);
+    crashGame.phaseTimeout = null;
+  }
+  if (crashGame.bettingInterval) {
+    clearInterval(crashGame.bettingInterval);
+    crashGame.bettingInterval = null;
+  }
+
+  crashGame.phase = 'betting';
+  crashGame.phaseStart = Date.now();
+  crashGame.roundId++;
+  crashGame.currentMult = 1.0;
+  crashGame.crashPoint = generateCrashPoint();
+  crashGame.players = [];
+
+  console.log(`[Crash] Round ${crashGame.roundId} betting started, will crash at ${crashGame.crashPoint.toFixed(2)}x`);
+
+  broadcastGameState();
+
+  // Send countdown sync once per second (cheap)
+  crashGame.bettingInterval = setInterval(() => {
+    if (crashGame.phase === 'betting') {
+      broadcastGameState();
+    }
+  }, 1000);
+
+  crashGame.phaseTimeout = setTimeout(() => {
+    if (crashGame.bettingInterval) {
+      clearInterval(crashGame.bettingInterval);
+      crashGame.bettingInterval = null;
+    }
+    startRunning();
+  }, BETTING_TIME);
+}
+
+
+function startRunning() {
+  // Cleanup betting timers (safety)
+  if (crashGame.phaseTimeout) {
+    clearTimeout(crashGame.phaseTimeout);
+    crashGame.phaseTimeout = null;
+  }
+  if (crashGame.bettingInterval) {
+    clearInterval(crashGame.bettingInterval);
+    crashGame.bettingInterval = null;
+  }
+  if (crashGame.tickInterval) {
+    clearInterval(crashGame.tickInterval);
+    crashGame.tickInterval = null;
+  }
+
+  crashGame.phase = 'run';
+  crashGame.phaseStart = Date.now();
+  crashGame.currentMult = 1.0;
+
+  console.log(`[Crash] Round ${crashGame.roundId} running with ${crashGame.players.length} players`);
+
+  // Full state once at phase start
+  broadcastGameState();
+
+  const startTime = Date.now();
+  crashGame.tickInterval = setInterval(() => {
+    if (crashGame.phase !== 'run') return;
+
+    const elapsed = Date.now() - startTime;
+    crashGame.currentMult = Math.pow(Math.E, elapsed / 10000);
+
+    if (crashGame.currentMult >= crashGame.crashPoint) {
+      crash();
+    } else {
+      // Lightweight multiplier updates (no heavy DOM on clients)
+      broadcastTick();
+    }
+  }, 50);
+}
+
+function crash() {
+  if (crashGame.tickInterval) {
+    clearInterval(crashGame.tickInterval);
+    crashGame.tickInterval = null;
+  }
+  
+  if (crashGame.phaseTimeout) {
+    clearTimeout(crashGame.phaseTimeout);
+    crashGame.phaseTimeout = null;
+  }
+
+  crashGame.phase = 'crash';
+  crashGame.currentMult = crashGame.crashPoint;
+  
+  console.log(`[Crash] Round ${crashGame.roundId} crashed at ${crashGame.crashPoint.toFixed(2)}x`);
+  
+  crashGame.history.unshift(crashGame.crashPoint);
+  if (crashGame.history.length > 20) crashGame.history.length = 20;
+  
+  broadcastGameState();
+  
+  crashGame.phaseTimeout = setTimeout(() => {
+    crashGame.phase = 'wait';
+    broadcastGameState();
+    setTimeout(startBetting, 2000);
+  }, 2000);
+}
+
+// WebSocket connection handler
+wss.on('connection', (ws) => {
+  console.log('[Crash WS] Client connected');
+  
+  // Send current state immediately
+  ws.send(JSON.stringify({
+    type: 'gameState',
+    phase: crashGame.phase,
+    phaseStart: crashGame.phaseStart,
+    roundId: crashGame.roundId,
+    crashPoint: crashGame.phase === 'crash' ? crashGame.crashPoint : null,
+    currentMult: crashGame.currentMult,
+    players: crashGame.players,
+    history: crashGame.history.slice(0, 15)
+  }));
+
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data);
+      
+      if (msg.type === 'placeBet') {
+        if (crashGame.phase !== 'betting') {
+          ws.send(JSON.stringify({ type: 'error', message: 'Betting closed' }));
+          return;
+        }
+        
+        const existing = crashGame.players.find(p => p.userId === msg.userId);
+        if (existing) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Already placed bet' }));
+          return;
+        }
+        
+        crashGame.players.push({
+          userId: msg.userId,
+          name: msg.userName || 'Player',
+          avatar: msg.userAvatar || null,
+          amount: msg.amount,
+          currency: msg.currency,
+          claimed: false,
+          claimMult: null
+        });
+        
+        console.log(`[Crash] ${msg.userName} bet ${msg.amount} ${msg.currency}`);
+        
+        ws.send(JSON.stringify({ type: 'betPlaced', userId: msg.userId }));
+        broadcastGameState();
+      }
+      
+      else if (msg.type === 'claim') {
+        if (crashGame.phase !== 'run') {
+          ws.send(JSON.stringify({ type: 'error', message: 'Cannot claim now' }));
+          return;
+        }
+        
+        const player = crashGame.players.find(p => p.userId === msg.userId);
+        if (!player) {
+          ws.send(JSON.stringify({ type: 'error', message: 'No active bet' }));
+          return;
+        }
+        
+        if (player.claimed) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Already claimed' }));
+          return;
+        }
+        
+        player.claimed = true;
+        player.claimMult = crashGame.currentMult;
+        
+        console.log(`[Crash] ${player.name} claimed at ${crashGame.currentMult.toFixed(2)}x`);
+        
+        ws.send(JSON.stringify({ type: 'claimed', userId: msg.userId, mult: crashGame.currentMult }));
+        broadcastGameState();
+      }
+      
+    } catch (e) {
+      console.error('[Crash WS] Message error:', e);
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('[Crash WS] Client disconnected');
+  });
+});
+
+// HTTP upgrade handler for WebSocket
+httpServer.on('upgrade', (request, socket, head) => {
+  if (request.url === '/ws/crash') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+// Start first round
+startBetting();
+
+// Rest of your Express routes below...
+
+
+
+
+
 
 // Wheel configuration (must match public/js/wheel.js)
 const WHEEL_ORDER = [
@@ -194,6 +468,20 @@ app.use(express.static(path.join(__dirname, "public"), {
     }
   }
 }));
+
+function broadcastTick() {
+  const msg = JSON.stringify({
+    type: 'tick',
+    currentMult: crashGame.currentMult,
+    roundId: crashGame.roundId,
+    phase: crashGame.phase
+  });
+
+  wss.clients.forEach(c => {
+    if (c.readyState === 1) c.send(msg);
+  });
+}
+
 
 
 // ==============================
@@ -1601,24 +1889,21 @@ app.use((err, req, res, next) => {
 
 
 // ====== START ======
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════╗
 ║   🎮 WildGift Server Running          ║
 ║   Port: ${PORT}                           ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}      ║
+║   🎲 Crash WebSocket: /ws/crash       ║
 ╚═══════════════════════════════════════╝
   `);
   
   if (!process.env.BOT_TOKEN) {
     console.warn('⚠️  WARNING: BOT_TOKEN not set in .env');
-    console.warn('   Stars payments will not work!');
-  } else {
-    console.log('✅ BOT_TOKEN configured');
   }
   
-  console.log(`✅ Wheel configured with ${WHEEL_ORDER.length} segments`);
+  console.log(`✅ Crash game running`);
 });
 
 
