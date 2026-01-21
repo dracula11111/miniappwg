@@ -264,9 +264,7 @@
       bettingTimeMs: 10000,
       bettingLeftMs: null,
       bettingLeftAt: 0,
-      serverTimeOffset: 0,
-      lastPlayerDomUpdate: 0,
-
+      lastPlayerDomUpdate: 0
     };
 
     // WebSocket connection
@@ -333,28 +331,23 @@
 
           // Update state from server
           state.phase = msg.phase;
-          state.phaseStart = msg.phaseStart;
+          state.phaseStart = (typeof msg.phaseStart === 'number' && Number.isFinite(msg.phaseStart))
+            ? msg.phaseStart
+            : (Number(msg.phaseStart) || 0);
+
+          if (typeof msg.bettingTimeMs === 'number' && Number.isFinite(msg.bettingTimeMs)) {
+            state.bettingTimeMs = msg.bettingTimeMs;
+          }
+
+          if (typeof msg.bettingLeftMs === 'number' && Number.isFinite(msg.bettingLeftMs)) {
+            state.bettingLeftMs = msg.bettingLeftMs;
+            state.bettingLeftAt = Date.now();
+          }
           state.roundId = msg.roundId;
           state.crashPoint = msg.crashPoint;
           state.serverMult = (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) ? msg.currentMult : 1.0;
           state.players = msg.players || [];
           state.history = msg.history || [];
-          state.phaseStart = (typeof msg.phaseStart === 'number' && Number.isFinite(msg.phaseStart))
-              ? msg.phaseStart
-              : (Number(msg.phaseStart) || 0);
-
-            if (typeof msg.bettingTimeMs === 'number' && Number.isFinite(msg.bettingTimeMs)) {
-              state.bettingTimeMs = msg.bettingTimeMs;
-            }
-
-            if (typeof msg.bettingLeftMs === 'number' && Number.isFinite(msg.bettingLeftMs)) {
-              state.bettingLeftMs = msg.bettingLeftMs;
-              state.bettingLeftAt = Date.now();
-            }
-
-            if (typeof msg.serverTime === 'number' && Number.isFinite(msg.serverTime)) {
-              state.serverTimeOffset = Date.now() - msg.serverTime;
-            }
 
           // New round -> reset visuals so graph/multiplier doesn't "jump"
           if (state.roundId !== prevRoundId) {
@@ -425,8 +418,7 @@
       switch (state.phase) {
         case 'betting':
           const seconds = getBettingSeconds() ?? 0;
-            setTimer(seconds, true);
-
+          setTimer(seconds, true);
           
           const timerEl = document.getElementById('crashTimer');
           if (timerEl) {
@@ -532,21 +524,48 @@
       }
     }
 
-
     function getBettingSeconds() {
       if (state.phase !== 'betting') return null;
-    
-      // если сервер прислал оставшиеся мс — используем это (самый надёжный вариант)
+
+      // Prefer server-provided remaining ms (more reliable than phaseStart clocks)
       if (typeof state.bettingLeftMs === 'number' && Number.isFinite(state.bettingLeftMs) && state.bettingLeftAt) {
         const rem = Math.max(0, state.bettingLeftMs - (Date.now() - state.bettingLeftAt));
         return Math.ceil(rem / 1000);
       }
-    
-      // fallback (если вдруг не пришло)
+
+      // Fallback
       const rem = Math.max(0, state.bettingTimeMs - (Date.now() - (state.phaseStart || 0)));
       return Math.ceil(rem / 1000);
     }
-    
+
+    // Lightweight live updates for players during RUN (avoid full rerender)
+    let playerDomRefs = new Map();
+
+    function cachePlayerDomRefs() {
+      playerDomRefs = new Map();
+      if (!playersEl) return;
+      playersEl.querySelectorAll('.crash-trader[data-userid]').forEach(row => {
+        const uid = row.getAttribute('data-userid');
+        const payout = row.querySelector('.js-payout-value');
+        const mult = row.querySelector('.js-mult-value');
+        playerDomRefs.set(String(uid), { payout, mult });
+      });
+    }
+
+    function updatePlayerDomLive() {
+      if (state.phase !== 'run') return;
+      const mult = Math.max(1.0, state.displayMult || 1.0);
+
+      for (const p of (state.players || [])) {
+        if (!p || p.claimed) continue; // do not touch claimed (it stays fixed/green)
+        const ref = playerDomRefs.get(String(p.userId));
+        if (!ref) continue;
+
+        const decimals = (p.currency === 'stars') ? 0 : 2;
+        if (ref.payout) ref.payout.textContent = (Number(p.amount || 0) * mult).toFixed(decimals);
+        if (ref.mult) ref.mult.textContent = formatX(mult);
+      }
+    }
 
     function getMultColor(mult) {
       if (mult < 1.5) return 'color-1';
@@ -568,9 +587,6 @@
         })
         .join('');
     }
-    let playerDomRefs = new Map();
-
-     
 
     function renderPlayers() {
       if (!playersEl) return;
@@ -583,9 +599,7 @@
       });
 
       if (sortedPlayers.length === 0) {
-        playersEl.innerHTML = cachePlayerDomRefs();`
-        
-
+        playersEl.innerHTML = `
           <div style="padding: 20px; text-align: center; color: var(--cr-text-dim); font-size: 13px;">
             No active players yet
           </div>
@@ -603,15 +617,14 @@
         if (state.phase === 'betting' || state.phase === 'wait') {
           statusHTML = `<span class="crash-player__status">Waiting</span>`;
         } else if (state.phase === 'run') {
-          traderClass += ' is-active';
-          if (player.claimed) {
+                    if (player.claimed) {
             const payout = (player.amount * player.claimMult).toFixed(player.currency === 'stars' ? 0 : 2);
             statusHTML = `
               <div class="crash-amount__top is-green">
                 <img class="crash-ico" src="${icon}" alt="" />
-                ${payout}
+                <span class="js-payout-value">${payout}</span>
               </div>
-              <div class="crash-amount__sub">${formatX(player.claimMult)}</div>
+              <div class="crash-amount__sub"><span class="js-mult-value">${formatX(player.claimMult)}</span></div>
             `;
           } else {
             const currentValue = (player.amount * state.displayMult).toFixed(player.currency === 'stars' ? 0 : 2);
@@ -620,11 +633,7 @@
                 <img class="crash-ico" src="${icon}" alt="" />
                 <span class="js-payout-value">${currentValue}</span>
               </div>
-              <div class="crash-amount__sub">
-                <span class="js-mult-value">${formatX(state.displayMult)}</span>
-              </div>
-
-              <div class="crash-amount__sub">${formatX(state.displayMult)}</div>
+              <div class="crash-amount__sub"><span class="js-mult-value">${formatX(state.displayMult)}</span></div>
             `;
           }
         } else if (state.phase === 'crash') {
@@ -633,9 +642,9 @@
             statusHTML = `
               <div class="crash-amount__top is-green">
                 <img class="crash-ico" src="${icon}" alt="" />
-                ${payout}
+                <span class="js-payout-value">${payout}</span>
               </div>
-              <div class="crash-amount__sub">${formatX(player.claimMult)}</div>
+              <div class="crash-amount__sub"><span class="js-mult-value">${formatX(player.claimMult)}</span></div>
             `;
           } else {
             statusHTML = `
@@ -657,7 +666,7 @@
             <div class="crash-trader__left">
               <div class="crash-ava">${avatarHTML}</div>
               <div>
-                <div class="crash-name">${player.name}${isCurrentUser ? ' (You)' : ''}</div>
+                <div class="crash-name">${(player.name ?? player.username ?? ('Player ' + player.userId))}${isCurrentUser ? ' (You)' : ''}</div>
                 <div class="crash-amount__sub">
                   <img class="crash-ico" src="${icon}" alt="" />
                   Bet: ${player.amount}
@@ -670,36 +679,9 @@
           </div>
         `;
       }).join('');
+      cachePlayerDomRefs();
+
     }
-
-
-    function cachePlayerDomRefs() {
-      playerDomRefs = new Map();
-      if (!playersEl) return;
-
-      playersEl.querySelectorAll('.crash-trader[data-userid]').forEach(row => {
-        const uid = row.getAttribute('data-userid');
-        const payout = row.querySelector('.js-payout-value');
-        const mult = row.querySelector('.js-mult-value');
-        playerDomRefs.set(String(uid), { payout, mult });
-      });
-    }
-
-    function updatePlayerDomLive() {
-      if (state.phase !== 'run') return;
-      const mult = Math.max(1.0, state.displayMult || 1.0);
-
-      for (const p of (state.players || [])) {
-        if (!p || p.claimed) continue;
-        const ref = playerDomRefs.get(String(p.userId));
-        if (!ref) continue;
-
-        const decimals = (p.currency === 'stars') ? 0 : 2;
-        if (ref.payout) ref.payout.textContent = (p.amount * mult).toFixed(decimals);
-        if (ref.mult) ref.mult.textContent = formatX(mult);
-      }
-    }
-
 
     function roundToCurrency(val, currency) {
       if (currency === "stars") return Math.max(0, Math.trunc(val));
@@ -887,7 +869,7 @@
         return;
       }
 
-      buyBtn.textContent = "Place bet";
+      buyBtn.textContent = "Place Bet";
     }
 
     async function placeBet() {
@@ -1186,10 +1168,8 @@
 
       // Smooth local countdown (no need to spam full gameState)
       if (state.phase === 'betting') {
-        const remaining = Math.max(0, 10000 - (Date.now() - state.phaseStart));
-        const seconds = Math.ceil(remaining / 1000);
-
-        if (seconds !== state.lastTimerSeconds) {
+        const seconds = getBettingSeconds() ?? 0;
+if (seconds !== state.lastTimerSeconds) {
           state.lastTimerSeconds = seconds;
           setTimer(seconds, true);
 
@@ -1219,11 +1199,11 @@
         state.displayMult = Math.max(1.0, state.displayMult);
 
         setMult(state.displayMult, "green");
+        // Update only numbers in players list (cheap)
         if (now - state.lastPlayerDomUpdate >= 120) {
           state.lastPlayerDomUpdate = now;
           updatePlayerDomLive();
         }
-        
       }
 
       draw();

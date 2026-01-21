@@ -13,6 +13,10 @@ import { createServer } from 'http';
 // We import Postgres DB module dynamically AFTER dotenv has loaded.
 // This fixes the common issue when database-pg.js reads process.env during module initialization.
 let dbReal = null;
+function rotateServerSeed() {
+  crashGame.prevServerSeed = crashGame.serverSeed;
+  crashGame.serverSeed = crypto.randomBytes(32).toString("hex");
+}
 
 // =====================
 // ENV / DB MODE
@@ -198,53 +202,128 @@ const crashGame = {
   history: [],
   tickInterval: null,
   bettingInterval: null,
-  phaseTimeout: null
+  phaseTimeout: null,
+  serverSeed: null,
+  prevServerSeed: null,
+  clientSeed: "public",
+  nonce: 0
+
 };
 
 const BETTING_TIME = 10000; // 10 seconds
 const CRASH_MIN = 1.01;
 const CRASH_MAX = 100;
+const TICK_MS = 100; // send multiplier updates 10 times per second (clients interpolate)
+const HEARTBEAT_MS = 30000;
+const WS_MAX_BUFFERED = 2 * 1024 * 1024;      // 2MB -> skip non-critical sends
+const WS_HARD_CLOSE_BUFFERED = 8 * 1024 * 1024; // 8MB -> terminate the socket
 
-function generateCrashPoint() {
-  const rand = Math.random();
-  if (rand < 0.05) return 1.0 + Math.random() * 0.5; // 5% -> 1.0-1.5x
-  if (rand < 0.20) return 1.5 + Math.random() * 0.5; // 15% -> 1.5-2.0x
-  if (rand < 0.50) return 2.0 + Math.random() * 3.0; // 30% -> 2.0-5.0x
-  if (rand < 0.80) return 5.0 + Math.random() * 10; // 30% -> 5-15x
-  return 15 + Math.random() * 85; // 20% -> 15-100x
+function wsSendSafe(ws, data) {
+  try {
+    if (!ws || ws.readyState !== 1) return false;
+    const buffered = typeof ws.bufferedAmount === 'number' ? ws.bufferedAmount : 0;
+
+    // Kill totally stuck sockets
+    if (buffered > WS_HARD_CLOSE_BUFFERED) {
+      try { ws.terminate(); } catch {}
+      return false;
+    }
+
+    // For slow sockets: skip to avoid unbounded queue growth / stack overflow
+    if (buffered > WS_MAX_BUFFERED) return false;
+
+    ws.send(data);
+    return true;
+  } catch {
+    try { ws.terminate(); } catch {}
+    return false;
+  }
 }
 
-function broadcastGameState() {
-  const now = Date.now();
+function computeBettingLeftMs(now = Date.now()) {
+  if (crashGame.phase !== 'betting') return null;
+  return Math.max(0, (crashGame.phaseStart + BETTING_TIME) - now);
+}
 
-  const msg = JSON.stringify({
+function buildGameState(now = Date.now()) {
+  return {
     type: 'gameState',
     serverTime: now,
     bettingTimeMs: BETTING_TIME,
-    bettingLeftMs: crashGame.phase === 'betting'
-      ? Math.max(0, (crashGame.phaseStart + BETTING_TIME) - now)
-      : null,
-
+    bettingLeftMs: computeBettingLeftMs(now),
     phase: crashGame.phase,
     phaseStart: crashGame.phaseStart,
     roundId: crashGame.roundId,
     crashPoint: (crashGame.phase === 'crash' || crashGame.phase === 'wait') ? crashGame.crashPoint : null,
     currentMult: crashGame.currentMult,
     players: crashGame.players,
-    history: crashGame.history.slice(0, 15),
-  });
+    history: crashGame.history.slice(0, 15)
+  };
+}
 
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) client.send(msg);
-    broadcastGameState();
-
-   
-    
+// WS heartbeat (close dead/stuck sockets)
+setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) {
+      try { ws.terminate(); } catch {}
+      return;
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch {}
   });
+}, HEARTBEAT_MS);
+
+function getXFromSeeds(serverSeed, clientSeed, nonce) {
+  // HMAC_SHA512(serverSeed, clientSeed:nonce)
+  const hmac = crypto
+    .createHmac("sha512", serverSeed)
+    .update(`${clientSeed}:${nonce}`)
+    .digest();
+
+  // берём первые 8 байт → число
+  let r = 0;
+  for (let i = 0; i < 8; i++) {
+    r += hmac[i] / Math.pow(256, i + 1);
+  }
+
+  // [0 .. 999999]
+  return Math.floor(r * 1_000_000);
 }
 
 
+
+
+function crashFromX(x) {
+  const HOUSE_EDGE = 0.07;
+  const MAX_X = 100;
+
+  let crash = (1_000_000 / (x + 1)) * (1 - HOUSE_EDGE);
+  crash = Math.max(1, Math.min(crash, MAX_X));
+
+  return Math.floor(crash * 100) / 100;
+}
+
+function generateCrashPoint() {
+  const x = getXFromSeeds(
+    crashGame.serverSeed,
+    crashGame.clientSeed,
+    crashGame.nonce++
+  );
+
+  return crashFromX(x);
+}
+
+
+
+function broadcastGameState() {
+  const msg = JSON.stringify(buildGameState());
+  wss.clients.forEach(ws => wsSendSafe(ws, msg));
+}
+
 function startBetting() {
+  rotateServerSeed();
+  crashGame.nonce = 0;
+
   // Cleanup any leftovers (safety)
   if (crashGame.tickInterval) {
     clearInterval(crashGame.tickInterval);
@@ -302,6 +381,9 @@ function startRunning() {
     crashGame.tickInterval = null;
   }
 
+    
+  
+
   crashGame.phase = 'run';
   crashGame.phaseStart = Date.now();
   crashGame.currentMult = 1.0;
@@ -324,7 +406,7 @@ function startRunning() {
       // Lightweight multiplier updates (no heavy DOM on clients)
       broadcastTick();
     }
-  }, 50);
+  }, TICK_MS);
 }
 
 function crash() {
@@ -358,32 +440,25 @@ function crash() {
 // WebSocket connection handler
 wss.on('connection', (ws) => {
   console.log('[Crash WS] Client connected');
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   
   // Send current state immediately
-  ws.send(JSON.stringify({
-    type: 'gameState',
-    phase: crashGame.phase,
-    phaseStart: crashGame.phaseStart,
-    roundId: crashGame.roundId,
-    crashPoint: crashGame.phase === 'crash' ? crashGame.crashPoint : null,
-    currentMult: crashGame.currentMult,
-    players: crashGame.players,
-    history: crashGame.history.slice(0, 15)
-  }));
+  wsSendSafe(ws, JSON.stringify(buildGameState()));
 
-  ws.on('message', (data) => {
+ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);
       
       if (msg.type === 'placeBet') {
         if (crashGame.phase !== 'betting') {
-          ws.send(JSON.stringify({ type: 'error', message: 'Betting closed' }));
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
         }
         
         const existing = crashGame.players.find(p => p.userId === msg.userId);
         if (existing) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Already placed bet' }));
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Already placed bet' }));
           return;
         }
         
@@ -399,24 +474,24 @@ wss.on('connection', (ws) => {
         
         console.log(`[Crash] ${msg.userName} bet ${msg.amount} ${msg.currency}`);
         
-        ws.send(JSON.stringify({ type: 'betPlaced', userId: msg.userId }));
+        wsSendSafe(ws, JSON.stringify({ type: 'betPlaced', userId: msg.userId }));
         broadcastGameState();
       }
       
       else if (msg.type === 'claim') {
         if (crashGame.phase !== 'run') {
-          ws.send(JSON.stringify({ type: 'error', message: 'Cannot claim now' }));
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Cannot claim now' }));
           return;
         }
         
         const player = crashGame.players.find(p => p.userId === msg.userId);
         if (!player) {
-          ws.send(JSON.stringify({ type: 'error', message: 'No active bet' }));
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'No active bet' }));
           return;
         }
         
         if (player.claimed) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Already claimed' }));
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Already claimed' }));
           return;
         }
         
@@ -425,7 +500,7 @@ wss.on('connection', (ws) => {
         
         console.log(`[Crash] ${player.name} claimed at ${crashGame.currentMult.toFixed(2)}x`);
         
-        ws.send(JSON.stringify({ type: 'claimed', userId: msg.userId, mult: crashGame.currentMult }));
+        wsSendSafe(ws, JSON.stringify({ type: 'claimed', userId: msg.userId, mult: crashGame.currentMult }));
         broadcastGameState();
       }
       
@@ -483,16 +558,15 @@ app.use(express.static(path.join(__dirname, "public"), {
 }));
 
 function broadcastTick() {
+  // Keep ticks tiny (clients interpolate)
   const msg = JSON.stringify({
     type: 'tick',
-    currentMult: crashGame.currentMult,
     roundId: crashGame.roundId,
-    phase: crashGame.phase
+    phase: crashGame.phase,
+    currentMult: crashGame.currentMult
   });
 
-  wss.clients.forEach(c => {
-    if (c.readyState === 1) c.send(msg);
-  });
+  wss.clients.forEach(ws => wsSendSafe(ws, msg));
 }
 
 
