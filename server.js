@@ -215,21 +215,34 @@ function generateCrashPoint() {
 }
 
 function broadcastGameState() {
+  const now = Date.now();
+
   const msg = JSON.stringify({
     type: 'gameState',
+    serverTime: now,
+    bettingTimeMs: BETTING_TIME,
+    bettingLeftMs: crashGame.phase === 'betting'
+      ? Math.max(0, (crashGame.phaseStart + BETTING_TIME) - now)
+      : null,
+
     phase: crashGame.phase,
     phaseStart: crashGame.phaseStart,
     roundId: crashGame.roundId,
     crashPoint: (crashGame.phase === 'crash' || crashGame.phase === 'wait') ? crashGame.crashPoint : null,
     currentMult: crashGame.currentMult,
     players: crashGame.players,
-    history: crashGame.history.slice(0, 15)
+    history: crashGame.history.slice(0, 15),
   });
 
   wss.clients.forEach(client => {
     if (client.readyState === 1) client.send(msg);
+    broadcastGameState();
+
+   
+    
   });
 }
+
 
 function startBetting() {
   // Cleanup any leftovers (safety)

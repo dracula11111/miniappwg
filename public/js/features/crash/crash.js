@@ -260,7 +260,13 @@
       maxCandles: 15,
       lastCandleAt: 0,
       candleMs: 160,
-      lastTimerSeconds: null
+      lastTimerSeconds: null,
+      bettingTimeMs: 10000,
+      bettingLeftMs: null,
+      bettingLeftAt: 0,
+      serverTimeOffset: 0,
+      lastPlayerDomUpdate: 0,
+
     };
 
     // WebSocket connection
@@ -333,6 +339,22 @@
           state.serverMult = (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) ? msg.currentMult : 1.0;
           state.players = msg.players || [];
           state.history = msg.history || [];
+          state.phaseStart = (typeof msg.phaseStart === 'number' && Number.isFinite(msg.phaseStart))
+              ? msg.phaseStart
+              : (Number(msg.phaseStart) || 0);
+
+            if (typeof msg.bettingTimeMs === 'number' && Number.isFinite(msg.bettingTimeMs)) {
+              state.bettingTimeMs = msg.bettingTimeMs;
+            }
+
+            if (typeof msg.bettingLeftMs === 'number' && Number.isFinite(msg.bettingLeftMs)) {
+              state.bettingLeftMs = msg.bettingLeftMs;
+              state.bettingLeftAt = Date.now();
+            }
+
+            if (typeof msg.serverTime === 'number' && Number.isFinite(msg.serverTime)) {
+              state.serverTimeOffset = Date.now() - msg.serverTime;
+            }
 
           // New round -> reset visuals so graph/multiplier doesn't "jump"
           if (state.roundId !== prevRoundId) {
@@ -402,9 +424,9 @@
 
       switch (state.phase) {
         case 'betting':
-          const remaining = Math.max(0, 10000 - (Date.now() - state.phaseStart));
-          const seconds = Math.ceil(remaining / 1000);
-          setTimer(seconds, true);
+          const seconds = getBettingSeconds() ?? 0;
+            setTimer(seconds, true);
+
           
           const timerEl = document.getElementById('crashTimer');
           if (timerEl) {
@@ -510,6 +532,22 @@
       }
     }
 
+
+    function getBettingSeconds() {
+      if (state.phase !== 'betting') return null;
+    
+      // если сервер прислал оставшиеся мс — используем это (самый надёжный вариант)
+      if (typeof state.bettingLeftMs === 'number' && Number.isFinite(state.bettingLeftMs) && state.bettingLeftAt) {
+        const rem = Math.max(0, state.bettingLeftMs - (Date.now() - state.bettingLeftAt));
+        return Math.ceil(rem / 1000);
+      }
+    
+      // fallback (если вдруг не пришло)
+      const rem = Math.max(0, state.bettingTimeMs - (Date.now() - (state.phaseStart || 0)));
+      return Math.ceil(rem / 1000);
+    }
+    
+
     function getMultColor(mult) {
       if (mult < 1.5) return 'color-1';
       if (mult < 2) return 'color-2';
@@ -530,6 +568,9 @@
         })
         .join('');
     }
+    let playerDomRefs = new Map();
+
+     
 
     function renderPlayers() {
       if (!playersEl) return;
@@ -543,6 +584,8 @@
 
       if (sortedPlayers.length === 0) {
         playersEl.innerHTML = `
+        cachePlayerDomRefs();
+
           <div style="padding: 20px; text-align: center; color: var(--cr-text-dim); font-size: 13px;">
             No active players yet
           </div>
@@ -575,8 +618,12 @@
             statusHTML = `
               <div class="crash-amount__top">
                 <img class="crash-ico" src="${icon}" alt="" />
-                ${currentValue}
+                <span class="js-payout-value">${currentValue}</span>
               </div>
+              <div class="crash-amount__sub">
+                <span class="js-mult-value">${formatX(state.displayMult)}</span>
+              </div>
+
               <div class="crash-amount__sub">${formatX(state.displayMult)}</div>
             `;
           }
@@ -606,7 +653,7 @@
           : `<span style="font-size: 16px;">👤</span>`;
 
         return `
-          <div class="${traderClass}">
+          <div class="${traderClass}" data-userid="${String(player.userId)}">
             <div class="crash-trader__left">
               <div class="crash-ava">${avatarHTML}</div>
               <div>
@@ -624,6 +671,35 @@
         `;
       }).join('');
     }
+
+
+    function cachePlayerDomRefs() {
+      playerDomRefs = new Map();
+      if (!playersEl) return;
+
+      playersEl.querySelectorAll('.crash-trader[data-userid]').forEach(row => {
+        const uid = row.getAttribute('data-userid');
+        const payout = row.querySelector('.js-payout-value');
+        const mult = row.querySelector('.js-mult-value');
+        playerDomRefs.set(String(uid), { payout, mult });
+      });
+    }
+
+    function updatePlayerDomLive() {
+      if (state.phase !== 'run') return;
+      const mult = Math.max(1.0, state.displayMult || 1.0);
+
+      for (const p of (state.players || [])) {
+        if (!p || p.claimed) continue;
+        const ref = playerDomRefs.get(String(p.userId));
+        if (!ref) continue;
+
+        const decimals = (p.currency === 'stars') ? 0 : 2;
+        if (ref.payout) ref.payout.textContent = (p.amount * mult).toFixed(decimals);
+        if (ref.mult) ref.mult.textContent = formatX(mult);
+      }
+    }
+
 
     function roundToCurrency(val, currency) {
       if (currency === "stars") return Math.max(0, Math.trunc(val));
@@ -811,7 +887,7 @@
         return;
       }
 
-      buyBtn.textContent = "Buy";
+      buyBtn.textContent = "Place bet";
     }
 
     async function placeBet() {
@@ -1143,6 +1219,11 @@
         state.displayMult = Math.max(1.0, state.displayMult);
 
         setMult(state.displayMult, "green");
+        if (now - state.lastPlayerDomUpdate >= 120) {
+          state.lastPlayerDomUpdate = now;
+          updatePlayerDomLive();
+        }
+        
       }
 
       draw();
