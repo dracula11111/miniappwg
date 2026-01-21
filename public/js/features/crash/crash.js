@@ -583,8 +583,8 @@
       });
 
       if (sortedPlayers.length === 0) {
-        playersEl.innerHTML = `
-        cachePlayerDomRefs();
+        playersEl.innerHTML = cachePlayerDomRefs();`
+        
 
           <div style="padding: 20px; text-align: center; color: var(--cr-text-dim); font-size: 13px;">
             No active players yet
