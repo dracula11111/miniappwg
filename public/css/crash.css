@@ -1,772 +1,772 @@
 /* Crash UI (stub) */
 
 :root{
-    /* Fallbacks (override these in your base.css if you already have tokens) */
-    --cr-bg: var(--bg, #0a0f14);
-    --cr-surface: var(--surface, rgba(255,255,255,0.06));
-    --cr-surface-2: var(--surface2, rgba(255,255,255,0.10));
-    --cr-border: var(--border, rgba(255,255,255,0.10));
-    --cr-text: var(--text, rgba(255,255,255,0.92));
-    --cr-text-dim: var(--text-dim, rgba(255,255,255,0.55));
-    --cr-green: var(--accent, #2cff9a);
-    --cr-red: var(--danger, #ff3b4e);
-    --cr-yellow: var(--warning, #ffd54a);
-    --cr-radius: 22px;
-  }
-  
-  /* Page wrapper */
-  #crashPage{
-    padding-bottom: 14px;
-  }
-  
-  .crash{
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  
-  /* Chart card */
-  .crash-card{
-    position: relative;
-    border-radius: var(--cr-radius);
-    overflow: hidden;
-    border: 1px solid var(--cr-border);
-    background:
-      radial-gradient(circle 600px at 50% 0%, rgba(100,149,237,0.12), transparent 65%),
-      radial-gradient(circle 400px at 20% 50%, rgba(70,90,150,0.08), transparent 70%),
-      radial-gradient(circle 350px at 80% 30%, rgba(255,255,255,0.03), transparent 60%),
-      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-    box-shadow: 
-      0 20px 60px rgba(0,0,0,0.5),
-      inset 0 1px 0 rgba(255,255,255,0.1);
-  }
-  
-  /* subtle grid */
-  .crash-card::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    opacity: 0.15;
-    background-image:
-      linear-gradient(rgba(100,149,237,0.15) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(100,149,237,0.15) 1px, transparent 1px);
-    background-size: 24px 24px;
-    pointer-events:none;
-  }
-  
-  /* Дополнительный внутренний свет */
-  .crash-card::after{
-    content:"";
-    position:absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 120px;
-    background: linear-gradient(180deg, rgba(100,149,237,0.08), transparent);
-    pointer-events:none;
-  }
-  
-  .crash-canvasWrap{
-    position: relative;
-    height: 260px;
-    background: 
-      radial-gradient(circle 300px at 50% 50%, rgba(100,149,237,0.05), transparent 80%);
-  }
-  
-  #crashCanvas{
-    width: 100%;
-    height: 100%;
-    display:block;
-  }
-  
-  /* HUD */
-  .crash-hud{
-    position:absolute;
-    inset: 0;
-    pointer-events:none;
-  }
-  
-  .crash-ping{
-    position:absolute;
-    top: 12px;
-    left: 14px;
-    font-size: 12px;
-    color: var(--cr-text-dim);
-    letter-spacing: 0.2px;
-    display:flex;
-    align-items:center;
-    gap: 8px;
-  }
-  
-  .crash-pingDot{
-    width: 7px;
-    height: 7px;
-    border-radius: 99px;
-    background: var(--cr-green);
-    box-shadow: 0 0 0 3px rgba(46,255,154,0.10);
-  }
-  
-  .crash-mult{
-    position:absolute;
-    left: 14px;
-    top: 14px;
-    font-size: 38px;
-    font-weight: 900;
-    color: rgba(255,255,255,0.95);
-    text-shadow: 
-      0 0 20px rgba(255,255,255,0.4),
-      0 10px 40px rgba(0,0,0,0.7),
-      0 0 40px rgba(100,149,237,0.3);
-    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
-  }
-  
-  .crash-mult.is-green{ 
-    color: rgba(255,255,255,0.95);
-    text-shadow: 
-      0 0 20px rgba(255,255,255,0.5),
-      0 10px 40px rgba(0,0,0,0.7),
-      0 0 40px rgba(100,149,237,0.4);
-  }
-  
-  .crash-mult.is-red{ 
-    color: var(--cr-red);
-    text-shadow: 
-      0 0 30px rgba(255,59,78,0.8),
-      0 10px 40px rgba(0,0,0,0.8),
-      0 0 60px rgba(255,59,78,0.5);
-    animation: redPulse 0.8s ease-in-out infinite;
-  }
-  
-  @keyframes redPulse {
-    0%, 100% { 
-      transform: scale(1);
-      filter: drop-shadow(0 4px 12px rgba(255,59,78,0.6));
-    }
-    50% { 
-      transform: scale(1.03);
-      filter: drop-shadow(0 6px 20px rgba(255,59,78,0.8));
-    }
-  }
+  /* Fallbacks (override these in your base.css if you already have tokens) */
+  --cr-bg: var(--bg, #0a0f14);
+  --cr-surface: var(--surface, rgba(255,255,255,0.06));
+  --cr-surface-2: var(--surface2, rgba(255,255,255,0.10));
+  --cr-border: var(--border, rgba(255,255,255,0.10));
+  --cr-text: var(--text, rgba(255,255,255,0.92));
+  --cr-text-dim: var(--text-dim, rgba(255,255,255,0.55));
+  --cr-green: var(--accent, #2cff9a);
+  --cr-red: var(--danger, #ff3b4e);
+  --cr-yellow: var(--warning, #ffd54a);
+  --cr-radius: 22px;
+}
 
-  .crash-subline{
-    position:absolute;
-    right: 16px;
-    top: 54px;
-    font-size: 12px;
-    color: var(--cr-text-dim);
-  }
-  
-  /* Traders */
-  .crash-panel{
-    border-radius: var(--cr-radius);
-    border: 1px solid var(--cr-border);
-    background: 
-      radial-gradient(circle 400px at 50% 0%, rgba(100,149,237,0.08), transparent 70%),
-      linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-    overflow:hidden;
-    box-shadow: 
-      0 12px 40px rgba(0,0,0,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.08);
-    max-height: 400px;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .crash-panel__head{
-    display:flex;
-    align-items:center;
-    justify-content: space-between;
-    padding: 14px 14px 10px;
-    flex: 0 0 auto;
-  }
-  
-  .crash-panel__title{
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--cr-text);
-  }
-  
-  .crash-panel__meta{
-    font-size: 12px;
-    color: var(--cr-text-dim);
-  }
-  
-  .crash-traders{
-    padding: 0 10px 12px;
-    display:flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .crash-players{
-    padding: 0 10px 12px;
-    display:flex;
-    flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
-    flex: 1 1 auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  .crash-players::-webkit-scrollbar {
-    width: 4px;
-  }
-  
-  .crash-players::-webkit-scrollbar-track {
-    background: rgba(255,255,255,0.05);
-    border-radius: 2px;
-  }
-  
-  .crash-players::-webkit-scrollbar-thumb {
-    background: rgba(100,149,237,0.3);
-    border-radius: 2px;
-  }
-  
-  .crash-players::-webkit-scrollbar-thumb:hover {
-    background: rgba(100,149,237,0.5);
-  }
-  
-  .crash-trader.is-active{
-    background: 
-      linear-gradient(135deg, rgba(100,149,237,0.15), rgba(70,119,207,0.12));
-    border-color: rgba(100,149,237,0.30);
-    box-shadow: 
-      0 6px 16px rgba(100,149,237,0.2),
-      inset 0 1px 0 rgba(255,255,255,0.1),
-      0 0 0 1px rgba(100,149,237,0.15);
-  }
-  
-  .crash-trader__left{
-    display:flex;
-    align-items:center;
-    gap: 10px;
-    min-width: 0;
-  }
-  
-  .crash-ava{
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    background: 
-      linear-gradient(135deg, rgba(100,149,237,0.20), rgba(70,119,207,0.15));
-    border: 1px solid rgba(100,149,237,0.25);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex: 0 0 auto;
-    box-shadow: 
-      0 3px 10px rgba(0,0,0,0.25),
-      inset 0 1px 0 rgba(255,255,255,0.15);
-  }
-  
-  .crash-ava img{
-    width: 26px;
-    height: 26px;
-    border-radius: 999px;
-    display:block;
-  }
-  
-  .crash-name{
-    color: var(--cr-text);
-    font-weight: 700;
-    font-size: 14px;
-    white-space: nowrap;
-    overflow:hidden;
-    text-overflow: ellipsis;
-    max-width: 180px;
-  }
-  
-  .crash-amount{
-    display:flex;
-    flex-direction: column;
-    align-items:flex-end;
-    gap: 2px;
-  }
-  
-  .crash-amount__top{
-    font-size: 14px;
-    font-weight: 800;
-  }
-  
-  .crash-amount__sub{
-    font-size: 12px;
-    color: var(--cr-text-dim);
-  }
-  
-  .crash-amount__top.is-green{ 
-    color: var(--cr-green);
-    text-shadow: 0 0 10px rgba(46,255,154,0.3);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .crash-amount__top.is-red{ 
-    color: var(--cr-red);
-    text-shadow: 0 0 10px rgba(255,59,78,0.3);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  
-  .crash-player__status {
-    font-size: 13px;
-    color: var(--cr-text-dim);
-    font-weight: 600;
-  }
-  
-  /* Bottom controls */
-  /* Bottom controls - теперь inline часть страницы */
-  .crash-controls{
-    padding: 10px 14px 16px;
-    margin-top: 14px;
-    
-  }
-  
-  
-  
-  .crash-controls__bar{
-    border-radius: 26px;
-    border: 1px solid rgba(100,149,237,0.15);
-    background: 
-      radial-gradient(circle 400px at 50% 0%, rgba(70,90,150,0.15), transparent 80%),
-      linear-gradient(180deg, rgba(20,25,35,0.95), rgba(13,18,24,0.92));
-    
-    padding: 10px;
-    box-shadow: 
-      0 20px 60px rgba(0,0,0,0.6),
-      inset 0 1px 0 rgba(100,149,237,0.2),
-      inset 0 -1px 0 rgba(0,0,0,0.5);
-  }
-  
-  .crash-amountRow{
-    display:flex;
-    gap: 10px;
-    overflow:auto;
-    padding-bottom: 8px;
-  }
-  
-  .crash-pill{
-    display:flex;
-    align-items:center;
-    gap: 8px;
-    border: 1px solid rgba(100,149,237,0.12);
-    background: 
-      linear-gradient(135deg, rgba(40,50,70,0.6), rgba(30,40,60,0.5));
-    color: var(--cr-text);
-    padding: 10px 14px;
-    border-radius: 999px;
-    font-weight: 700;
-    white-space: nowrap;
-    flex: 0 0 auto;
-    box-shadow: 
-      0 4px 12px rgba(0,0,0,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.08);
-    transition: all 0.2s ease;
-  }
-  
-  .crash-pill:active{
-    transform: translateY(1px);
-    box-shadow: 
-      0 2px 6px rgba(0,0,0,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.06);
-  }
-  
-  .crash-pill.is-active{
-    border-color: rgba(100,149,237,0.50);
-    background: 
-      linear-gradient(135deg, rgba(100,149,237,0.25), rgba(70,119,207,0.20));
-    box-shadow: 
-      0 6px 20px rgba(100,149,237,0.25),
-      inset 0 1px 0 rgba(255,255,255,0.15),
-      0 0 0 2px rgba(100,149,237,0.15);
-  }
-  
-  .crash-actions{
-    display:flex;
-    gap: 10px;
-    align-items: center;
-  }
-  
-  .crash-buy{
-    flex: 1;
-    height: 54px;
-    border: none;
-    border-radius: 18px;
-    font-size: 16px;
-    font-weight: 900;
-    color: rgba(255,255,255,0.95);
-    background: linear-gradient(135deg, rgba(70,90,120,1), rgba(50,70,100,0.9));
-    box-shadow: 
-      0 8px 24px rgba(70,90,120,0.30),
-      inset 0 1px 0 rgba(255,255,255,0.15);
-    transition: all 0.2s ease;
-  }
-  
-  .crash-buy:active{
-    transform: translateY(1px);
-    box-shadow: 
-      0 4px 12px rgba(70,90,120,0.35),
-      inset 0 1px 0 rgba(255,255,255,0.12);
-  }
-  
-  .crash-buy.is-claim{
-    background: linear-gradient(135deg, rgba(100,149,237,1), rgba(70,119,207,0.9));
-    box-shadow: 
-      0 10px 32px rgba(100,149,237,0.40),
-      inset 0 1px 0 rgba(255,255,255,0.2),
-      0 0 0 2px rgba(100,149,237,0.3);
-  }
-  
-  .crash-buy.is-claim:active{
-    box-shadow: 
-      0 6px 20px rgba(100,149,237,0.45),
-      inset 0 1px 0 rgba(255,255,255,0.18);
-  }
-  
-  .crash-buy.is-lost{
-    background: linear-gradient(135deg, rgba(60,60,70,0.8), rgba(40,40,50,0.7));
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    color: rgba(255,255,255,0.4);
-  }
-  
-  .crash-buy.is-disabled{
-    background: linear-gradient(135deg, rgba(60,60,70,0.6), rgba(40,40,50,0.5));
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    color: rgba(255,255,255,0.5);
-  }
-  
-  .crash-buy:active{
-    transform: translateY(1px);
-  }
-  
-  .crash-plus{
-    width: 54px;
-    height: 54px;
-    border-radius: 18px;
-    border: 1px solid rgba(100,149,237,0.20);
-    background: 
-      linear-gradient(135deg, rgba(50,70,100,0.7), rgba(40,60,90,0.6));
-    color: var(--cr-text);
-    font-size: 26px;
-    font-weight: 700;
-    box-shadow: 
-      0 6px 20px rgba(0,0,0,0.35),
-      inset 0 1px 0 rgba(255,255,255,0.1);
-    transition: all 0.2s ease;
-  }
-  
-  .crash-plus:active{
-    transform: translateY(1px);
-    box-shadow: 
-      0 3px 10px rgba(0,0,0,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.08);
-  }
-  
-  .crash-helpRow{
-    display:flex;
-    justify-content: space-between;
-    padding: 10px 6px 0;
-    font-size: 12px;
-    color: var(--cr-text-dim);
-  }
-  
-  /* small phones */
-  @media (max-width: 360px){
-    .crash-mult{ font-size: 32px; }
-    .crash-canvasWrap{ height: 250px; } /* было 330px */
-  }
-  
+/* Page wrapper */
+#crashPage{
+  padding-bottom: 14px;
+}
 
-  /* Icons */
+.crash{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Chart card */
+.crash-card{
+  position: relative;
+  border-radius: var(--cr-radius);
+  overflow: hidden;
+  border: 1px solid var(--cr-border);
+  background:
+    radial-gradient(circle 600px at 50% 0%, rgba(100,149,237,0.12), transparent 65%),
+    radial-gradient(circle 400px at 20% 50%, rgba(70,90,150,0.08), transparent 70%),
+    radial-gradient(circle 350px at 80% 30%, rgba(255,255,255,0.03), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  box-shadow: 
+    0 20px 60px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* subtle grid */
+.crash-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  opacity: 0.15;
+  background-image:
+    linear-gradient(rgba(100,149,237,0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100,149,237,0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events:none;
+}
+
+/* Дополнительный внутренний свет */
+.crash-card::after{
+  content:"";
+  position:absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(180deg, rgba(100,149,237,0.08), transparent);
+  pointer-events:none;
+}
+
+.crash-canvasWrap{
+  position: relative;
+  height: 260px;
+  background: 
+    radial-gradient(circle 300px at 50% 50%, rgba(100,149,237,0.05), transparent 80%);
+}
+
+#crashCanvas{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+
+/* HUD */
+.crash-hud{
+  position:absolute;
+  inset: 0;
+  pointer-events:none;
+}
+
+.crash-ping{
+  position:absolute;
+  top: 12px;
+  left: 14px;
+  font-size: 12px;
+  color: var(--cr-text-dim);
+  letter-spacing: 0.2px;
+  display:flex;
+  align-items:center;
+  gap: 8px;
+}
+
+.crash-pingDot{
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--cr-green);
+  box-shadow: 0 0 0 3px rgba(46,255,154,0.10);
+}
+
+.crash-mult{
+  position:absolute;
+  left: 14px;
+  top: 14px;
+  font-size: 38px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  text-shadow: 
+    0 0 20px rgba(255,255,255,0.4),
+    0 10px 40px rgba(0,0,0,0.7),
+    0 0 40px rgba(100,149,237,0.3);
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+
+.crash-mult.is-green{ 
+  color: rgba(255,255,255,0.95);
+  text-shadow: 
+    0 0 20px rgba(255,255,255,0.5),
+    0 10px 40px rgba(0,0,0,0.7),
+    0 0 40px rgba(100,149,237,0.4);
+}
+
+.crash-mult.is-red{ 
+  color: var(--cr-red);
+  text-shadow: 
+    0 0 30px rgba(255,59,78,0.8),
+    0 10px 40px rgba(0,0,0,0.8),
+    0 0 60px rgba(255,59,78,0.5);
+  animation: redPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes redPulse {
+  0%, 100% { 
+    transform: scale(1);
+    filter: drop-shadow(0 4px 12px rgba(255,59,78,0.6));
+  }
+  50% { 
+    transform: scale(1.03);
+    filter: drop-shadow(0 6px 20px rgba(255,59,78,0.8));
+  }
+}
+
+.crash-subline{
+  position:absolute;
+  right: 16px;
+  top: 54px;
+  font-size: 12px;
+  color: var(--cr-text-dim);
+}
+
+/* Traders */
+.crash-panel{
+  border-radius: var(--cr-radius);
+  border: 1px solid var(--cr-border);
+  background: 
+    radial-gradient(circle 400px at 50% 0%, rgba(100,149,237,0.08), transparent 70%),
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  overflow:hidden;
+  box-shadow: 
+    0 12px 40px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.crash-panel__head{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+  flex: 0 0 auto;
+}
+
+.crash-panel__title{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cr-text);
+}
+
+.crash-panel__meta{
+  font-size: 12px;
+  color: var(--cr-text-dim);
+}
+
+.crash-traders{
+  padding: 0 10px 12px;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crash-players{
+  padding: 0 10px 12px;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.crash-players::-webkit-scrollbar {
+  width: 4px;
+}
+
+.crash-players::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+}
+
+.crash-players::-webkit-scrollbar-thumb {
+  background: rgba(100,149,237,0.3);
+  border-radius: 2px;
+}
+
+.crash-players::-webkit-scrollbar-thumb:hover {
+  background: rgba(100,149,237,0.5);
+}
+
+.crash-trader.is-active{
+  background: 
+    linear-gradient(135deg, rgba(100,149,237,0.15), rgba(70,119,207,0.12));
+  border-color: rgba(100,149,237,0.30);
+  box-shadow: 
+    0 6px 16px rgba(100,149,237,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 0 1px rgba(100,149,237,0.15);
+}
+
+.crash-trader__left{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crash-ava{
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: 
+    linear-gradient(135deg, rgba(100,149,237,0.20), rgba(70,119,207,0.15));
+  border: 1px solid rgba(100,149,237,0.25);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex: 0 0 auto;
+  box-shadow: 
+    0 3px 10px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.crash-ava img{
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display:block;
+}
+
+.crash-name{
+  color: var(--cr-text);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.crash-amount{
+  display:flex;
+  flex-direction: column;
+  align-items:flex-end;
+  gap: 2px;
+}
+
+.crash-amount__top{
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.crash-amount__sub{
+  font-size: 12px;
+  color: var(--cr-text-dim);
+}
+
+.crash-amount__top.is-green{ 
+  color: var(--cr-green);
+  text-shadow: 0 0 10px rgba(46,255,154,0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.crash-amount__top.is-red{ 
+  color: var(--cr-red);
+  text-shadow: 0 0 10px rgba(255,59,78,0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crash-player__status {
+  font-size: 13px;
+  color: var(--cr-text-dim);
+  font-weight: 600;
+}
+
+/* Bottom controls */
+/* Bottom controls - теперь inline часть страницы */
+.crash-controls{
+  padding: 10px 14px 16px;
+  margin-top: 14px;
+  
+}
+
+
+
+.crash-controls__bar{
+  border-radius: 26px;
+  border: 1px solid rgba(100,149,237,0.15);
+  background: 
+    radial-gradient(circle 400px at 50% 0%, rgba(70,90,150,0.15), transparent 80%),
+    linear-gradient(180deg, rgba(20,25,35,0.95), rgba(13,18,24,0.92));
+  
+  padding: 10px;
+  box-shadow: 
+    0 20px 60px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(100,149,237,0.2),
+    inset 0 -1px 0 rgba(0,0,0,0.5);
+}
+
+.crash-amountRow{
+  display:flex;
+  gap: 10px;
+  overflow:auto;
+  padding-bottom: 8px;
+}
+
+.crash-pill{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  border: 1px solid rgba(100,149,237,0.12);
+  background: 
+    linear-gradient(135deg, rgba(40,50,70,0.6), rgba(30,40,60,0.5));
+  color: var(--cr-text);
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  box-shadow: 
+    0 4px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: all 0.2s ease;
+}
+
+.crash-pill:active{
+  transform: translateY(1px);
+  box-shadow: 
+    0 2px 6px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.crash-pill.is-active{
+  border-color: rgba(100,149,237,0.50);
+  background: 
+    linear-gradient(135deg, rgba(100,149,237,0.25), rgba(70,119,207,0.20));
+  box-shadow: 
+    0 6px 20px rgba(100,149,237,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 0 0 2px rgba(100,149,237,0.15);
+}
+
+.crash-actions{
+  display:flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.crash-buy{
+  flex: 1;
+  height: 54px;
+  border: none;
+  border-radius: 18px;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  background: linear-gradient(135deg, rgba(70,90,120,1), rgba(50,70,100,0.9));
+  box-shadow: 
+    0 8px 24px rgba(70,90,120,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  transition: all 0.2s ease;
+}
+
+.crash-buy:active{
+  transform: translateY(1px);
+  box-shadow: 
+    0 4px 12px rgba(70,90,120,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.crash-buy.is-claim{
+  background: linear-gradient(135deg, rgba(100,149,237,1), rgba(70,119,207,0.9));
+  box-shadow: 
+    0 10px 32px rgba(100,149,237,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 0 0 2px rgba(100,149,237,0.3);
+}
+
+.crash-buy.is-claim:active{
+  box-shadow: 
+    0 6px 20px rgba(100,149,237,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+.crash-buy.is-lost{
+  background: linear-gradient(135deg, rgba(60,60,70,0.8), rgba(40,40,50,0.7));
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  color: rgba(255,255,255,0.4);
+}
+
+.crash-buy.is-disabled{
+  background: linear-gradient(135deg, rgba(60,60,70,0.6), rgba(40,40,50,0.5));
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  color: rgba(255,255,255,0.5);
+}
+
+.crash-buy:active{
+  transform: translateY(1px);
+}
+
+.crash-plus{
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  border: 1px solid rgba(100,149,237,0.20);
+  background: 
+    linear-gradient(135deg, rgba(50,70,100,0.7), rgba(40,60,90,0.6));
+  color: var(--cr-text);
+  font-size: 26px;
+  font-weight: 700;
+  box-shadow: 
+    0 6px 20px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: all 0.2s ease;
+}
+
+.crash-plus:active{
+  transform: translateY(1px);
+  box-shadow: 
+    0 3px 10px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.crash-helpRow{
+  display:flex;
+  justify-content: space-between;
+  padding: 10px 6px 0;
+  font-size: 12px;
+  color: var(--cr-text-dim);
+}
+
+/* small phones */
+@media (max-width: 360px){
+  .crash-mult{ font-size: 32px; }
+  .crash-canvasWrap{ height: 250px; } /* было 330px */
+}
+
+
+/* Icons */
 .crash-ico{
-    width: 14px;
-    height: 14px;
-    display: inline-block;
-    flex: 0 0 auto;
-    opacity: 0.95;
-  }
-  
-  /* Top row (amounts + currency switch) */
-  .crash-amountTop{
-    display:flex;
-    align-items:center;
-    gap: 10px;
-  }
-  
-  .crash-amountRow{
-    flex: 1;
-  }
-  
-  /* Small switch pill */
-  .crash-switch{
-    width: 44px;
-    height: 38px;
-    border-radius: 999px;
-    border: 1px solid rgba(100,149,237,0.20);
-    background: 
-      linear-gradient(135deg, rgba(50,70,100,0.6), rgba(40,60,90,0.5));
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex: 0 0 auto;
-    box-shadow: 
-      0 4px 12px rgba(0,0,0,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.08);
-    transition: all 0.2s ease;
-  }
-  
-  .crash-switch:active{
-    transform: translateY(1px);
-    box-shadow: 
-      0 2px 6px rgba(0,0,0,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.06);
-  }
-  
-  .crash-pill__v{
-    line-height: 1;
-  }
-  
-  /* Bet label with icon */
-  .crash-betLabel{
-    display:flex;
-    align-items:center;
-    gap: 8px;
-  }
-  
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  flex: 0 0 auto;
+  opacity: 0.95;
+}
 
-  /* Красный градиент при краше */
+/* Top row (amounts + currency switch) */
+.crash-amountTop{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+
+.crash-amountRow{
+  flex: 1;
+}
+
+/* Small switch pill */
+.crash-switch{
+  width: 44px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(100,149,237,0.20);
+  background: 
+    linear-gradient(135deg, rgba(50,70,100,0.6), rgba(40,60,90,0.5));
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex: 0 0 auto;
+  box-shadow: 
+    0 4px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: all 0.2s ease;
+}
+
+.crash-switch:active{
+  transform: translateY(1px);
+  box-shadow: 
+    0 2px 6px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.crash-pill__v{
+  line-height: 1;
+}
+
+/* Bet label with icon */
+.crash-betLabel{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+}
+
+
+/* Красный градиент при краше */
 .crash-card.is-crashed {
-    background:
-      radial-gradient(circle 600px at 50% 0%, rgba(255,59,78,0.25), transparent 65%),
-      radial-gradient(circle 400px at 70% 40%, rgba(255,59,78,0.18), transparent 70%),
-      radial-gradient(circle 350px at 30% 60%, rgba(200,50,70,0.12), transparent 60%),
-      linear-gradient(180deg, rgba(255,59,78,0.15), rgba(255,59,78,0.08));
-    transition: background 0.4s ease-out;
-  }
-  
-  /* Плавный переход обратно к синему */
-  .crash-card {
-    transition: background 0.6s ease-in;
-  }
+  background:
+    radial-gradient(circle 600px at 50% 0%, rgba(255,59,78,0.25), transparent 65%),
+    radial-gradient(circle 400px at 70% 40%, rgba(255,59,78,0.18), transparent 70%),
+    radial-gradient(circle 350px at 30% 60%, rgba(200,50,70,0.12), transparent 60%),
+    linear-gradient(180deg, rgba(255,59,78,0.15), rgba(255,59,78,0.08));
+  transition: background 0.4s ease-out;
+}
+
+/* Плавный переход обратно к синему */
+.crash-card {
+  transition: background 0.6s ease-in;
+}
 
 
-  /* Таймер обратного отсчёта */
+/* Таймер обратного отсчёта */
 .crash-timer {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 70px;
-    font-weight: 900;
-    color: rgba(255,255,255,0.95);
-    text-shadow: 
-      0 0 50px rgba(100,149,237,0.6),
-      0 0 100px rgba(100,149,237,0.3),
-      0 10px 60px rgba(0,0,0,0.8),
-      0 0 20px rgba(255,255,255,0.5);
-    display: none;
-    pointer-events: none;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 70px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.95);
+  text-shadow: 
+    0 0 50px rgba(100,149,237,0.6),
+    0 0 100px rgba(100,149,237,0.3),
+    0 10px 60px rgba(0,0,0,0.8),
+    0 0 20px rgba(255,255,255,0.5);
+  display: none;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Пульсация таймера */
+@keyframes timerPulse {
+  0%, 100% { 
+    transform: translate(-50%, -50%) scale(1); 
+    opacity: 1;
   }
-  
-  /* Пульсация таймера */
-  @keyframes timerPulse {
-    0%, 100% { 
-      transform: translate(-50%, -50%) scale(1); 
-      opacity: 1;
-    }
-    50% { 
-      transform: translate(-50%, -50%) scale(1.08); 
-      opacity: 0.85;
-    }
+  50% { 
+    transform: translate(-50%, -50%) scale(1.08); 
+    opacity: 0.85;
   }
-  
+}
+
+.crash-timer {
+  animation: timerPulse 1s ease-in-out infinite;
+}
+
+/* Последние 3 секунды - красный и быстрее пульсирует */
+.crash-timer.is-urgent {
+  color: rgba(255,59,78,1);
+  text-shadow: 
+    0 0 60px rgba(255,59,78,0.8),
+    0 0 120px rgba(255,59,78,0.5),
+    0 10px 60px rgba(0,0,0,0.8),
+    0 0 30px rgba(255,59,78,0.6);
+  animation: timerPulse 0.5s ease-in-out infinite;
+}
+
+@media (max-width: 360px) {
   .crash-timer {
-    animation: timerPulse 1s ease-in-out infinite;
+    font-size: 60px;
   }
-  
-  /* Последние 3 секунды - красный и быстрее пульсирует */
-  .crash-timer.is-urgent {
-    color: rgba(255,59,78,1);
-    text-shadow: 
-      0 0 60px rgba(255,59,78,0.8),
-      0 0 120px rgba(255,59,78,0.5),
-      0 10px 60px rgba(0,0,0,0.8),
-      0 0 30px rgba(255,59,78,0.6);
-    animation: timerPulse 0.5s ease-in-out infinite;
-  }
-  
-  @media (max-width: 360px) {
-    .crash-timer {
-      font-size: 60px;
-    }
-  }
+}
 
 
-  /* История раундов - компактная версия внизу карты */
+/* История раундов - компактная версия внизу карты */
 .crash-history {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 10px 12px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    background: 
-      linear-gradient(90deg, rgba(0,0,0,0.25), rgba(0,0,0,0.15), rgba(0,0,0,0.25));
-    border-top: 1px solid rgba(100,149,237,0.12);
-    box-shadow: inset 0 1px 8px rgba(0,0,0,0.4);
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: 
+    linear-gradient(90deg, rgba(0,0,0,0.25), rgba(0,0,0,0.15), rgba(0,0,0,0.25));
+  border-top: 1px solid rgba(100,149,237,0.12);
+  box-shadow: inset 0 1px 8px rgba(0,0,0,0.4);
+}
+
+.crash-history::-webkit-scrollbar {
+  display: none;
+}
+
+.crash-history__item {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  box-shadow: 
+    0 3px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.15);
+  transition: transform 0.2s ease;
+}
+
+.crash-history__item:hover {
+  transform: translateY(-1px);
+}
+
+/* Цветовая схема */
+.crash-history__item.is-new {
+  animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+ /* Цветовая схема */
+ .crash-history__item.color-1 {
+  background: linear-gradient(135deg, #001881 0%, #764ba2 100%);
+  box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+}
+
+.crash-history__item.color-2 {
+  background: linear-gradient(135deg, #004077 0%, #00f2fe 100%);
+  box-shadow: 0 4px 12px rgba(79,172,254,0.3);
+}
+
+.crash-history__item.color-3 {
+  background: linear-gradient(135deg, #70007c 0%, #f5576c 100%);
+  box-shadow: 0 4px 12px rgba(240,147,251,0.3);
+}
+
+.crash-history__item.color-4 {
+  background: linear-gradient(135deg, #003a6d 0%, #00f2fe 100%);
+  box-shadow: 0 4px 12px rgba(79,172,254,0.4);
+}
+
+/* Замените на: */
+  .crash-history__item.color-5 {
+    background: linear-gradient(135deg, #825000 0%, #ff6b6b 100%);
+    box-shadow: 0 4px 12px rgba(255,216,155,0.4);
   }
   
-  .crash-history::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .crash-history__item {
-    flex: 0 0 auto;
-    padding: 5px 12px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 800;
-    color: #fff;
-    white-space: nowrap;
+
+
+@keyframes goldPulse {
+  0%, 100% { 
     box-shadow: 
-      0 3px 8px rgba(0,0,0,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.2);
-    border: 1px solid rgba(255,255,255,0.15);
-    transition: transform 0.2s ease;
+      0 4px 16px rgba(255,215,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.35);
+    transform: scale(1);
   }
-  
-  .crash-history__item:hover {
-    transform: translateY(-1px);
+  50% { 
+    box-shadow: 
+      0 6px 24px rgba(255,215,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.4),
+      0 0 20px rgba(255,215,0,0.4);
+    transform: scale(1.02);
   }
-  
-  /* Цветовая схема */
-  .crash-history__item.is-new {
-    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Анимация появления нового элемента */
+@keyframes historySlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.8);
+    filter: blur(4px);
   }
-   /* Цветовая схема */
-   .crash-history__item.color-1 {
-    background: linear-gradient(135deg, #001881 0%, #764ba2 100%);
-    box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
   }
-  
-  .crash-history__item.color-2 {
-    background: linear-gradient(135deg, #004077 0%, #00f2fe 100%);
-    box-shadow: 0 4px 12px rgba(79,172,254,0.3);
-  }
-  
-  .crash-history__item.color-3 {
-    background: linear-gradient(135deg, #70007c 0%, #f5576c 100%);
-    box-shadow: 0 4px 12px rgba(240,147,251,0.3);
-  }
-  
-  .crash-history__item.color-4 {
-    background: linear-gradient(135deg, #003a6d 0%, #00f2fe 100%);
-    box-shadow: 0 4px 12px rgba(79,172,254,0.4);
-  }
-  
-  /* Замените на: */
-    .crash-history__item.color-5 {
-      background: linear-gradient(135deg, #825000 0%, #ff6b6b 100%);
-      box-shadow: 0 4px 12px rgba(255,216,155,0.4);
-    }
-    
- 
-  
-  @keyframes goldPulse {
-    0%, 100% { 
-      box-shadow: 
-        0 4px 16px rgba(255,215,0,0.6),
-        inset 0 1px 0 rgba(255,255,255,0.35);
-      transform: scale(1);
-    }
-    50% { 
-      box-shadow: 
-        0 6px 24px rgba(255,215,0,0.8),
-        inset 0 1px 0 rgba(255,255,255,0.4),
-        0 0 20px rgba(255,215,0,0.4);
-      transform: scale(1.02);
-    }
-  }
-  
-  /* Анимация появления нового элемента */
-  @keyframes historySlideIn {
-    from {
-      opacity: 0;
-      transform: translateX(-20px) scale(0.8);
-      filter: blur(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-      filter: blur(0);
-    }
-  }
-  
+}
+
 /* === Fix: portrait render glitches (history + fixed controls) === */
 
 #crashPage{
-    padding-bottom: calc(260px + env(safe-area-inset-bottom, 0px));
-  }
-  
-  .crash-controls{
-    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: transform;
-  }
-  
+  padding-bottom: calc(260px + env(safe-area-inset-bottom, 0px));
+}
+
+.crash-controls{
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+}
+
+.crash-controls__bar{
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+}
+
+.crash-history{
+  position: relative;
+  z-index: 3;
+  min-height: 42px;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+}
+
+.crash-history__item{
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.crash-amountRow{
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .crash-controls__bar{
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
-    will-change: transform;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(13,18,24,0.92) !important;
   }
-  
-  .crash-history{
-    position: relative;
-    z-index: 3;
-    min-height: 42px;
-    -webkit-overflow-scrolling: touch;
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: transform;
-  }
-  
-  .crash-history__item{
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-  }
-  
-  .crash-amountRow{
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .crash-controls__bar{
-      backdrop-filter: none !important;
-      -webkit-backdrop-filter: none !important;
-      background: rgba(13,18,24,0.92) !important;
-    }
-  }
-  
+}
+
 
 
 /* === Mobile/TG fix: avoid black screen from backdrop-filter + fixed-in-transformed ancestors === */
 
 
 .crash-controls__bar{
-  /* Disable blur (Telegram/iOS can render black) */
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  background: rgba(13,18,24,0.92) !important;
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+/* Disable blur (Telegram/iOS can render black) */
+backdrop-filter: none !important;
+-webkit-backdrop-filter: none !important;
+background: rgba(13,18,24,0.92) !important;
+transform: translateZ(0);
+-webkit-transform: translateZ(0);
+backface-visibility: hidden;
+-webkit-backface-visibility: hidden;
 }
 
 /* Hide scrollbars in horizontal rows */
@@ -775,90 +775,154 @@
 
 /* Base player row (was missing in your css) */
 .crash-trader{
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.06);
+display:flex;
+align-items:center;
+justify-content: space-between;
+padding: 12px;
+border-radius: 18px;
+background: rgba(255,255,255,0.05);
+border: 1px solid rgba(255,255,255,0.06);
 }
 
 
 /* Ввод ставки */
 .crash-inputWrap {
-  flex: 1;
-  position: relative;
+flex: 1;
+position: relative;
 }
 
 .crash-betInput {
-  width: 100%;
-  height: 44px;
-  border: 1px solid rgba(100,149,237,0.20);
-  background: 
-    linear-gradient(135deg, rgba(40,50,70,0.7), rgba(30,40,60,0.6));
-  color: var(--cr-text);
-  padding: 0 16px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 16px;
-  text-align: center;
-  box-shadow: 
-    0 4px 12px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: all 0.2s ease;
-  outline: none;
+width: 100%;
+height: 44px;
+border: 1px solid rgba(100,149,237,0.20);
+background: 
+  linear-gradient(135deg, rgba(40,50,70,0.7), rgba(30,40,60,0.6));
+color: var(--cr-text);
+padding: 0 16px;
+border-radius: 999px;
+font-weight: 700;
+font-size: 16px;
+text-align: center;
+box-shadow: 
+  0 4px 12px rgba(0,0,0,0.3),
+  inset 0 1px 0 rgba(255,255,255,0.08);
+transition: all 0.2s ease;
+outline: none;
 }
 
 .crash-betInput::placeholder {
-  color: var(--cr-text-dim);
-  opacity: 0.6;
+color: var(--cr-text-dim);
+opacity: 0.6;
 }
 
 .crash-betInput:focus {
-  border-color: rgba(100,149,237,0.50);
-  background: 
-    linear-gradient(135deg, rgba(100,149,237,0.20), rgba(70,119,207,0.15));
-  box-shadow: 
-    0 6px 20px rgba(100,149,237,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.15),
-    0 0 0 2px rgba(100,149,237,0.15);
+border-color: rgba(100,149,237,0.50);
+background: 
+  linear-gradient(135deg, rgba(100,149,237,0.20), rgba(70,119,207,0.15));
+box-shadow: 
+  0 6px 20px rgba(100,149,237,0.25),
+  inset 0 1px 0 rgba(255,255,255,0.15),
+  0 0 0 2px rgba(100,149,237,0.15);
 }
 
 /* Кнопка Max */
 .crash-maxBtn {
-  flex: 0 0 auto;
-  min-width: 90px;
+flex: 0 0 auto;
+min-width: 90px;
 }
 
 /* Адаптация для маленьких экранов */
 @media (max-width: 360px) {
-  .crash-betInput {
-    height: 40px;
-    font-size: 15px;
-    padding: 0 12px;
-  }
-  
-  .crash-maxBtn {
-    min-width: 80px;
-  }
+.crash-betInput {
+  height: 40px;
+  font-size: 15px;
+  padding: 0 12px;
+}
+
+.crash-maxBtn {
+  min-width: 80px;
+}
 }
 
 /* Убираем стрелки у числового input в разных браузерах */
 .crash-betInput::-webkit-outer-spin-button,
 .crash-betInput::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+-webkit-appearance: none;
+margin: 0;
 }
 
 /* Убираем стрелки у числового input в разных браузерах */
 .crash-betInput::-webkit-outer-spin-button,
 .crash-betInput::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+-webkit-appearance: none;
+margin: 0;
 }
 
 .crash-betInput[type=number] {
-  appearance: textfield;
-  -moz-appearance: textfield; /* Для старых Firefox */
+appearance: textfield;
+-moz-appearance: textfield; /* Для старых Firefox */
+}
+
+
+/* ===== Crash: green cashout toast ===== */
+.crash-toastHost{
+position: fixed;
+left: 50%;
+top: calc(12px + env(safe-area-inset-top, 0px));
+transform: translateX(-50%);
+z-index: 9999;
+pointer-events: none;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 10px;
+}
+
+.crash-toast{
+pointer-events: none;
+padding: 12px 14px;
+border-radius: 14px;
+font-weight: 800;
+font-size: 14px;
+letter-spacing: 0.2px;
+color: rgba(255,255,255,0.96);
+
+background: linear-gradient(180deg, rgba(46,255,154,0.22), rgba(46,255,154,0.12));
+border: 1px solid rgba(46,255,154,0.38);
+
+box-shadow:
+  0 10px 30px rgba(0,0,0,0.35),
+  0 0 0 1px rgba(0,0,0,0.18) inset,
+  0 0 32px rgba(46,255,154,0.10);
+
+backdrop-filter: blur(10px);
+-webkit-backdrop-filter: blur(10px);
+
+opacity: 0;
+transform: translateY(-18px) scale(0.985);
+filter: blur(2px);
+
+transition:
+  transform 360ms cubic-bezier(0.2, 1, 0.2, 1),
+  opacity 260ms ease,
+  filter 260ms ease;
+}
+
+.crash-toast.is-in{
+opacity: 1;
+transform: translateY(0) scale(1);
+filter: blur(0);
+}
+
+.crash-toast.is-out{
+opacity: 0;
+transform: translateY(-12px) scale(0.985);
+filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce){
+.crash-toast{
+  transition: none;
+  filter: none;
+}
 }

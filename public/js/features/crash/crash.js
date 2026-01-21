@@ -18,7 +18,8 @@
   const BET_TEXT_ID = "crashBetText";
   const STATUS_ID = "crashStatus";
 
-  const ICON_TON = "/icons/tgTonWhite.svg";
+    const TOAST_HOST_ID = "crashToastHost";
+const ICON_TON = "/icons/tgTonWhite.svg";
   const ICON_STAR = "/icons/tgStarWhite.svg";
 
   const qs = (sel, root = document) => root.querySelector(sel);
@@ -155,7 +156,8 @@
 
     page.innerHTML = `
   <section class="crash">
-    <div class="crash-card">
+        <div class="crash-toastHost" id="${TOAST_HOST_ID}" aria-live="polite" aria-atomic="true"></div>
+<div class="crash-card">
       <div class="crash-canvasWrap">
         <canvas id="${CANVAS_ID}" aria-label="Crash chart"></canvas>
         <div class="crash-hud" aria-hidden="true">
@@ -256,10 +258,24 @@
       history: [],
       myBet: null,
       actionLock: false,
+
+      gridShiftX: 0,
+     
+      gridBaseX: 0,
+
+      gridTargetX: 0,
+
+      gridScrollX: 0,        // накапливаемый скролл (мировые пиксели)
+      lastFrameAt: 0 ,       // для dt
+      scaleMinV: 0.9,
+      scaleMaxV: 2.0,
+
+
+
       candles: [],
-      maxCandles: 15,
+      maxCandles: 12, // bigger candles
       lastCandleAt: 0,
-      candleMs: 160,
+      candleMs: 220, // slower, more readable
       lastTimerSeconds: null,
       bettingTimeMs: 10000,
       bettingLeftMs: null,
@@ -380,6 +396,23 @@
         case 'claimed':
           if (msg.userId === getUserId()) {
             setStatus(`Claimed ${formatX(msg.mult)}!`);
+            try {
+              const mult = (typeof msg.mult === 'number' && Number.isFinite(msg.mult)) ? msg.mult : Number(msg.mult);
+              const m = Number.isFinite(mult) ? mult : 1.0;
+
+              let payoutText = '';
+              if (state.myBet && typeof state.myBet.amount === 'number' && Number.isFinite(state.myBet.amount)) {
+                const amt = Number(state.myBet.amount);
+                const cur = (state.myBet.currency === 'stars') ? '⭐' : 'TON';
+                const decimals = (state.myBet.currency === 'stars') ? 0 : 2;
+                const payout = amt * m;
+                if (Number.isFinite(payout)) {
+                  payoutText = ` • ${payout.toFixed(decimals)} ${cur}`;
+                }
+              }
+
+              showToast(`✅ Забрал ${formatX(m)}${payoutText}`, { ttl: 2400 });
+            } catch (_) {}
             if (state.myBet) {
               state.myBet.claimed = true;
               state.myBet.claimMult = msg.mult;
@@ -504,6 +537,33 @@
     function setStatus(text) {
       if (statusEl) statusEl.textContent = text;
     }
+
+function showToast(text, opts = {}) {
+  const host = document.getElementById(TOAST_HOST_ID);
+  if (!host) return;
+
+  const el = document.createElement("div");
+  el.className = "crash-toast";
+  el.textContent = String(text || "");
+
+  host.appendChild(el);
+
+  // start animation next frame
+  requestAnimationFrame(() => el.classList.add("is-in"));
+
+  const ttl = Math.max(800, Math.min(6000, Number(opts.ttl ?? 2200)));
+
+  setTimeout(() => {
+    el.classList.add("is-out");
+    el.classList.remove("is-in");
+
+    const rm = () => el.remove();
+    el.addEventListener("transitionend", rm, { once: true });
+    // hard fallback
+    setTimeout(rm, 700);
+  }, ttl);
+}
+
 
     function setMult(v, mode) {
       if (!multEl) return;
@@ -987,169 +1047,359 @@
 
     // Render visual candles based on serverMult
     function addCandle() {
-      const m = Math.max(1, state.serverMult);
       const prevClose = state.candles.length ? state.candles[state.candles.length - 1].close : 1.0;
-
-      const target = state.serverMult;
-      const drift = (target - prevClose) * 0.82;
-      const dip = Math.random() < 0.08;
-
-      let close = prevClose + drift + (Math.random() - 0.5) * (0.008 + target * 0.0005);
-      if (dip) {
-        close = prevClose - (0.01 + Math.random() * 0.025) * (1 + target * 0.005);
-      }
-
-      close = clamp(close, 0.995, Math.min(target, 1000));
-
+    
+      const target = Math.max(1, state.serverMult); // куда тянется раунд
       const open = prevClose;
-      const isGreen = close >= open;
-      const bodyAbs = Math.abs(close - open);
-      const hammer = isGreen && Math.random() < 0.88;
-
-      const upperWick = (0.005 + Math.random() * 0.02) + bodyAbs * (0.15 + Math.random() * 0.25);
-      const lowerWick = hammer
-        ? (0.06 + Math.random() * 0.15) + bodyAbs * (2.5 + Math.random() * 2.5)
-        : (0.012 + Math.random() * 0.06) + bodyAbs * (0.7 + Math.random() * 0.8);
-
-      const high = Math.max(open, close) + upperWick;
-      const low = Math.max(0, Math.min(open, close) - lowerWick);
-
+    
+      // планируем close на эту свечу (чуть шум + иногда маленький откат)
+      const drift = (target - open) * (0.75 + Math.random() * 0.18);
+      const dip = Math.random() < 0.12;
+    
+      let closePlan = open + drift + (Math.random() - 0.5) * (0.010 + target * 0.0012);
+      if (dip) {
+        closePlan = open - (0.008 + Math.random() * 0.020) * (1 + target * 0.02);
+      }
+    
+      closePlan = clamp(closePlan, 0.995, Math.min(target, 1000));
+    
+      const bodyAbs = Math.max(0.0001, Math.abs(closePlan - open));
+    
+      // фитили: нормальные, “молотки” редко
+      const makeHammer = Math.random() < 0.06;
+      const makeInvHammer = Math.random() < 0.05;
+    
+      let upper = (0.003 + Math.random() * 0.012) + bodyAbs * (0.35 + Math.random() * 0.55);
+      let lower = (0.003 + Math.random() * 0.012) + bodyAbs * (0.35 + Math.random() * 0.55);
+    
+      if (makeHammer) {
+        lower = (0.015 + Math.random() * 0.06) + bodyAbs * (1.6 + Math.random() * 1.6);
+        upper = (0.002 + Math.random() * 0.006) + bodyAbs * (0.12 + Math.random() * 0.18);
+      }
+      if (makeInvHammer) {
+        upper = (0.015 + Math.random() * 0.06) + bodyAbs * (1.6 + Math.random() * 1.6);
+        lower = (0.002 + Math.random() * 0.006) + bodyAbs * (0.12 + Math.random() * 0.18);
+      }
+    
+      const highPlan = Math.max(open, closePlan) + upper;
+      const lowPlan  = Math.max(0.90, Math.min(open, closePlan) - lower);
+    
       state.candles.push({
         open,
-        close,
-        high,
-        low,
-        birthTime: performance.now()
+        close: open,   // стартуем с open (для плавного роста)
+        high: open,
+        low: open,
+    
+        targetClose: closePlan,
+        targetHigh: highPlan,
+        targetLow: lowPlan,
+    
+        isLive: true
       });
+    
       if (state.candles.length > state.maxCandles) state.candles.shift();
     }
-
+    
     function draw() {
-      if (!W || !H) return;
+  if (!ctx || !W || !H) return;
 
-      const topPad = 40 * dpr;
-      const bottomPad = 40 * dpr;
-      const leftPad = 40 * dpr;
-      const rightPad = 40 * dpr;
+  // ---------- helpers ----------
+  const px = (v) => (Math.round(v) + 0.5);            // crisp lines
+  const clamp01 = (t) => Math.max(0, Math.min(1, t));
 
-      const plotW = W - leftPad - rightPad;
-      const plotH = H - topPad - bottomPad;
 
-      ctx.clearRect(0, 0, W, H);
+  const roundRect = (c, x, y, w, h, r) => {
+    // Safe rounded-rect helper (works even if CanvasRoundRect is missing)
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    if (typeof c.roundRect === "function") {
+      c.beginPath();
+      c.roundRect(x, y, w, h, r);
+      return;
+    }
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.lineTo(x + w - r, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r);
+    c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r);
+    c.lineTo(x, y + r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.closePath();
+  };
 
+  // ---------- layout ----------
+  const leftPad  = 18 * dpr;
+  const rightPad = 16 * dpr;
+  const topPad   = 14 * dpr;
+  const botPad   = 12 * dpr;
+
+  const plotW = Math.max(1, W - leftPad - rightPad);
+  const plotH = Math.max(1, H - topPad - botPad);
+
+  // ---------- clear ----------
+  ctx.clearRect(0, 0, W, H);
+
+// ---------- world grid (camera scroll) ----------
+{
+  const grid = Math.max(16 * dpr, plotW / (state.maxCandles + 1)); // = step, но с защитой
+  const major = grid * 4;
+
+  // камера: во время run — используем накопленный scroll, иначе стоим
+  const scroll = (state.phase === "run") ? (Number(state.gridScrollX) || 0) : 0;
+
+
+  // оффсет = остаток, чтобы линии “зацикливались” бесконечно
+  const ox = scroll % grid;
+  const oxMajor = scroll % major;
+
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth = Math.max(1, Math.round(1 * dpr));
+
+  // minor
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  for (let x = leftPad - ox; x <= W - rightPad; x += grid) {
+    ctx.beginPath();
+    ctx.moveTo(px(x), topPad);
+    ctx.lineTo(px(x), topPad + plotH);
+    ctx.stroke();
+  }
+
+  // horizontal minor (СТАТИЧНЫЕ — чтобы не трясло по Y)
+  for (let y = topPad; y <= topPad + plotH; y += grid) {
+    ctx.beginPath();
+    ctx.moveTo(leftPad, px(y));
+    ctx.lineTo(W - rightPad, px(y));
+    ctx.stroke();
+  }
+
+  // major
+  ctx.strokeStyle = "rgba(255,255,255,0.09)";
+  for (let x = leftPad - oxMajor; x <= W - rightPad; x += major) {
+    ctx.beginPath();
+    ctx.moveTo(px(x), topPad);
+    ctx.lineTo(px(x), topPad + plotH);
+    ctx.stroke();
+  }
+  for (let y = topPad; y <= topPad + plotH; y += major) {
+    ctx.beginPath();
+    ctx.moveTo(leftPad, px(y));
+    ctx.lineTo(W - rightPad, px(y));
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+
+
+const cands = state.candles || [];
+
+// берём только последние свечи для масштаба (камера как в TV)
+const N = Math.min(cands.length, 6);
+const recent = N ? cands.slice(-N) : [];
+
+const rHigh = recent.length ? Math.max(...recent.map(c => Number(c.high))) : 2.0;
+const rLow  = recent.length ? Math.min(...recent.map(c => Number(c.low)))  : 1.0;
+
+// центр камеры = текущий мультипликатор
+const mid = Math.max(1.0, Number(state.displayMult) || 1.0);
+
+// базовый “зум” (меньше = свечи крупнее)
+let ratio = 1.35;                // 1.25..1.6 = крупно и читаемо
+ratio = Math.min(1.9, Math.max(1.22, ratio)); // жёсткий clamp
+
+// держим mid по центру в ЛОГ шкале и расширяем, если последние свечи не влезают
+let targetMinV = Math.max(0.9, mid / ratio);
+let targetMaxV = mid * ratio;
+
+const needMax = rHigh * 1.04;
+const needMin = Math.max(0.9, rLow * 0.98);
+
+// если верх не влез — расширяем симметрично
+if (needMax > targetMaxV) {
+  ratio = needMax / mid;
+  ratio = Math.min(2.1, Math.max(1.22, ratio));
+  targetMinV = Math.max(0.9, mid / ratio);
+  targetMaxV = mid * ratio;
+}
+
+// если низ не влез — расширяем симметрично
+if (needMin < targetMinV) {
+  ratio = mid / needMin;
+  ratio = Math.min(2.1, Math.max(1.22, ratio));
+  targetMinV = Math.max(0.9, mid / ratio);
+  targetMaxV = mid * ratio;
+}
+
+// плавное сглаживание шкалы (чтобы не дёргалось)
+const SMOOTH = 0.12;
+state.scaleMinV += (targetMinV - state.scaleMinV) * SMOOTH;
+state.scaleMaxV += (targetMaxV - state.scaleMaxV) * SMOOTH;
+
+const minV = state.scaleMinV;
+const maxV = state.scaleMaxV;
+
+// лог-шкала (mid реально остаётся в центре)
+const logMin = Math.log(minV);
+const logMax = Math.log(maxV);
+
+const yOf = (v) => {
+  const lv = Math.log(Math.max(1e-6, v));
+  const t = (lv - logMin) / (logMax - logMin);
+  return topPad + plotH * (1 - t);
+};
+
+
+
+
+
+  // ---------- 1.00x dashed baseline ----------
+  ctx.save();
+  ctx.setLineDash([6 * dpr, 7 * dpr]);
+  ctx.strokeStyle = "rgba(255,255,255,0.20)";
+  ctx.lineWidth = Math.max(1, Math.round(1 * dpr));
+  const y1 = yOf(1.0);
+  ctx.beginPath();
+  ctx.moveTo(leftPad, px(y1));
+  ctx.lineTo(W - rightPad, px(y1));
+  ctx.stroke();
+  ctx.restore();
+
+  // ---------- candles (TradingView-like, crisp) ----------
+  const n = cands.length;
+  if (n) {
+    const step = plotW / (state.maxCandles + 1);
+    const x0 = leftPad + (plotW - step * n) / 2;
+
+    // Canvas работает в device-px (canvas.width уже умножен на dpr),
+    // поэтому толщина линий = dpr соответствует ~1 CSS px.
+    const wickW = Math.max(1, Math.round(1 * dpr));      // ~1px
+    const bodyStrokeW = Math.max(1, Math.round(1 * dpr));// ~1px
+    const gap = Math.max(3 * dpr, Math.floor(step * 0.22));
+    const bodyW = clamp(Math.floor(step - gap), Math.round(6 * dpr), Math.floor(step * 0.92));
+
+    // TradingView default (dark theme-like)
+    const upFill = "rgba(8,153,129,1)";
+    const downFill = "rgba(242,54,69,1)";
+
+    const dojiH = Math.max(2 * dpr, 2);
+
+    // crisp helper: для нечётной толщины линии центр на .5, для чётной — на целых
+    const pxFor = (v, lw) => {
+      const r = Math.round(v);
+      return (lw % 2) ? (r + 0.5) : r;
+    };
+
+    for (let i = 0; i < n; i++) {
+      const c = cands[i];
+      if (!c) continue;
+
+      const x = x0 + step * (i + 0.5);
+      const isUp = c.close >= c.open;
+
+      const fill = isUp ? upFill : downFill;
+
+      const yHigh = yOf(c.high);
+      const yLow  = yOf(c.low);
+      const yOpen = yOf(c.open);
+      const yClose= yOf(c.close);
+
+      // wick
       ctx.save();
-      ctx.globalAlpha = 0.2;
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 1.5 * dpr;
-
-      const rows = 5;
-      for (let i = 0; i <= rows; i++) {
-        const y = topPad + (plotH * i) / rows;
-        ctx.beginPath();
-        ctx.moveTo(leftPad, y);
-        ctx.lineTo(W - rightPad, y);
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      const cands = state.candles;
-      const highs = cands.map(c => c.high);
-
-      let maxV = Math.max(2.0, ...highs, state.serverMult * 1.15);
-      maxV = Math.min(1000, maxV);
-      const minV = 0.0;
-
-      const yOf = (v) => {
-        const t = (v - minV) / (maxV - minV);
-        return topPad + plotH * (1 - t);
-      };
-
-      ctx.save();
-      ctx.setLineDash([8 * dpr, 10 * dpr]);
-      ctx.strokeStyle = "rgba(255,255,255,0.35)";
-      ctx.lineWidth = 1 * dpr;
-      const y1 = yOf(1.0);
+      ctx.strokeStyle = fill;
+      ctx.lineWidth = wickW;
+      ctx.lineCap = "butt";
       ctx.beginPath();
-      ctx.moveTo(leftPad, y1);
-      ctx.lineTo(W - rightPad, y1);
+      ctx.moveTo(pxFor(x, wickW), pxFor(yHigh, wickW));
+      ctx.lineTo(pxFor(x, wickW), pxFor(yLow, wickW));
       ctx.stroke();
-      ctx.restore();
 
-      const n = cands.length;
-      if (n) {
-        const step = plotW / (state.maxCandles + 1);
-        const bodyW = Math.max(12 * dpr, step * 0.75);
-        const wickW = Math.max(4 * dpr, bodyW * 0.22);
+      // body
+      let top = Math.min(yOpen, yClose);
+      let h   = Math.abs(yClose - yOpen);
 
-        const totalWidth = step * n;
-        const offsetX = (plotW - totalWidth) / 2 + leftPad;
-
-        for (let i = 0; i < n; i++) {
-          const c = cands[i];
-          const x = offsetX + step * (i + 0.5);
-
-          const isGreen = c.close >= c.open;
-
-          const age = performance.now() - (c.birthTime || 0);
-          const animDuration = 400;
-          const animProgress = Math.min(1, age / animDuration);
-          const easeProgress = 1 - Math.pow(1 - animProgress, 3);
-
-          const alpha = easeProgress;
-          const scale = 0.7 + (easeProgress * 0.3);
-
-          const col = isGreen ? "rgba(46,255,154,1)" : "rgba(255,59,78,1)";
-
-          const yOpen = yOf(c.open);
-          const yClose = yOf(c.close);
-          const yHigh = yOf(c.high);
-          const yLow = yOf(c.low);
-
-          const centerY = (yOpen + yClose) / 2;
-
-          ctx.save();
-          ctx.globalAlpha = alpha;
-
-          ctx.translate(x, centerY);
-          ctx.scale(scale, scale);
-          ctx.translate(-x, -centerY);
-
-          ctx.strokeStyle = col;
-          ctx.lineWidth = wickW;
-          ctx.lineCap = "butt";
-          ctx.beginPath();
-          ctx.moveTo(x, yHigh);
-          ctx.lineTo(x, yLow);
-          ctx.stroke();
-
-          const top = Math.min(yOpen, yClose);
-          const h = Math.max(6 * dpr, Math.abs(yClose - yOpen));
-
-          ctx.fillStyle = col;
-          ctx.fillRect(x - bodyW / 2, top, bodyW, h);
-
-          ctx.restore();
-        }
-      }
-
-      if (state.phase === "crash" || state.phase === "wait") {
-        const totalWidth = (plotW / state.maxCandles) * state.candles.length;
-        const offsetX = (plotW - totalWidth) / 2 + leftPad;
-        const lastX = offsetX + (plotW / state.maxCandles) * (state.candles.length - 0.5);
-        const fromY = yOf(state.crashPoint);
-        const toY = yOf(0.0);
-
-        ctx.save();
-        ctx.strokeStyle = "rgba(255,59,78,0.95)";
-        ctx.lineWidth = 10 * dpr;
-        ctx.lineCap = "round";
+      // doji: рисуем тонкую черту вместо огромной "капсулы"
+      if (h < dojiH) {
+        const y = (yOpen + yClose) / 2;
+        const lw = bodyStrokeW;
+        ctx.lineWidth = lw;
         ctx.beginPath();
-        ctx.moveTo(lastX, fromY);
-        ctx.lineTo(lastX + 2 * dpr, toY);
+        ctx.moveTo(Math.round(x - bodyW / 2), pxFor(y, lw));
+        ctx.lineTo(Math.round(x + bodyW / 2), pxFor(y, lw));
         ctx.stroke();
         ctx.restore();
+        continue;
       }
+
+      const bx = Math.round(x - bodyW / 2);
+      const by = Math.round(top);
+      const bw = Math.round(bodyW);
+      const bh = Math.max(1, Math.round(h));
+
+      ctx.fillStyle = fill;
+      ctx.fillRect(bx, by, bw, bh);
+
+      // лёгкая тёмная обводка (похожа на TV на тёмной теме)
+      ctx.lineWidth = bodyStrokeW;
+      ctx.strokeStyle = fill;
+      const o = (bodyStrokeW % 2) ? 0.5 : 0;
+      ctx.strokeRect(bx + o, by + o, bw, bh);
+
+      ctx.restore();
     }
+  }
+  // ---------- tracking dashed horizontal line (live) ----------
+if (state.phase === "run") {
+  const yTrack = yOf(Math.max(1.0, state.displayMult || 1.0));
+
+  ctx.save();
+
+  // пунктир + лёгкая анимация "бега"
+  ctx.setLineDash([6 * dpr, 8 * dpr]);
+  ctx.lineDashOffset = -((Date.now() / 30) % 200);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = Math.max(1, Math.round(1 * dpr));
+  ctx.lineCap = "butt";
+
+  ctx.beginPath();
+  ctx.moveTo(leftPad, px(yTrack));
+  ctx.lineTo(W - rightPad, px(yTrack));
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
+
+  // ---------- crash vertical line ----------
+  if (state.phase === "crash" || state.phase === "wait") {
+    const n2 = (state.candles || []).length;
+    if (n2 > 0) {
+      const step = plotW / (state.maxCandles + 1);
+      const x0 = leftPad + (plotW - step * n2) / 2;
+      const lastX = x0 + step * (n2 - 1 + 0.5);
+
+      const fromY = yOf(state.crashPoint || state.displayMult || 1.0);
+      const toY = topPad + plotH; // прям в низ графика, не yOf(0)
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,59,78,0.92)";
+      ctx.lineWidth = Math.max(3 * dpr, 3);
+      ctx.lineCap = "butt"; // не округлять
+      ctx.beginPath();
+      ctx.moveTo(px(lastX), px(fromY));
+      ctx.lineTo(px(lastX), px(toY));
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+
 
     let lastCurrency = "";
     setInterval(() => {
@@ -1164,52 +1414,130 @@
     let running = false;
 
     function loop(now) {
-      if (!running) return;
-
-      // Smooth local countdown (no need to spam full gameState)
-      if (state.phase === 'betting') {
-        const seconds = getBettingSeconds() ?? 0;
-if (seconds !== state.lastTimerSeconds) {
-          state.lastTimerSeconds = seconds;
-          setTimer(seconds, true);
-
-          const timerEl = document.getElementById('crashTimer');
-          if (timerEl) timerEl.classList.toggle('is-urgent', seconds <= 3);
-        }
-      } else if (state.lastTimerSeconds !== null) {
-        // hide timer if we just left betting
-        state.lastTimerSeconds = null;
-        setTimer(0, false);
-
-        const timerEl = document.getElementById('crashTimer');
-        if (timerEl) timerEl.classList.remove('is-urgent');
-      }
-
-      if (!state.lastCandleAt) state.lastCandleAt = now;
-
+      // now приходит от requestAnimationFrame (в мс)
+      if (!now) now = performance.now();
+    
+      // --- dt (защита от лагов/сворачивания) ---
+      if (!state.lastFrameAt) state.lastFrameAt = now;
+      const dt = Math.min(50, now - state.lastFrameAt); // clamp
+      state.lastFrameAt = now;
+    
+      // --- RUN: плавный множитель + свечи ---
       if (state.phase === "run") {
-        if (now - state.lastCandleAt >= state.candleMs) {
-          state.lastCandleAt = now;
+        // 1) Плавно тянем displayMult к serverMult
+        const target = Math.max(1.0, Number(state.serverMult) || 1.0);
+    
+        // адаптивная скорость (чуть быстрее при большом разрыве)
+        const diff = target - (state.displayMult || 1.0);
+        const base = 0.08; // базовая плавность
+        const k = Math.max(0.08, Math.min(0.22, base + Math.abs(diff) * 0.02));
+    
+        state.displayMult = (state.displayMult || 1.0) + diff * k;
+        if (!Number.isFinite(state.displayMult)) state.displayMult = 1.0;
+        state.displayMult = Math.max(1.0, state.displayMult);
+    
+        // HUD multiplier
+        setMult(state.displayMult, "green");
+    
+        // 2) Таймер свечи (0..1 прогресс внутри текущей свечи)
+        if (!state.lastCandleAt) state.lastCandleAt = now;
+        const elapsed = now - state.lastCandleAt;
+    
+        state.candleProgress = clamp(elapsed / state.candleMs, 0, 1);
+    
+        // 3) Гарантия: первая свеча сразу при старте RUN
+        if (!state.candles || state.candles.length === 0) {
+          state.candles = [];
           addCandle();
         }
+    
+        // 4) Плавное “оживление” последней свечи каждый кадр
+        const last = state.candles[state.candles.length - 1];
+        if (last && last.isLive) {
+          const t = state.candleProgress;      // 0..1
+          const smoothC = 0.10 + 0.22 * t;     // close
+          const smoothW = 0.08 + 0.18 * t;     // wicks
 
-        const lerpSpeed = 0.08;
-        const target = Math.max(1.0, state.serverMult);
-        state.displayMult += (target - state.displayMult) * lerpSpeed;
-        state.displayMult = Math.max(1.0, state.displayMult);
+          // close не должен обгонять текущий displayMult
+          const cap = Math.max(last.open, state.displayMult);
+          const tc = Math.min(last.targetClose, cap);
 
-        setMult(state.displayMult, "green");
-        // Update only numbers in players list (cheap)
-        if (now - state.lastPlayerDomUpdate >= 120) {
+          last.close += (tc - last.close) * smoothC;
+
+          // фитили плавно “доезжают” к запланированным значениям
+          last.high += (last.targetHigh - last.high) * smoothW;
+          last.low  += (last.targetLow  - last.low ) * smoothW;
+
+          // консистентность
+          last.close = Math.max(last.open, last.close);
+          last.high = Math.max(last.high, last.open, last.close);
+          last.low  = Math.min(last.low,  last.open, last.close);
+        }
+
+    
+        // 5) Закрытие свечи и создание новой
+        if (elapsed >= state.candleMs) {
+          // фиксируем предыдущую свечу
+          const prev = state.candles[state.candles.length - 1];
+          if (prev) prev.isLive = false;
+    
+          state.lastCandleAt = now;
+          addCandle();
+    
+          // если хочешь синхрон-скролл сетки "как мир":
+          // (оставь если ты это используешь в draw())
+          if (typeof state.gridBaseX === "number") {
+            const leftPad = 18 * dpr;
+            const rightPad = 16 * dpr;
+            const plotW = Math.max(1, W - leftPad - rightPad);
+            const step = plotW / (state.maxCandles + 1);
+            state.gridBaseX += step;
+          }
+        }
+    
+        // если используешь gridScrollX (камера мира)
+        if (typeof state.gridBaseX === "number") {
+          const leftPad = 18 * dpr;
+          const rightPad = 16 * dpr;
+          const plotW = Math.max(1, W - leftPad - rightPad);
+          const step = plotW / (state.maxCandles + 1);
+          state.gridScrollX = state.gridBaseX + state.candleProgress * step;
+        }
+    
+        // 6) Лайв-обновление игроков (не каждый кадр)
+        if (now - (state.lastPlayerDomUpdate || 0) >= 120) {
           state.lastPlayerDomUpdate = now;
           updatePlayerDomLive();
         }
+      } else {
+        // НЕ run: не растим множитель и не двигаем прогресс свечи
+        state.candleProgress = 0;
+        state.lastCandleAt = 0;
+    
+        // если хочешь, чтобы в betting HUD не показывал старое:
+        // (но ты и так скрываешь multEl в betting)
+        // state.displayMult = 1.0;
       }
-
+    
+      // --- render ---
       draw();
+    
       raf = requestAnimationFrame(loop);
+
+    }
+    
+    function startLoop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      state.lastFrameAt = 0;
+      rafId = requestAnimationFrame(loop);
+    }
+    
+    function stopLoop() {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
     }
 
+    
     function start() {
       if (running) return;
       running = true;
