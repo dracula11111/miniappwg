@@ -759,10 +759,10 @@
   }
   
   .crash-buy.is-claim {
-    background: linear-gradient(135deg, var(--cr-green) 0%, #00cc6a 100%);
+    background: linear-gradient(135deg, var(--cr-green) 0%, #00520e 100%);
     box-shadow: 
-      0 14px 40px var(--cr-green-glow),
-      0 0 0 3px rgba(0, 255, 51, 0.2),
+      0 14px 40px rgba(0, 153, 31, 0.423),
+      0 0 0 3px rgba(0, 115, 23, 0.2),
       inset 0 1px 0 rgba(255,255,255,0.25);
     animation: claimPulse 1.5s ease-in-out infinite;
   }
@@ -1247,7 +1247,7 @@ font-size: 14px;
 letter-spacing: 0.2px;
 color: rgba(255,255,255,0.96);
 
-background: linear-gradient(180deg, rgba(46,255,154,0.22), rgba(46,255,154,0.12));
+background: linear-gradient(180deg, rgba(0, 189, 72, 0.853), rgba(46,255,154,0.12));
 border: 1px solid rgba(46, 255, 67, 0.38);
 
 box-shadow:
