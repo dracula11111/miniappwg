@@ -285,7 +285,9 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       bettingTimeMs: 10000,
       bettingLeftMs: null,
       bettingLeftAt: 0,
-      lastPlayerDomUpdate: 0
+      lastPlayerDomUpdate: 0,
+      seenPlayerIds: new Set(),
+
     };
     function isRunPhase(phase) {
       return phase === "run" || phase === "running" || phase === "inGame";
@@ -553,7 +555,7 @@ function handleTestCrash() {
                 }
               }
 
-              showToast(`✅ Claimed ${formatX(m)}${payoutText}`, { ttl: 2400 });
+              showToast(`Succesfully Claimed!`, { ttl: 2400 });
             } catch (_) {}
             if (state.myBet) {
               state.myBet.claimed = true;
@@ -642,6 +644,7 @@ function handleTestCrash() {
             
 
         case 'crash':
+          applyPlayersLossStyles();
           setMult(state.crashPoint, "red");
           
           const cardCrash = document.querySelector('.crash-card');
@@ -660,6 +663,7 @@ function handleTestCrash() {
           break;
 
         case 'wait': {
+          applyPlayersLossStyles();
           setTimer(0, false);
           if (multEl) multEl.style.display = 'block';
 
@@ -686,6 +690,33 @@ function handleTestCrash() {
         }
       }
     }
+    function applyPlayersLossStyles() {
+      if (!playersEl) return;
+      if (state.phase !== 'crash' && state.phase !== 'wait') return;
+    
+      const userId = getUserId();
+    
+      for (const p of (state.players || [])) {
+        // проигрыш = участвовал и НЕ claimed
+        const lost = !!p && (p.userId !== undefined) && (p.amount > 0) && !p.claimed;
+    
+        const row = playersEl.querySelector(`.crash-trader[data-userid="${String(p.userId)}"]`);
+        if (!row) continue;
+    
+        row.classList.toggle('is-lost', lost);
+        row.classList.toggle('is-won', !!p.claimed); // опционально, если нужно
+    
+        // если в DOM осталось is-green — убираем, чтобы не было зелёного
+        const top = row.querySelector('.crash-amount__top');
+        if (top) {
+          if (lost) {
+            top.classList.remove('is-green');
+            top.classList.add('is-red');
+          }
+        }
+      }
+    }
+    
 
     function setStatus(text) {
       if (statusEl) statusEl.textContent = text;
@@ -837,6 +868,11 @@ function showToast(text, opts = {}) {
         let statusHTML = '';
         let traderClass = 'crash-trader';
 
+        const pid = String(player.userId);
+        const isNew = !state.seenPlayerIds.has(pid);
+        if (isNew) traderClass += ' is-enter';
+
+
         if (state.phase === 'betting' || state.phase === 'wait') {
           statusHTML = `<span class="crash-player__status">Waiting</span>`;
         } else if (isRunPhase(state.phase)) {
@@ -893,10 +929,7 @@ function showToast(text, opts = {}) {
               <div class="crash-ava">${avatarHTML}</div>
               <div>
                 <div class="crash-name">${(player.name ?? player.username ?? ('Player ' + player.userId))}${isCurrentUser ? ' (You)' : ''}</div>
-                <div class="crash-amount__sub">
-                  <img class="crash-ico" src="${icon}" alt="" />
-                  Bet: ${player.amount}
-                </div>
+                
               </div>
             </div>
             <div class="crash-amount">
@@ -906,6 +939,17 @@ function showToast(text, opts = {}) {
         `;
       }).join('');
       cachePlayerDomRefs();
+      // mark all currently rendered players as "seen"
+      for (const p of sortedPlayers) {
+        state.seenPlayerIds.add(String(p.userId));
+      }
+
+      // cleanup enter class so it won't re-trigger on re-render
+      setTimeout(() => {
+        playersEl.querySelectorAll('.crash-trader.is-enter')
+          .forEach(el => el.classList.remove('is-enter'));
+      }, 260);
+
 
     }
 

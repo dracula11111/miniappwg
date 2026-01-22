@@ -2,7 +2,31 @@
 /* ====================================
    CRASH GAME - ENHANCED PREMIUM DESIGN
    ==================================== */
-
+   .app:has(#crashPage.page-active) {
+    background: 
+      radial-gradient(
+        circle at 50% -20%,
+        rgba(80, 40, 140, 0.08) 0%,
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 50% 10%,
+        rgba(20, 60, 100, 0.12) 0%,
+        transparent 55%
+      ),
+      linear-gradient(
+      180deg,
+      #0d0e0f 0%,
+      #152c28 20%,
+      #10221e 40%,
+      #0c1a16 60%,
+      #0a0e14 80%,
+      #0d0e0f 100%
+    ) !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+    background-size: 100% 100% !important;
+  }
    :root {
     /* Premium color palette */
     --cr-bg: #0a0e14;
@@ -16,7 +40,7 @@
     --cr-green: #00ff88;
     --cr-green-glow: rgba(0,255,136,0.4);
     --cr-red: #ff3366;
-    --cr-red-glow: rgba(255,51,102,0.4);
+    --cr-red-glow: rgba(255, 51, 68, 0.4);
     --cr-blue: #00d4ff;
     --cr-blue-glow: rgba(0,212,255,0.3);
     --cr-purple: #b084ff;
@@ -358,23 +382,6 @@
     box-shadow: 
       0 4px 16px rgba(255,225,64,0.5),
       inset 0 1px 0 rgba(255,255,255,0.25);
-    animation: goldShimmer 2s ease-in-out infinite;
-  }
-  
-  @keyframes goldShimmer {
-    0%, 100% { 
-      filter: brightness(1);
-      box-shadow: 
-        0 4px 16px rgba(255,225,64,0.5),
-        inset 0 1px 0 rgba(255,255,255,0.25);
-    }
-    50% { 
-      filter: brightness(1.2);
-      box-shadow: 
-        0 6px 24px rgba(255,225,64,0.7),
-        0 0 30px rgba(255,225,64,0.3),
-        inset 0 1px 0 rgba(255,255,255,0.35);
-    }
   }
   
   .crash-history__item.is-new {
@@ -755,7 +762,7 @@
     background: linear-gradient(135deg, var(--cr-green) 0%, #00cc6a 100%);
     box-shadow: 
       0 14px 40px var(--cr-green-glow),
-      0 0 0 3px rgba(0,255,136,0.2),
+      0 0 0 3px rgba(0, 255, 51, 0.2),
       inset 0 1px 0 rgba(255,255,255,0.25);
     animation: claimPulse 1.5s ease-in-out infinite;
   }
@@ -1251,7 +1258,7 @@ box-shadow:
 backdrop-filter: blur(10px);
 -webkit-backdrop-filter: blur(10px);
 
-opacity: 0;
+opacity: 3;
 transform: translateY(-18px) scale(0.985);
 filter: blur(2px);
 
@@ -1318,5 +1325,49 @@ filter: blur(2px);
   .crash-helpRow{
     padding-top: 6px;      /* было 10px */
     font-size: 11px;
+  }
+}
+/* LOST pill: force red even if it previously had is-green */
+.crash-trader.is-lost .crash-amount__top,
+.crash-trader.is-lost .crash-amount__top.is-green {
+  color: var(--cr-red) !important;
+  text-shadow: 0 0 12px var(--cr-red-glow) !important;
+}
+
+/* make the icon red in lost rows */
+.crash-trader.is-lost .crash-ico {
+  filter: brightness(0) saturate(100%) invert(19%) sepia(90%) saturate(6800%)
+          hue-rotate(345deg) brightness(95%) contrast(110%);
+  opacity: 0.95;
+}
+
+
+/* smooth enter for new player rows */
+.crash-trader.is-enter {
+  animation: traderEnter 220ms ease-out both;
+}
+
+@keyframes traderEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .crash-trader.is-enter {
+    animation: none;
+  }
+}
+
+
+
+.app:has(#crashPage.page-active) #crashPage{
+  background: transparent !important;
+}
+
+/* iOS fix: fixed background sometimes creates seams */
+@supports (-webkit-touch-callout: none) {
+  .app:has(#crashPage.page-active) {
+    background-attachment: scroll !important;
   }
 }
