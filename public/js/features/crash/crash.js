@@ -23,6 +23,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
   const ICON_STAR = "/icons/tgStarWhite.svg";
 
   const qs = (sel, root = document) => root.querySelector(sel);
+  // Detect localhost test mode
+    const IS_LOCALHOST = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
@@ -40,6 +42,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
   }
 
   function getUserId() {
+    if (IS_LOCALHOST) return "test_user_1";
     try {
       const tg = window.Telegram?.WebApp;
       const id = tg?.initDataUnsafe?.user?.id;
@@ -47,8 +50,9 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     } catch (_) {}
     return localStorage.getItem("userId") || "guest_" + Date.now();
   }
-
+  
   function getUserName() {
+    if (IS_LOCALHOST) return "Test Player";
     try {
       const tg = window.Telegram?.WebApp;
       const user = tg?.initDataUnsafe?.user;
@@ -58,6 +62,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     } catch (_) {}
     return "Guest";
   }
+
 
   function getUserAvatar() {
     try {
@@ -282,18 +287,155 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       bettingLeftAt: 0,
       lastPlayerDomUpdate: 0
     };
+    function isRunPhase(phase) {
+      return phase === "run" || phase === "running" || phase === "inGame";
+    }
+    
 
     // WebSocket connection
     let ws = null;
     let reconnectTimeout = null;
 
+    // Localhost test mode simulator
+let testModeInterval = null;
+
+function startTestMode() {
+  console.log('[Crash] Test mode enabled on localhost');
+  setStatus("Test mode - Ready");
+  
+  // Simulate initial game state
+  state.phase = 'betting';
+  state.phaseStart = Date.now();
+  state.roundId = 1;
+  state.bettingTimeMs = 10000;
+  state.bettingLeftMs = 10000;
+  state.bettingLeftAt = Date.now();
+  state.crashPoint = 2.0;
+  state.serverMult = 1.0;
+  state.players = [];
+  state.history = [2.34, 1.56, 3.78, 1.23, 5.67];
+  
+  renderHistory();
+  updateUIForPhase();
+  
+  // Start test game loop
+  runTestGameLoop();
+}
+
+function runTestGameLoop() {
+  if (testModeInterval) clearInterval(testModeInterval);
+  
+  testModeInterval = setInterval(() => {
+    if (state.phase === 'betting') {
+      const elapsed = Date.now() - state.phaseStart;
+      const remaining = state.bettingTimeMs - elapsed;
+      
+      if (remaining <= 0) {
+        // Start run phase
+        state.phase = 'run';
+        updateUIForPhase();
+        renderPlayers(); // чтобы сразу обновился список
+
+        state.phaseStart = Date.now();
+        state.serverMult = 1.0;
+        state.displayMult = 1.0;
+        state.candles = [];
+        state.lastCandleAt = 0;
+        
+        // Generate random crash point (1.01 to 10.0)
+        state.crashPoint = Math.max(1.01, 1 + Math.random() * Math.random() * 9);
+        
+        console.log(`[Test] Round ${state.roundId} started, crash point: ${state.crashPoint.toFixed(2)}x`);
+        updateUIForPhase();
+        
+        // Simulate multiplier growth
+        simulateMultiplierGrowth();
+      } else {
+        state.bettingLeftMs = remaining;
+        state.bettingLeftAt = Date.now();
+      }
+    }
+  }, 100);
+}
+
+function simulateMultiplierGrowth() {
+  const startTime = Date.now();
+  const growthInterval = setInterval(() => {
+    if (state.phase !== 'run') {
+      clearInterval(growthInterval);
+      return;
+    }
+    
+    const elapsed = (Date.now() - startTime) / 1000; // seconds
+    // Exponential growth: mult = e^(0.5 * t)
+    const calculatedMult = Math.exp(0.1 * elapsed);
+    state.serverMult = Math.min(calculatedMult, state.crashPoint);
+    
+    // Check if crashed
+    if (state.serverMult >= state.crashPoint) {
+      clearInterval(growthInterval);
+      handleTestCrash();
+    }
+  }, 50);
+}
+
+function handleTestCrash() {
+  console.log(`[Test] Crashed at ${state.crashPoint.toFixed(2)}x`);
+  
+  state.phase = 'crash';
+  state.serverMult = state.crashPoint;
+  state.displayMult = state.crashPoint;
+  
+  // Mark unclaimed bets as lost
+  state.players.forEach(p => {
+    if (!p.claimed) {
+      console.log(`[Test] ${p.name} lost`);
+    }
+  });
+  
+  updateUIForPhase();
+  
+  // Wait phase
+  setTimeout(() => {
+    state.phase = 'wait';
+    updateUIForPhase();
+    
+    // Add to history
+    state.history.unshift(state.crashPoint);
+    state.history = state.history.slice(0, 15);
+    renderHistory();
+    
+    // Start new round after 3 seconds
+    setTimeout(() => {
+      state.roundId++;
+      state.phase = 'betting';
+      state.phaseStart = Date.now();
+      state.bettingLeftMs = state.bettingTimeMs;
+      state.bettingLeftAt = Date.now();
+      state.players = [];
+      state.myBet = null;
+      state.candles = [];
+      state.displayMult = 1.0;
+      state.serverMult = 1.0;
+      
+      renderPlayers();
+      updateUIForPhase();
+    }, 3000);
+  }, 2000);
+}
+
     function connectWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/crash`;
-      
-      setStatus("Connecting…");
-      
-      ws = new WebSocket(wsUrl);
+        if (IS_LOCALHOST) {
+          startTestMode();
+          return;
+        }
+        
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/crash`;
+        
+        setStatus("Connecting…");
+        
+        ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         console.log('[Crash WS] Connected');
@@ -411,7 +553,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
                 }
               }
 
-              showToast(`✅ Забрал ${formatX(m)}${payoutText}`, { ttl: 2400 });
+              showToast(`✅ Claimed ${formatX(m)}${payoutText}`, { ttl: 2400 });
             } catch (_) {}
             if (state.myBet) {
               state.myBet.claimed = true;
@@ -433,14 +575,22 @@ const ICON_TON = "/icons/tgTonWhite.svg";
           break;
         
           case 'tick': {
-          if (msg.roundId === state.roundId && state.phase === 'run') {
-            if (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) {
-              // Never go backwards visually
-              state.serverMult = Math.max(state.serverMult, msg.currentMult);
+            // если сервер прислал phase в tick — синкаем
+            if (msg.phase && msg.phase !== state.phase) {
+              state.phase = msg.phase;
+              // когда фаза поменялась — надо перерисовать список, иначе останется Waiting
+              renderPlayers();
+              updateUIForPhase();
             }
+          
+            if (msg.roundId === state.roundId && isRunPhase(state.phase)) {
+              if (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) {
+                state.serverMult = Math.max(state.serverMult, msg.currentMult);
+              }
+            }
+            break;
           }
-          break;
-        }
+          
       }
     }
 
@@ -472,21 +622,24 @@ const ICON_TON = "/icons/tgTonWhite.svg";
           if (card) card.classList.remove('is-crashed');
           break;
 
-        case 'run':
-          setTimer(0, false);
-          if (multEl) multEl.style.display = 'block';
-          
-          if (myPlayer && !myPlayer.claimed) {
-            setStatus("Running…");
-            setBuyMode(state.actionLock ? "locked" : "claim");
-          } else if (myPlayer && myPlayer.claimed) {
-            setStatus(`Claimed ${formatX(myPlayer.claimMult)}`);
-            setBuyMode("claimed");
-          } else {
-            setStatus("Running…");
-            setBuyMode("buy");
-          }
-          break;
+          case 'run':
+            case 'running':
+            case 'inGame':
+              setTimer(0, false);
+              if (multEl) multEl.style.display = 'block';
+            
+              if (myPlayer && !myPlayer.claimed) {
+                setStatus("Running…");
+                setBuyMode(state.actionLock ? "locked" : "claim");
+              } else if (myPlayer && myPlayer.claimed) {
+                setStatus(`Claimed ${formatX(myPlayer.claimMult)}`);
+                setBuyMode("claimed");
+              } else {
+                setStatus("Running…");
+                setBuyMode("buy");
+              }
+              break;
+            
 
         case 'crash':
           setMult(state.crashPoint, "red");
@@ -613,7 +766,8 @@ function showToast(text, opts = {}) {
     }
 
     function updatePlayerDomLive() {
-      if (state.phase !== 'run') return;
+      if (!isRunPhase(state.phase)) return;
+
       const mult = Math.max(1.0, state.displayMult || 1.0);
 
       for (const p of (state.players || [])) {
@@ -647,7 +801,16 @@ function showToast(text, opts = {}) {
         })
         .join('');
     }
-
+    function ensureRunPlayersRendered() {
+      if (!isRunPhase(state.phase)) return;
+      if (!playersEl) return;
+    
+      // Если хоть где-то ещё висит "Waiting" — значит список от betting/wait, надо пересобрать разметку
+      if (playersEl.querySelector('.crash-player__status')) {
+        renderPlayers(); // создаст .js-payout-value и .js-mult-value
+      }
+    }
+    
     function renderPlayers() {
       if (!playersEl) return;
 
@@ -676,8 +839,8 @@ function showToast(text, opts = {}) {
 
         if (state.phase === 'betting' || state.phase === 'wait') {
           statusHTML = `<span class="crash-player__status">Waiting</span>`;
-        } else if (state.phase === 'run') {
-                    if (player.claimed) {
+        } else if (isRunPhase(state.phase)) {
+          if (player.claimed) {
             const payout = (player.amount * player.claimMult).toFixed(player.currency === 'stars' ? 0 : 2);
             statusHTML = `
               <div class="crash-amount__top is-green">
@@ -696,7 +859,8 @@ function showToast(text, opts = {}) {
               <div class="crash-amount__sub"><span class="js-mult-value">${formatX(state.displayMult)}</span></div>
             `;
           }
-        } else if (state.phase === 'crash') {
+        } 
+        else if (state.phase === 'crash') {
           if (player.claimed) {
             const payout = (player.amount * player.claimMult).toFixed(player.currency === 'stars' ? 0 : 2);
             statusHTML = `
@@ -707,6 +871,7 @@ function showToast(text, opts = {}) {
               <div class="crash-amount__sub"><span class="js-mult-value">${formatX(player.claimMult)}</span></div>
             `;
           } else {
+            traderClass += ' is-lost'; // <-- ВАЖНО: подсветка строки проигравшего
             statusHTML = `
               <div class="crash-amount__top is-red">
                 <img class="crash-ico" src="${icon}" alt="" />
@@ -716,6 +881,7 @@ function showToast(text, opts = {}) {
             `;
           }
         }
+        
 
         const avatarHTML = player.avatar
           ? `<img src="${player.avatar}" alt="" />`
@@ -935,7 +1101,7 @@ function showToast(text, opts = {}) {
     async function placeBet() {
       const currency = detectCurrency();
       renderPills();
-
+    
       if (state.phase !== "betting") {
         setStatus("Wait next round");
         return;
@@ -949,15 +1115,39 @@ function showToast(text, opts = {}) {
         setStatus("Invalid bet");
         return;
       }
-
+    
       state.actionLock = true;
       setBuyMode("locked");
       setStatus("Placing bet…");
-
+    
       try {
         const rounded = roundToCurrency(amt, currency);
+    
+        if (IS_LOCALHOST) {
+          // Test mode - just add player locally
+          const newPlayer = {
+            userId: getUserId(),
+            name: getUserName(),
+            username: getUserName(),
+            avatar: null,
+            amount: rounded,
+            currency: currency,
+            claimed: false,
+            claimMult: 0
+          };
+          
+          state.players.push(newPlayer);
+          state.myBet = newPlayer;
+          renderPlayers();
+          setStatus("Bet placed!");
+          setBuyMode("buy");
+          state.actionLock = false;
+          updateUIForPhase();
+          return;
+        }
+    
         const roundId = `crash_${state.roundId}_${getUserId()}`;
-
+    
         // Deduct balance
         await apiDeposit({
           amount: -rounded,
@@ -966,7 +1156,7 @@ function showToast(text, opts = {}) {
           roundId,
           depositId: `crash_bet_${getUserId()}_${state.roundId}_${Date.now()}`
         });
-
+    
         // Send bet to server
         sendWS({
           type: 'placeBet',
@@ -976,9 +1166,9 @@ function showToast(text, opts = {}) {
           userName: getUserName(),
           userAvatar: getUserAvatar()
         });
-
+    
         await refreshTopBalance();
-
+    
       } catch (e) {
         setStatus(`Bet failed: ${e.message}`);
         setBuyMode("buy");
@@ -993,18 +1183,34 @@ function showToast(text, opts = {}) {
         setStatus("Can't claim now");
         return;
       }
-
+    
       state.actionLock = true;
       setBuyMode("locked");
-
+    
       const currency = state.myBet.currency;
       const mult = clamp(state.serverMult, 1, 1000);
       const payoutRaw = state.myBet.amount * mult;
       const payout = roundToCurrency(payoutRaw, currency);
-
+    
       setStatus(`Claiming ${formatX(mult)}…`);
-
+    
       try {
+        if (IS_LOCALHOST) {
+          // Test mode - just mark as claimed
+          state.myBet.claimed = true;
+          state.myBet.claimMult = mult;
+          
+          console.log(`[Test] Claimed at ${formatX(mult)}, payout: ${payout} ${currency}`);
+          
+          renderPlayers();
+          updateUIForPhase();
+          
+          showToast(`Succesfully Claimed! `, { ttl: 2400 });
+          
+          state.actionLock = false;
+          return;
+        }
+    
         // Credit balance
         await apiDeposit({
           amount: payout,
@@ -1013,15 +1219,15 @@ function showToast(text, opts = {}) {
           roundId: `crash_${state.roundId}_${getUserId()}`,
           depositId: `crash_win_${getUserId()}_${state.roundId}_${Date.now()}`
         });
-
+    
         // Send claim to server
         sendWS({
           type: 'claim',
           userId: getUserId()
         });
-
+    
         await refreshTopBalance();
-
+    
       } catch (e) {
         setStatus(`Claim failed: ${e.message}`);
         setBuyMode("claim");
@@ -1029,6 +1235,7 @@ function showToast(text, opts = {}) {
         state.actionLock = false;
       }
     }
+
 
     buyBtn?.addEventListener("click", () => {
       if (state.actionLock) return;
@@ -1352,7 +1559,8 @@ const yOf = (v) => {
     }
   }
   // ---------- tracking dashed horizontal line (live) ----------
-if (state.phase === "run") {
+  if (isRunPhase(state.phase)) {
+
   const yTrack = yOf(Math.max(1.0, state.displayMult || 1.0));
 
   ctx.save();
@@ -1414,16 +1622,31 @@ if (state.phase === "run") {
     let running = false;
 
     function loop(now) {
-      // now приходит от requestAnimationFrame (в мс)
       if (!now) now = performance.now();
     
-      // --- dt (защита от лагов/сворачивания) ---
       if (!state.lastFrameAt) state.lastFrameAt = now;
-      const dt = Math.min(50, now - state.lastFrameAt); // clamp
+      const dt = Math.min(50, now - state.lastFrameAt);
       state.lastFrameAt = now;
     
+      // --- BETTING: обновление таймера ---
+      if (state.phase === "betting") {
+        const seconds = getBettingSeconds() ?? 0;
+        
+        // Обновляем только если изменилось значение
+        if (seconds !== state.lastTimerSeconds) {
+          state.lastTimerSeconds = seconds;
+          setTimer(seconds, true);
+          
+          const timerEl = document.getElementById('crashTimer');
+          if (timerEl) {
+            timerEl.classList.toggle('is-urgent', seconds <= 3);
+          }
+        }
+      }
+    
       // --- RUN: плавный множитель + свечи ---
-      if (state.phase === "run") {
+      if (isRunPhase(state.phase)) {
+
         // 1) Плавно тянем displayMult к serverMult
         const target = Math.max(1.0, Number(state.serverMult) || 1.0);
     
@@ -1494,7 +1717,7 @@ if (state.phase === "run") {
             state.gridBaseX += step;
           }
         }
-    
+        
         // если используешь gridScrollX (камера мира)
         if (typeof state.gridBaseX === "number") {
           const leftPad = 18 * dpr;
@@ -1503,9 +1726,11 @@ if (state.phase === "run") {
           const step = plotW / (state.maxCandles + 1);
           state.gridScrollX = state.gridBaseX + state.candleProgress * step;
         }
-    
+        if (isRunPhase(state.phase)) {
+          ensureRunPlayersRendered();   // <-- ДО updatePlayerDomLive()
+        
         // 6) Лайв-обновление игроков (не каждый кадр)
-        if (now - (state.lastPlayerDomUpdate || 0) >= 120) {
+        if (now - (state.lastPlayerDomUpdate || 0) >= 120) 
           state.lastPlayerDomUpdate = now;
           updatePlayerDomLive();
         }

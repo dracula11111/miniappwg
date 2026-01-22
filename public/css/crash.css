@@ -1,444 +1,797 @@
-/* Crash UI (stub) */
 
-:root{
-  /* Fallbacks (override these in your base.css if you already have tokens) */
-  --cr-bg: var(--bg, #0a0f14);
-  --cr-surface: var(--surface, rgba(255,255,255,0.06));
-  --cr-surface-2: var(--surface2, rgba(255,255,255,0.10));
-  --cr-border: var(--border, rgba(255,255,255,0.10));
-  --cr-text: var(--text, rgba(255,255,255,0.92));
-  --cr-text-dim: var(--text-dim, rgba(255,255,255,0.55));
-  --cr-green: var(--accent, #2cff9a);
-  --cr-red: var(--danger, #ff3b4e);
-  --cr-yellow: var(--warning, #ffd54a);
-  --cr-radius: 22px;
-}
+/* ====================================
+   CRASH GAME - ENHANCED PREMIUM DESIGN
+   ==================================== */
 
-/* Page wrapper */
-#crashPage{
-  padding-bottom: 14px;
-}
-
-.crash{
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Chart card */
-.crash-card{
-  position: relative;
-  border-radius: var(--cr-radius);
-  overflow: hidden;
-  border: 1px solid var(--cr-border);
-  background:
-    radial-gradient(circle 600px at 50% 0%, rgba(100,149,237,0.12), transparent 65%),
-    radial-gradient(circle 400px at 20% 50%, rgba(70,90,150,0.08), transparent 70%),
-    radial-gradient(circle 350px at 80% 30%, rgba(255,255,255,0.03), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-  box-shadow: 
-    0 20px 60px rgba(0,0,0,0.5),
-    inset 0 1px 0 rgba(255,255,255,0.1);
-}
-
-/* subtle grid */
-.crash-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  opacity: 0.15;
-  background-image:
-    linear-gradient(rgba(100,149,237,0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(100,149,237,0.15) 1px, transparent 1px);
-  background-size: 24px 24px;
-  pointer-events:none;
-}
-
-/* Дополнительный внутренний свет */
-.crash-card::after{
-  content:"";
-  position:absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  background: linear-gradient(180deg, rgba(100,149,237,0.08), transparent);
-  pointer-events:none;
-}
-
-.crash-canvasWrap{
-  position: relative;
-  height: 260px;
-  background: 
-    radial-gradient(circle 300px at 50% 50%, rgba(100,149,237,0.05), transparent 80%);
-}
-
-#crashCanvas{
-  width: 100%;
-  height: 100%;
-  display:block;
-}
-
-/* HUD */
-.crash-hud{
-  position:absolute;
-  inset: 0;
-  pointer-events:none;
-}
-
-.crash-ping{
-  position:absolute;
-  top: 12px;
-  left: 14px;
-  font-size: 12px;
-  color: var(--cr-text-dim);
-  letter-spacing: 0.2px;
-  display:flex;
-  align-items:center;
-  gap: 8px;
-}
-
-.crash-pingDot{
-  width: 7px;
-  height: 7px;
-  border-radius: 99px;
-  background: var(--cr-green);
-  box-shadow: 0 0 0 3px rgba(46,255,154,0.10);
-}
-
-.crash-mult{
-  position:absolute;
-  left: 14px;
-  top: 14px;
-  font-size: 38px;
-  font-weight: 900;
-  color: rgba(255,255,255,0.95);
-  text-shadow: 
-    0 0 20px rgba(255,255,255,0.4),
-    0 10px 40px rgba(0,0,0,0.7),
-    0 0 40px rgba(100,149,237,0.3);
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
-}
-
-.crash-mult.is-green{ 
-  color: rgba(255,255,255,0.95);
-  text-shadow: 
-    0 0 20px rgba(255,255,255,0.5),
-    0 10px 40px rgba(0,0,0,0.7),
-    0 0 40px rgba(100,149,237,0.4);
-}
-
-.crash-mult.is-red{ 
-  color: var(--cr-red);
-  text-shadow: 
-    0 0 30px rgba(255,59,78,0.8),
-    0 10px 40px rgba(0,0,0,0.8),
-    0 0 60px rgba(255,59,78,0.5);
-  animation: redPulse 0.8s ease-in-out infinite;
-}
-
-@keyframes redPulse {
-  0%, 100% { 
-    transform: scale(1);
-    filter: drop-shadow(0 4px 12px rgba(255,59,78,0.6));
+   :root {
+    /* Premium color palette */
+    --cr-bg: #0a0e14;
+    --cr-surface: rgba(255,255,255,0.04);
+    --cr-surface-2: rgba(255,255,255,0.08);
+    --cr-border: rgba(255,255,255,0.08);
+    --cr-text: rgba(255,255,255,0.95);
+    --cr-text-dim: rgba(255,255,255,0.50);
+    
+    /* Vibrant accent colors */
+    --cr-green: #00ff88;
+    --cr-green-glow: rgba(0,255,136,0.4);
+    --cr-red: #ff3366;
+    --cr-red-glow: rgba(255,51,102,0.4);
+    --cr-blue: #00d4ff;
+    --cr-blue-glow: rgba(0,212,255,0.3);
+    --cr-purple: #b084ff;
+    --cr-gold: #ffd700;
+    
+    --cr-radius: 24px;
+    --cr-radius-sm: 16px;
   }
-  50% { 
-    transform: scale(1.03);
-    filter: drop-shadow(0 6px 20px rgba(255,59,78,0.8));
+  
+  /* ====================================
+     PAGE & LAYOUT
+     ==================================== */
+  
+  #crashPage {
+    padding-bottom: calc(270px + env(safe-area-inset-bottom, 0px));
+    background: 
+      radial-gradient(circle 800px at 50% -200px, rgba(0,212,255,0.08), transparent 60%),
+      radial-gradient(circle 600px at 0% 100%, rgba(176,132,255,0.06), transparent 50%),
+      linear-gradient(180deg, var(--cr-bg) 0%, #080c12 100%);
+    min-height: 100vh;
   }
-}
-
-.crash-subline{
-  position:absolute;
-  right: 16px;
-  top: 54px;
-  font-size: 12px;
-  color: var(--cr-text-dim);
-}
-
-/* Traders */
-.crash-panel{
-  border-radius: var(--cr-radius);
-  border: 1px solid var(--cr-border);
-  background: 
-    radial-gradient(circle 400px at 50% 0%, rgba(100,149,237,0.08), transparent 70%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
-  overflow:hidden;
-  box-shadow: 
-    0 12px 40px rgba(0,0,0,0.4),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  max-height: 400px;
-  display: flex;
-  flex-direction: column;
-}
-
-.crash-panel__head{
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
-  padding: 14px 14px 10px;
-  flex: 0 0 auto;
-}
-
-.crash-panel__title{
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--cr-text);
-}
-
-.crash-panel__meta{
-  font-size: 12px;
-  color: var(--cr-text-dim);
-}
-
-.crash-traders{
-  padding: 0 10px 12px;
-  display:flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.crash-players{
-  padding: 0 10px 12px;
-  display:flex;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-  flex: 1 1 auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.crash-players::-webkit-scrollbar {
-  width: 4px;
-}
-
-.crash-players::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.05);
-  border-radius: 2px;
-}
-
-.crash-players::-webkit-scrollbar-thumb {
-  background: rgba(100,149,237,0.3);
-  border-radius: 2px;
-}
-
-.crash-players::-webkit-scrollbar-thumb:hover {
-  background: rgba(100,149,237,0.5);
-}
-
-.crash-trader.is-active{
-  background: 
-    linear-gradient(135deg, rgba(100,149,237,0.15), rgba(70,119,207,0.12));
-  border-color: rgba(100,149,237,0.30);
-  box-shadow: 
-    0 6px 16px rgba(100,149,237,0.2),
-    inset 0 1px 0 rgba(255,255,255,0.1),
-    0 0 0 1px rgba(100,149,237,0.15);
-}
-
-.crash-trader__left{
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.crash-ava{
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  background: 
-    linear-gradient(135deg, rgba(100,149,237,0.20), rgba(70,119,207,0.15));
-  border: 1px solid rgba(100,149,237,0.25);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex: 0 0 auto;
-  box-shadow: 
-    0 3px 10px rgba(0,0,0,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.15);
-}
-
-.crash-ava img{
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  display:block;
-}
-
-.crash-name{
-  color: var(--cr-text);
-  font-weight: 700;
-  font-size: 14px;
-  white-space: nowrap;
-  overflow:hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
-
-.crash-amount{
-  display:flex;
-  flex-direction: column;
-  align-items:flex-end;
-  gap: 2px;
-}
-
-.crash-amount__top{
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.crash-amount__sub{
-  font-size: 12px;
-  color: var(--cr-text-dim);
-}
-
-.crash-amount__top.is-green{ 
-  color: var(--cr-green);
-  text-shadow: 0 0 10px rgba(46,255,154,0.3);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.crash-amount__top.is-red{ 
-  color: var(--cr-red);
-  text-shadow: 0 0 10px rgba(255,59,78,0.3);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.crash-player__status {
-  font-size: 13px;
-  color: var(--cr-text-dim);
-  font-weight: 600;
-}
-
-/* Bottom controls */
-/* Bottom controls - теперь inline часть страницы */
-.crash-controls{
-  padding: 10px 14px 16px;
-  margin-top: 14px;
   
-}
-
-
-
-.crash-controls__bar{
-  border-radius: 26px;
-  border: 1px solid rgba(100,149,237,0.15);
-  background: 
-    radial-gradient(circle 400px at 50% 0%, rgba(70,90,150,0.15), transparent 80%),
-    linear-gradient(180deg, rgba(20,25,35,0.95), rgba(13,18,24,0.92));
+  .crash {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 14px;
+  }
   
-  padding: 10px;
-  box-shadow: 
-    0 20px 60px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(100,149,237,0.2),
-    inset 0 -1px 0 rgba(0,0,0,0.5);
-}
-
-.crash-amountRow{
-  display:flex;
-  gap: 10px;
-  overflow:auto;
-  padding-bottom: 8px;
-}
-
-.crash-pill{
-  display:flex;
-  align-items:center;
-  gap: 8px;
-  border: 1px solid rgba(100,149,237,0.12);
-  background: 
-    linear-gradient(135deg, rgba(40,50,70,0.6), rgba(30,40,60,0.5));
-  color: var(--cr-text);
-  padding: 10px 14px;
-  border-radius: 999px;
-  font-weight: 700;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  box-shadow: 
-    0 4px 12px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: all 0.2s ease;
-}
-
-.crash-pill:active{
-  transform: translateY(1px);
-  box-shadow: 
-    0 2px 6px rgba(0,0,0,0.4),
-    inset 0 1px 0 rgba(255,255,255,0.06);
-}
-
-.crash-pill.is-active{
-  border-color: rgba(100,149,237,0.50);
-  background: 
-    linear-gradient(135deg, rgba(100,149,237,0.25), rgba(70,119,207,0.20));
-  box-shadow: 
-    0 6px 20px rgba(100,149,237,0.25),
-    inset 0 1px 0 rgba(255,255,255,0.15),
-    0 0 0 2px rgba(100,149,237,0.15);
-}
-
-.crash-actions{
-  display:flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.crash-buy{
-  flex: 1;
-  height: 54px;
-  border: none;
-  border-radius: 18px;
-  font-size: 16px;
-  font-weight: 900;
-  color: rgba(255,255,255,0.95);
-  background: linear-gradient(135deg, rgba(70,90,120,1), rgba(50,70,100,0.9));
-  box-shadow: 
-    0 8px 24px rgba(70,90,120,0.30),
-    inset 0 1px 0 rgba(255,255,255,0.15);
-  transition: all 0.2s ease;
-}
-
-.crash-buy:active{
-  transform: translateY(1px);
-  box-shadow: 
-    0 4px 12px rgba(70,90,120,0.35),
-    inset 0 1px 0 rgba(255,255,255,0.12);
-}
-
-.crash-buy.is-claim{
-  background: linear-gradient(135deg, rgba(100,149,237,1), rgba(70,119,207,0.9));
-  box-shadow: 
-    0 10px 32px rgba(100,149,237,0.40),
-    inset 0 1px 0 rgba(255,255,255,0.2),
-    0 0 0 2px rgba(100,149,237,0.3);
-}
-
-.crash-buy.is-claim:active{
-  box-shadow: 
-    0 6px 20px rgba(100,149,237,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.18);
-}
-
-.crash-buy.is-lost{
-  background: linear-gradient(135deg, rgba(60,60,70,0.8), rgba(40,40,50,0.7));
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  color: rgba(255,255,255,0.4);
-}
-
-.crash-buy.is-disabled{
-  background: linear-gradient(135deg, rgba(60,60,70,0.6), rgba(40,40,50,0.5));
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  color: rgba(255,255,255,0.5);
-}
-
-.crash-buy:active{
-  transform: translateY(1px);
-}
-
+  /* ====================================
+     CHART CARD - PREMIUM GLASS EFFECT
+     ==================================== */
+  
+  .crash-card {
+    position: relative;
+    border-radius: var(--cr-radius);
+    overflow: hidden;
+    border: 1px solid rgba(0,212,255,0.15);
+    
+    background:
+      radial-gradient(circle 500px at 50% 0%, rgba(0,212,255,0.12), transparent 70%),
+      radial-gradient(circle 400px at 80% 40%, rgba(176,132,255,0.08), transparent 65%),
+      linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%);
+    
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    
+    box-shadow: 
+      0 20px 80px rgba(0,0,0,0.6),
+      0 0 0 1px rgba(255,255,255,0.06) inset,
+      0 8px 32px rgba(0,212,255,0.15);
+    
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Animated grid pattern */
+  .crash-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.08;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.3) 1px, transparent 1px);
+    background-size: 30px 30px;
+    pointer-events: none;
+    animation: gridFlow 20s linear infinite;
+  }
+  
+  @keyframes gridFlow {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(30px, 30px); }
+  }
+  
+  /* Subtle glow overlay */
+  .crash-card::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(circle at center, rgba(0,212,255,0.15), transparent 50%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  
+  .crash-card:hover::after {
+    opacity: 0.6;
+  }
+  
+  /* Crashed state - dramatic red */
+  .crash-card.is-crashed {
+    border-color: rgba(255,51,102,0.3);
+    background:
+      radial-gradient(circle 600px at 50% 0%, rgba(255,51,102,0.20), transparent 65%),
+      radial-gradient(circle 400px at 70% 40%, rgba(255,51,102,0.15), transparent 70%),
+      linear-gradient(135deg, rgba(255,51,102,0.12) 0%, rgba(255,51,102,0.06) 100%);
+    
+    box-shadow: 
+      0 20px 80px rgba(255,51,102,0.3),
+      0 0 0 1px rgba(255,51,102,0.15) inset,
+      0 8px 32px rgba(255,51,102,0.25);
+    
+    animation: crashPulse 1.2s ease-in-out;
+  }
+  
+  @keyframes crashPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.01); }
+  }
+  
+  /* ====================================
+     CANVAS AREA
+     ==================================== */
+  
+  .crash-canvasWrap {
+    position: relative;
+    height: 300px;
+    background: 
+      radial-gradient(circle 400px at 50% 50%, rgba(0,212,255,0.06), transparent 80%);
+    overflow: hidden;
+  }
+  
+  #crashCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  
+  /* ====================================
+     HUD ELEMENTS
+     ==================================== */
+  
+  .crash-hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  
+  /* Multiplier display - enhanced */
+  .crash-mult {
+    position: absolute;
+    left: 18px;
+    top: 18px;
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--cr-green);
+    letter-spacing: -0.02em;
+    
+    text-shadow: 
+      0 0 30px var(--cr-green-glow),
+      0 0 60px var(--cr-green-glow),
+      0 4px 20px rgba(0,0,0,0.8),
+      0 0 10px rgba(255,255,255,0.3);
+    
+    filter: drop-shadow(0 8px 24px rgba(0,255,136,0.4));
+    
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: floatGlow 3s ease-in-out infinite;
+  }
+  
+  @keyframes floatGlow {
+    0%, 100% { 
+      transform: translateY(0) scale(1);
+      filter: drop-shadow(0 8px 24px rgba(0,255,136,0.4));
+    }
+    50% { 
+      transform: translateY(-4px) scale(1.02);
+      filter: drop-shadow(0 12px 32px rgba(0,255,136,0.6));
+    }
+  }
+  
+  .crash-mult.is-green {
+    color: var(--cr-green);
+    text-shadow: 
+      0 0 30px var(--cr-green-glow),
+      0 0 60px var(--cr-green-glow),
+      0 4px 20px rgba(0,0,0,0.8);
+  }
+  
+  .crash-mult.is-red {
+    color: var(--cr-red);
+    text-shadow: 
+      0 0 40px var(--cr-red-glow),
+      0 0 80px var(--cr-red-glow),
+      0 4px 20px rgba(0,0,0,0.8);
+    animation: redExplosion 0.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  
+  @keyframes redExplosion {
+    0%, 100% { 
+      transform: scale(1);
+      filter: drop-shadow(0 8px 32px rgba(255,51,102,0.6));
+    }
+    50% { 
+      transform: scale(1.08);
+      filter: drop-shadow(0 12px 48px rgba(255,51,102,0.9));
+    }
+  }
+  
+  /* Countdown Timer - dramatic */
+  .crash-timer {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 90px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.95);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    
+    text-shadow: 
+      0 0 60px var(--cr-blue-glow),
+      0 0 120px var(--cr-blue-glow),
+      0 10px 80px rgba(0,0,0,0.9),
+      0 0 30px rgba(255,255,255,0.4);
+    
+    display: none;
+    pointer-events: none;
+    animation: timerBreath 1s ease-in-out infinite;
+  }
+  
+  @keyframes timerBreath {
+    0%, 100% { 
+      transform: translate(-50%, -50%) scale(1); 
+      opacity: 1;
+    }
+    50% { 
+      transform: translate(-50%, -50%) scale(1.12); 
+      opacity: 0.85;
+    }
+  }
+  
+  .crash-timer.is-urgent {
+    color: var(--cr-red);
+    text-shadow: 
+      0 0 70px var(--cr-red-glow),
+      0 0 140px var(--cr-red-glow),
+      0 10px 80px rgba(0,0,0,0.9);
+    animation: timerUrgent 0.4s ease-in-out infinite;
+  }
+  
+  @keyframes timerUrgent {
+    0%, 100% { 
+      transform: translate(-50%, -50%) scale(1); 
+    }
+    50% { 
+      transform: translate(-50%, -50%) scale(1.18); 
+    }
+  }
+  
+  /* ====================================
+     HISTORY BAR - SLEEK DESIGN
+     ==================================== */
+  
+  .crash-history {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 14px 16px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    
+    background: 
+      linear-gradient(90deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2), rgba(0,0,0,0.4));
+    
+    border-top: 1px solid rgba(0,212,255,0.15);
+    box-shadow: 
+      inset 0 2px 12px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+    
+    -webkit-overflow-scrolling: touch;
+    transform: translateZ(0);
+  }
+  
+  .crash-history::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .crash-history__item {
+    flex: 0 0 auto;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 900;
+    color: #fff;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    
+    box-shadow: 
+      0 4px 12px rgba(0,0,0,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+    
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+  
+  .crash-history__item:hover {
+    transform: translateY(-2px) scale(1.05);
+  }
+  
+  /* Gradient colors for multipliers */
+  .crash-history__item.color-1 {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 
+      0 4px 16px rgba(102,126,234,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  
+  .crash-history__item.color-2 {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    box-shadow: 
+      0 4px 16px rgba(79,172,254,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  
+  .crash-history__item.color-3 {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    box-shadow: 
+      0 4px 16px rgba(240,147,251,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  
+  .crash-history__item.color-4 {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    box-shadow: 
+      0 4px 16px rgba(67,233,123,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  
+  .crash-history__item.color-5 {
+    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    box-shadow: 
+      0 4px 16px rgba(255,225,64,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+    animation: goldShimmer 2s ease-in-out infinite;
+  }
+  
+  @keyframes goldShimmer {
+    0%, 100% { 
+      filter: brightness(1);
+      box-shadow: 
+        0 4px 16px rgba(255,225,64,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    50% { 
+      filter: brightness(1.2);
+      box-shadow: 
+        0 6px 24px rgba(255,225,64,0.7),
+        0 0 30px rgba(255,225,64,0.3),
+        inset 0 1px 0 rgba(255,255,255,0.35);
+    }
+  }
+  
+  .crash-history__item.is-new {
+    animation: historySlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  
+  @keyframes historySlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-30px) scale(0.7);
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      filter: blur(0);
+    }
+  }
+  
+  /* ====================================
+     PLAYERS PANEL - MODERN DESIGN
+     ==================================== */
+  
+  .crash-panel {
+    border-radius: var(--cr-radius);
+    border: 1px solid rgba(0,212,255,0.12);
+    
+    background: 
+      radial-gradient(circle 400px at 50% 0%, rgba(0,212,255,0.08), transparent 70%),
+      linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
+    
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    
+    overflow: hidden;
+    max-height: 450px;
+    display: flex;
+    flex-direction: column;
+    
+    box-shadow: 
+      0 16px 60px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  
+  .crash-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    flex: 0 0 auto;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  
+  .crash-panel__title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--cr-text);
+    letter-spacing: 0.3px;
+  }
+  
+  .crash-players {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .crash-players::-webkit-scrollbar {
+    width: 5px;
+  }
+  
+  .crash-players::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+    border-radius: 3px;
+  }
+  
+  .crash-players::-webkit-scrollbar-thumb {
+    background: var(--cr-blue-glow);
+    border-radius: 3px;
+  }
+  
+  .crash-players::-webkit-scrollbar-thumb:hover {
+    background: var(--cr-blue);
+  }
+  
+  /* Player row */
+  .crash-trader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border-radius: var(--cr-radius-sm);
+    
+    background: 
+      linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+    
+    border: 1px solid rgba(255,255,255,0.08);
+    
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .crash-trader:hover {
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.12), rgba(0,212,255,0.06));
+    border-color: rgba(0,212,255,0.25);
+    transform: translateX(4px);
+  }
+  
+  .crash-trader.is-active {
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.18), rgba(0,212,255,0.10));
+    border-color: rgba(0,212,255,0.35);
+    box-shadow: 
+      0 8px 24px rgba(0,212,255,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  
+  .crash-trader__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+  }
+  
+  /* Avatar */
+  .crash-ava {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.25), rgba(176,132,255,0.20));
+    border: 2px solid rgba(0,212,255,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    
+    box-shadow: 
+      0 4px 16px rgba(0,212,255,0.3),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+    
+    transition: all 0.3s ease;
+  }
+  
+  .crash-trader:hover .crash-ava {
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 
+      0 6px 20px rgba(0,212,255,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  
+  .crash-ava img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: block;
+  }
+  
+  .crash-name {
+    color: var(--cr-text);
+    font-weight: 700;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  
+  .crash-amount {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+  }
+  
+  .crash-amount__top {
+    font-size: 15px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .crash-amount__sub {
+    font-size: 12px;
+    color: var(--cr-text-dim);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .crash-amount__top.is-green {
+    color: var(--cr-green);
+    text-shadow: 0 0 12px var(--cr-green-glow);
+  }
+  
+  .crash-amount__top.is-red {
+    color: var(--cr-red);
+    text-shadow: 0 0 12px var(--cr-red-glow);
+  }
+  
+  /* ====================================
+     CONTROLS BAR - PREMIUM GLASS
+     ==================================== */
+  
+  .crash-controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding: 0 14px 16px;
+    z-index: 100;
+    pointer-events: none;
+    transform: translateZ(0);
+  }
+  
+  .crash-controls__bar {
+    border-radius: 28px;
+    border: 1px solid rgba(0,212,255,0.20);
+    
+    background: rgba(10,14,20,0.95);
+    
+    padding: 14px;
+    pointer-events: auto;
+    
+    box-shadow: 
+      0 24px 80px rgba(0,0,0,0.7),
+      0 0 0 1px rgba(0,212,255,0.15) inset,
+      0 8px 32px rgba(0,212,255,0.2);
+    
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+  
+  /* Amount input row */
+  .crash-amountRow {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  
+  .crash-inputWrap {
+    flex: 1;
+    position: relative;
+  }
+  
+  .crash-betInput {
+    width: 100%;
+    height: 50px;
+    border: 1px solid rgba(0,212,255,0.25);
+    
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.08), rgba(176,132,255,0.05));
+    
+    color: var(--cr-text);
+    padding: 0 18px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 17px;
+    text-align: center;
+    
+    box-shadow: 
+      0 4px 16px rgba(0,0,0,0.3),
+      inset 0 1px 0 rgba(255,255,255,0.1);
+    
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+  }
+  
+  .crash-betInput::placeholder {
+    color: var(--cr-text-dim);
+    opacity: 0.5;
+  }
+  
+  .crash-betInput:focus {
+    border-color: var(--cr-blue);
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.15), rgba(176,132,255,0.10));
+    
+    box-shadow: 
+      0 8px 28px rgba(0,212,255,0.35),
+      0 0 0 3px rgba(0,212,255,0.15),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+    
+    transform: translateY(-2px);
+  }
+  
+  /* Max button */
+  .crash-maxBtn {
+    flex: 0 0 auto;
+    min-width: 100px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    
+    border: 1px solid rgba(0,212,255,0.20);
+    background: 
+      linear-gradient(135deg, rgba(0,212,255,0.12), rgba(0,212,255,0.08));
+    
+    color: var(--cr-text);
+    padding: 0 20px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 15px;
+    
+    box-shadow: 
+      0 4px 16px rgba(0,0,0,0.3),
+      inset 0 1px 0 rgba(255,255,255,0.1);
+    
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .crash-maxBtn:active {
+    transform: translateY(1px);
+    box-shadow: 
+      0 2px 8px rgba(0,0,0,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  
+  /* Action buttons */
+  .crash-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .crash-buy {
+    flex: 1;
+    height: 60px;
+    border: none;
+    border-radius: 20px;
+    font-size: 18px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.98);
+    letter-spacing: 0.5px;
+    
+    background: linear-gradient(135deg, #004e7b 0%, #368dff 100%);
+    
+    box-shadow: 
+      0 12px 32px rgba(102,126,234,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+    
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .crash-buy::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s ease;
+  }
+  
+  .crash-buy:hover::before {
+    left: 100%;
+  }
+  
+  .crash-buy:active {
+    transform: translateY(2px);
+    box-shadow: 
+      0 6px 20px rgba(102,126,234,0.45),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  
+  .crash-buy.is-claim {
+    background: linear-gradient(135deg, var(--cr-green) 0%, #00cc6a 100%);
+    box-shadow: 
+      0 14px 40px var(--cr-green-glow),
+      0 0 0 3px rgba(0,255,136,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+    animation: claimPulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes claimPulse {
+    0%, 100% { 
+      box-shadow: 
+        0 14px 40px var(--cr-green-glow),
+        0 0 0 3px rgba(0,255,136,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.25);
+    }
+    50% { 
+      box-shadow: 
+        0 16px 48px var(--cr-green-glow),
+        0 0 0 4px rgba(0,255,136,0.3),
+        inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+  }
+  
+  .crash-buy.is-lost {
+    background: linear-gradient(135deg, rgba(255, 51, 102, 0.85) 0%, rgba(190, 30, 70, 0.85) 100%);
+    box-shadow:
+      0 14px 40px rgba(255, 51, 102, 0.35),
+      0 0 0 3px rgba(255, 51, 102, 0.18),
+      inset 0 1px 0 rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.92);
+    opacity: 0.9;
+    filter: saturate(1.05);
+  }
+  
+  .crash-buy.is-disabled {
+    background: linear-gradient(135deg, rgba(60,60,70,0.6), rgba(40,40,50,0.5));
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    color: rgba(255,255,255,0.5);
+  }
+  
 .crash-plus{
   width: 54px;
   height: 54px;
@@ -712,7 +1065,7 @@
 }
 
 .crash-controls{
-  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
   will-change: transform;
@@ -868,7 +1221,7 @@ appearance: textfield;
 .crash-toastHost{
 position: fixed;
 left: 50%;
-top: calc(12px + env(safe-area-inset-top, 0px));
+top: calc(142px + env(safe-area-inset-top, 0px));
 transform: translateX(-50%);
 z-index: 9999;
 pointer-events: none;
@@ -888,7 +1241,7 @@ letter-spacing: 0.2px;
 color: rgba(255,255,255,0.96);
 
 background: linear-gradient(180deg, rgba(46,255,154,0.22), rgba(46,255,154,0.12));
-border: 1px solid rgba(46,255,154,0.38);
+border: 1px solid rgba(46, 255, 67, 0.38);
 
 box-shadow:
   0 10px 30px rgba(0,0,0,0.35),
@@ -925,4 +1278,45 @@ filter: blur(2px);
   transition: none;
   filter: none;
 }
+}
+
+
+/* iPhone 12/13 mini (375x812) + похожие компактные */
+@media (max-width: 375px) and (max-height: 820px) {
+  /* сама панель: меньше внутренних отступов */
+  .crash-controls__bar{
+    padding: 10px 12px 10px !important;
+  }
+
+  /* строка с инпутом и Max: чуть ниже по высоте */
+  .crash-betInput{
+    height: 40px;          /* было 44px */
+    font-size: 15px;
+  }
+
+  .crash-maxBtn{
+    min-width: 78px;       /* было 90px */
+    height: 40px;          /* чтобы совпало с input */
+    padding: 0 10px;
+  }
+
+  /* кнопки действий */
+  .crash-buy{
+    height: 48px;          /* сделаем ниже */
+    border-radius: 16px;
+    font-size: 16px;
+  }
+
+  .crash-plus{
+    width: 48px;           /* было 54 */
+    height: 48px;          /* было 54 */
+    border-radius: 16px;
+    font-size: 24px;
+  }
+
+  /* нижняя строка (Bet / статус) — меньше отступы */
+  .crash-helpRow{
+    padding-top: 6px;      /* было 10px */
+    font-size: 11px;
+  }
 }
