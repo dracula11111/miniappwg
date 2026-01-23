@@ -692,7 +692,7 @@ let giftsCatalog = [
         "Scared Cat",
         "Genie Lamp",
         "Bonded Ring",
-        "Jack-in-the-Box",
+        "Jack In The Box",
         "Winter Wreath"
 
 ]; // tracked gift collection names (strings)
