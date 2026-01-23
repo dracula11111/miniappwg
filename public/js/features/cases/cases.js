@@ -106,9 +106,9 @@
         { id: 'nft6', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
 
         // High-value Gifts       
-        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.065, stars: 25 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         
       ]
       
@@ -204,7 +204,7 @@ const NFT_PEEK_NAME_BY_ICON = {
   'ScaredCatNFTSkin.png':'Scared Cat',
   'BondedRingNFTSkin.png':'Bonded Ring',
   'GenieLampNFTSkin.png':'Genie Lamp',
-  'JackInTheBoxNFTSkin.png':'Jack In The Box',
+  'JackInTheBoxNFTSkin.png':'Jack-in-the-Box',
   'WinterWreathNFTSkin.png':'Winter Wreath'
 
 
@@ -277,7 +277,7 @@ function getFloorTonForItem(item) {
 // Demo: NFT выпадает часто (почти каждый прокрут)
 // Paid (TON / Stars): NFT выпадает редко
 const NFT_DROP_RATES = {
-  demo: 0.70,          // 90% на выигрыш в демо
+  demo: 0.40,          // 90% на выигрыш в демо
   ton: 0.13,           // 3% на выигрыш за TON
   stars: 0.12          // 2% на выигрыш за Stars
 };
