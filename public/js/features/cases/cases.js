@@ -90,6 +90,29 @@
       ]
       
     }
+
+    ,
+    case5: {
+      id: 'case5',
+      name: 'Cat House',
+      price: { ton: 1, stars: 200 },
+      items: [
+        // Premium NFTs
+        { id: 'nft1', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 0.00, stars: 0 }, rarity: 'legendary' },
+        { id: 'nft2', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 0.00, stars: 0 }, rarity: 'legendary' },
+        { id: 'nft3', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
+        { id: 'nft4', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
+        { id: 'nft5', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
+        { id: 'nft6', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
+
+        // High-value Gifts       
+        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        
+      ]
+      
+    }
   };
 
   // ====== STATE ======
@@ -159,13 +182,13 @@ const NFT_PEEK_NAME_BY_ICON = {
   'RaketaNFT.png': 'Stellar Rocket',
   'RamenNFT.png': 'Instant Ramen',
   'IceCreamNFT.png': 'Ice Cream',
-
+ 
   'BerryBoxNFTSkin.png': 'Berry Box',
   'LolPopNFTSkin.png': 'Lol Pop',
   'CookieHeartNFTSkin.png': 'Cookie Heart',
   'MousseCakeNFTSkin.png': 'Mousse Cake',
 
-  // у тебя в case3 есть IceCreamNFtSkin.png (буквы разные)
+  // 
   'IceCreamNFtSkin.png': 'Ice Cream',
 
 
@@ -174,7 +197,17 @@ const NFT_PEEK_NAME_BY_ICON = {
   'VintageCigarNFTSkin.png': 'Vintage Cigar',
   'VoodooDollNFTSkin.png': 'Voodoo Doll',
   'FlyingBroomNFTSkin.png': 'Flying Broom',
-  'HexPotNFTSkin.png': 'Hex Pot'
+  'HexPotNFTSkin.png': 'Hex Pot',
+
+  //case 5
+  'MightyArmNFTSkin.png':'Mighty Arm',
+  'ScaredCatNFTSkin.png':'Scared Cat',
+  'BondedRingNFTSkin.png':'Bonded Ring',
+  'GenieLampNFTSkin.png':'Genie Lamp',
+  'JackInTheBoxNFTSkin.png':'Jack In The Box',
+  'WinterWreathNFTSkin.png':'Winter Wreath'
+
+
 
 };
 

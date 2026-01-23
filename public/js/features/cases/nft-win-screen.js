@@ -71,6 +71,20 @@
         baseHue = 220 + Math.random() * 15; // 220-235
       }
     }
+
+    // Case 5 (Cat House) - Yellow-Orange theme
+      else if (caseId === 'case5') {
+        if (variant < 0.5) {
+          // Pure orange (most common)
+          baseHue = 35 + Math.random() * 15; // 35-50
+        } else if (variant < 0.8) {
+          // Yellow-orange
+          baseHue = 45 + Math.random() * 15; // 45-60
+        } else {
+          // Deep orange (rare, for variety)
+          baseHue = 20 + Math.random() * 15; // 20-35
+        }
+      }
     // Default - Blue theme (for all other cases)
     else {
       if (variant < 0.5) {

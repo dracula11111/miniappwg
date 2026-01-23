@@ -687,7 +687,14 @@ let giftsCatalog = [
       "Vintage Cigar",
       "Voodoo Doll",
       "Flying Broom",
-      "Hex Pot"
+      "Hex Pot",
+        "Mighty Arm",
+        "Scared Cat",
+        "Genie Lamp",
+        "Bonded Ring",
+        "Jack-in-the-Box",
+        "Winter Wreath"
+
 ]; // tracked gift collection names (strings)
 let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
@@ -1911,7 +1918,7 @@ app.get("/api/test/info", async (req, res) => {
 
 
 // ====== CORS for gifts endpoints (dev) ======
-app.use(['/api/gifts/prices','/api/gifts/catalog'], (req,res,next)=>{
+app.use(['/api/gifts/prices','/api/gifts/catalog','/api/gifts/portals-search'], (req,res,next)=>{
   res.setHeader('Access-Control-Allow-Origin','*');
   res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
