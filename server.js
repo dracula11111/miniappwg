@@ -569,9 +569,47 @@ try { fs.mkdirSync(MARKET_GIFTS_IMG_DIR, { recursive: true }); } catch {}
 // Serve relayer-uploaded images (works even if they are NOT inside /public)
 app.use("/images/gifts/marketnfts", express.static(MARKET_GIFTS_IMG_DIR, {
   fallthrough: true,
-  // keep caching short; market.js adds cache-buster anyway
   maxAge: "1h"
 }));
+
+function safeMarketFileBase(s) {
+  return String(s || "gift")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "gift";
+}
+
+function saveMarketImageFromData(imageData, baseName = "gift") {
+  const s = String(imageData || "").trim();
+  const m = s.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return "";
+  const mime = String(m[1] || "").toLowerCase();
+  const b64 = String(m[2] || "");
+  let buf;
+  try { buf = Buffer.from(b64, "base64"); } catch { return ""; }
+
+  // Hard limit to protect server (base64 usually ~1.33x bigger than file)
+  if (!buf || !buf.length || buf.length > 4 * 1024 * 1024) return "";
+
+  let ext = ".bin";
+  if (mime.includes("png")) ext = ".png";
+  else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
+  else if (mime.includes("webp")) ext = ".webp";
+  else if (mime.includes("gif")) ext = ".gif";
+
+  const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}${ext}`;
+  const outPath = path.join(MARKET_GIFTS_IMG_DIR, fileName);
+
+  try {
+    fs.writeFileSync(outPath, buf);
+    return `/images/gifts/marketnfts/${fileName}`;
+  } catch (e) {
+    console.error("[MarketStore] image save error:", e);
+    return "";
+  }
+}
+
 
 
 function broadcastTick() {
@@ -884,7 +922,27 @@ app.post("/api/inventory/nft/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    const result = await inventoryAdd(uid, list, claimId);
+    // If relayer sends base64 icon (iconData or icon="data:..."), save it on server and replace icon with public URL.
+    const normalized = list.map((it) => {
+      const x = (it && typeof it === "object") ? { ...it } : it;
+      if (!x || typeof x !== "object") return x;
+
+      const data =
+        String(x.iconData || "").trim() ||
+        (typeof x.icon === "string" && x.icon.trim().startsWith("data:") ? x.icon.trim() : "");
+
+      if (data) {
+        const saved = saveMarketImageFromData(data, x.name || x.displayName || "nft");
+        if (saved) x.icon = saved;
+        delete x.iconData;
+      }
+      return x;
+    });
+
+
+   
+
+    const result = await inventoryAdd(uid, normalized, claimId);
     return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
   } catch (e) {
     console.error("[Inventory] add error:", e);
@@ -907,7 +965,7 @@ app.post("/api/inventory/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    const result = await inventoryAdd(uid, list, claimId);
+    const result = await inventoryAdd(uid, normalized, claimId);
     return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
   } catch (e) {
     console.error("[Inventory] add error:", e);
@@ -968,7 +1026,23 @@ app.post("/api/admin/inventory/add", async (req, res) => {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    const result = await inventoryAdd(uid, list, claimId || `admin_${Date.now()}`);
+    const normalized = list.map((it) => {
+      const x = (it && typeof it === "object") ? { ...it } : it;
+      if (!x || typeof x !== "object") return x;
+
+      const data =
+        String(x.iconData || "").trim() ||
+        (typeof x.icon === "string" && x.icon.trim().startsWith("data:") ? x.icon.trim() : "");
+
+      if (data) {
+        const saved = saveMarketImageFromData(data, x.name || x.displayName || "nft");
+        if (saved) x.icon = saved;
+        delete x.iconData;
+      }
+      return x;
+    });
+
+    const result = await inventoryAdd(uid, normalized, claimId || `admin_${Date.now()}`);
     return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items });
   } catch (e) {
     console.error("[Admin Inventory] add error:", e);
@@ -1690,7 +1764,162 @@ app.post("/api/round/place-bet", async (req, res) => {
 
 // ============================================
 // 🧪 TEST BALANCE SYSTEM
-//  "// ====== SPA fallback ======"
+//  "
+
+// ====== MARKET STORE (Relayer -> Server) ======
+// Relayer posts to:
+//   POST /api/market/items/add   (requires secret)
+// Frontend reads from:
+//   GET  /api/market/items/list
+
+const MARKET_DB_PATH =
+  process.env.MARKET_DB_PATH ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/market-items.json"
+    : path.join(__dirname, "market-items.json"));
+
+function getBearerToken(req) {
+  const h = String(req.headers?.authorization || "");
+  if (!h) return "";
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m ? String(m[1] || "").trim() : "";
+}
+
+function isRelayerSecretOk(req) {
+  const secret = process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "";
+  if (!secret) return false;
+  const token = getBearerToken(req);
+  const alt = String(req.headers?.["x-relayer-secret"] || req.headers?.["x-relay-secret"] || "").trim();
+  return token === secret || alt === secret;
+}
+
+async function ensureMarketDir() {
+  try {
+    const dir = path.dirname(MARKET_DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.error("[MarketStore] ensure dir error:", e);
+  }
+}
+
+async function readMarketItems() {
+  try {
+    await ensureMarketDir();
+    if (!fs.existsSync(MARKET_DB_PATH)) return [];
+    const raw = fs.readFileSync(MARKET_DB_PATH, "utf8");
+    const data = JSON.parse(raw || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error("[MarketStore] read error:", e);
+    return [];
+  }
+}
+
+async function writeMarketItems(items) {
+  try {
+    await ensureMarketDir();
+    fs.writeFileSync(MARKET_DB_PATH, JSON.stringify(items, null, 2), "utf8");
+    return true;
+  } catch (e) {
+    console.error("[MarketStore] write error:", e);
+    return false;
+  }
+}
+
+function safeMarketString(s, max = 120) {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  return t.length > max ? t.slice(0, max) : t;
+}
+
+function safeMarketImagePath(p) {
+  const t = String(p ?? "").trim();
+  if (!t) return "";
+  if (!t.startsWith("/images/")) return "";
+  if (t.includes("://")) return "";
+  return t;
+}
+
+// List (new)
+app.get("/api/market/items/list", async (req, res) => {
+  try {
+    const items = await readMarketItems();
+    return res.json({ ok: true, count: items.length, items });
+  } catch (e) {
+    console.error("[MarketStore] list error:", e);
+    return res.status(500).json({ ok: false, error: "market list error" });
+  }
+});
+
+// List (legacy alias)
+app.get("/api/market/items", async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 200));
+    const items = await readMarketItems();
+    return res.json({ ok: true, count: items.length, items: items.slice(0, limit) });
+  } catch (e) {
+    console.error("[MarketStore] list error:", e);
+    return res.status(500).json({ ok: false, error: "market list error" });
+  }
+});
+
+// Add item (relayer only)
+app.post("/api/market/items/add", async (req, res) => {
+  try {
+    if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+    const item = req.body?.item;
+    if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
+
+    const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
+    const name = safeMarketString(item.name, 120) || "Gift";
+    const number = safeMarketString(item.number, 32) || "";
+    const createdAt = Number(item.createdAt || Date.now());
+    const priceTon = (item.priceTon == null ? null : Number(item.priceTon));
+
+    // image: allow either a normal /images/... path OR a dataURL in image/imageData
+    const data = String(item.imageData || "").trim() || (typeof item.image === "string" && item.image.trim().startsWith("data:") ? item.image.trim() : "");
+    let image = safeMarketImagePath(item.image);
+    if (data) {
+      const saved = saveMarketImageFromData(data, name);
+      if (saved) image = saved;
+    }
+
+    const out = {
+      ...item,
+      id, name, number,
+      image,
+      priceTon: Number.isFinite(priceTon) ? priceTon : null,
+      createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+    };
+    delete out.imageData;
+
+    const items = await readMarketItems();
+    items.unshift(out);
+    const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+    if (items.length > MAX) items.length = MAX;
+
+    const ok = await writeMarketItems(items);
+    if (!ok) return res.status(500).json({ ok: false, error: "write failed" });
+    return res.json({ ok: true, item: out });
+  } catch (e) {
+    console.error("[MarketStore] add error:", e);
+    return res.status(500).json({ ok: false, error: "market add error" });
+  }
+});
+
+// Clear (relayer only)
+app.post("/api/market/items/clear", async (req, res) => {
+  try {
+    if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+    await writeMarketItems([]);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[MarketStore] clear error:", e);
+    return res.status(500).json({ ok: false, error: "market clear error" });
+  }
+});
+
+// ====== SPA fallback ======"
 // ============================================
 
 // 🎁 ДАТЬ ТЕСТОВЫЕ ДЕНЬГИ (только в development)
@@ -1980,166 +2209,6 @@ app.get("*", (req, res, next) => {
 });
 
 // ====== Error handling ======
-
-// ====== MARKET STORE (Relayer -> Server) ======
-// Relayer posts to:
-//   POST /api/market/items/add   (requires secret)
-// Frontend reads from:
-//   GET  /api/market/items/list
-
-const MARKET_DB_PATH =
-  process.env.MARKET_DB_PATH ||
-  (process.env.NODE_ENV === "production"
-    ? "/opt/render/project/data/market-items.json"
-    : path.join(__dirname, "market-items.json"));
-
-function safeMarketFileBase(s) {
-  return String(s || "gift")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 48) || "gift";
-}
-
-function saveMarketImageFromData(imageData, baseName = "gift") {
-  const s = String(imageData || "").trim();
-  const m = s.match(/^data:([^;]+);base64,(.+)$/);
-  if (!m) return "";
-  const mime = String(m[1] || "").toLowerCase();
-  const b64 = String(m[2] || "");
-  let buf;
-  try { buf = Buffer.from(b64, "base64"); } catch { return ""; }
-
-  // Hard limit to protect server (base64 usually ~1.33x bigger than file)
-  if (!buf || !buf.length || buf.length > 4 * 1024 * 1024) return "";
-
-  let ext = ".bin";
-  if (mime.includes("png")) ext = ".png";
-  else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
-  else if (mime.includes("webp")) ext = ".webp";
-  else if (mime.includes("gif")) ext = ".gif";
-
-  const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}${ext}`;
-  const outPath = path.join(MARKET_GIFTS_IMG_DIR, fileName);
-
-  try {
-    fs.writeFileSync(outPath, buf);
-    return `/images/gifts/marketnfts/${fileName}`;
-  } catch (e) {
-    console.error("[MarketStore] image save error:", e);
-    return "";
-  }
-}
-
-
-function getBearerToken(req) {
-  const h = String(req.headers?.authorization || "");
-  if (!h) return "";
-  const m = h.match(/^Bearer\s+(.+)$/i);
-  return m ? String(m[1] || "").trim() : "";
-}
-
-function isRelayerSecretOk(req) {
-  const secret = process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "";
-  if (!secret) return false;
-  const token = getBearerToken(req);
-  const alt = String(req.headers?.["x-relayer-secret"] || req.headers?.["x-relay-secret"] || "").trim();
-  return token === secret || alt === secret;
-}
-
-async function ensureMarketDir() {
-  try {
-    const dir = path.dirname(MARKET_DB_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  } catch (e) {
-    console.error("[MarketStore] ensure dir error:", e);
-  }
-}
-
-async function readMarketItems() {
-  try {
-    await ensureMarketDir();
-    if (!fs.existsSync(MARKET_DB_PATH)) return [];
-    const raw = fs.readFileSync(MARKET_DB_PATH, "utf8");
-    const data = JSON.parse(raw || "[]");
-    return Array.isArray(data) ? data : [];
-  } catch (e) {
-    console.error("[MarketStore] read error:", e);
-    return [];
-  }
-}
-
-async function writeMarketItems(items) {
-  try {
-    await ensureMarketDir();
-    fs.writeFileSync(MARKET_DB_PATH, JSON.stringify(items, null, 2), "utf8");
-    return true;
-  } catch (e) {
-    console.error("[MarketStore] write error:", e);
-    return false;
-  }
-}
-
-function normalizeMarketItem(it) {
-  if (!it || typeof it !== "object") return null;
-  const id = String(it.id || "").trim();
-  const name = String(it.name || it.title || "Gift").trim();
-  const number = String(it.number || "").trim();
-  const image = String(it.image || "").trim();
-  const createdAt = Number(it.createdAt || Date.now());
-  const priceTon = (it.priceTon == null) ? null : Number(it.priceTon);
-  const tg = (it.tg && typeof it.tg === "object") ? it.tg : null;
-  if (!id) return null;
-  return { id, name, number, image, priceTon: Number.isFinite(priceTon) ? priceTon : null, createdAt, tg };
-}
-
-// List market items (public)
-app.get("/api/market/items/list", async (req, res) => {
-  const items = await readMarketItems();
-  // newest first
-  items.sort((a, b) => (Number(b.createdAt || 0) - Number(a.createdAt || 0)));
-  return res.json({ ok: true, items });
-});
-
-// Add market item (relayer/admin)
-app.post("/api/market/items/add", async (req, res) => {
-  try {
-    if (!isRelayerSecretOk(req)) {
-      return res.status(403).json({ ok: false, error: "forbidden" });
-    }
-    let itemRaw = req.body?.item || req.body || null;
-    // Optional: accept base64 image data from relayer (so images work on production)
-    if (itemRaw && typeof itemRaw === "object" && typeof itemRaw.imageData === "string") {
-      const saved = saveMarketImageFromData(itemRaw.imageData, itemRaw.name || itemRaw.title || "gift");
-      if (saved) itemRaw.image = saved;
-      delete itemRaw.imageData;
-    }
-    const item = normalizeMarketItem(itemRaw);
-    if (!item) return res.status(400).json({ ok: false, error: "bad item" });
-
-    const items = await readMarketItems();
-    const exists = items.some((x) => String(x.id) === String(item.id));
-    if (!exists) items.unshift(item);
-
-    // Keep it sane (store up to 500)
-    const trimmed = items.slice(0, 500);
-    await writeMarketItems(trimmed);
-
-    return res.json({ ok: true, added: !exists, item, items: trimmed });
-  } catch (e) {
-    console.error("[MarketStore] add error:", e);
-    return res.status(500).json({ ok: false, error: "market error" });
-  }
-});
-
-// Clear market (secret)
-app.post("/api/market/items/clear", async (req, res) => {
-  if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
-  await writeMarketItems([]);
-  return res.json({ ok: true });
-});
-
-
 app.use((err, req, res, next) => {
   console.error('[Server] Error:', err);
   res.status(500).json({

@@ -200,8 +200,19 @@ async function run() {
     const msg = event?.message;
     if (!msg) return;
 
-    const action = msg.action;
-    if (!action) return;
+    const action = msg.action || null;
+
+// Debug log: show EVERY incoming message (text + service actions)
+try {
+  const rawType = event?.originalUpdate?.className || event?.originalUpdate?.constructor?.name || "NewMessage";
+  const dbgFrom = peerUserId(msg.fromId) || peerUserId(msg.peerId) || (msg.senderId != null ? String(msg.senderId) : "—");
+  const actName = action ? (action.className || action.constructor?.name || "action") : "null";
+  const txt = (msg.message ?? msg.text ?? "").toString();
+  console.log(`[Relayer][IN:${rawType}] id=${msg.id} from=${dbgFrom} action=${actName} text=${JSON.stringify(txt)}`);
+} catch {}
+
+// No action => it was just a text/media message (we only process gifts below)
+if (!action) return;
 
     // We handle: Star Gifts (regular/unique), and fallback GiftPremium/GiftStars if present
     const isStarGift =
@@ -214,11 +225,20 @@ async function run() {
 
     if (!isStarGift && !isOtherGift) return;
 
-    const fromId = actionFromId(action) || peerUserId(msg.fromId);
-    if (!fromId) {
-      console.log("[Relayer] ⚠️ gift without fromId (skipped). msgId=", msg.id);
-      return;
-    }
+    let fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId) || (msg.senderId != null ? String(msg.senderId) : null);
+
+// Some gift service messages don't expose fromId directly. As a last resort, ask Telegram.
+if (!fromId) {
+  try {
+    const sender = await msg.getSender?.();
+    if (sender?.id != null) fromId = String(sender.id);
+  } catch {}
+}
+
+if (!fromId) {
+  console.log("[Relayer] ⚠️ gift without fromId (skipped). msgId=", msg.id);
+  return;
+}
 
     // Parse gift object
     const gift = action.gift || null;
@@ -232,7 +252,6 @@ async function run() {
 
     // Download image / thumb
     let imageUrl = "";
-    let imageData = "";
     try {
       if (doc) {
         const mime = String(doc.mimeType || "");
@@ -267,20 +286,6 @@ async function run() {
 
         if (ok) {
           imageUrl = `/images/gifts/marketnfts/${fileName}`;
-          // Also send imageData (base64) so prod server can save + serve the image
-          try {
-            const buf = fs.readFileSync(outPath);
-            if (buf && buf.length && buf.length <= 3 * 1024 * 1024) {
-              const ext2 = String(ext || "").toLowerCase();
-              const mime2 =
-                ext2 === ".png" ? "image/png" :
-                (ext2 === ".jpg" || ext2 === ".jpeg") ? "image/jpeg" :
-                ext2 === ".webp" ? "image/webp" :
-                ext2 === ".gif" ? "image/gif" :
-                "application/octet-stream";
-              imageData = `data:${mime2};base64,${buf.toString("base64")}`;
-            }
-          } catch (_) {}
         }
       }
     } catch (e) {
@@ -313,7 +318,6 @@ async function run() {
       name: title,
       number: numberText,
       image: imageUrl || "",
-      imageData: imageData || "",
       priceTon: null,
       createdAt: Date.now(),
       tg: {
