@@ -544,7 +544,7 @@ const WHEEL_ORDER = [
 
 // --- Base settings
 app.set("trust proxy", true);
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 // --- Static files from ./public (Render)
@@ -557,110 +557,21 @@ app.use(express.static(path.join(__dirname, "public"), {
   }
 }));
 
-// ==============================
-// MARKET STORE (file-based)
-// ==============================
-// Хранит список лотов маркета на сервере (не в localStorage клиента).
-// Добавление идёт через приватный ключ (RELAYER_SECRET / MARKET_SECRET).
-const MARKET_DIR = path.join(__dirname, "data");
-const MARKET_FILE = path.join(MARKET_DIR, "market-items.json");
-const MARKET_MAX_ITEMS = 60;
-const MARKET_SECRET = process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "";
+// --- Market images (persist on Render under /opt/render/project/data)
+const MARKET_GIFTS_IMG_DIR =
+  process.env.MARKET_GIFTS_IMG_DIR ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/marketnfts"
+    : path.join(__dirname, "public", "images", "gifts", "marketnfts"));
 
-try {
-  if (!fs.existsSync(MARKET_DIR)) fs.mkdirSync(MARKET_DIR, { recursive: true });
-} catch (e) {
-  console.warn("[MarketStore] Can't create data dir:", e?.message || e);
-}
+try { fs.mkdirSync(MARKET_GIFTS_IMG_DIR, { recursive: true }); } catch {}
 
-function getSecretFromReq(req) {
-  const h = req.headers || {};
-  const auth = String(h.authorization || "");
-  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
-  return String(
-    h["x-relayer-secret"] ||
-    h["x-market-secret"] ||
-    (req.body && req.body.secret) ||
-    ""
-  ).trim();
-}
-function isMarketSecretOk(req) {
-  if (!MARKET_SECRET) return true; // dev mode
-  return getSecretFromReq(req) === String(MARKET_SECRET);
-}
-
-async function readMarketItems() {
-  try {
-    const raw = await fs.promises.readFile(MARKET_FILE, "utf-8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-async function writeMarketItems(items) {
-  const list = Array.isArray(items) ? items : [];
-  const tmp = MARKET_FILE + ".tmp";
-  await fs.promises.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
-  await fs.promises.rename(tmp, MARKET_FILE);
-}
-
-function normalizeMarketItem(it) {
-  if (!it || typeof it !== "object") return null;
-  const id = safeShortText(it.id || it.instanceId || "", 80) || `m_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
-  const name = safeShortText(it.name || it.title || "Gift", 80) || "Gift";
-  const number = safeShortText(it.number || it.num || "", 32) || "";
-  const image = safePath(it.image || it.img || "") || "";
-  const priceTon = Number(it.priceTon ?? it.price_ton ?? it.price ?? NaN);
-  const createdAt = Number.isFinite(Number(it.createdAt)) ? Number(it.createdAt) : Date.now();
-  return {
-    id,
-    name,
-    number,
-    image,
-    priceTon: Number.isFinite(priceTon) ? priceTon : null,
-    createdAt
-  };
-}
-
-// Get market items (for Market page)
-app.get("/api/market/items", async (req, res) => {
-  try {
-    const limit = Math.max(1, Math.min(60, Number(req.query.limit || 6) || 6));
-    const items = await readMarketItems();
-    res.setHeader("Cache-Control", "no-store");
-    return res.json({ ok: true, items: items.slice(0, limit) });
-  } catch (e) {
-    console.error("[MarketStore] list error:", e);
-    return res.status(500).json({ ok: false, error: "market error" });
-  }
-});
-
-// Add market item (called by relayer/admin)
-app.post("/api/market/items/add", async (req, res) => {
-  try {
-    if (!isMarketSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
-
-    const itemRaw = req.body?.item || req.body || null;
-    const item = normalizeMarketItem(itemRaw);
-    if (!item) return res.status(400).json({ ok: false, error: "bad item" });
-
-    const list = await readMarketItems();
-
-    // de-dup by id
-    const filtered = list.filter(x => String(x?.id) !== String(item.id));
-    filtered.unshift(item);
-    if (filtered.length > MARKET_MAX_ITEMS) filtered.length = MARKET_MAX_ITEMS;
-
-    await writeMarketItems(filtered);
-
-    res.setHeader("Cache-Control", "no-store");
-    return res.json({ ok: true, item, items: filtered.slice(0, 6) });
-  } catch (e) {
-    console.error("[MarketStore] add error:", e);
-    return res.status(500).json({ ok: false, error: "market error" });
-  }
-});
+// Serve relayer-uploaded images (works even if they are NOT inside /public)
+app.use("/images/gifts/marketnfts", express.static(MARKET_GIFTS_IMG_DIR, {
+  fallthrough: true,
+  // keep caching short; market.js adds cache-buster anyway
+  maxAge: "1h"
+}));
 
 
 function broadcastTick() {
@@ -773,423 +684,136 @@ app.post("/api/cases/history", (req, res) => {
 
 
 
-
-
 // ==============================
-// ✅ GIFT FLOOR PRICES (Portals)
+// GIFT PRICES CACHE (in-memory)
 // ==============================
+// NOTE: Per-process cache. Resets on server restart.
+const GIFT_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+const GIFT_CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000; // every 6 hours (catalog changes not that often)
+const GIFT_REQUEST_TIMEOUT_MS = 15_000;
 
-// 1) точный матч коллекции по short_name (slug) когда он известен
-// 2) авто-кэш slug в файл (переживает рестарт)
-// 3) sanity-check: если цена “скакнула” слишком сильно — не принимаем сразу
-// 4) /api/gifts/portals-search в prod закрыт админ-ключом (не публичный прокси)
-// 5) CORS не "*" в prod, + небольшой rate-limit
-
-const IS_PROD_GIFTS = (process.env.NODE_ENV === "production");
-const ADMIN_KEY_GIFTS = String(process.env.ADMIN_KEY || "");
-const PORTALS_BASE = "https://portal-market.com/api";
-const PORTALS_TIMEOUT_MS = 15000;
-
-const GIFTS_REFRESH_MS = Number(process.env.GIFT_REFRESH_MS || 60 * 60 * 1000); // 1h
-const GIFTS_STALE_AFTER_MS = Number(process.env.GIFT_STALE_AFTER_MS || 90 * 60 * 1000); // revalidate after 90m
-const MAX_JUMP_RATIO = Number(process.env.GIFT_MAX_JUMP_RATIO || 4); // >4x jump => suspicious
-const JUMP_CONFIRM_COUNT = Number(process.env.GIFT_JUMP_CONFIRM_COUNT || 2); // принять только после N подтверждений
-const MIN_CONFIDENCE = Number(process.env.GIFT_MIN_CONFIDENCE || 0.65);
-
-const ALLOWED_ORIGINS_GIFTS = String(process.env.ALLOWED_ORIGINS || "")
-  .split(",")
-  .map(s => s.trim())
-  .filter(Boolean);
-
-// Твой текущий статический список оставляем (как у тебя)
 let giftsCatalog = [
   "Stellar Rocket",
   "Instant Ramen",
   "Ice Cream",
-  "Berry Box",
-  "Lol Pop",
-  "Cookie Heart",
-  "Mousse Cake",
-  "Electric Skull",
-  "Vintage Cigar",
-  "Voodoo Doll",
-  "Flying Broom",
-  "Hex Pot",
-  "Mighty Arm",
-  "Scared Cat",
-  "Genie Lamp",
-  "Bonded Ring",
-  "Jack-in-the-Box",
-  "Winter Wreath"
-];
-
-// Храним не просто Map name->price, а нормальный объект по id
-function normName(s) {
-  return String(s || "").trim();
-}
-function idFromName(name) {
-  return normName(name).toLowerCase().replace(/\s+/g, "-");
-}
-function cleanForMatch(s) {
-  return String(s || "")
-    .toLowerCase()
-    .replace(/[’'"]/g, "")
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-function tokenSet(s) {
-  const t = cleanForMatch(s);
-  return new Set(t ? t.split(" ").filter(Boolean) : []);
-}
-function jaccard(a, b) {
-  if (!a.size || !b.size) return 0;
-  let inter = 0;
-  for (const x of a) if (b.has(x)) inter++;
-  const union = a.size + b.size - inter;
-  return union ? inter / union : 0;
-}
-
-const gifts = giftsCatalog.map(name => ({
-  id: idFromName(name),
-  name
-}));
-
-// slug map file (переживает рестарт)
-
-
-const DATA_DIR = process.env.DATA_DIR || "./data";
-const SLUG_MAP_FILE = process.env.GIFT_SLUG_MAP_FILE || path.join(DATA_DIR, "gifts-slug-map.json");
-
-function safeReadJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
-}
-function safeWriteJson(file, obj) {
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(obj, null, 2), "utf8");
-  } catch (e) {
-    console.warn("[gifts] cannot write slug map:", e?.message || e);
-  }
-}
-
-let slugMap = safeReadJson(SLUG_MAP_FILE, {}) || {}; // id -> short_name
-
-// Кэш цен
-const giftsPrices = new Map(); // id -> { id,name,priceTon,updatedAt,short_name,confidence,matchMethod,suspicious,jumpCandidate }
+    "Berry Box",
+    "Lol Pop",
+    "Cookie Heart",
+    "Mousse Cake",
+      "Electric Skull",
+      "Vintage Cigar",
+      "Voodoo Doll",
+      "Flying Broom",
+      "Hex Pot"
+]; // tracked gift collection names (strings)
+let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
-let giftsRefreshing = false;
-let giftsRefreshPromise = null;
+let giftsCatalogLastUpdate = 0;
 
+// small helper
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchWithTimeout(url, opts = {}, timeoutMs = PORTALS_TIMEOUT_MS) {
+async function fetchWithTimeout(url, opts = {}, timeoutMs = GIFT_REQUEST_TIMEOUT_MS) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    return res;
   } finally {
     clearTimeout(t);
   }
 }
 
-async function portalsSearch(q) {
-  const url = `${PORTALS_BASE}/collections?search=${encodeURIComponent(q)}&limit=10`;
-  const r = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-  if (!r.ok) throw new Error(`portals http ${r.status}`);
-  const j = await r.json();
-  const cols = Array.isArray(j?.collections) ? j.collections : (Array.isArray(j?.items) ? j.items : []);
-  return cols;
+function normalizeGiftName(s) {
+  return String(s || "").trim();
 }
 
-function parseFloor(col) {
-  const raw = (col && (col.floor_price ?? col.floorPrice ?? col.floor)) ?? null;
-  const price = Number(raw);
-  if (!Number.isFinite(price) || price <= 0) return null;
-  return price;
+// (A) Каталог:
+// В Portals есть открытый endpoint для поиска коллекций, но полноценный "лист всех коллекций"
+// обычно завязан на mini-app/auth. Поэтому в MVP держим список отслеживаемых подарков вручную
+// (см. giftsCatalog выше). Если захочешь мониторить вообще ВСЕ подарки — добавим отдельный каталог.
+async function refreshGiftsCatalogStatic() {
+  giftsCatalog = (Array.isArray(giftsCatalog) ? giftsCatalog : []).map(normalizeGiftName).filter(Boolean);
+  giftsCatalogLastUpdate = Date.now();
+  return giftsCatalog.length;
 }
 
-function chooseBestCollection(gift, cols) {
-  const knownSlug = slugMap[gift.id];
-
-  // 1) slug exact
-  if (knownSlug) {
-    const bySlug = cols.find(c => String(c?.short_name || "").toLowerCase() === String(knownSlug).toLowerCase());
-    if (bySlug) return { col: bySlug, confidence: 1.0, method: "slug_exact" };
+// (B) Цены: Portals collections endpoint (без auth) — берём floor_price по поиску.
+// Источник: пример использования /api/collections?search=...&limit=10 -> collections[0].floor_price
+async function refreshGiftsPricesFromPortals() {
+  if (!giftsCatalog.length) {
+    await refreshGiftsCatalogStatic();
   }
 
-  // 2) exact name
-  const target = cleanForMatch(gift.name);
-  for (const c of cols) {
-    const nm = cleanForMatch(c?.name || c?.title || "");
-    if (nm && nm === target) return { col: c, confidence: 0.95, method: "name_exact" };
-  }
+  const now = Date.now();
+  let updatedCount = 0;
 
-  // 3) fuzzy tokens
-  const gt = tokenSet(gift.name);
-  let best = null;
-  let bestScore = 0;
+  for (const giftName of giftsCatalog) {
+    const q = normalizeGiftName(giftName);
+    if (!q) continue;
 
-  for (const c of cols) {
-    const nm = String(c?.name || c?.title || "").trim();
-    if (!nm) continue;
-    const score = jaccard(gt, tokenSet(nm));
-    if (score > bestScore) { bestScore = score; best = c; }
-  }
-  if (!best) return null;
-  const confidence = Math.max(0, Math.min(0.85 * bestScore, 0.9));
-  return { col: best, confidence, method: "name_fuzzy" };
-}
+    const url = `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`;
 
-function isSameCandidate(prevCand, newCand) {
-  if (!prevCand || !newCand) return false;
-  const p1 = Number(prevCand.priceTon), p2 = Number(newCand.priceTon);
-  if (!Number.isFinite(p1) || !Number.isFinite(p2) || p1 <= 0 || p2 <= 0) return false;
-  const ratio = p1 > p2 ? p1 / p2 : p2 / p1;
-  return ratio <= 1.05; // within 5%
-}
-
-function applySanity(prev, nextPrice, nextSlug) {
-  if (!prev?.priceTon) return { accept: true, suspicious: false, jumpCandidate: null };
-  const oldP = Number(prev.priceTon);
-  const newP = Number(nextPrice);
-  if (!Number.isFinite(oldP) || oldP <= 0) return { accept: true, suspicious: false, jumpCandidate: null };
-
-  const ratio = newP > oldP ? newP / oldP : oldP / newP;
-  if (ratio <= MAX_JUMP_RATIO) return { accept: true, suspicious: false, jumpCandidate: null };
-
-  const candidate = {
-    priceTon: newP,
-    short_name: String(nextSlug || ""),
-    ratio,
-    count: 1,
-    firstSeenAt: Date.now(),
-    lastSeenAt: Date.now()
-  };
-
-  if (prev.jumpCandidate && isSameCandidate(prev.jumpCandidate, candidate)) {
-    candidate.count = Math.min(99, (prev.jumpCandidate.count || 1) + 1);
-    candidate.firstSeenAt = prev.jumpCandidate.firstSeenAt || candidate.firstSeenAt;
-  }
-
-  const accept = candidate.count >= JUMP_CONFIRM_COUNT;
-  return { accept, suspicious: true, jumpCandidate: candidate };
-}
-
-async function updateGift(gift) {
-  // пробуем: сначала slug (если есть), потом имя
-  const queries = [];
-  if (slugMap[gift.id]) queries.push(slugMap[gift.id]);
-  queries.push(gift.name);
-
-  let cols = [];
-  let usedQuery = null;
-
-  for (const q of queries) {
     try {
-      cols = await portalsSearch(q);
-      if (cols && cols.length) {
-        usedQuery = q;
-        break;
+      const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+      if (!res.ok) throw new Error(`portals http ${res.status}`);
+      const data = await res.json();
+
+      const cols = Array.isArray(data?.collections) ? data.collections
+                : Array.isArray(data?.items) ? data.items
+                : [];
+      if (!cols.length) continue;
+
+      const target = q.toLowerCase();
+      let best = cols[0];
+
+      for (const c of cols) {
+        const nm = normalizeGiftName(c?.name || c?.title || c?.gift || "");
+        if (nm && nm.toLowerCase() === target) { best = c; break; }
       }
+
+      const floorRaw = (best && (best.floor_price ?? best.floorPrice ?? best.floor)) ?? null;
+      const price = Number(floorRaw);
+      if (!Number.isFinite(price) || price <= 0) continue;
+
+      giftsPrices.set(giftName, {
+        priceTon: price,
+        updatedAt: now,
+        source: "portals"
+      });
+      updatedCount++;
     } catch (e) {
-      console.warn("[gifts] portalsSearch failed for:", q, e?.message || e);
+      // не падаем, просто пропускаем этот gift
+      console.warn('[gifts] portals fetch failed for', q, '-', e?.message || e);
     }
+
+    // небольшая пауза, чтобы не долбить сервис
+    await sleep(150);
   }
 
-  if (!cols.length) return; // ничего не нашли ни по slug ни по имени
-
-  const best = chooseBestCollection(gift, cols);
-  if (!best?.col) return;
-  if (best.confidence < MIN_CONFIDENCE) return;
-
-  const priceTon = parseFloor(best.col);
-  if (!priceTon) return;
-
-  const sn = String(best.col?.short_name || "").trim();
-
-  const prev = giftsPrices.get(gift.id);
-  const sanity = applySanity(prev, priceTon, sn);
-
-  // ✅ если нашли нормальный short_name — сохраняем его (особенно если поиск был по имени)
-  if (sn && (!slugMap[gift.id] || usedQuery === gift.name)) {
-    slugMap[gift.id] = sn;
-    safeWriteJson(SLUG_MAP_FILE, slugMap);
-  }
-
-  giftsPrices.set(gift.id, {
-    id: gift.id,
-    name: gift.name,
-    priceTon: sanity.accept ? priceTon : (prev?.priceTon ?? null),
-    updatedAt: Date.now(),
-    short_name: sn || slugMap[gift.id] || null,
-    confidence: best.confidence,
-    matchMethod: best.method,
-    suspicious: sanity.suspicious && !sanity.accept,
-    jumpCandidate: sanity.jumpCandidate
-  });
+  giftsLastUpdate = now;
+  return updatedCount;
 }
-
 
 async function refreshGiftsAll() {
-  if (giftsRefreshing) return giftsRefreshPromise;
-  giftsRefreshing = true;
-
-  giftsRefreshPromise = (async () => {
-    for (const g of gifts) {
-      try { await updateGift(g); } catch (e) {
-        console.warn("[gifts] update failed:", g.name, e?.message || e);
-      }
-      await sleep(120); // не долбим портал
+  // каталог — реже (но у нас он статический, это просто "sanity" + метка времени)
+  if (!giftsCatalogLastUpdate || Date.now() - giftsCatalogLastUpdate > GIFT_CATALOG_REFRESH_MS) {
+    try {
+      await refreshGiftsCatalogStatic();
+      console.log(`[gifts] catalog loaded: ${giftsCatalog.length}`);
+    } catch (e) {
+      console.warn('[gifts] catalog refresh failed:', e?.message || e);
     }
-    giftsLastUpdate = Date.now();
-    giftsRefreshing = false;
-    giftsRefreshPromise = null;
-  })();
-
-  return giftsRefreshPromise;
-}
-
-function ensureGiftRefreshScheduled() {
-  const stale = !giftsLastUpdate || (Date.now() - giftsLastUpdate > GIFTS_STALE_AFTER_MS);
-  if (stale && !giftsRefreshing) refreshGiftsAll().catch(() => {});
-}
-
-// ---------- rate limit (очень простой) ----------
-const giftsRate = new Map(); // ip -> {count, resetAt}
-function giftsRateLimit(maxPerMin) {
-  return (req, res, next) => {
-    const ip = String(req.headers["x-forwarded-for"] || req.ip || "ip").split(",")[0].trim();
-    const now = Date.now();
-    const cur = giftsRate.get(ip);
-    if (!cur || cur.resetAt <= now) {
-      giftsRate.set(ip, { count: 1, resetAt: now + 60_000 });
-      return next();
-    }
-    cur.count++;
-    if (cur.count > maxPerMin) return res.status(429).json({ ok: false, error: "rate_limited" });
-    next();
-  };
-}
-
-// ---------- CORS для gifts ----------
-app.use(["/api/gifts/prices", "/api/gifts/catalog", "/api/gifts/portals-search"], (req, res, next) => {
-  const origin = req.headers.origin;
-
-  // dev: разрешим всё, если не задан allowlist
-  const allowAllDev = !IS_PROD_GIFTS && ALLOWED_ORIGINS_GIFTS.length === 0;
-  const allow = allowAllDev || (origin && ALLOWED_ORIGINS_GIFTS.includes(origin));
-
-  if (allowAllDev) {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-  } else if (allow) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Vary", "Origin");
   }
 
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
-
-// ---------- API ----------
-app.get("/api/gifts/catalog", giftsRateLimit(120), (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  res.json({
-    ok: true,
-    updatedAt: giftsLastUpdate,
-    count: gifts.length,
-    items: gifts.map(g => ({
-      id: g.id,
-      name: g.name,
-      short_name: slugMap[g.id] || null
-    }))
-  });
-});
-
-app.get("/api/gifts/prices", giftsRateLimit(240), async (req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-
-  ensureGiftRefreshScheduled();
-
-// ✅ первый запуск: дождаться refresh (refreshGiftsAll сам вернёт текущий promise, если уже запущен)
-if (!giftsLastUpdate) {
-  try { await refreshGiftsAll(); } catch {}
-}
-
-// ✅ возвращаем все элементы каталога, даже если у некоторых priceTon ещё null
-const items = gifts.map(g => {
-  const v = giftsPrices.get(g.id);
-  return {
-    id: g.id,
-    name: g.name,
-    priceTon: v?.priceTon ?? null,
-    updatedAt: v?.updatedAt ?? null,
-    short_name: v?.short_name ?? slugMap[g.id] ?? null,
-    confidence: v?.confidence ?? null,
-    matchMethod: v?.matchMethod ?? null,
-    suspicious: v?.suspicious ?? false
-  };
-});
-
-  res.json({
-    ok: true,
-    updatedAt: giftsLastUpdate,
-    refreshing: giftsRefreshing,
-    count: items.length,
-    items
-  });
-});
-
-// Debug search proxy (в prod только с x-admin-key)
-app.get("/api/gifts/portals-search", giftsRateLimit(30), async (req, res) => {
+  // цены — раз в час
   try {
-    const q = String(req.query.q || "").trim();
-    if (!q) return res.status(400).json({ ok: false, error: "q required" });
-
-    if (IS_PROD_GIFTS) {
-      if (!ADMIN_KEY_GIFTS) return res.status(403).json({ ok: false, error: "disabled_in_prod" });
-      const hdr = String(req.headers["x-admin-key"] || "");
-      if (hdr !== ADMIN_KEY_GIFTS) return res.status(403).json({ ok: false, error: "forbidden" });
-    }
-
-    const cols = await portalsSearch(q);
-    res.json({
-      ok: true,
-      q,
-      results: cols.map(c => ({
-        name: c?.name ?? null,
-        short_name: c?.short_name ?? null,
-        floor_price: c?.floor_price ?? null
-      }))
-    });
+    const n = await refreshGiftsPricesFromPortals();
+    console.log(`[gifts] prices updated: ${n} records (tracked=${giftsCatalog.length})`);
   } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || "search_failed" });
+    console.warn('[gifts] prices refresh failed (keeping old cache):', e?.message || e);
   }
-});
-
-// ---------- Scheduler ----------
-(function startGiftScheduler() {
-  const firstDelay = 5000 + Math.floor(Math.random() * 20000);
-  setTimeout(async () => {
-    await refreshGiftsAll();
-    setInterval(refreshGiftsAll, GIFTS_REFRESH_MS);
-  }, firstDelay);
-})();
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
 
 // ====== INVENTORY (Postgres) ======
@@ -2303,7 +1927,47 @@ app.get("/api/test/info", async (req, res) => {
 
 
 
+// ====== CORS for gifts endpoints (dev) ======
+app.use(['/api/gifts/prices','/api/gifts/catalog'], (req,res,next)=>{
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 
+// GET prices cache
+app.get("/api/gifts/prices", (req, res) => {
+  // dev-friendly CORS (helps if you open UI on another port like 5500)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const list = [];
+  for (const name of giftsCatalog) {
+    const p = giftsPrices.get(name);
+    if (!p) continue;
+    list.push({ name, ...p });
+  }
+  return res.json({
+    ok: true,
+    updatedAt: giftsLastUpdate,
+    catalogUpdatedAt: giftsCatalogLastUpdate,
+    count: list.length,
+    items: list
+  });
+});
+
+// GET catalog only
+app.get("/api/gifts/catalog", (req, res) => {
+  // dev-friendly CORS (helps if you open UI on another port like 5500)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  return res.json({
+    ok: true,
+    updatedAt: giftsCatalogLastUpdate,
+    count: giftsCatalog.length,
+    items: giftsCatalog
+  });
+});
 
 
 
@@ -2316,6 +1980,166 @@ app.get("*", (req, res, next) => {
 });
 
 // ====== Error handling ======
+
+// ====== MARKET STORE (Relayer -> Server) ======
+// Relayer posts to:
+//   POST /api/market/items/add   (requires secret)
+// Frontend reads from:
+//   GET  /api/market/items/list
+
+const MARKET_DB_PATH =
+  process.env.MARKET_DB_PATH ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/market-items.json"
+    : path.join(__dirname, "market-items.json"));
+
+function safeMarketFileBase(s) {
+  return String(s || "gift")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "gift";
+}
+
+function saveMarketImageFromData(imageData, baseName = "gift") {
+  const s = String(imageData || "").trim();
+  const m = s.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return "";
+  const mime = String(m[1] || "").toLowerCase();
+  const b64 = String(m[2] || "");
+  let buf;
+  try { buf = Buffer.from(b64, "base64"); } catch { return ""; }
+
+  // Hard limit to protect server (base64 usually ~1.33x bigger than file)
+  if (!buf || !buf.length || buf.length > 4 * 1024 * 1024) return "";
+
+  let ext = ".bin";
+  if (mime.includes("png")) ext = ".png";
+  else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
+  else if (mime.includes("webp")) ext = ".webp";
+  else if (mime.includes("gif")) ext = ".gif";
+
+  const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}${ext}`;
+  const outPath = path.join(MARKET_GIFTS_IMG_DIR, fileName);
+
+  try {
+    fs.writeFileSync(outPath, buf);
+    return `/images/gifts/marketnfts/${fileName}`;
+  } catch (e) {
+    console.error("[MarketStore] image save error:", e);
+    return "";
+  }
+}
+
+
+function getBearerToken(req) {
+  const h = String(req.headers?.authorization || "");
+  if (!h) return "";
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m ? String(m[1] || "").trim() : "";
+}
+
+function isRelayerSecretOk(req) {
+  const secret = process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "";
+  if (!secret) return false;
+  const token = getBearerToken(req);
+  const alt = String(req.headers?.["x-relayer-secret"] || req.headers?.["x-relay-secret"] || "").trim();
+  return token === secret || alt === secret;
+}
+
+async function ensureMarketDir() {
+  try {
+    const dir = path.dirname(MARKET_DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.error("[MarketStore] ensure dir error:", e);
+  }
+}
+
+async function readMarketItems() {
+  try {
+    await ensureMarketDir();
+    if (!fs.existsSync(MARKET_DB_PATH)) return [];
+    const raw = fs.readFileSync(MARKET_DB_PATH, "utf8");
+    const data = JSON.parse(raw || "[]");
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error("[MarketStore] read error:", e);
+    return [];
+  }
+}
+
+async function writeMarketItems(items) {
+  try {
+    await ensureMarketDir();
+    fs.writeFileSync(MARKET_DB_PATH, JSON.stringify(items, null, 2), "utf8");
+    return true;
+  } catch (e) {
+    console.error("[MarketStore] write error:", e);
+    return false;
+  }
+}
+
+function normalizeMarketItem(it) {
+  if (!it || typeof it !== "object") return null;
+  const id = String(it.id || "").trim();
+  const name = String(it.name || it.title || "Gift").trim();
+  const number = String(it.number || "").trim();
+  const image = String(it.image || "").trim();
+  const createdAt = Number(it.createdAt || Date.now());
+  const priceTon = (it.priceTon == null) ? null : Number(it.priceTon);
+  const tg = (it.tg && typeof it.tg === "object") ? it.tg : null;
+  if (!id) return null;
+  return { id, name, number, image, priceTon: Number.isFinite(priceTon) ? priceTon : null, createdAt, tg };
+}
+
+// List market items (public)
+app.get("/api/market/items/list", async (req, res) => {
+  const items = await readMarketItems();
+  // newest first
+  items.sort((a, b) => (Number(b.createdAt || 0) - Number(a.createdAt || 0)));
+  return res.json({ ok: true, items });
+});
+
+// Add market item (relayer/admin)
+app.post("/api/market/items/add", async (req, res) => {
+  try {
+    if (!isRelayerSecretOk(req)) {
+      return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+    let itemRaw = req.body?.item || req.body || null;
+    // Optional: accept base64 image data from relayer (so images work on production)
+    if (itemRaw && typeof itemRaw === "object" && typeof itemRaw.imageData === "string") {
+      const saved = saveMarketImageFromData(itemRaw.imageData, itemRaw.name || itemRaw.title || "gift");
+      if (saved) itemRaw.image = saved;
+      delete itemRaw.imageData;
+    }
+    const item = normalizeMarketItem(itemRaw);
+    if (!item) return res.status(400).json({ ok: false, error: "bad item" });
+
+    const items = await readMarketItems();
+    const exists = items.some((x) => String(x.id) === String(item.id));
+    if (!exists) items.unshift(item);
+
+    // Keep it sane (store up to 500)
+    const trimmed = items.slice(0, 500);
+    await writeMarketItems(trimmed);
+
+    return res.json({ ok: true, added: !exists, item, items: trimmed });
+  } catch (e) {
+    console.error("[MarketStore] add error:", e);
+    return res.status(500).json({ ok: false, error: "market error" });
+  }
+});
+
+// Clear market (secret)
+app.post("/api/market/items/clear", async (req, res) => {
+  if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+  await writeMarketItems([]);
+  return res.json({ ok: true });
+});
+
+
 app.use((err, req, res, next) => {
   console.error('[Server] Error:', err);
   res.status(500).json({
@@ -2354,7 +2178,7 @@ httpServer.listen(PORT, () => {
 
   setTimeout(async () => {
     await refreshGiftsAll();
-    setInterval(refreshGiftsAll, GIFTS_REFRESH_MS);
+    setInterval(refreshGiftsAll, GIFT_REFRESH_MS);
   }, firstDelay);
 })();
 

@@ -6,7 +6,10 @@
   // =========================
   const STORAGE_KEY = 'wg_market_gifts_v1';
 
-  const ICONS = {
+  // Server-backed market (relayer)
+  const MARKET_LIMIT = 6;            // always show 6 cards (3x2)
+  const MARKET_POLL_MS = 6000;       // auto-refresh from server
+const ICONS = {
     sticker: '/icons/market.webp',
     arrowUp: '/icons/up.svg',
     arrowDown: '/icons/down.svg',
@@ -42,12 +45,12 @@
   );
 
   const DEFAULT_GIFTS = [
-    { id: 'g1', name: 'Gift 1', number: '442,514', image: '/images/gifts/marketnfts/test.jpg', priceTon: 650 },
-    { id: 'g2', name: 'Gift 2', number: '469,447', image: PLACEHOLDER_IMG, priceTon: 720 },
-    { id: 'g3', name: 'Gift 3', number: '445,825', image: PLACEHOLDER_IMG, priceTon: 723 },
-    { id: 'g4', name: 'Gift 4', number: '371,570', image: PLACEHOLDER_IMG, priceTon: 725 },
-    { id: 'g5', name: 'Gift 5', number: '128,010', image: PLACEHOLDER_IMG, priceTon: 560 },
-    { id: 'g6', name: 'Gift 6', number: '999,999', image: PLACEHOLDER_IMG, priceTon: 810 }
+    { id: 'g1', name: 'Gift 1', number: '414', image: '/images/gifts/marketnfts/test.jpg', priceTon: 650 },
+    { id: 'g2', name: 'Gift 2', number: '469,447', image: '/images/gifts/marketnfts/test1.jpg', priceTon: 720 },
+    { id: 'g3', name: 'Gift 3', number: '445,825', image: '/images/gifts/marketnfts/test2.jpg', priceTon: 723 },
+    { id: 'g4', name: 'Gift 4', number: '371,570', image: '/images/gifts/marketnfts/test3.jpg', priceTon: 725 },
+    { id: 'g5', name: 'Gift 5', number: '128,010', image: '/images/gifts/marketnfts/test4.jpg', priceTon: 560 },
+    { id: 'g6', name: 'Gift 6', number: '999,999', image: '/images/gifts/marketnfts/test5.jpg', priceTon: 810 }
   ];
 
   // =========================
@@ -75,7 +78,7 @@
 
     if (giftsPill) {
       giftsPill.addEventListener('click', () => {
-        giftsPill.classList.toggle('is-open');
+        openFilterPanel();
       });
     }
 
@@ -91,16 +94,12 @@
     // Load gifts
     state.gifts = loadGifts();
 
-// Prefer server-side market list (so gifts appear for everyone)
-try {
-const remote = await fetchMarketItems();
-if (Array.isArray(remote) && remote.length) {
-  state.gifts = remote.slice(0, 6);
-  saveGifts(state.gifts); // cache locally as fallback
-}
-} catch (_) {}
+    // Prefer server-side market list (relayer -> server)
+    await refreshMarketFromServer({ silent: true });
 
-    // Detect currency + listen changes
+    // Auto refresh so new gifts appear without reloading the WebApp
+    setupMarketAutoRefresh();
+// Detect currency + listen changes
     state.currency = getCurrency();
     attachCurrencyListeners();
 
@@ -186,6 +185,140 @@ if (Array.isArray(remote) && remote.length) {
   // =========================
   // Render
   // =========================
+  // =========================
+  // Filter Panel
+  // =========================
+  let selectedGiftIds = new Set();
+
+  function openFilterPanel() {
+    let overlay = document.getElementById('marketFilterOverlay');
+    let panel = document.getElementById('marketFilterPanel');
+
+    if (!overlay || !panel) {
+      // Create overlay
+      overlay = document.createElement('div');
+      overlay.id = 'marketFilterOverlay';
+      overlay.className = 'market-filter-overlay';
+      overlay.addEventListener('click', closeFilterPanel);
+
+      // Create panel
+      panel = document.createElement('div');
+      panel.id = 'marketFilterPanel';
+      panel.className = 'market-filter-panel';
+      panel.innerHTML = buildFilterPanelHTML();
+
+      document.body.appendChild(overlay);
+      document.body.appendChild(panel);
+
+      // Wire events
+      wireFilterPanelEvents(panel);
+    } else {
+      // Update list
+      const list = panel.querySelector('.market-filter-list');
+      if (list) list.innerHTML = buildFilterListHTML();
+      wireFilterPanelEvents(panel);
+    }
+
+    // Show
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-open');
+      panel.classList.add('is-open');
+    });
+  }
+
+  function closeFilterPanel() {
+    const overlay = document.getElementById('marketFilterOverlay');
+    const panel = document.getElementById('marketFilterPanel');
+
+    if (overlay) overlay.classList.remove('is-open');
+    if (panel) panel.classList.remove('is-open');
+  }
+
+  function buildFilterPanelHTML() {
+    return `
+      <div class="market-filter-header">
+        <div class="market-filter-title">Gifts</div>
+        <button class="market-filter-close" type="button">
+          <img class="market-filter-close-icon" src="/icons/close.svg" alt="Close">
+        </button>
+      </div>
+      <div class="market-filter-list">${buildFilterListHTML()}</div>
+      <div class="market-filter-footer">
+        <button class="market-filter-btn market-filter-btn--clear" type="button">Clear all</button>
+        <button class="market-filter-btn market-filter-btn--show" type="button">Show results</button>
+      </div>
+    `;
+  }
+
+  function buildFilterListHTML() {
+    const gifts = state.gifts || [];
+    return gifts.map((gift) => {
+      const isChecked = selectedGiftIds.has(gift.id);
+      const price = resolvePriceTon(gift);
+      const priceText = formatPrice(price);
+      const currencyIcon = currencyIconPath(state.currency);
+      
+      return `
+        <div class="market-filter-item ${isChecked ? 'is-checked' : ''}" data-id="${escapeHtml(gift.id)}">
+          <img class="market-filter-item__icon" src="${escapeHtml(gift.image || PLACEHOLDER_IMG)}" alt="">
+          <div class="market-filter-item__name">${escapeHtml(gift.name || 'Gift')}</div>
+          <div class="market-filter-item__price">
+            <img class="market-filter-item__price-icon" src="${escapeHtml(currencyIcon)}" alt="">
+            <span>${priceText}</span>
+          </div>
+          <div class="market-filter-item__checkbox"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function wireFilterPanelEvents(panel) {
+
+    // Close button
+    const closeBtn = panel.querySelector('.market-filter-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeFilterPanel();
+      });
+    }
+
+    // Item clicks
+    const items = panel.querySelectorAll('.market-filter-item');
+    items.forEach((item) => {
+      item.addEventListener('click', () => {
+        const id = item.dataset.id;
+        if (!id) return;
+
+        if (selectedGiftIds.has(id)) {
+          selectedGiftIds.delete(id);
+          item.classList.remove('is-checked');
+        } else {
+          selectedGiftIds.add(id);
+          item.classList.add('is-checked');
+        }
+      });
+    });
+
+    // Clear all
+    const clearBtn = panel.querySelector('.market-filter-btn--clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        selectedGiftIds.clear();
+        items.forEach((item) => item.classList.remove('is-checked'));
+      });
+    }
+
+    // Show results
+    const showBtn = panel.querySelector('.market-filter-btn--show');
+    if (showBtn) {
+      showBtn.addEventListener('click', () => {
+        closeFilterPanel();
+        // TODO: apply filter to market grid
+        console.log('Selected gifts:', Array.from(selectedGiftIds));
+      });
+    }
+  }
   function renderMarket() {
     const page = document.getElementById('marketPage');
     if (!page) return;
@@ -217,41 +350,44 @@ if (Array.isArray(remote) && remote.length) {
       return state.sortDir === 'asc' ? pa - pb : pb - pa;
     });
 
-    grid.innerHTML = '';
-
-    if (!list.length) {
-      grid.innerHTML = `<div class="market-empty">No gifts yet.</div>`;
-      return;
+    const display = list.slice(0, MARKET_LIMIT);
+    while (display.length < MARKET_LIMIT) {
+      const fallback = DEFAULT_GIFTS[display.length] || { id: `ph_${display.length}`, name: 'Gift', number: '', image: PLACEHOLDER_IMG, priceTon: null };
+      display.push({ ...fallback, id: `ph_${display.length}_${String(fallback.id || '')}` });
     }
 
-    for (let i = 0; i < list.length; i++) {
-      const gift = list[i];
+    grid.innerHTML = '';
+    for (let i = 0; i < display.length; i++) {
+      const gift = display[i];
       const card = buildGiftCard(gift, i);
       grid.appendChild(card);
     }
+
+    wireCardImageFallbacks(grid);
   }
 
   function buildGiftCard(gift, index) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    if (gift.image && gift.image !== PLACEHOLDER_IMG) {
-      btn.classList.add('has-image');
-    }
-    
     btn.className = 'market-card';
     btn.dataset.id = String(gift.id || '');
     btn.style.setProperty('--card-bg', CARD_BACKGROUNDS[index % CARD_BACKGROUNDS.length]);
 
     const number = safeText(gift.number, 32);
     const price = resolvePriceTon(gift);
+    const imgSrc = withCacheBuster(normalizeImageUrl(gift.image || PLACEHOLDER_IMG), gift.createdAt || gift.id || index);
+
+    if (imgSrc && imgSrc !== PLACEHOLDER_IMG) {
+      btn.classList.add('has-image');
+    }
 
     btn.innerHTML = `
       <div class="market-card__num">#${escapeHtml(number || '—')}</div>
       <div class="market-card__imgWrap">
-        <img class="market-card__img" src="${escapeHtml(gift.image || PLACEHOLDER_IMG)}" alt="" draggable="false">
+        <img class="market-card__img" src="${escapeHtml(imgSrc)}" alt="" draggable="false" loading="lazy" decoding="async">
       </div>
       <div class="market-card__pricePill">
-        <img class="market-card__priceIcon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
+        <img class="market-card__currencyIcon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
         <span class="market-card__priceText">${formatPrice(price)}</span>
       </div>
     `;
@@ -296,11 +432,11 @@ if (Array.isArray(remote) && remote.length) {
     const next = getCurrency();
     if (next === state.currency) return;
     state.currency = next;
-
+  
     // Only update icons (no need to rebuild everything)
     const page = document.getElementById('marketPage');
     if (!page) return;
-    const icons = page.querySelectorAll('.market-card__priceIcon');
+    const icons = page.querySelectorAll('.market-card__currencyIcon'); // ← ИСПРАВЛЕНО
     const src = currencyIconPath(next);
     icons.forEach((img) => {
       img.src = src;
@@ -339,43 +475,149 @@ if (Array.isArray(remote) && remote.length) {
   // =========================
   // Data: load/save gifts
   // =========================
-  
-async function fetchMarketItems() {
-try {
-  const data = await fetchJson('/api/market/items?limit=6', { timeoutMs: 8000 });
-  const items = Array.isArray(data?.items) ? data.items : [];
-  const cleaned = items
-    .map((it, idx) => normalizeGift({
-      id: it.id,
-      name: it.name || it.title,
-      number: it.number || it.num,
-      image: it.image || it.img,
-      priceTon: it.priceTon ?? it.price_ton ?? it.price
-    }, idx))
-    .filter(Boolean)
-    .slice(0, 6);
-  return cleaned;
-} catch {
-  return [];
-}
-}
 
-function loadGifts() {
+  // =========================
+  // Server market sync (relayer -> server)
+  // =========================
+  function setupMarketAutoRefresh() {
+    if (state._marketPollId) return;
+
+    // Poll for new items (simple and reliable in Telegram WebView)
+    state._marketPollId = setInterval(() => {
+      refreshMarketFromServer({ silent: true });
+    }, MARKET_POLL_MS);
+
+    // Also refresh when user returns to the tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshMarketFromServer({ silent: true });
+      }
+    });
+  }
+
+  async function refreshMarketFromServer({ silent = false } = {}) {
+    try {
+      const remote = await fetchMarketItemsFromServer(MARKET_LIMIT);
+      if (!Array.isArray(remote) || !remote.length) return;
+
+      if (sameGiftIds(remote, state.gifts)) return;
+
+      state.gifts = remote.slice(0, MARKET_LIMIT);
+      saveGifts(state.gifts); // local fallback cache
+
+      if (!silent) console.log('[Market] synced from server:', state.gifts.length);
+      renderMarket();
+    } catch (e) {
+      // ignore (offline / route missing)
+    }
+  }
+
+  async function fetchMarketItemsFromServer(limit = MARKET_LIMIT) {
+    const endpoints = [
+      `/api/market/items?limit=${encodeURIComponent(String(limit))}`,
+      `/api/market/items/list?limit=${encodeURIComponent(String(limit))}`,
+      `/api/market/items/list`,
+      `/api/market/items`
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const data = await fetchJson(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { timeoutMs: 8000 });
+        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+        if (!items.length) continue;
+
+        const cleaned = items
+          .map((it, idx) => normalizeGift({
+            id: it.id,
+            name: it.name || it.title,
+            number: it.number || it.num,
+            image: it.image || it.img || it.icon,
+            priceTon: it.priceTon ?? it.price_ton ?? it.price,
+            createdAt: it.createdAt || it.ts || it.time
+          }, idx))
+          .filter(Boolean)
+          .slice(0, limit);
+
+        if (cleaned.length) return cleaned;
+      } catch (_) {
+        // try next endpoint
+      }
+    }
+
+    return [];
+  }
+
+  function sameGiftIds(a, b) {
+    const aa = Array.isArray(a) ? a : [];
+    const bb = Array.isArray(b) ? b : [];
+    if (aa.length !== bb.length) return false;
+    for (let i = 0; i < aa.length; i++) {
+      if (String(aa[i]?.id || '') !== String(bb[i]?.id || '')) return false;
+    }
+    return true;
+  }
+
+  // =========================
+  // Images: normalize + fallback
+  // =========================
+  function isDataUrl(s) {
+    return typeof s === 'string' && s.startsWith('data:');
+  }
+
+  function normalizeImageUrl(src) {
+    const s = safeText(src, 100000);
+    if (!s) return PLACEHOLDER_IMG;
+    if (isDataUrl(s)) return s;
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    if (s.startsWith('/')) return s;
+    return '/' + s;
+  }
+
+  function withCacheBuster(url, key) {
+    const u = String(url || '');
+    if (!u) return PLACEHOLDER_IMG;
+    if (isDataUrl(u)) return u;
+
+    // avoid caching problems right after relayer added an image
+    const k = encodeURIComponent(String(key || Date.now()));
+    if (u.startsWith('/images/') || u.startsWith('images/')) {
+      const sep = u.includes('?') ? '&' : '?';
+      return u + sep + 'v=' + k;
+    }
+    return u;
+  }
+
+  function wireCardImageFallbacks(rootEl) {
+    const root = rootEl || document;
+    const imgs = root.querySelectorAll('.market-card__img');
+    imgs.forEach((img) => {
+      if (img.dataset.wgWired === '1') return;
+      img.dataset.wgWired = '1';
+
+      img.addEventListener('error', () => {
+        if (img.dataset.wgFailed === '1') return;
+        img.dataset.wgFailed = '1';
+        img.src = PLACEHOLDER_IMG;
+      });
+    });
+  }
+
+  function loadGifts() {
     const raw = safeStorageGet(STORAGE_KEY);
-    if (!raw) return DEFAULT_GIFTS.slice(0, 6);
+    if (!raw) return DEFAULT_GIFTS.slice(0, MARKET_LIMIT);
 
     try {
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return DEFAULT_GIFTS.slice(0, 6);
+      if (!Array.isArray(parsed)) return DEFAULT_GIFTS.slice(0, MARKET_LIMIT);
 
       const cleaned = parsed
         .map((g, idx) => normalizeGift(g, idx))
         .filter(Boolean)
-        .slice(0, 6);
+        .slice(0, MARKET_LIMIT);
 
-      return cleaned.length ? cleaned : DEFAULT_GIFTS.slice(0, 6);
+      return cleaned.length ? cleaned : DEFAULT_GIFTS.slice(0, MARKET_LIMIT);
     } catch {
-      return DEFAULT_GIFTS.slice(0, 6);
+      return DEFAULT_GIFTS.slice(0, MARKET_LIMIT);
     }
   }
 
@@ -395,7 +637,8 @@ function loadGifts() {
     const image = safeText(g.image, 100000) || PLACEHOLDER_IMG;
     const priceTon = toFiniteNumber(g.priceTon);
 
-    return { id, name, number, image, priceTon: Number.isFinite(priceTon) ? priceTon : null };
+    const createdAt = Number(g.createdAt || g.ts || g.time || Date.now());
+    return { id, name, number, image, priceTon: Number.isFinite(priceTon) ? priceTon : null, createdAt: Number.isFinite(createdAt) ? createdAt : Date.now() };
   }
 
   // =========================
@@ -415,21 +658,37 @@ function loadGifts() {
 
   async function fetchGiftsPricesCache() {
     const map = new Map();
-    try {
-      const data = await fetchJson('/api/gifts/prices', { timeoutMs: 8000 });
-      const items = Array.isArray(data?.items) ? data.items : [];
-      for (const it of items) {
-        const nm = normalizeKey(it?.name);
-        const price = toFiniteNumber(it?.priceTon ?? it?.price_ton ?? it?.price);
-        if (nm && Number.isFinite(price) && price > 0) {
-          map.set(nm, price);
-        }
+
+    // Same logic as in cases.js: try same-origin first, then dev fallbacks.
+    const endpoints = [
+      '/api/gifts/prices',
+      'http://localhost:7700/api/gifts/prices',
+      'http://localhost:3000/api/gifts/prices'
+    ];
+
+    let data = null;
+    for (const base of endpoints) {
+      try {
+        const url = `${base}?t=${Date.now()}`; // bust cache
+        data = await fetchJson(url, { timeoutMs: 8000 });
+        if (data) break;
+      } catch (_) {
+        // try next
       }
-    } catch {
-      // ignore
     }
+
+    const items = Array.isArray(data?.items) ? data.items : [];
+    for (const it of items) {
+      const nm = normalizeKey(it?.name);
+      const price = toFiniteNumber(it?.priceTon ?? it?.price_ton ?? it?.price);
+      if (nm && Number.isFinite(price) && price > 0) {
+        map.set(nm, price);
+      }
+    }
+
     return map;
   }
+
 
   async function hydrateMissingPricesFromPortals(list) {
     const missing = (Array.isArray(list) ? list : []).filter((g) => {
@@ -463,17 +722,22 @@ function loadGifts() {
       const url = `/api/gifts/portals-search?q=${encodeURIComponent(q)}`;
       const data = await fetchJson(url, { timeoutMs: 9000 });
 
-      const cols = Array.isArray(data?.collections)
-        ? data.collections
-        : Array.isArray(data?.items)
-          ? data.items
-          : [];
+      // server.js returns { ok, q, results:[{name, short_name, floor_price}] }
+      // but we also support the raw portals shape { collections:[...] } just in case.
+      const cols =
+        Array.isArray(data?.results) ? data.results :
+        Array.isArray(data?.collections) ? data.collections :
+        Array.isArray(data?.items) ? data.items : [];
 
       if (!cols.length) return null;
 
-      // Best guess: pick first, read floor
-      const best = cols[0];
-      const floorRaw = best?.floor_price ?? best?.floorPrice ?? best?.floor ?? null;
+      // Prefer exact name match (case-insensitive). Otherwise take first.
+      const target = q.toLowerCase();
+      const best = cols.find((c) => String(c?.name || c?.title || '').trim().toLowerCase() === target) || cols[0];
+
+      const floorRaw =
+        best?.floor_price ?? best?.floorPrice ?? best?.floor ?? best?.floorPriceTon ?? null;
+
       const price = toFiniteNumber(floorRaw);
       if (!Number.isFinite(price) || price <= 0) return null;
 
@@ -482,6 +746,7 @@ function loadGifts() {
       return null;
     }
   }
+
 
   // =========================
   // Upload script (dev)
@@ -526,7 +791,7 @@ function loadGifts() {
     list.unshift(newGift);
 
     // Keep exactly 6
-    state.gifts = list.slice(0, 6);
+    state.gifts = list.slice(0, MARKET_LIMIT);
     saveGifts(state.gifts);
 
     renderMarket();
@@ -538,7 +803,7 @@ function loadGifts() {
     } catch {
       // ignore
     }
-    state.gifts = DEFAULT_GIFTS.slice(0, 6);
+    state.gifts = DEFAULT_GIFTS.slice(0, MARKET_LIMIT);
     renderMarket();
   };
 

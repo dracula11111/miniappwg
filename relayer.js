@@ -232,6 +232,7 @@ async function run() {
 
     // Download image / thumb
     let imageUrl = "";
+    let imageData = "";
     try {
       if (doc) {
         const mime = String(doc.mimeType || "");
@@ -266,6 +267,20 @@ async function run() {
 
         if (ok) {
           imageUrl = `/images/gifts/marketnfts/${fileName}`;
+          // Also send imageData (base64) so prod server can save + serve the image
+          try {
+            const buf = fs.readFileSync(outPath);
+            if (buf && buf.length && buf.length <= 3 * 1024 * 1024) {
+              const ext2 = String(ext || "").toLowerCase();
+              const mime2 =
+                ext2 === ".png" ? "image/png" :
+                (ext2 === ".jpg" || ext2 === ".jpeg") ? "image/jpeg" :
+                ext2 === ".webp" ? "image/webp" :
+                ext2 === ".gif" ? "image/gif" :
+                "application/octet-stream";
+              imageData = `data:${mime2};base64,${buf.toString("base64")}`;
+            }
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -298,6 +313,7 @@ async function run() {
       name: title,
       number: numberText,
       image: imageUrl || "",
+      imageData: imageData || "",
       priceTon: null,
       createdAt: Date.now(),
       tg: {
