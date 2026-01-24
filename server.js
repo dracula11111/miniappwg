@@ -557,6 +557,112 @@ app.use(express.static(path.join(__dirname, "public"), {
   }
 }));
 
+// ==============================
+// MARKET STORE (file-based)
+// ==============================
+// Хранит список лотов маркета на сервере (не в localStorage клиента).
+// Добавление идёт через приватный ключ (RELAYER_SECRET / MARKET_SECRET).
+const MARKET_DIR = path.join(__dirname, "data");
+const MARKET_FILE = path.join(MARKET_DIR, "market-items.json");
+const MARKET_MAX_ITEMS = 60;
+const MARKET_SECRET = process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "";
+
+try {
+  if (!fs.existsSync(MARKET_DIR)) fs.mkdirSync(MARKET_DIR, { recursive: true });
+} catch (e) {
+  console.warn("[MarketStore] Can't create data dir:", e?.message || e);
+}
+
+function getSecretFromReq(req) {
+  const h = req.headers || {};
+  const auth = String(h.authorization || "");
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return String(
+    h["x-relayer-secret"] ||
+    h["x-market-secret"] ||
+    (req.body && req.body.secret) ||
+    ""
+  ).trim();
+}
+function isMarketSecretOk(req) {
+  if (!MARKET_SECRET) return true; // dev mode
+  return getSecretFromReq(req) === String(MARKET_SECRET);
+}
+
+async function readMarketItems() {
+  try {
+    const raw = await fs.promises.readFile(MARKET_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+async function writeMarketItems(items) {
+  const list = Array.isArray(items) ? items : [];
+  const tmp = MARKET_FILE + ".tmp";
+  await fs.promises.writeFile(tmp, JSON.stringify(list, null, 2), "utf-8");
+  await fs.promises.rename(tmp, MARKET_FILE);
+}
+
+function normalizeMarketItem(it) {
+  if (!it || typeof it !== "object") return null;
+  const id = safeShortText(it.id || it.instanceId || "", 80) || `m_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
+  const name = safeShortText(it.name || it.title || "Gift", 80) || "Gift";
+  const number = safeShortText(it.number || it.num || "", 32) || "";
+  const image = safePath(it.image || it.img || "") || "";
+  const priceTon = Number(it.priceTon ?? it.price_ton ?? it.price ?? NaN);
+  const createdAt = Number.isFinite(Number(it.createdAt)) ? Number(it.createdAt) : Date.now();
+  return {
+    id,
+    name,
+    number,
+    image,
+    priceTon: Number.isFinite(priceTon) ? priceTon : null,
+    createdAt
+  };
+}
+
+// Get market items (for Market page)
+app.get("/api/market/items", async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(60, Number(req.query.limit || 6) || 6));
+    const items = await readMarketItems();
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ok: true, items: items.slice(0, limit) });
+  } catch (e) {
+    console.error("[MarketStore] list error:", e);
+    return res.status(500).json({ ok: false, error: "market error" });
+  }
+});
+
+// Add market item (called by relayer/admin)
+app.post("/api/market/items/add", async (req, res) => {
+  try {
+    if (!isMarketSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+
+    const itemRaw = req.body?.item || req.body || null;
+    const item = normalizeMarketItem(itemRaw);
+    if (!item) return res.status(400).json({ ok: false, error: "bad item" });
+
+    const list = await readMarketItems();
+
+    // de-dup by id
+    const filtered = list.filter(x => String(x?.id) !== String(item.id));
+    filtered.unshift(item);
+    if (filtered.length > MARKET_MAX_ITEMS) filtered.length = MARKET_MAX_ITEMS;
+
+    await writeMarketItems(filtered);
+
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ ok: true, item, items: filtered.slice(0, 6) });
+  } catch (e) {
+    console.error("[MarketStore] add error:", e);
+    return res.status(500).json({ ok: false, error: "market error" });
+  }
+});
+
+
 function broadcastTick() {
   // Keep ticks tiny (clients interpolate)
   const msg = JSON.stringify({
