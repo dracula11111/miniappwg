@@ -2198,7 +2198,7 @@ app.get("/api/test/info", async (req, res) => {
 
 
 // ====== CORS for gifts endpoints (dev) ======
-app.use(['/api/gifts/prices','/api/gifts/catalog'], (req,res,next)=>{
+app.use(['/api/gifts/prices','/api/gifts/catalog','/api/gifts/price','/api/gifts/portals-search'], (req,res,next)=>{
   res.setHeader('Access-Control-Allow-Origin','*');
   res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
@@ -2302,9 +2302,11 @@ app.get('/api/gifts/portals-search', async (req, res) => {
   const j = await r.json();
 
   const cols = Array.isArray(j?.collections) ? j.collections : [];
+  // Backward/forward compatible: return both `collections` and `results`
   res.json({
     ok: true,
     q,
+    collections: cols,
     results: cols.map(c => ({
       name: c.name,
       short_name: c.short_name,
@@ -2312,6 +2314,7 @@ app.get('/api/gifts/portals-search', async (req, res) => {
     }))
   });
 });
+
 
 // ========== HELPERS ==========
 function baseUrlFrom(req) {

@@ -658,10 +658,10 @@ function openGiftDrawer(gift) {
     });
 
     // Keep this light: max 3 requests, sequential
-    const todo = missing.slice(0, 3);
+    const todo = missing.slice(0, 6);
 
     for (const g of todo) {
-      const price = await fetchPriceFromPortals(g.name);
+      const price = await fetchPriceSmart(g.name);
       if (Number.isFinite(price) && price > 0) {
         g.priceTon = price;
       }
@@ -675,23 +675,33 @@ function openGiftDrawer(gift) {
   }
 
   // NOTE: expects your backend route. If route is missing, returns null.
-  async function fetchPriceFromPortals(name) {
+  async function fetchPriceSmart(name) {
     const q = safeText(name, 80);
     if (!q) return null;
 
+    // Preferred: server-side unified endpoint (Portals -> Tonnel fallback)
     try {
-      const url = `/api/gifts/portals-search?q=${encodeURIComponent(q)}`;
-      const data = await fetchJson(url, { timeoutMs: 9000 });
+      const data = await fetchJson(`/api/gifts/price?name=${encodeURIComponent(q)}`, { timeoutMs: 12000 });
+      const p = toFiniteNumber(data?.priceTon ?? data?.price_ton ?? data?.price);
+      if (Number.isFinite(p) && p > 0) return p;
+    } catch {
+      // ignore
+    }
+
+    // Backward compat: old endpoint
+    try {
+      const data = await fetchJson(`/api/gifts/portals-search?q=${encodeURIComponent(q)}`, { timeoutMs: 9000 });
 
       const cols = Array.isArray(data?.collections)
         ? data.collections
-        : Array.isArray(data?.items)
-          ? data.items
-          : [];
+        : Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
 
       if (!cols.length) return null;
 
-      // Best guess: pick first, read floor
       const best = cols[0];
       const floorRaw = best?.floor_price ?? best?.floorPrice ?? best?.floor ?? null;
       const price = toFiniteNumber(floorRaw);
@@ -739,7 +749,7 @@ function openGiftDrawer(gift) {
     };
 
     // Pull price from portals (as requested)
-    const p = await fetchPriceFromPortals(name);
+    const p = await fetchPriceSmart(name);
     if (Number.isFinite(p) && p > 0) newGift.priceTon = p;
 
     const list = loadGiftsLocal();
