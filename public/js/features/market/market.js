@@ -425,6 +425,8 @@
 
     const tg = (g.tg && typeof g.tg === 'object') ? g.tg : null;
 
+    const previewUrl = safeText(g.previewUrl, 220000) || safeText(tg?.previewUrl, 220000) || '';
+
     // image can be:
     //  - data:image/... (from relayer when INLINE_IMAGES=1)
     //  - /images/... (when relayer and server are on same machine)
@@ -441,6 +443,7 @@
       name,
       number,
       image,
+      previewUrl,
       priceTon: Number.isFinite(priceTon) ? priceTon : null,
       createdAt: Number.isFinite(createdAt) ? createdAt : null,
       tg
