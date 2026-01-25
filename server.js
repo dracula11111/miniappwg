@@ -9,6 +9,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { createServer } from 'http';
+import sharp from "sharp";
+
 
 // We import Postgres DB module dynamically AFTER dotenv has loaded.
 // This fixes the common issue when database-pg.js reads process.env during module initialization.
@@ -570,7 +572,22 @@ try { fs.mkdirSync(MARKET_GIFTS_IMG_DIR, { recursive: true }); } catch {}
 app.use("/images/gifts/marketnfts", express.static(MARKET_GIFTS_IMG_DIR, {
   fallthrough: true,
   maxAge: "1h"
+}))
+// --- Market previews dir (persist on Render under /opt/render/project/data)
+const MARKET_PREVIEWS_DIR =
+  process.env.MARKET_PREVIEWS_DIR ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/marketpreviews"
+    : path.join(__dirname, "public", "images", "gifts", "marketpreviews"));
+
+try { fs.mkdirSync(MARKET_PREVIEWS_DIR, { recursive: true }); } catch {}
+
+// Serve generated previews
+app.use("/images/gifts/marketpreviews", express.static(MARKET_PREVIEWS_DIR, {
+  fallthrough: true,
+  maxAge: "1h"
 }));
+;
 
 function safeMarketFileBase(s) {
   return String(s || "gift")
@@ -606,6 +623,120 @@ function saveMarketImageFromData(imageData, baseName = "gift") {
     return `/images/gifts/marketnfts/${fileName}`;
   } catch (e) {
     console.error("[MarketStore] image save error:", e);
+    return "";
+  }
+}
+
+
+
+function mimeFromExt(p) {
+  const s = String(p || "").toLowerCase();
+  if (s.endsWith(".png")) return "image/png";
+  if (s.endsWith(".jpg") || s.endsWith(".jpeg")) return "image/jpeg";
+  if (s.endsWith(".webp")) return "image/webp";
+  if (s.endsWith(".gif")) return "image/gif";
+  return "application/octet-stream";
+}
+
+function tryReadLocalImageAsDataUrl(publicUrl) {
+  const u = String(publicUrl || "").trim();
+  if (!u.startsWith("/images/")) return "";
+
+  // IMPORTANT: handle the special dir served from MARKET_GIFTS_IMG_DIR
+  if (u.startsWith("/images/gifts/marketnfts/")) {
+    const file = u.split("/").pop();
+    if (!file) return "";
+    const abs = path.join(MARKET_GIFTS_IMG_DIR, file);
+    try {
+      const buf = fs.readFileSync(abs);
+      const mime = mimeFromExt(file);
+      return `data:${mime};base64,${buf.toString("base64")}`;
+    } catch {
+      return "";
+    }
+  }
+
+  // fallback: static files inside ./public
+  try {
+    const abs = path.join(__dirname, "public", u);
+    const buf = fs.readFileSync(abs);
+    const mime = mimeFromExt(u);
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  } catch {
+    return "";
+  }
+}
+
+function escAttr(s) {
+  return String(s || "").replace(/"/g, "&quot;");
+}
+
+async function renderMarketPreviewBuffer(tg, opts = {}) {
+  const size = opts.size ?? 512;
+  const modelScale = opts.modelScale ?? 0.72;
+  const modelY = opts.modelY ?? -18;
+  const patternOpacity = opts.patternOpacity ?? 0.20;
+
+  const center = tg?.backdrop?.center || "#363738";
+  const edge   = tg?.backdrop?.edge   || "#0e0f0f";
+  const pColor = tg?.backdrop?.patternColor || "#6c6868";
+
+  // pattern/model may be data-url or /images/...
+  const patternRaw = tg?.pattern?.image || "";
+  const modelRaw   = tg?.model?.image || "";
+
+  const patternDataUrl =
+    String(patternRaw).startsWith("data:") ? patternRaw : tryReadLocalImageAsDataUrl(patternRaw);
+  const modelDataUrl =
+    String(modelRaw).startsWith("data:") ? modelRaw : tryReadLocalImageAsDataUrl(modelRaw);
+
+  if (!patternDataUrl || !modelDataUrl) return null;
+
+  // fixed tile size (как у тебя natural 128x128) — тут DPR уже не важен
+  const tile = 128;
+
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+    <defs>
+      <radialGradient id="bg" cx="50%" cy="45%" r="80%">
+        <stop offset="0%" stop-color="${center}"/>
+        <stop offset="100%" stop-color="${edge}"/>
+      </radialGradient>
+
+      <pattern id="pat" patternUnits="userSpaceOnUse" width="${tile}" height="${tile}">
+        <image href="${escAttr(patternDataUrl)}" width="${tile}" height="${tile}" />
+      </pattern>
+
+      <mask id="patMask">
+        <rect width="100%" height="100%" fill="url(#pat)"/>
+      </mask>
+    </defs>
+
+    <rect width="100%" height="100%" fill="url(#bg)"/>
+    <rect width="100%" height="100%" fill="${pColor}" mask="url(#patMask)" opacity="${patternOpacity}"/>
+
+    <image href="${escAttr(modelDataUrl)}"
+      x="${Math.round((size - size*modelScale)/2)}"
+      y="${Math.round((size - size*modelScale)/2) + modelY}"
+      width="${Math.round(size*modelScale)}"
+      height="${Math.round(size*modelScale)}"
+      preserveAspectRatio="xMidYMid meet"
+    />
+  </svg>`.trim();
+
+  const buf = await sharp(Buffer.from(svg)).webp({ quality: 92 }).toBuffer();
+  return buf;
+}
+
+function saveMarketPreviewBuffer(buf, baseName = "gift") {
+  if (!buf || !buf.length) return "";
+  const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}.webp`;
+  const outPath = path.join(MARKET_PREVIEWS_DIR, fileName);
+  try {
+    fs.writeFileSync(outPath, buf);
+    return `/images/gifts/marketpreviews/${fileName}`;
+  } catch (e) {
+    console.error("[MarketStore] preview save error:", e);
     return "";
   }
 }
@@ -1886,12 +2017,25 @@ app.post("/api/market/items/add", async (req, res) => {
 
     const out = {
       ...item,
+      
       id, name, number,
       image,
       priceTon: Number.isFinite(priceTon) ? priceTon : null,
       createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+      
     };
+    
     delete out.imageData;
+    // --- generate previewUrl (one combined image) ---
+    try {
+      if (!out.previewUrl && out.tg && out.tg.backdrop && out.tg.pattern && out.tg.model) {
+        const buf = await renderMarketPreviewBuffer(out.tg, { size: 512 });
+        const url = buf ? saveMarketPreviewBuffer(buf, out.name || "gift") : "";
+        if (url) out.previewUrl = url;
+      }
+    } catch (e) {
+      console.warn("[MarketStore] preview render failed:", e?.message || e);
+    }
 
     const items = await readMarketItems();
     items.unshift(out);

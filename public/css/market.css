@@ -187,24 +187,36 @@
   z-index: 1;
   opacity: .18;
   pointer-events: none;
+
   background-repeat: repeat;
-  background-size: 64px 64px;
-  background-position: center;
+  background-size: var(--pattern-size, 49px) var(--pattern-size, 49px);
+  background-position: 50% 50%;
+
+  background-image: var(--pattern-bg);
 }
 
-/* If mask is supported — tint pattern with patternColor */
 @supports (-webkit-mask-image: url("")) {
-  .market-card__pattern{
-    background-image: none !important;
+  .market-card__pattern::after{
+    content:"";
+    position:absolute;
+    inset:0;
+
     background-color: var(--pattern-color, rgba(255,255,255,.35));
+
     -webkit-mask-image: var(--pattern-mask);
     mask-image: var(--pattern-mask);
     -webkit-mask-repeat: repeat;
     mask-repeat: repeat;
-    -webkit-mask-size: 64px 64px;
-    mask-size: 64px 64px;
-    -webkit-mask-position: center;
-    mask-position: center;
+
+    /* ВАЖНО: одинаково для webkit и обычного */
+    -webkit-mask-size: var(--pattern-size, 49px) var(--pattern-size, 49px);
+    mask-size: var(--pattern-size, 49px) var(--pattern-size, 49px);
+
+    -webkit-mask-position: 50% 50%;
+    mask-position: 50% 50%;
+
+    opacity: 1;
+    pointer-events:none;
   }
 }
 

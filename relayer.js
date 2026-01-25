@@ -189,7 +189,9 @@ async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
     }
     if (!buf || !buf.length) return "";
 
-    const outMime = guessDataMime(mime, { forceJpeg: shouldThumb });
+    const sniffed = sniffMimeFromBuffer(buf);
+    const outMime = sniffed || guessDataMime(mime);
+
     return `data:${outMime};base64,${Buffer.from(buf).toString("base64")}`;
   } catch (e) {
     if (DEBUG) console.log("[Relayer] downloadDocAsDataUrl error:", e?.message || e);
@@ -293,6 +295,25 @@ async function run() {
 
 
   const processed = new Set();
+
+
+
+
+  function sniffMimeFromBuffer(buf) {
+    if (!buf || buf.length < 12) return null;
+  
+    // PNG
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return "image/png";
+    // JPEG
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return "image/jpeg";
+    // WEBP (RIFF....WEBP)
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return "image/webp";
+  
+    return null;
+  }
+
+  
 
   async function handleGiftMessage(msg, origin = "RAW") {
     if (!msg || msg.id == null) return;

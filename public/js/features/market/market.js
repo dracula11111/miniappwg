@@ -220,6 +220,8 @@
       const card = buildGiftCard(gift, i);
       grid.appendChild(card);
     }
+    applyPatternSizing(grid);
+
   }
 
   function buildGiftCard(gift, index) {
@@ -234,7 +236,8 @@
     const backdrop = tg?.backdrop || null;
 
     // Collectible backdrop -> override background with Telegram colors
-    if (backdrop && (backdrop.center || backdrop.edge)) {
+    if (backdrop) {
+
       btn.classList.add('is-collectible');
       if (backdrop.center) btn.style.setProperty('--bg-center', backdrop.center);
       if (backdrop.edge) btn.style.setProperty('--bg-edge', backdrop.edge);
@@ -260,7 +263,7 @@
 
       const patternLayer = patternUrl
         ? `<div class="market-card__pattern"
-              style='--pattern-mask:url("${patternUrl}"); background-image:url("${patternUrl}")'></div>`
+              style='--pattern-mask:url("${patternUrl}"); --pattern-bg:url("${patternUrl}")'></div>`
         : '';
 
 
@@ -713,4 +716,35 @@
   function svgDataUri(svg) {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
+  
+  function applyPatternSizing(root = document) {
+    const dpr = window.devicePixelRatio || 1;
+  
+    root.querySelectorAll('.market-card__pattern').forEach((el) => {
+      // читаем url из CSS-переменной --pattern-mask
+      const raw = el.style.getPropertyValue('--pattern-mask') || '';
+      const m = raw.match(/url\(["']?(.*?)["']?\)/);
+      if (!m) return;
+  
+      const url = m[1];
+      if (!url) return;
+  
+      const img = new Image();
+      img.onload = () => {
+        const nw = img.naturalWidth || 0;
+        if (!nw) return;
+  
+        // подбираем "родной" CSS-тайл: naturalWidth / DPR
+        // у тебя пример: 128 / 2.625 ≈ 49px
+        let px = Math.round(nw / dpr);
+  
+        // небольшие рамки, чтобы не было дикого размера на странных девайсах
+        px = Math.max(32, Math.min(72, px));
+  
+        el.style.setProperty('--pattern-size', `${px}px`);
+      };
+      img.src = url;
+    });
+  }
+  
 })();
