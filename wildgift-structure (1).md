@@ -6,7 +6,8 @@
 wildgift/
 │
 ├── 📄 server.js                    # Основной сервер Express
-├── 📄 database.js                  # JSON база данных (dev)
+├── 📄 database.js       
+├── 📄            # JSON база данных (dev)
 ├── 📄 database-sqlite.js           # SQLite база данных (production)
 ├── 📄 package.json                 # Зависимости проекта
 ├── 📄 package-lock.json            # Lockfile зависимостей

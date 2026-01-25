@@ -23,6 +23,9 @@
     '#a54b46'
   ];
 
+  // Telegram Stars conversion (fallback). You can override via localStorage key 'starsPerTon'.
+  const STARS_PER_TON_DEFAULT = 1000;
+
   const PLACEHOLDER_IMG = svgDataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
       <defs>
@@ -284,12 +287,176 @@
   }
 
   btn.addEventListener('click', () => {
-    btn.classList.toggle('is-selected');
+    openGiftDrawer(gift);
   });
 
   return btn;
 }
 
+
+
+// =========================
+// Gift Drawer (bottom sheet)
+// =========================
+let giftDrawerEl = null;
+let giftDrawerOverlayEl = null;
+let giftDrawerBuyBtn = null;
+
+function ensureGiftDrawer() {
+  if (giftDrawerEl && giftDrawerOverlayEl) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'market-gift-overlay';
+  overlay.innerHTML = `
+    <div class="market-gift-drawer" role="dialog" aria-modal="true">
+      <button class="market-gift-close" type="button" aria-label="Close">✕</button>
+
+      <div class="market-gift-hero">
+        <div class="market-gift-hero__imgWrap">
+          <img class="market-gift-hero__img" src="${escapeHtml(PLACEHOLDER_IMG)}" alt="">
+        </div>
+        <div class="market-gift-hero__meta">
+          <div class="market-gift-title">Gift</div>
+          <div class="market-gift-subtitle">Collectible</div>
+        </div>
+      </div>
+
+      <div class="market-gift-attrs">
+        <div class="market-gift-row">
+          <div class="market-gift-k">Model</div>
+          <div class="market-gift-v" data-k="model">—</div>
+        </div>
+        <div class="market-gift-row">
+          <div class="market-gift-k">Symbol</div>
+          <div class="market-gift-v" data-k="symbol">—</div>
+        </div>
+        <div class="market-gift-row">
+          <div class="market-gift-k">Backdrop</div>
+          <div class="market-gift-v" data-k="backdrop">—</div>
+        </div>
+      </div>
+
+      <div class="market-gift-footer">
+        <button class="market-gift-buy" type="button">
+          <span>Buy for</span>
+          <span class="market-gift-buy__price">
+            <img class="market-gift-buy__icon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
+            <span class="market-gift-buy__num">—</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  const drawer = overlay.querySelector('.market-gift-drawer');
+  const closeBtn = overlay.querySelector('.market-gift-close');
+  const buyBtn = overlay.querySelector('.market-gift-buy');
+
+  function close() {
+    overlay.classList.remove('is-open');
+    // allow animation
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 250);
+  }
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  closeBtn?.addEventListener('click', close);
+
+  // ESC close (desktop)
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
+  });
+
+  // Prevent clicks inside drawer from closing
+  drawer?.addEventListener('click', (e) => e.stopPropagation());
+
+  document.body.appendChild(overlay);
+
+  giftDrawerEl = drawer;
+  giftDrawerOverlayEl = overlay;
+  giftDrawerBuyBtn = buyBtn;
+}
+
+function getStarsPerTon() {
+  // allow override without redeploy
+  try {
+    const v = Number(localStorage.getItem('starsPerTon'));
+    if (Number.isFinite(v) && v > 0) return v;
+  } catch {}
+  // allow server-side injection
+  const w = Number(window.STARS_PER_TON);
+  if (Number.isFinite(w) && w > 0) return w;
+  return STARS_PER_TON_DEFAULT;
+}
+
+function formatBuyPrice(tonPrice) {
+  if (!Number.isFinite(tonPrice) || tonPrice <= 0) return { num: '—', icon: currencyIconPath(state.currency) };
+
+  if (state.currency === 'stars') {
+    const stars = Math.max(1, Math.round(tonPrice * getStarsPerTon()));
+    return { num: String(stars), icon: currencyIconPath('stars') };
+  }
+  // TON
+  return { num: formatPrice(tonPrice), icon: currencyIconPath('ton') };
+}
+
+function openGiftDrawer(gift) {
+  ensureGiftDrawer();
+
+  const tg = gift?.tg || null;
+
+  // Image: prefer Fragment medium preview, else model image, else stored image
+  const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentMediumPreviewUrlFromSlug(tg?.slug)) || '';
+  const modelImg = safeImg(tg?.model?.image);
+  const giftImg  = safeImg(gift?.image);
+  const imgSrc = previewSrc || modelImg || giftImg || PLACEHOLDER_IMG;
+
+  // Text
+  const name = safeText(gift?.name, 64) || 'Gift';
+  const number = safeText(gift?.number, 32) || '';
+  const subtitle = number ? `Collectible #${number}` : 'Collectible';
+
+  // attrs
+  const model = safeText(tg?.model?.name, 64) || '—';
+  const symbol = safeText(tg?.pattern?.name, 64) || '—';
+  const backdrop = safeText(tg?.backdrop?.name, 64) || '—';
+
+  giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('src', imgSrc);
+  giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('alt', name);
+  const t = giftDrawerEl.querySelector('.market-gift-title');
+  const s = giftDrawerEl.querySelector('.market-gift-subtitle');
+  if (t) t.textContent = name;
+  if (s) s.textContent = subtitle;
+
+  const setAttr = (key, val) => {
+    const el = giftDrawerEl.querySelector(`.market-gift-v[data-k="${key}"]`);
+    if (el) el.textContent = val;
+  };
+  setAttr('model', model);
+  setAttr('symbol', symbol);
+  setAttr('backdrop', backdrop);
+
+  // price
+  const priceTon = resolvePriceTon(gift);
+  const bp = formatBuyPrice(priceTon);
+  const iconEl = giftDrawerEl.querySelector('.market-gift-buy__icon');
+  const numEl = giftDrawerEl.querySelector('.market-gift-buy__num');
+  if (iconEl) iconEl.setAttribute('src', bp.icon);
+  if (numEl) numEl.textContent = bp.num;
+
+  // click buy (stub)
+  giftDrawerBuyBtn.onclick = async () => {
+    // TODO: hook to real buy flow
+    toast(`🛒 Buy: ${name} (${bp.num} ${state.currency === 'stars' ? 'Stars' : 'TON'})`);
+  };
+
+  giftDrawerOverlayEl.style.display = 'block';
+  // next tick for animation
+  requestAnimationFrame(() => giftDrawerOverlayEl.classList.add('is-open'));
+}
 
   // =========================
   // Currency
