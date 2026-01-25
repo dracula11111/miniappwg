@@ -223,70 +223,72 @@
   }
 
   function buildGiftCard(gift, index) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'market-card';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'market-card';
 
-    // keep existing background palette (fallback)
-    btn.style.setProperty('--card-bg', CARD_BACKGROUNDS[index % CARD_BACKGROUNDS.length]);
+  // keep existing background palette (fallback)
+  btn.style.setProperty('--card-bg', CARD_BACKGROUNDS[index % CARD_BACKGROUNDS.length]);
 
-    const tg = gift?.tg && typeof gift.tg === 'object' ? gift.tg : null;
-    const backdrop = tg?.backdrop || null;
+  const tg = gift?.tg && typeof gift.tg === 'object' ? gift.tg : null;
+  const backdrop = tg?.backdrop || null;
 
-    // Collectible backdrop -> override background with Telegram colors
-    if (backdrop && (backdrop.center || backdrop.edge)) {
-      btn.classList.add('is-collectible');
-      if (backdrop.center) btn.style.setProperty('--bg-center', backdrop.center);
-      if (backdrop.edge) btn.style.setProperty('--bg-edge', backdrop.edge);
-      if (backdrop.patternColor) btn.style.setProperty('--pattern-color', backdrop.patternColor);
-      if (backdrop.textColor) btn.style.setProperty('--backdrop-text', backdrop.textColor);
-    }
+  // Collectible backdrop -> (only used as fallback behind the preview)
+  if (backdrop && (backdrop.center || backdrop.edge)) {
+    btn.classList.add('is-collectible');
+    if (backdrop.center) btn.style.setProperty('--bg-center', backdrop.center);
+    if (backdrop.edge) btn.style.setProperty('--bg-edge', backdrop.edge);
+    if (backdrop.patternColor) btn.style.setProperty('--pattern-color', backdrop.patternColor);
+    if (backdrop.textColor) btn.style.setProperty('--backdrop-text', backdrop.textColor);
+  }
 
-    btn.dataset.id = String(gift.id || '');
+  btn.dataset.id = String(gift.id || '');
 
-    const number = safeText(gift.number, 32);
-    const price = resolvePriceTon(gift);
+  const number = safeText(gift.number, 32);
+  const price = resolvePriceTon(gift);
 
-    // 1) Берём картинки через safeImg (data: не режем)
-      const modelImg = safeImg(tg?.model?.image);
-      const giftImg  = safeImg(gift?.image);
-      const imgSrc   = modelImg || giftImg || PLACEHOLDER_IMG;
+  // ✅ Prefer pre-rendered Fragment preview (already contains backdrop + pattern + gift)
+  const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentMediumPreviewUrlFromSlug(tg?.slug)) || '';
 
-      const patternSrc = safeImg(tg?.pattern?.image) || '';
+  // Fallbacks (if preview missing)
+  const modelImg = safeImg(tg?.model?.image);
+  const giftImg  = safeImg(gift?.image);
 
-      // 2) Для CSS url лучше НЕ вставлять через '...' (может сломаться на кавычках/скобках)
-      // Минимально безопасный вариант: encodeURI + двойные кавычки
-      const patternUrl = patternSrc ? encodeURI(patternSrc) : '';
+  const imgSrc = previewSrc || modelImg || giftImg || PLACEHOLDER_IMG;
 
-      const patternLayer = patternUrl
-        ? `<div class="market-card__pattern"
-              style='--pattern-mask:url("${patternUrl}"); background-image:url("${patternUrl}")'></div>`
-        : '';
+  if (previewSrc) btn.classList.add('has-preview');
+  if (imgSrc && imgSrc !== PLACEHOLDER_IMG) btn.classList.add('has-image');
 
-
-    if (imgSrc && imgSrc !== PLACEHOLDER_IMG) {
-      btn.classList.add('has-image');
-    }
-
-    btn.innerHTML = `
+  btn.innerHTML = `
     <div class="market-card__num"><span>#${escapeHtml(number || '—')}</span></div>
-    ${patternLayer}
+
     <div class="market-card__imgWrap">
       <img class="market-card__img" src="${escapeHtml(imgSrc)}" alt="${escapeHtml(gift?.name || '')}" draggable="false">
     </div>
+
     <div class="market-card__pricePill">
       <img class="market-card__priceIcon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
       <span>${formatPrice(price)}</span>
     </div>
   `;
 
-    // Placeholder click behavior (swap later)
-    btn.addEventListener('click', () => {
-      btn.classList.toggle('is-selected');
-    });
-
-    return btn;
+  // If Fragment uses .jpg but sometimes .jpeg exists: auto-fallback once
+  if (previewSrc) {
+    const img = btn.querySelector('.market-card__img');
+    img?.addEventListener('error', () => {
+      const src = String(img.getAttribute('src') || '');
+      if (/\.medium\.jpg$/i.test(src)) {
+        img.setAttribute('src', src.replace(/\.medium\.jpg$/i, '.medium.jpeg'));
+      }
+    }, { once: true });
   }
+
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('is-selected');
+  });
+
+  return btn;
+}
 
 
   // =========================
@@ -606,7 +608,16 @@
     if (!s) return '';
     return s.length > max ? s.slice(0, max) : s;
   }
-  function safeImg(v, maxUrl = 4096) {
+  
+function fragmentMediumPreviewUrlFromSlug(slug) {
+  const s = String(slug ?? '').trim();
+  if (!s) return '';
+  const base = s.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+  if (!base) return '';
+  return `https://nft.fragment.com/gift/${base}.medium.jpg`;
+}
+
+function safeImg(v, maxUrl = 4096) {
     const s = String(v ?? '').trim();
     if (!s) return '';
     if (s.startsWith('data:')) return s; // НЕ режем base64

@@ -85,6 +85,18 @@ function safeFileBase(s) {
     .slice(0, 48) || "gift";
 }
 
+
+function fragmentMediumPreviewUrlFromSlug(slug) {
+  const s = String(slug || "").trim();
+  if (!s) return "";
+  // slug in Telegram is like "MousseCake-65920" / "SnoopDogg-410198"
+  const base = s.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
+  if (!base) return "";
+  return `https://nft.fragment.com/gift/${base}.medium.jpg`;
+}
+
+
+
 function pickDocFromStarGift(gift) {
   // StarGift can have sticker (document). Unique gift will have attributes with model/pattern documents.
   let doc = gift?.sticker || gift?.document || null;
@@ -325,6 +337,10 @@ async function run() {
     const num = gift?.num ?? gift?.number ?? null;
     const giftId = gift?.id ?? gift?.giftId ?? null;
 
+
+const fragmentPreviewUrl = fragmentMediumPreviewUrlFromSlug(slug);
+const preferFragmentPreview = Boolean(fragmentPreviewUrl);
+
     const assets = extractGiftAssets(gift);
     const modelDoc = assets.modelDoc;
     const patternDoc = assets.patternDoc;
@@ -332,15 +348,15 @@ async function run() {
     let modelDataUrl = "";
     let patternDataUrl = "";
 
-    if (INLINE_IMAGES) {
+    if (!preferFragmentPreview && INLINE_IMAGES) {
       modelDataUrl = await downloadDocAsDataUrl(client, modelDoc);
       if (patternDoc) patternDataUrl = await downloadDocAsDataUrl(client, patternDoc, { forceThumb: true });
     }
 
     // Model image: inline (preferred) OR saved to disk (DEV ONLY)
-    let imageUrl = modelDataUrl;
+    let imageUrl = preferFragmentPreview ? '' : modelDataUrl;
 
-    if (!imageUrl && modelDoc) {
+    if (!preferFragmentPreview && !imageUrl && modelDoc) {
       // download to local /public... (DEV ONLY)
       try {
         const mime = String(modelDoc.mimeType || "");
@@ -407,7 +423,7 @@ async function run() {
       id: `nft_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
       name: title,
       displayName: title,
-      icon: (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
+      icon: fragmentPreviewUrl || (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
       instanceId,
       acquiredAt: Date.now(),
       price: { ton: null, stars: null },
@@ -418,7 +434,8 @@ async function run() {
       id: `m_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
       name: title,
       number: numberText,
-      image: imageUrl || "",
+      image: (preferFragmentPreview ? "" : (imageUrl || "")),
+      previewUrl: fragmentPreviewUrl || "",
       priceTon: null,
       createdAt: Date.now(),
       tg: tgPayload

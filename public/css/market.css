@@ -596,3 +596,35 @@ border-radius: 3px;
 .market-filter-list::-webkit-scrollbar-thumb:hover {
 background: rgba(96, 165, 250, 0.5);
 }
+
+/* =========================
+   FULL-BLEED PREVIEW MODE
+   One image fills the whole card (Fragment preview or fallback model image)
+   ========================= */
+.market-card__imgWrap{
+  position: absolute;
+  inset: 0;
+  padding: 0 !important;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.market-card__img{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* When we have a ready composite preview – disable decorative overlays/patterns */
+.market-card.has-preview::before,
+.market-card.has-preview::after{
+  display: none;
+}
+
+.market-card.has-preview .market-card__pattern{
+  display: none !important;
+}
