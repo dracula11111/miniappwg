@@ -45,6 +45,12 @@ const ADMIN_IDS = String(process.env.RELAYER_ADMIN_IDS || process.env.MARKET_ADM
   .map((s) => s.trim())
   .filter(Boolean);
 
+const DEBUG = /^(1|true|yes)$/i.test(String(process.env.RELAYER_DEBUG || ""));
+// По умолчанию 1: отправляем картинку/паттерн прямо в JSON (data:image/...)
+// Если поставить 0 — релайер будет сохранять файлы локально (подходит только когда релайер и сервер на одной машине)
+const INLINE_IMAGES = !/^(0|false|no)$/i.test(String(process.env.RELAYER_INLINE_IMAGES || "1"));
+
+
 const IMG_DIR = String(process.env.RELAYER_IMG_DIR || path.join(process.cwd(), "public", "images", "gifts", "marketnfts"));
 
 function die(msg) {
@@ -102,6 +108,95 @@ function extractAttrs(gift) {
   }
   return { model, backdrop, pattern };
 }
+
+function rgb24ToHex(rgb24) {
+  const n = Number(rgb24);
+  if (!Number.isFinite(n)) return null;
+  const v = Math.max(0, Math.min(0xFFFFFF, Math.trunc(n)));
+  return `#${v.toString(16).padStart(6, "0")}`;
+}
+
+function extractGiftAssets(gift) {
+  const attrs = Array.isArray(gift?.attributes) ? gift.attributes : [];
+
+  let modelDoc = null;
+  let modelName = null;
+
+  let patternDoc = null;
+  let patternName = null;
+
+  let backdrop = null;
+
+  for (const a of attrs) {
+    if (a instanceof Api.StarGiftAttributeModel) {
+      if (a.document) modelDoc = a.document;
+      modelName = a.name || modelName;
+    }
+    if (a instanceof Api.StarGiftAttributePattern) {
+      if (a.document) patternDoc = a.document;
+      patternName = a.name || patternName;
+    }
+    if (a instanceof Api.StarGiftAttributeBackdrop) {
+      backdrop = {
+        name: a.name || null,
+        center: rgb24ToHex(a.centerColor),
+        edge: rgb24ToHex(a.edgeColor),
+        patternColor: rgb24ToHex(a.patternColor),
+        textColor: rgb24ToHex(a.textColor),
+      };
+    }
+  }
+
+  const fallbackDoc = pickDocFromStarGift(gift);
+
+  return {
+    modelDoc: modelDoc || fallbackDoc || null,
+    modelName: modelName || null,
+    patternDoc: patternDoc || null,
+    patternName: patternName || null,
+    backdrop: backdrop || null,
+  };
+}
+
+function guessDataMime(docMime, { forceJpeg = false } = {}) {
+  if (forceJpeg) return "image/jpeg";
+  const m = String(docMime || "").toLowerCase();
+  if (m.includes("png")) return "image/png";
+  if (m.includes("jpeg") || m.includes("jpg")) return "image/jpeg";
+  if (m.includes("gif")) return "image/gif";
+  if (m.includes("webp")) return "image/webp";
+  return "image/webp";
+}
+
+async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
+  if (!doc) return "";
+  const mime = String(doc.mimeType || "");
+  const shouldThumb =
+    forceThumb ||
+    mime.includes("tgsticker") ||
+    mime.includes("application/x-tgsticker") ||
+    mime.includes("video") ||
+    mime.includes("webm");
+
+  try {
+    let buf = null;
+
+    if (shouldThumb) {
+      try { buf = await client.downloadMedia(doc, { thumb: 0 }); } catch {}
+    }
+    if (!buf || !buf.length) {
+      buf = await client.downloadMedia(doc);
+    }
+    if (!buf || !buf.length) return "";
+
+    const outMime = guessDataMime(mime, { forceJpeg: shouldThumb });
+    return `data:${outMime};base64,${Buffer.from(buf).toString("base64")}`;
+  } catch (e) {
+    if (DEBUG) console.log("[Relayer] downloadDocAsDataUrl error:", e?.message || e);
+    return "";
+  }
+}
+
 
 function peerUserId(peer) {
   if (!peer) return null;
@@ -186,7 +281,7 @@ async function addToMarket({ item }) {
 
 async function run() {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
-  ensureDir(IMG_DIR);
+  if (!INLINE_IMAGES) ensureDir(IMG_DIR);
 
   const client = await makeClient(SESSION_STR);
   await client.connect();
@@ -196,25 +291,18 @@ async function run() {
   console.log("[Relayer] IMG_DIR:", IMG_DIR);
   console.log("[Relayer] ADMIN_IDS:", ADMIN_IDS.join(", ") || "(empty)");
 
-  client.addEventHandler(async (event) => {
-    const msg = event?.message;
-    if (!msg) return;
+
+  const processed = new Set();
+
+  async function handleGiftMessage(msg, origin = "RAW") {
+    if (!msg || msg.id == null) return;
+    const key = String(msg.id);
+    if (processed.has(key)) return;
+    processed.add(key);
 
     const action = msg.action || null;
+    if (!action) return;
 
-// Debug log: show EVERY incoming message (text + service actions)
-try {
-  const rawType = event?.originalUpdate?.className || event?.originalUpdate?.constructor?.name || "NewMessage";
-  const dbgFrom = peerUserId(msg.fromId) || peerUserId(msg.peerId) || (msg.senderId != null ? String(msg.senderId) : "—");
-  const actName = action ? (action.className || action.constructor?.name || "action") : "null";
-  const txt = (msg.message ?? msg.text ?? "").toString();
-  console.log(`[Relayer][IN:${rawType}] id=${msg.id} from=${dbgFrom} action=${actName} text=${JSON.stringify(txt)}`);
-} catch {}
-
-// No action => it was just a text/media message (we only process gifts below)
-if (!action) return;
-
-    // We handle: Star Gifts (regular/unique), and fallback GiftPremium/GiftStars if present
     const isStarGift =
       (action instanceof Api.MessageActionStarGift) ||
       (action instanceof Api.MessageActionStarGiftUnique);
@@ -225,36 +313,37 @@ if (!action) return;
 
     if (!isStarGift && !isOtherGift) return;
 
-    let fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId) || (msg.senderId != null ? String(msg.senderId) : null);
+    const fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId);
+    if (!fromId) {
+      console.log(`[Relayer] ⚠️ gift without fromId (skipped). msgId=${msg.id} origin=${origin}`);
+      return;
+    }
 
-// Some gift service messages don't expose fromId directly. As a last resort, ask Telegram.
-if (!fromId) {
-  try {
-    const sender = await msg.getSender?.();
-    if (sender?.id != null) fromId = String(sender.id);
-  } catch {}
-}
-
-if (!fromId) {
-  console.log("[Relayer] ⚠️ gift without fromId (skipped). msgId=", msg.id);
-  return;
-}
-
-    // Parse gift object
     const gift = action.gift || null;
     const title = String(gift?.title || gift?.name || "Gift");
     const slug = String(gift?.slug || "").trim();
     const num = gift?.num ?? gift?.number ?? null;
     const giftId = gift?.id ?? gift?.giftId ?? null;
 
-    const { model, backdrop, pattern } = extractAttrs(gift);
-    const doc = pickDocFromStarGift(gift);
+    const assets = extractGiftAssets(gift);
+    const modelDoc = assets.modelDoc;
+    const patternDoc = assets.patternDoc;
 
-    // Download image / thumb
-    let imageUrl = "";
-    try {
-      if (doc) {
-        const mime = String(doc.mimeType || "");
+    let modelDataUrl = "";
+    let patternDataUrl = "";
+
+    if (INLINE_IMAGES) {
+      modelDataUrl = await downloadDocAsDataUrl(client, modelDoc);
+      if (patternDoc) patternDataUrl = await downloadDocAsDataUrl(client, patternDoc, { forceThumb: true });
+    }
+
+    // Model image: inline (preferred) OR saved to disk (DEV ONLY)
+    let imageUrl = modelDataUrl;
+
+    if (!imageUrl && modelDoc) {
+      // download to local /public... (DEV ONLY)
+      try {
+        const mime = String(modelDoc.mimeType || "");
         const base = safeFileBase(slug || title);
         const suffix = `${String(num ?? "") || "x"}_${String(msg.id)}_${crypto.randomBytes(3).toString("hex")}`;
 
@@ -276,41 +365,53 @@ if (!fromId) {
         // first try (thumb if configured), then fallback full
         let ok = false;
         try {
-          await client.downloadMedia(doc, dlOpts);
+          await client.downloadMedia(modelDoc, dlOpts);
           ok = fs.existsSync(outPath);
-        } catch (_) {}
+        } catch {}
         if (!ok) {
-          await client.downloadMedia(doc, { outputFile: outPath });
+          await client.downloadMedia(modelDoc, { outputFile: outPath });
           ok = fs.existsSync(outPath);
         }
 
-        if (ok) {
-          imageUrl = `/images/gifts/marketnfts/${fileName}`;
-        }
+        if (ok) imageUrl = `/images/gifts/marketnfts/${fileName}`;
+      } catch (e) {
+        console.log("[Relayer] download error:", e?.message || e);
       }
-    } catch (e) {
-      console.log("[Relayer] download error:", e?.message || e);
     }
 
     const numberText = num != null ? formatNum(num) : "";
 
+    const tgPayload = {
+      kind: isStarGift ? "star_gift" : "gift",
+      giftId: giftId != null ? String(giftId) : null,
+      slug: slug || null,
+      num: num != null ? Number(num) : null,
+
+      // Collectible parts
+      collectible: !!assets.backdrop,
+      model: {
+        name: assets.modelName || null,
+        image: modelDataUrl || imageUrl || ""
+      },
+      pattern: patternDoc ? {
+        name: assets.patternName || null,
+        image: patternDataUrl || ""
+      } : null,
+      backdrop: assets.backdrop || null
+    };
+
     const instanceId = `tg_gift_${fromId}_${String(msg.id)}`;
+
     const inventoryItem = {
       type: "nft",
       id: `nft_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
       name: title,
       displayName: title,
-      icon: imageUrl || "/images/gifts/stars.webp",
+      icon: (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
       instanceId,
       acquiredAt: Date.now(),
       price: { ton: null, stars: null },
-      tg: {
-        kind: isStarGift ? "star_gift" : "gift",
-        giftId: giftId != null ? String(giftId) : null,
-        slug: slug || null,
-        num: num != null ? Number(num) : null,
-        model, backdrop, pattern
-      }
+      tg: tgPayload
     };
 
     const marketItem = {
@@ -320,12 +421,7 @@ if (!fromId) {
       image: imageUrl || "",
       priceTon: null,
       createdAt: Date.now(),
-      tg: {
-        giftId: giftId != null ? String(giftId) : null,
-        slug: slug || null,
-        num: num != null ? Number(num) : null,
-        model, backdrop, pattern
-      }
+      tg: tgPayload
     };
 
     const claimId = `tg_msg_${String(msg.id)}`;
@@ -352,6 +448,44 @@ if (!fromId) {
     } catch (e) {
       console.log("[Relayer] ❌ handler error:", e?.message || e);
     }
+  }
+
+  // 1) RAW updates (гifts часто приходят именно так)
+  client.addEventHandler(async (update) => {
+    if (!update) return;
+
+    const isNew =
+      (update instanceof Api.UpdateNewMessage) ||
+      (update instanceof Api.UpdateNewChannelMessage);
+
+    if (!isNew) return;
+
+    const msg = update.message;
+    if (!msg) return;
+
+    if (DEBUG) {
+      const from = peerUserId(msg.fromId) || peerUserId(msg.peerId) || "—";
+      const a = msg.action ? (msg.action.className || msg.action.constructor?.name) : null;
+      const text = String(msg.message || "").slice(0, 120);
+      console.log(`[Relayer][RAW] id=${msg.id} from=${from} action=${a} text="${text}"`);
+    }
+
+    if (msg.action) await handleGiftMessage(msg, "RAW");
+  });
+
+  // 2) NewMessage (для логов + fallback)
+  client.addEventHandler(async (event) => {
+    const msg = event?.message;
+    if (!msg) return;
+
+    if (DEBUG) {
+      const from = peerUserId(msg.fromId) || peerUserId(msg.peerId) || "—";
+      const a = msg.action ? (msg.action.className || msg.action.constructor?.name) : null;
+      const text = String(msg.message || "").slice(0, 120);
+      console.log(`[Relayer][MSG] id=${msg.id} from=${from} action=${a} text="${text}"`);
+    }
+
+    if (msg.action) await handleGiftMessage(msg, "NewMessage");
   }, new NewMessage({ incoming: true }));
 
   process.on("SIGINT", async () => {
