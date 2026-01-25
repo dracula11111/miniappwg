@@ -220,8 +220,6 @@
       const card = buildGiftCard(gift, i);
       grid.appendChild(card);
     }
-    applyPatternSizing(grid);
-
   }
 
   function buildGiftCard(gift, index) {
@@ -236,8 +234,7 @@
     const backdrop = tg?.backdrop || null;
 
     // Collectible backdrop -> override background with Telegram colors
-    if (backdrop) {
-
+    if (backdrop && (backdrop.center || backdrop.edge)) {
       btn.classList.add('is-collectible');
       if (backdrop.center) btn.style.setProperty('--bg-center', backdrop.center);
       if (backdrop.edge) btn.style.setProperty('--bg-edge', backdrop.edge);
@@ -251,9 +248,12 @@
     const price = resolvePriceTon(gift);
 
     // 1) Берём картинки через safeImg (data: не режем)
+      const previewImg = safeImg(gift?.previewUrl);
       const modelImg = safeImg(tg?.model?.image);
       const giftImg  = safeImg(gift?.image);
-      const imgSrc   = modelImg || giftImg || PLACEHOLDER_IMG;
+      const imgSrc   = previewImg || modelImg || giftImg || PLACEHOLDER_IMG;
+      const hasPreview = !!previewImg;
+      if (hasPreview) btn.classList.add('has-preview');
 
       const patternSrc = safeImg(tg?.pattern?.image) || '';
 
@@ -261,9 +261,8 @@
       // Минимально безопасный вариант: encodeURI + двойные кавычки
       const patternUrl = patternSrc ? encodeURI(patternSrc) : '';
 
-      const patternLayer = patternUrl
-        ? `<div class="market-card__pattern"
-              style='--pattern-mask:url("${patternUrl}"); --pattern-bg:url("${patternUrl}")'></div>`
+      const patternLayer = (!hasPreview && patternUrl)
+        ? `<div class="market-card__pattern" style='--pattern-mask:url("${patternUrl}"); --pattern-bg:url("${patternUrl}")'></div>`
         : '';
 
 
@@ -426,6 +425,10 @@
 
     const tg = (g.tg && typeof g.tg === 'object') ? g.tg : null;
 
+    const previewUrl = safeText(g.previewUrl, 220000) ||
+      safeText(tg?.previewUrl, 220000) ||
+      '';
+
     // image can be:
     //  - data:image/... (from relayer when INLINE_IMAGES=1)
     //  - /images/... (when relayer and server are on same machine)
@@ -442,6 +445,7 @@
       name,
       number,
       image,
+      previewUrl,
       priceTon: Number.isFinite(priceTon) ? priceTon : null,
       createdAt: Number.isFinite(createdAt) ? createdAt : null,
       tg
@@ -716,35 +720,4 @@
   function svgDataUri(svg) {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
-  
-  function applyPatternSizing(root = document) {
-    const dpr = window.devicePixelRatio || 1;
-  
-    root.querySelectorAll('.market-card__pattern').forEach((el) => {
-      // читаем url из CSS-переменной --pattern-mask
-      const raw = el.style.getPropertyValue('--pattern-mask') || '';
-      const m = raw.match(/url\(["']?(.*?)["']?\)/);
-      if (!m) return;
-  
-      const url = m[1];
-      if (!url) return;
-  
-      const img = new Image();
-      img.onload = () => {
-        const nw = img.naturalWidth || 0;
-        if (!nw) return;
-  
-        // подбираем "родной" CSS-тайл: naturalWidth / DPR
-        // у тебя пример: 128 / 2.625 ≈ 49px
-        let px = Math.round(nw / dpr);
-  
-        // небольшие рамки, чтобы не было дикого размера на странных девайсах
-        px = Math.max(32, Math.min(72, px));
-  
-        el.style.setProperty('--pattern-size', `${px}px`);
-      };
-      img.src = url;
-    });
-  }
-  
 })();
