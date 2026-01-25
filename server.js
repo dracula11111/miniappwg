@@ -572,22 +572,6 @@ app.use("/images/gifts/marketnfts", express.static(MARKET_GIFTS_IMG_DIR, {
   maxAge: "1h"
 }));
 
-// --- Market previews (persist on Render)
-const MARKET_PREVIEWS_DIR =
-  process.env.MARKET_PREVIEWS_DIR ||
-  (process.env.NODE_ENV === "production"
-    ? "/opt/render/project/data/marketpreviews"
-    : path.join(__dirname, "public", "images", "gifts", "marketpreviews"));
-
-try { fs.mkdirSync(MARKET_PREVIEWS_DIR, { recursive: true }); } catch {}
-
-// Serve generated previews
-app.use("/images/gifts/marketpreviews", express.static(MARKET_PREVIEWS_DIR, {
-  fallthrough: true,
-  maxAge: "1h"
-}));
-
-
 function safeMarketFileBase(s) {
   return String(s || "gift")
     .toLowerCase()
@@ -622,36 +606,6 @@ function saveMarketImageFromData(imageData, baseName = "gift") {
     return `/images/gifts/marketnfts/${fileName}`;
   } catch (e) {
     console.error("[MarketStore] image save error:", e);
-    return "";
-  }
-}
-
-
-function saveMarketPreviewFromData(imageData, baseName = "gift") {
-  const s = String(imageData || "").trim();
-  const m = s.match(/^data:([^;]+);base64,(.+)$/);
-  if (!m) return "";
-  const mime = String(m[1] || "").toLowerCase();
-  const b64 = String(m[2] || "");
-  let buf;
-  try { buf = Buffer.from(b64, "base64"); } catch { return ""; }
-
-  if (!buf || !buf.length || buf.length > 6 * 1024 * 1024) return "";
-
-  let ext = ".bin";
-  if (mime.includes("png")) ext = ".png";
-  else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
-  else if (mime.includes("webp")) ext = ".webp";
-  else if (mime.includes("gif")) ext = ".gif";
-
-  const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}${ext}`;
-  const outPath = path.join(MARKET_GIFTS_PREVIEW_DIR, fileName);
-
-  try {
-    fs.writeFileSync(outPath, buf);
-    return `/images/gifts/marketpreviews/${fileName}`;
-  } catch (e) {
-    console.error("[MarketStore] preview save error:", e);
     return "";
   }
 }
@@ -1886,6 +1840,40 @@ function safeMarketImagePath(p) {
   return t;
 }
 
+
+function safeMarketPreviewRef(p) {
+  const t = String(p ?? "").trim();
+  if (!t) return "";
+  // allow data: (used only in dev); do not truncate base64 here
+  if (t.startsWith("data:")) return t;
+
+  // allow local assets
+  const local = safeMarketImagePath(t);
+  if (local) return local;
+
+  // allow Fragment preview URLs (pre-rendered composite: backdrop + pattern + model)
+  try {
+    const u = new URL(t);
+    if (u.protocol !== "https:") return "";
+    const host = String(u.hostname || "").toLowerCase();
+    if (host !== "nft.fragment.com") return "";
+    if (!u.pathname.startsWith("/gift/")) return "";
+    if (!/\.(small|medium|large)\.(jpg|jpeg|webp)$/i.test(u.pathname)) return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+function fragmentMediumPreviewUrlFromSlug(slug) {
+  const s = safeMarketString(slug, 160);
+  if (!s) return "";
+  const base = s.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
+  if (!base) return "";
+  return `https://nft.fragment.com/gift/${base}.medium.jpg`;
+}
+
+
 // List (new)
 app.get("/api/market/items/list", async (req, res) => {
   try {
@@ -1930,20 +1918,9 @@ app.post("/api/market/items/add", async (req, res) => {
       if (saved) image = saved;
     }
 
-
-    // preview: allow dataURL in previewData/previewUrl OR a normal /images/... path
-    const pData =
-        String(item.previewData || "").trim() ||
-        (typeof item.previewUrl === "string" && item.previewUrl.trim().startsWith("data:")
-          ? item.previewUrl.trim()
-          : "");
-
-      let previewUrl = safeMarketImagePath(item.previewUrl);
-
-      if (pData) {
-        const savedP = saveMarketPreviewFromData(pData, name);
-        if (savedP) previewUrl = savedP;
-      }
+    // preview: pre-rendered composite (Fragment preferred)
+    let previewUrl = safeMarketPreviewRef(item.previewUrl);
+    if (!previewUrl) previewUrl = fragmentMediumPreviewUrlFromSlug(item?.tg?.slug);
 
 
     const out = {

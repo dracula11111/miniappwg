@@ -248,12 +248,9 @@
     const price = resolvePriceTon(gift);
 
     // 1) Берём картинки через safeImg (data: не режем)
-      const previewImg = safeImg(gift?.previewUrl);
       const modelImg = safeImg(tg?.model?.image);
       const giftImg  = safeImg(gift?.image);
-      const imgSrc   = previewImg || modelImg || giftImg || PLACEHOLDER_IMG;
-      const hasPreview = !!previewImg;
-      if (hasPreview) btn.classList.add('has-preview');
+      const imgSrc   = modelImg || giftImg || PLACEHOLDER_IMG;
 
       const patternSrc = safeImg(tg?.pattern?.image) || '';
 
@@ -261,8 +258,9 @@
       // Минимально безопасный вариант: encodeURI + двойные кавычки
       const patternUrl = patternSrc ? encodeURI(patternSrc) : '';
 
-      const patternLayer = (!hasPreview && patternUrl)
-        ? `<div class="market-card__pattern" style='--pattern-mask:url("${patternUrl}"); --pattern-bg:url("${patternUrl}")'></div>`
+      const patternLayer = patternUrl
+        ? `<div class="market-card__pattern"
+              style='--pattern-mask:url("${patternUrl}"); background-image:url("${patternUrl}")'></div>`
         : '';
 
 
@@ -425,10 +423,6 @@
 
     const tg = (g.tg && typeof g.tg === 'object') ? g.tg : null;
 
-    const previewUrl = safeText(g.previewUrl, 220000) ||
-      safeText(tg?.previewUrl, 220000) ||
-      '';
-
     // image can be:
     //  - data:image/... (from relayer when INLINE_IMAGES=1)
     //  - /images/... (when relayer and server are on same machine)
@@ -445,7 +439,6 @@
       name,
       number,
       image,
-      previewUrl,
       priceTon: Number.isFinite(priceTon) ? priceTon : null,
       createdAt: Number.isFinite(createdAt) ? createdAt : null,
       tg

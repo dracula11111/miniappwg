@@ -86,17 +86,15 @@ function safeFileBase(s) {
 }
 
 function pickDocFromStarGift(gift) {
-  // Prefer the already-rendered sticker/document (it already contains backdrop + pattern + model).
-  const base = gift?.sticker || gift?.document || null;
-  if (base) return base;
+  // StarGift can have sticker (document). Unique gift will have attributes with model/pattern documents.
+  let doc = gift?.sticker || gift?.document || null;
 
-  // Fallback: attributes may contain model/pattern docs
   const attrs = Array.isArray(gift?.attributes) ? gift.attributes : [];
   for (const a of attrs) {
-    if (a instanceof Api.StarGiftAttributeModel && a.document) return a.document;
-    if (a instanceof Api.StarGiftAttributePattern && a.document) return a.document;
+    if (a instanceof Api.StarGiftAttributeModel && a.document) doc = a.document;
+    if (!doc && a instanceof Api.StarGiftAttributePattern && a.document) doc = a.document;
   }
-  return null;
+  return doc;
 }
 
 function extractAttrs(gift) {
@@ -170,23 +168,6 @@ function guessDataMime(docMime, { forceJpeg = false } = {}) {
   return "image/webp";
 }
 
-
-function sniffMimeFromBuffer(buf) {
-  try {
-    if (!buf || buf.length < 12) return null;
-    // WEBP: 'RIFF' .... 'WEBP'
-    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
-        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return "image/webp";
-    // PNG: 89 50 4E 47 0D 0A 1A 0A
-    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return "image/png";
-    // JPEG: FF D8 FF
-    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return "image/jpeg";
-    // GIF: 'GIF8'
-    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return "image/gif";
-  } catch {}
-  return null;
-}
-
 async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
   if (!doc) return "";
   const mime = String(doc.mimeType || "");
@@ -208,7 +189,7 @@ async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
     }
     if (!buf || !buf.length) return "";
 
-    const outMime = sniffMimeFromBuffer(buf) || guessDataMime(mime);
+    const outMime = guessDataMime(mime, { forceJpeg: shouldThumb });
     return `data:${outMime};base64,${Buffer.from(buf).toString("base64")}`;
   } catch (e) {
     if (DEBUG) console.log("[Relayer] downloadDocAsDataUrl error:", e?.message || e);
@@ -348,11 +329,8 @@ async function run() {
     const modelDoc = assets.modelDoc;
     const patternDoc = assets.patternDoc;
 
-    const previewDoc = pickDocFromStarGift(gift);
-
     let modelDataUrl = "";
     let patternDataUrl = "";
-    let previewDataUrl = "";
 
     if (INLINE_IMAGES) {
       modelDataUrl = await downloadDocAsDataUrl(client, modelDoc);
@@ -429,7 +407,7 @@ async function run() {
       id: `nft_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
       name: title,
       displayName: title,
-      icon: (previewDataUrl || modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
+      icon: (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
       instanceId,
       acquiredAt: Date.now(),
       price: { ton: null, stars: null },
@@ -441,7 +419,6 @@ async function run() {
       name: title,
       number: numberText,
       image: imageUrl || "",
-      previewData: previewDataUrl || "",
       priceTon: null,
       createdAt: Date.now(),
       tg: tgPayload
