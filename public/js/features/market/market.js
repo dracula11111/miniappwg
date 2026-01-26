@@ -904,4 +904,313 @@ function safeImg(v, maxUrl = 4096) {
   function svgDataUri(svg) {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
+
+
+  (() => {
+    'use strict';
+  
+    // =========================
+    // Filter State
+    // =========================
+    const filterState = {
+      selectedIds: new Set(),
+      allGifts: []
+    };
+  
+    // =========================
+    // Init Filter
+    // =========================
+    function initFilter() {
+      const giftsPill = document.querySelector('#marketPillGifts');
+      if (!giftsPill) return;
+  
+      giftsPill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFilterPanel();
+      });
+    }
+  
+    // =========================
+    // Filter Panel
+    // =========================
+    let filterOverlay = null;
+    let filterPanel = null;
+  
+    function ensureFilterPanel() {
+      if (filterOverlay && filterPanel) return;
+  
+      const overlay = document.createElement('div');
+      overlay.className = 'market-filter-overlay';
+      
+      overlay.innerHTML = `
+        <div class="market-filter-panel">
+          <div class="market-filter-header">
+            <h2 class="market-filter-title">Filter Gifts</h2>
+            <button class="market-filter-close" type="button" aria-label="Close">
+              <svg class="market-filter-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+  
+          <div class="market-filter-list"></div>
+  
+          <div class="market-filter-footer">
+            <button class="market-filter-btn market-filter-btn--clear" type="button">
+              Clear All
+            </button>
+            <button class="market-filter-btn market-filter-btn--show" type="button">
+              Show <span class="filter-count"></span>
+            </button>
+          </div>
+        </div>
+      `;
+  
+      const panel = overlay.querySelector('.market-filter-panel');
+      const closeBtn = overlay.querySelector('.market-filter-close');
+      const clearBtn = overlay.querySelector('.market-filter-btn--clear');
+      const showBtn = overlay.querySelector('.market-filter-btn--show');
+  
+      function close() {
+        overlay.classList.remove('is-open');
+        panel.classList.remove('is-open');
+        setTimeout(() => {
+          overlay.style.display = 'none';
+        }, 350);
+      }
+  
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close();
+      });
+  
+      closeBtn?.addEventListener('click', close);
+  
+      clearBtn?.addEventListener('click', () => {
+        filterState.selectedIds.clear();
+        renderFilterList();
+        updateShowButton();
+      });
+  
+      showBtn?.addEventListener('click', () => {
+        applyFilter();
+        close();
+      });
+  
+      panel?.addEventListener('click', (e) => e.stopPropagation());
+  
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
+          close();
+        }
+      });
+  
+      document.body.appendChild(overlay);
+  
+      filterOverlay = overlay;
+      filterPanel = panel;
+    }
+  
+    function openFilterPanel() {
+      ensureFilterPanel();
+      
+      // Get current gifts from market state
+      if (window.state && window.state.gifts) {
+        filterState.allGifts = window.state.gifts;
+      }
+  
+      renderFilterList();
+      updateShowButton();
+  
+      filterOverlay.style.display = 'block';
+      requestAnimationFrame(() => {
+        filterOverlay.classList.add('is-open');
+        filterPanel.classList.add('is-open');
+      });
+    }
+  
+    function renderFilterList() {
+      const list = filterPanel?.querySelector('.market-filter-list');
+      if (!list) return;
+  
+      list.innerHTML = '';
+  
+      if (!filterState.allGifts.length) {
+        list.innerHTML = '<div style="padding: 40px 20px; text-align: center; opacity: 0.6;">No gifts available</div>';
+        return;
+      }
+  
+      filterState.allGifts.forEach(gift => {
+        const item = createFilterItem(gift);
+        list.appendChild(item);
+      });
+    }
+  
+    function createFilterItem(gift) {
+      const isChecked = filterState.selectedIds.has(gift.id);
+      
+      const item = document.createElement('div');
+      item.className = 'market-filter-item';
+      if (isChecked) item.classList.add('is-checked');
+  
+      const tg = gift?.tg || null;
+      const previewSrc = gift?.previewUrl || tg?.previewUrl || gift?.image || '/icons/market.webp';
+      const name = gift?.name || 'Gift';
+      const price = resolvePriceTon(gift);
+      const currency = getCurrency();
+  
+      item.innerHTML = `
+        <img class="market-filter-item__icon" src="${escapeHtml(previewSrc)}" alt="${escapeHtml(name)}">
+        <span class="market-filter-item__name">${escapeHtml(name)}</span>
+        <div class="market-filter-item__price">
+          <img class="market-filter-item__price-icon" src="${currencyIconPath(currency)}" alt="">
+          <span>${formatPrice(price)}</span>
+        </div>
+        <div class="market-filter-item__checkbox"></div>
+      `;
+  
+      item.addEventListener('click', () => {
+        if (filterState.selectedIds.has(gift.id)) {
+          filterState.selectedIds.delete(gift.id);
+          item.classList.remove('is-checked');
+        } else {
+          filterState.selectedIds.add(gift.id);
+          item.classList.add('is-checked');
+        }
+        updateShowButton();
+      });
+  
+      return item;
+    }
+  
+    function updateShowButton() {
+      const showBtn = filterPanel?.querySelector('.market-filter-btn--show');
+      const countSpan = showBtn?.querySelector('.filter-count');
+      
+      if (!showBtn || !countSpan) return;
+  
+      const selectedCount = filterState.selectedIds.size;
+      const totalCount = filterState.allGifts.length;
+  
+      if (selectedCount === 0) {
+        countSpan.textContent = `All (${totalCount})`;
+      } else {
+        countSpan.textContent = `${selectedCount}`;
+      }
+    }
+  
+    function applyFilter() {
+      const grid = document.querySelector('#marketGrid');
+      if (!grid) return;
+  
+      const cards = grid.querySelectorAll('.market-card');
+      
+      if (filterState.selectedIds.size === 0) {
+        // Show all
+        cards.forEach(card => {
+          card.style.display = '';
+        });
+        updatePillIndicator(false);
+      } else {
+        // Show only selected
+        cards.forEach(card => {
+          const giftId = card.dataset.id;
+          if (filterState.selectedIds.has(giftId)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+        updatePillIndicator(true);
+      }
+    }
+  
+    function updatePillIndicator(isFiltered) {
+      const giftsPill = document.querySelector('#marketPillGifts');
+      if (!giftsPill) return;
+  
+      if (isFiltered) {
+        giftsPill.classList.add('is-open');
+      } else {
+        giftsPill.classList.remove('is-open');
+      }
+    }
+  
+    // =========================
+    // Helpers (reuse from market.js)
+    // =========================
+    function getCurrency() {
+      const activeBtn = document.querySelector('.curr-btn--active[data-currency]');
+      const fromBtn = activeBtn ? String(activeBtn.dataset.currency || '').toLowerCase() : '';
+      if (fromBtn === 'ton' || fromBtn === 'stars') return fromBtn;
+  
+      const keys = ['currency', 'selectedCurrency', 'wg_currency'];
+      for (const k of keys) {
+        try {
+          const v = String(localStorage.getItem(k) || '').toLowerCase();
+          if (v === 'ton' || v === 'stars') return v;
+        } catch {}
+      }
+  
+      return 'ton';
+    }
+  
+    function currencyIconPath(currency) {
+      return currency === 'stars' ? '/icons/tgStarWhite.svg' : '/icons/tgTonWhite.svg';
+    }
+  
+    function resolvePriceTon(gift) {
+      const pLocal = toFiniteNumber(gift?.priceTon);
+      if (Number.isFinite(pLocal) && pLocal > 0) return pLocal;
+      return null;
+    }
+  
+    function formatPrice(v) {
+      if (!Number.isFinite(v)) return '—';
+      const isInt = Math.abs(v - Math.round(v)) < 1e-9;
+      if (isInt) return String(Math.round(v));
+      return String(Math.round(v * 100) / 100);
+    }
+  
+    function toFiniteNumber(v) {
+      const n = typeof v === 'string' ? Number(v.replace(',', '.')) : Number(v);
+      return Number.isFinite(n) ? n : null;
+    }
+  
+    function escapeHtml(str) {
+      const s = String(str ?? '');
+      return s
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+  
+    // =========================
+    // Init on DOM ready
+    // =========================
+    function ready(fn) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn, { once: true });
+      } else {
+        fn();
+      }
+    }
+  
+    ready(initFilter);
+  
+    // Export для доступа из консоли
+    window.marketFilter = {
+      open: openFilterPanel,
+      clear: () => {
+        filterState.selectedIds.clear();
+        applyFilter();
+      },
+      reset: () => {
+        filterState.selectedIds.clear();
+        renderFilterList();
+        applyFilter();
+      }
+    };
+  })();
 })();

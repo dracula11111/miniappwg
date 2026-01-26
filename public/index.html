@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/layout.css">
   <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/games.css">
   <link rel="stylesheet" href="/css/wheel.css">
   <link rel="stylesheet" href="/css/crash.css">
   <link rel="stylesheet" href="/css/cases.css">
@@ -118,7 +119,7 @@
     </section>
 
     <!-- ===== WHEEL PAGE ===== -->
-    <main id="wheelPage" class="page page-active">
+    <main id="wheelPage" class="page">
       <section class="wheel" aria-label="Wheel">
         <canvas id="wheelCanvas" width="420" height="420" aria-label="Wheel canvas"></canvas>
         <img id="pointer" class="pointer" src="/images/pointerMain.png" alt="" aria-hidden="true" draggable="false">
@@ -409,38 +410,27 @@
 
 
 
-    <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
+        <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
     <nav class="bottom-nav" role="navigation" aria-label="Bottom navigation">
-      <button class="nav-item active" data-target="wheelPage" aria-label="Wheel">
-        <img src="/icons/wheel.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Wheel</span>
+      <button class="nav-item active" data-target="gamesPage" aria-label="Games">
+        <img src="/icons/games.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Games</span>
       </button>
-      <button class="nav-item" data-target="crashPage" aria-label="Crash">
-        <img src="/icons/crash.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Crash</span>
-      </button>
-      <button class="nav-item" data-target="casesPage" aria-label="Cases">
-        <img src="/icons/cases.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Cases</span>
-      </button>
+
       <button class="nav-item" data-target="marketPage" aria-label="Market">
         <img src="/icons/market.svg" alt="" class="nav-icon" />
         <span class="nav-label">Market</span>
       </button>
+
       <button class="nav-item" data-target="tasksPage" aria-label="Tasks">
         <img src="/icons/tasks.svg" alt="" class="nav-icon" />
         <span class="nav-label">Tasks</span>
       </button>
-      
-      
-     
 
-      
       <button class="nav-item" data-target="profilePage" aria-label="Profile">
         <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
         <span class="nav-label">Profile</span>
       </button>
-      
     </nav>
 
 

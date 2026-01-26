@@ -1,0 +1,119 @@
+/* ============================================
+   GAMES PAGE (Hub)
+   layout как на схеме: Wheel сверху, ниже Crash слева (высокий),
+   справа Cases и Soon (заглушка)
+   файл: games.css
+   ============================================ */
+
+   .games{
+    padding: 16px 16px 96px; /* +space for bottom nav */
+  }
+  
+  .games__head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin: 4px 0 12px;
+  }
+  
+  .games__title{
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: .2px;
+    margin:0;
+  }
+  
+  /* ===== GRID LAYOUT ===== */
+  .games-grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    grid-template-areas:
+      "wheel wheel"
+      "crash cases"
+      "crash soon";
+    grid-auto-rows: 150px; /* высота маленьких панелей */
+  }
+  
+  @media (max-width: 340px){
+    .games-grid{ grid-auto-rows: 140px; }
+  }
+  
+  /* ===== TILE ===== */
+  .game-tile{
+    width:100%;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,.08);
+    position:relative;
+    overflow:hidden;
+    padding: 14px;
+    background-color: rgba(255,255,255,.03);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    text-align:left;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    isolation:isolate;
+    transition: transform 220ms ease, filter 220ms ease, border-color 220ms ease;
+  }
+  
+  .game-tile::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    /* чтобы текст читался поверх фотки */
+    background: linear-gradient(180deg, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.22) 40%, rgba(0,0,0,0.35) 100%);
+    z-index:0;
+    pointer-events:none;
+  }
+  
+  .game-tile:active{
+    transform: scale(0.985);
+    filter: brightness(1.05);
+    border-color: rgba(255,255,255,.14);
+  }
+  
+ 
+  
+  /* ===== AREAS + IMAGES ===== */
+  .game-tile--wheel{ grid-area: wheel; }
+  .game-tile--crash{ grid-area: crash; }
+  .game-tile--cases{ grid-area: cases; }
+  .game-tile--soon { grid-area: soon; }
+  
+  /* фотки: /images/games/*.webp (абсолютный путь) */
+  .game-tile--wheel{ background-image: url("/images/games/wheel.webp"); }
+  .game-tile--crash{ background-image: url("/images/games/crash.webp"); }
+  .game-tile--cases{ background-image: url("/images/games/cases.webp"); }
+  .game-tile--soon{ background-image: url("/images/games/soon.webp"); }
+  
+  /* если фоток нет — всё равно красиво */
+  .game-tile--wheel{ background-color: rgba(120, 160, 255, .18); }
+  .game-tile--crash{ background-color: rgba(255, 120, 160, .18); }
+  .game-tile--cases{ background-color: rgba(90, 255, 200, .16); }
+  .game-tile--soon { background: rgba(255,255,255,.035); }
+  
+  /* лёгкие наклоны как на макете */
+  .game-tile--wheel .game-tile__label{ transform: rotate(0deg); }
+  .game-tile--crash .game-tile__label{ transform: rotate(-7deg); }
+  .game-tile--cases .game-tile__label{ transform: rotate(7deg); }
+  .game-tile--soon  .game-tile__label{ transform: rotate(8deg); opacity:.9; }
+  
+  /* Soon disabled */
+  .game-tile[disabled]{
+    opacity: .85;
+    filter: saturate(.9);
+    cursor: default;
+  }
+  .game-tile[disabled]:active{
+    transform:none;
+    filter:saturate(.9);
+    border-color: rgba(255,255,255,.08);
+  }
+  
+  @media (prefers-reduced-motion: reduce){
+    .game-tile{ transition:none !important; }
+  }
+  
