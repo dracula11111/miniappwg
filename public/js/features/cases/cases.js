@@ -344,22 +344,27 @@ function pickStripItem(caseData, demoMode) {
 
 
 
-  function getLineXInItems(carousel) {
+function getLineXInItems(carousel) {
   const cont = carousel.itemsContainer;
-  const w = carousel.element.getBoundingClientRect().width;
+  const indicator = carousel.element?.querySelector?.('.case-carousel-indicator');
+  if (!cont || !indicator) return 0;
 
-  // .case-carousel-items имеет left:8px; offsetLeft даёт это смещение БЕЗ учёта transform
-  const insetLeft = cont?.offsetLeft || 0;
+  const contRect = cont.getBoundingClientRect();
+  const indRect = indicator.getBoundingClientRect();
 
-  // линия по центру .case-carousel => переводим в координаты cont
-  return (w / 2) - insetLeft;
+  // центр линии в координатах itemsContainer
+  const x = (indRect.left + indRect.width / 2) - contRect.left;
+  return Number.isFinite(x) ? x : 0;
 }
 
-function syncWinByLine(carousel, finalPos, strip, padL, step, lineX) {
-  // где линия указывает в координатах контента ленты
+function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) {
   const xContent = finalPos + lineX;
 
-  let idx = Math.floor((xContent - padL) / step);
+  // выбираем слот, чей ЦЕНТР ближе всего к линии
+  const w = (Number.isFinite(itemWidth) && itemWidth > 0) ? itemWidth : step;
+  let idx = Math.round((xContent - padL - (w / 2)) / step);
+
+  if (!Number.isFinite(idx)) idx = 0;
   idx = Math.max(0, Math.min(idx, strip.length - 1));
 
   carousel.winningStripIndex = idx;
@@ -1049,12 +1054,15 @@ function getBalanceSafe(currency) {
     const padR = parseFloat(cs.paddingRight) || 0;
 
     const step = itemWidth + gap;
+    
     const baseLen = (carousel.baseItems && carousel.baseItems.length)
       ? carousel.baseItems.length
       : Math.floor((carousel.items?.length || 0) / 2);
 
     const loopWidth = Math.max(0, baseLen * step);
     return { itemWidth, gap, padL, padR, step, baseLen, loopWidth };
+
+    
   }
 
   function renderCarouselItems(itemsContainer, items) {
@@ -1269,6 +1277,20 @@ function getBalanceSafe(currency) {
   }
   return false; // если не успели — всё равно продолжим
 }
+
+  // Функция для блокировки прокрутки в fullscreen режиме
+  function scrollCarouselToCenter() {
+    // В fullscreen режиме карусель позиционируется через CSS (position: fixed, top: 50%)
+    // Просто блокируем прокрутку body, но не трогаем панель
+    requestAnimationFrame(() => {
+      // Сохраняем текущую позицию прокрутки панели
+      const panel = document.querySelector('.case-sheet-panel');
+      if (panel) {
+        // Запоминаем позицию для возможного восстановления
+        panel.dataset.scrollTop = panel.scrollTop;
+      }
+    });
+  }
     async function handleOpenCase() {
     if (isAnimating || isSpinning || !currentCase || !openBtn) return;
 
@@ -1350,8 +1372,19 @@ function getBalanceSafe(currency) {
 
 
       console.log('[Cases] 🎰 Opening case:', { demo: effectiveDemo, serverEnabled, count: countAtStart, currency });
+      
+      // 2) Активируем fullscreen режим
+      document.body.classList.add("case-opening-fullscreen");
+      document.body.setAttribute("data-opening-case", currentCase.id);
+      
+      // Центрируем карусель и сбрасываем прокрутку
+      scrollCarouselToCenter();
+      
+      // Небольшая задержка для плавного перехода UI
+      await delay(600);
 
-      // 2) Wait for stable layout, then spin
+
+      // 3) Wait for stable layout, then spin
       await waitForStableCarouselLayout();
       tgWeb?.HapticFeedback?.impactOccurred?.('heavy');
 
@@ -1385,7 +1418,8 @@ function getBalanceSafe(currency) {
     const TAIL_AFTER_WIN = 32;
 
     const spinPromises = carousels.map((carousel, index) => {
-      return new Promise((resolve) => {
+      return new Promise(async (resolve) => {
+
         // 1) Выбираем выигрыш
         const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
             const winItem = normalizeItemForCurrency(winRaw, currency);
@@ -1406,8 +1440,11 @@ function getBalanceSafe(currency) {
 
         // 3) Удлиняем ленту
         while (strip.length < MIN_STRIP_LENGTH) {
-          strip.push(pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)]);
+          const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode))
+            || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+          strip.push(normalizeItemForCurrency(raw, currency));
         }
+        
 
         // 4) Фиксируем позицию выигрыша ближе к концу
         const winAt = strip.length - TAIL_AFTER_WIN;
@@ -1448,6 +1485,7 @@ function getBalanceSafe(currency) {
             const node = existingNodes[i];
             node.dataset.itemId = dataItem.id;
             node.dataset.itemType = itemType(dataItem);
+            node.dataset.rarity = dataItem.rarity || "common";
 
             const img = node.querySelector('img');
             if (img) {
@@ -1461,6 +1499,7 @@ function getBalanceSafe(currency) {
             node.className = 'case-carousel-item';
             node.dataset.itemId = dataItem.id;
             node.dataset.itemType = itemType(dataItem);
+            node.dataset.rarity = dataItem.rarity || "common";
             node.innerHTML = `<img src="${itemIconPath(dataItem)}" alt="${dataItem.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">`;
             cont.appendChild(node);
           }
@@ -1483,7 +1522,7 @@ function getBalanceSafe(currency) {
         const padL = parseFloat(cs.paddingLeft) || 0;
 
         const step = itemWidth + gap;
-
+        
         // 6) Стартовая позиция — текущая
         let startPosition = (typeof carousel.position === 'number') ? carousel.position : 0;
         if (!startPosition) {
@@ -1495,6 +1534,30 @@ function getBalanceSafe(currency) {
               const tx = parseFloat(parts[4]) || 0;
               startPosition = -tx;
             }
+            // Надёжный замер размеров (иногда в момент переключения fullscreen браузер возвращает 0)
+        let itemWidth = 0;
+        let gap = 0;
+          let padL = 0;
+          let step = 0;
+
+          for (let a = 0; a < 12; a++) {
+            const firstItem = cont.querySelector('.case-carousel-item');
+            if (!firstItem) break;
+
+            itemWidth = firstItem.getBoundingClientRect().width;
+
+            const cs = getComputedStyle(cont);
+            gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
+            padL = parseFloat(cs.paddingLeft) || 0;
+
+            step = itemWidth + gap;
+
+            if (Number.isFinite(step) && step > 5) break;
+            await new Promise(r => requestAnimationFrame(r));
+          }
+
+          if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
+
           }
         }
 
@@ -1502,15 +1565,13 @@ function getBalanceSafe(currency) {
         const lineX = getLineXInItems(carousel);
 
         // 8) Точка внутри выигрышного айтема (чтобы не попадать строго в край)
-        const innerMargin = Math.min(18, itemWidth * 0.18);
-        const randomPoint = innerMargin + Math.random() * (itemWidth - innerMargin * 2);
+        const innerMargin = Math.max(0, Math.min(18, itemWidth * 0.18));
+        const span = Math.max(0, itemWidth - innerMargin * 2);
+        const randomPoint = innerMargin + Math.random() * span;
 
-        // 9) Целевая позиция: под линию попадает randomPoint у winAt
         let targetPosition = padL + winAt * step + randomPoint - lineX;
-
         const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineX;
-        if (targetPosition < 0) targetPosition = 0;
-        if (targetPosition > maxTarget) targetPosition = maxTarget;
+        targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
 
         // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
         const minTravel = step * 20;
@@ -1568,6 +1629,14 @@ function getBalanceSafe(currency) {
     carousels.forEach(c => c.element.classList.add('cases-finished'));
 
     await delay(250);
+    
+    // Плавно возвращаем UI - переходим в режим "complete"
+    document.body.classList.remove("case-opening-fullscreen");
+    document.body.classList.add("case-opening-complete");
+    
+    // Небольшая задержка для плавной анимации возврата UI
+    await delay(400);
+    
     await showResult(currency, spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined);
   }
 
@@ -1892,6 +1961,16 @@ async function showResult(currency, demoModeOverride) {
 
   const resetAfter = () => {
     hideClaimBar();
+    
+    // Добавляем класс finished для убирания оверлея
+    document.body.classList.add("case-opening-finished");
+    
+    // Через задержку убираем все классы
+    setTimeout(() => {
+      document.body.classList.remove("case-opening-complete", "case-opening-finished");
+      document.body.removeAttribute("data-opening-case");
+    }, 600);
+    
     carousels.forEach((carousel) => {
       carousel.element.classList.remove('cases-finished');
       const ind = carousel.element.querySelector('.case-carousel-indicator');

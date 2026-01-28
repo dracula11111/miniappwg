@@ -2312,4 +2312,385 @@ body.case-sheet-open .logo-header {
       display: block;
     }
   }
+
+  /* ============================================
+     FULLSCREEN OPENING MODE
+     ============================================ */
   
+  /* Режим "fullscreen" для открытия кейса */
+  body.case-opening-fullscreen {
+    overflow: hidden;
+  }
+  
+  /* Блокируем прокрутку внутри .app */
+  body.case-opening-fullscreen .app {
+    overflow: hidden;
+  }
+  
+  /* Создаем полноценный overlay с градиентом */
+  body.case-opening-fullscreen::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9998;
+    opacity: 0;
+    animation: overlayFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    pointer-events: none;
+  }
+  
+  /* Дополнительный слой с пульсирующим светом */
+  body.case-opening-fullscreen::after {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 150%;
+    height: 150%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    opacity: 0;
+    border-radius: 50%;
+    filter: blur(100px);
+    animation: glowPulse 3s ease-in-out infinite;
+    pointer-events: none;
+  }
+  
+  /* Пульсирующее свечение для каждого кейса */
+  body.case-opening-fullscreen[data-opening-case="case1"]::after {
+    background: radial-gradient(circle, rgba(15, 52, 96, 0.3) 0%, transparent 70%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case2"]::after {
+    background: radial-gradient(circle, rgba(38, 115, 115, 0.3) 0%, transparent 70%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case3"]::after {
+    background: radial-gradient(circle, rgba(107, 61, 119, 0.3) 0%, transparent 70%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case4"]::after {
+    background: radial-gradient(circle, rgba(42, 77, 143, 0.3) 0%, transparent 70%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case5"]::after {
+    background: radial-gradient(circle, rgba(143, 106, 42, 0.3) 0%, transparent 70%);
+  }
+  
+  @keyframes glowPulse {
+    0%, 100% {
+      opacity: 0.3;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translate(-50%, -50%) scale(1.1);
+    }
+  }
+  
+  /* Градиенты overlay для каждого кейса */
+  body.case-opening-fullscreen[data-opening-case="case1"]::before {
+    background: 
+      radial-gradient(ellipse at 30% 20%, rgba(15, 52, 96, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(22, 33, 62, 0.35) 0%, transparent 50%),
+      linear-gradient(135deg, 
+        rgba(26, 26, 46, 0.5) 0%, 
+        rgba(22, 33, 62, 0.5) 35%, 
+        rgba(15, 52, 96, 0.5) 65%,
+        rgba(26, 26, 46, 0.5) 100%
+      );
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case2"]::before {
+    background: 
+      radial-gradient(ellipse at 30% 20%, rgba(38, 115, 115, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(26, 85, 85, 0.35) 0%, transparent 50%),
+      linear-gradient(135deg, 
+        rgba(13, 59, 59, 0.5) 0%, 
+        rgba(26, 85, 85, 0.5) 35%, 
+        rgba(38, 115, 115, 0.5) 65%,
+        rgba(13, 59, 59, 0.5) 100%
+      );
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case3"]::before {
+    background: 
+      radial-gradient(ellipse at 30% 20%, rgba(107, 61, 119, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(74, 45, 90, 0.35) 0%, transparent 50%),
+      linear-gradient(135deg, 
+        rgba(45, 27, 61, 0.5) 0%, 
+        rgba(74, 45, 90, 0.5) 35%, 
+        rgba(107, 61, 119, 0.5) 65%,
+        rgba(45, 27, 61, 0.5) 100%
+      );
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case4"]::before {
+    background: 
+      radial-gradient(ellipse at 30% 20%, rgba(42, 77, 143, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(26, 58, 110, 0.35) 0%, transparent 50%),
+      linear-gradient(135deg, 
+        rgba(10, 30, 61, 0.5) 0%, 
+        rgba(26, 58, 110, 0.5) 35%, 
+        rgba(42, 77, 143, 0.5) 65%,
+        rgba(10, 30, 61, 0.5) 100%
+      );
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case5"]::before {
+    background: 
+      radial-gradient(ellipse at 30% 20%, rgba(143, 106, 42, 0.4) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(110, 74, 26, 0.35) 0%, transparent 50%),
+      linear-gradient(135deg, 
+        rgba(61, 42, 10, 0.5) 0%, 
+        rgba(110, 74, 26, 0.5) 35%, 
+        rgba(143, 106, 42, 0.5) 65%,
+        rgba(61, 42, 10, 0.5) 100%
+      );
+  }
+  
+  @keyframes overlayFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  /* Плавный переход фона */
+  body.case-opening-fullscreen .app {
+    transition: background 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Скрываем backdrop панели кейса */
+  body.case-opening-fullscreen .case-sheet-backdrop {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  
+  /* Убираем только тень панели, градиент оставляем */
+  body.case-opening-fullscreen .case-sheet-panel {
+    box-shadow: none !important;
+  }
+
+/* ВАЖНО: поднимаем панель выше body::before/::after (z-index 9998/9999),
+   иначе карусели и фиксированные элементы оказываются под оверлеем и "пропадают". */
+body.case-opening-fullscreen .case-sheet-panel {
+  z-index: 100001 !important;
+  transform: none !important;
+  overflow: visible !important;
+}
+
+  
+  /* Скрываем весь UI кроме карусели */
+  body.case-opening-fullscreen .logo-header,
+  body.case-opening-fullscreen .topbar__left,
+  body.case-opening-fullscreen .case-sheet-header,
+  body.case-opening-fullscreen .case-price-display,
+  body.case-opening-fullscreen .case-demo-toggle,
+  body.case-opening-fullscreen .case-count-switch,
+  body.case-opening-fullscreen .case-content-wrapper,
+  body.case-opening-fullscreen .case-open-section {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Баланс остаётся видимым, но немного прозрачнее */
+  body.case-opening-fullscreen .balance {
+    opacity: 0.6;
+    z-index: 100000;
+    position: relative;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Скрываем всё содержимое case-sheet кроме карусели */
+  body.case-opening-fullscreen .case-sheet-panel > *:not(.case-carousels-section) {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  
+  /* Секция с каруселями занимает весь экран */
+  body.case-opening-fullscreen .case-carousels-section {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transform: none !important;
+    z-index: 99999 !important;
+    padding: 0 12px;
+    background: transparent;
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Усиленный glow эффект для предметов */
+  body.case-opening-fullscreen .case-carousel-item img {
+    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.4)) 
+            drop-shadow(0 0 40px currentColor);
+    transition: filter 0.3s ease;
+  }
+  
+  /* Цветные glow эффекты в зависимости от редкости */
+  body.case-opening-fullscreen .case-carousel-item[data-rarity="legendary"] img {
+    filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.6)) 
+            drop-shadow(0 0 50px rgba(255, 215, 0, 0.4));
+  }
+  
+  body.case-opening-fullscreen .case-carousel-item[data-rarity="epic"] img {
+    filter: drop-shadow(0 0 25px rgba(138, 43, 226, 0.6)) 
+            drop-shadow(0 0 50px rgba(138, 43, 226, 0.4));
+  }
+  
+  body.case-opening-fullscreen .case-carousel-item[data-rarity="rare"] img {
+    filter: drop-shadow(0 0 25px rgba(0, 191, 255, 0.6)) 
+            drop-shadow(0 0 50px rgba(0, 191, 255, 0.4));
+  }
+  
+  body.case-opening-fullscreen .case-carousel-item[data-rarity="common"] img {
+    filter: drop-shadow(0 0 20px rgba(169, 169, 169, 0.6)) 
+            drop-shadow(0 0 40px rgba(169, 169, 169, 0.4));
+  }
+  
+  /* Градиенты фона для разных кейсов - теперь используем overlay вместо этого */
+  /* body.case-opening-fullscreen[data-opening-case="case1"] .app {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case2"] .app {
+    background: linear-gradient(135deg, #0d3b3b 0%, #1a5555 50%, #267373 100%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case3"] .app {
+    background: linear-gradient(135deg, #2d1b3d 0%, #4a2d5a 50%, #6b3d77 100%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case4"] .app {
+    background: linear-gradient(135deg, #0a1e3d 0%, #1a3a6e 50%, #2a4d8f 100%);
+  }
+  
+  body.case-opening-fullscreen[data-opening-case="case5"] .app {
+    background: linear-gradient(135deg, #3d2a0a 0%, #6e4a1a 50%, #8f6a2a 100%);
+  } */
+  
+  /* Анимация появления панели результатов */
+  body.case-opening-fullscreen .case-claim-bar {
+    position: fixed !important;
+    bottom: 20px !important;
+    left: 12px !important;
+    right: 12px !important;
+    z-index: 100000 !important;
+    animation: slideUpFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  @keyframes slideUpFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Плавное возвращение UI после открытия */
+  
+  /* В complete режиме оверлей и градиент ОСТАЮТСЯ до claim */
+  /* Убираем только анимацию пульсации */
+  body.case-opening-complete::after {
+    animation: none;
+    opacity: 0.4;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Возвращаем UI элементы */
+  body.case-opening-complete .logo-header,
+  body.case-opening-complete .topbar__left,
+  body.case-opening-complete .case-sheet-header,
+  body.case-opening-complete .case-price-display,
+  body.case-opening-complete .case-demo-toggle,
+  body.case-opening-complete .case-count-switch,
+  body.case-opening-complete .case-content-wrapper,
+  body.case-opening-complete .case-open-section {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  body.case-opening-complete .balance {
+    opacity: 1;
+    z-index: auto;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Возвращаем карусель на место */
+  body.case-opening-complete .case-carousels-section {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    display: block !important;
+    align-items: normal !important;
+    justify-content: normal !important;
+    transform: none !important;
+    z-index: auto !important;
+    padding: 24px 20px 16px;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  body.case-opening-complete .case-sheet-backdrop {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Панель остаётся на месте с градиентом кейса */
+  body.case-opening-complete .case-sheet-panel {
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.5) !important;
+    transition: box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  body.case-opening-complete .case-sheet-panel > * {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  body.case-opening-complete .case-claim-bar {
+    position: relative !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: auto !important;
+  }
+  
+  body.case-opening-complete .app {
+    background: var(--bg);
+    transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Полное завершение - убираем оверлей после claim */
+  body.case-opening-finished::before {
+    animation: overlayFadeOut 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  
+  body.case-opening-finished::after {
+    opacity: 0;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  @keyframes overlayFadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
