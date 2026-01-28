@@ -106,8 +106,6 @@
     border-color: rgba(255,255,255,.14);
   }
   
- 
-  
   /* ===== AREAS + IMAGES ===== */
   .game-tile--wheel{ grid-area: wheel; }
   .game-tile--crash{ grid-area: crash; }
@@ -118,6 +116,7 @@
   .game-tile--wheel{ 
     background-image: url("/images/games/wheel.webp");
     background-position: center 40%; /* центр по горизонтали, чуть выше по вертикали */
+    background-size: cover;
   }
   /* Wheel: сдвиг постера вправо только на 360x780 */
 @media (width: 360px) and (height: 780px){
@@ -128,15 +127,18 @@
 
   .game-tile--crash{ 
     background-image: url("/images/games/crash.webp");
-    background-position: center center;
+    background-position: center top 50%;
+    background-size: cover;
   }
   .game-tile--cases{ 
     background-image: url("/images/games/cases.webp");
-    background-position: center center;
+    background-position: center 35%;
+    background-size: cover;
   }
   .game-tile--soon{ 
     background-image: url("/images/games/soon.webp");
-    background-position: center center;
+    background-position: center 45%;
+    background-size: cover;
   }
   
   /* если фоток нет — всё равно красиво */
@@ -167,5 +169,3 @@
     .game-tile{ transition:none !important; }
     .game-tile::before{ animation:none !important; }
   }
-
-  
