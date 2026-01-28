@@ -894,10 +894,9 @@ async function inventorySell(userId, instanceIds, currency) {
 }
 
 // GET inventory (NFTs) for a user
-app.get("/api/user/inventory", async (req, res) => {
+app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
-    const userId = String(req.query.userId || "");
-    if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+    const userId = String(req.tg.user.id);
     const items = await inventoryGet(userId);
     return res.json({ ok: true, items, nfts: items });
   } catch (e) {
@@ -906,84 +905,49 @@ app.get("/api/user/inventory", async (req, res) => {
   }
 });
 
+
+
 // Add won NFTs to inventory (idempotent via claimId)
 app.post("/api/inventory/nft/add", async (req, res) => {
-  try {
-    const { userId, initData, items, item, claimId } = req.body || {};
-    const uid = String(userId || "");
-    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+  if (!isRelayerSecretOk(req)) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
 
-    // Optional: verify initData (if provided)
-    if (initData && process.env.BOT_TOKEN) {
-      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-      if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
-    }
+  try {
+    const { userId: bodyUserId, items, item, claimId } = req.body || {};
+    const uid = String(bodyUserId || "");
+    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
 
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    // If relayer sends base64 icon (iconData or icon="data:..."), save it on server and replace icon with public URL.
-    const normalized = list.map((it) => {
-      const x = (it && typeof it === "object") ? { ...it } : it;
-      if (!x || typeof x !== "object") return x;
-
-      const data =
-        String(x.iconData || "").trim() ||
-        (typeof x.icon === "string" && x.icon.trim().startsWith("data:") ? x.icon.trim() : "");
-
-      if (data) {
-        const saved = saveMarketImageFromData(data, x.name || x.displayName || "nft");
-        if (saved) x.icon = saved;
-        delete x.iconData;
-      }
-      return x;
-    });
-
-
-   
-
-    const result = await inventoryAdd(uid, normalized, claimId);
-    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
+    const result = await inventoryAdd(uid, list, claimId);
+    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items });
   } catch (e) {
     console.error("[Inventory] add error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
   }
 });
+
+
 
 // Compatibility: front-end uses /api/inventory/add
-app.post("/api/inventory/add", async (req, res) => {
-  try {
-    const { userId, initData, items, item, claimId } = req.body || {};
-    const uid = String(userId || "");
-    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
-
-    if (initData && process.env.BOT_TOKEN) {
-      const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-      if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
-    }
-
-    const list = Array.isArray(items) ? items : (item ? [item] : []);
-    if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
-
-    const result = await inventoryAdd(uid, normalized, claimId);
-    return res.json({ ok: true, added: result.added, items: result.items, nfts: result.items, duplicated: !!result.duplicated });
-  } catch (e) {
-    console.error("[Inventory] add error:", e);
-    return res.status(500).json({ ok: false, error: "inventory error" });
-  }
+app.post("/api/inventory/add", requireRelayerOrTelegramUser, async (req, res) => {
+  // просто прокидываем в nft/add логику
+  return app._router.handle({ ...req, url: "/api/inventory/nft/add" }, res, () => {});
 });
 
+
 // Sell selected NFTs from inventory -> credit balance
-app.post("/api/inventory/sell", async (req, res) => {
+app.post("/api/inventory/sell", requireTelegramUser, async (req, res) => {
   try {
-    const { userId, instanceIds, currency } = req.body || {};
-    const uid = String(userId || "");
-    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+    const userId = String(req.tg.user.id);
+    const { instanceIds, currency } = req.body || {};
 
     const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
     if (!ids.length) return res.status(400).json({ ok: false, error: "instanceIds required" });
 
-    const result = await inventorySell(uid, ids, currency);
+    const result = await inventorySell(userId, ids, currency);
     return res.json(result);
   } catch (e) {
     console.error("[Inventory] sell error:", e);
@@ -991,18 +955,20 @@ app.post("/api/inventory/sell", async (req, res) => {
   }
 });
 
+
 // Sell ALL NFTs
-app.post("/api/inventory/sell-all", async (req, res) => {
+app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
   try {
-    const { userId, currency } = req.body || {};
-    const uid = String(userId || "");
-    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+    const userId = String(req.tg.user.id);
+    const { currency } = req.body || {};
 
-    const items = await inventoryGet(uid);
+    const items = await inventoryGet(userId);
     const ids = items.map(it => it?.instanceId).filter(Boolean).map(String);
-    if (!ids.length) return res.json({ ok: true, sold: 0, amount: 0, currency: (currency === "stars") ? "stars" : "ton", items: [], nfts: [] });
+    if (!ids.length) {
+      return res.json({ ok: true, sold: 0, amount: 0, currency: (currency === "stars") ? "stars" : "ton", items: [], nfts: [] });
+    }
 
-    const result = await inventorySell(uid, ids, currency);
+    const result = await inventorySell(userId, ids, currency);
     return res.json(result);
   } catch (e) {
     console.error("[Inventory] sell-all error:", e);
@@ -1010,14 +976,17 @@ app.post("/api/inventory/sell-all", async (req, res) => {
   }
 });
 
+
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {
   try {
     const adminKey = process.env.ADMIN_KEY;
-    if (adminKey) {
-      const hdr = String(req.headers["x-admin-key"] || "");
-      if (hdr !== adminKey) return res.status(403).json({ ok: false, error: "forbidden" });
+    if (!adminKey) {
+      return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
     }
+    const hdr = String(req.headers["x-admin-key"] || "");
+    if (hdr !== adminKey) return res.status(403).json({ ok: false, error: "forbidden" });
+    
 
     const { userId, items, item, claimId } = req.body || {};
     const uid = String(userId || "");
@@ -1815,10 +1784,21 @@ async function readMarketItems() {
   }
 }
 
+
+let marketQueue = Promise.resolve();
+
+function withMarketLock(fn) {
+  const run = marketQueue.then(fn, fn);
+  marketQueue = run.catch(() => {});
+  return run;
+}
+
 async function writeMarketItems(items) {
   try {
     await ensureMarketDir();
-    fs.writeFileSync(MARKET_DB_PATH, JSON.stringify(items, null, 2), "utf8");
+    const tmp = `${MARKET_DB_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(items, null, 2), "utf8");
+    fs.renameSync(tmp, MARKET_DB_PATH);
     return true;
   } catch (e) {
     console.error("[MarketStore] write error:", e);
@@ -1934,14 +1914,23 @@ app.post("/api/market/items/add", async (req, res) => {
     delete out.imageData;
     delete out.previewData;
 
-    const items = await readMarketItems();
-    items.unshift(out);
-    const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
-    if (items.length > MAX) items.length = MAX;
-
-    const ok = await writeMarketItems(items);
-    if (!ok) return res.status(500).json({ ok: false, error: "write failed" });
-    return res.json({ ok: true, item: out });
+    const saved = await withMarketLock(async () => {
+      const items = await readMarketItems();
+    
+      // дедуп: если такой id уже есть — убираем старую запись
+      const filtered = items.filter(x => String(x?.id) !== String(out.id));
+      filtered.unshift(out);
+    
+      const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+      if (filtered.length > MAX) filtered.length = MAX;
+    
+      const ok = await writeMarketItems(filtered);
+      if (!ok) throw new Error("write failed");
+      return out;
+    });
+    
+    return res.json({ ok: true, item: saved });
+    
   } catch (e) {
     console.error("[MarketStore] add error:", e);
     return res.status(500).json({ ok: false, error: "market add error" });
@@ -1952,13 +1941,14 @@ app.post("/api/market/items/add", async (req, res) => {
 app.post("/api/market/items/clear", async (req, res) => {
   try {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
-    await writeMarketItems([]);
+    await withMarketLock(() => writeMarketItems([]));
     return res.json({ ok: true });
   } catch (e) {
     console.error("[MarketStore] clear error:", e);
     return res.status(500).json({ ok: false, error: "market clear error" });
   }
 });
+
 
 // ====== SPA fallback ======"
 // ============================================
@@ -2353,6 +2343,45 @@ function verifyInitData(initDataStr, botToken, maxAgeSeconds = 300) {
     return { ok: false, params: {} };
   }
 }
+
+function getInitDataFromReq(req) {
+  return String(
+    req.body?.initData ||
+    req.query?.initData ||
+    req.headers["x-telegram-init-data"] ||
+    ""
+  );
+}
+
+function requireTelegramUser(req, res, next) {
+  const initData = getInitDataFromReq(req);
+  if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
+  if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+
+  const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+  if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
+
+  let user = null;
+  try { user = JSON.parse(check.params.user || "null"); } catch {}
+  if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+  req.tg = { user, initData, params: check.params };
+  return next();
+}
+
+// internal (relayer/server-to-server)
+function requireRelayer(req, res, next) {
+  if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
+  req.isRelayer = true;
+  return next();
+}
+
+// allow either Telegram user OR relayer secret
+function requireRelayerOrTelegramUser(req, res, next) {
+  if (isRelayerSecretOk(req)) { req.isRelayer = true; return next(); }
+  return requireTelegramUser(req, res, next);
+}
+
 
 // Send Telegram message
 async function sendTelegramMessage(chatId, text) {

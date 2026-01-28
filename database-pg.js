@@ -96,9 +96,45 @@ export async function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_inventory_items_user ON inventory_items(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_inventory_items_created ON inventory_items(created_at DESC);
 
+
+    CREATE TABLE IF NOT EXISTS market_items (
+  id TEXT PRIMARY KEY,
+  item_json JSONB NOT NULL,
+  created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_market_items_created ON market_items(created_at DESC);
+
+
   `);
   console.log("[DB] ✅ Postgres schema ready");
 }
+
+
+export async function getMarketItems(limit = 200) {
+  const r = await query(
+    `SELECT item_json FROM market_items ORDER BY created_at DESC LIMIT $1`,
+    [Math.max(1, Math.min(5000, Number(limit) || 200))]
+  );
+  return r.rows.map(x => x.item_json);
+}
+
+export async function addMarketItem(item) {
+  const id = String(item.id);
+  const now = Date.now();
+  await query(
+    `INSERT INTO market_items (id, item_json, created_at)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (id) DO UPDATE SET item_json = EXCLUDED.item_json, created_at = EXCLUDED.created_at`,
+    [id, item, now]
+  );
+  return true;
+}
+
+export async function clearMarketItems() {
+  await query(`TRUNCATE market_items`);
+  return true;
+}
+
 
 export async function saveUser(userData) {
   const now = Math.floor(Date.now() / 1000);

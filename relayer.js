@@ -271,19 +271,21 @@ async function postJson(url, body, headers = {}) {
   });
   const text = await r.text();
   let json = null;
-  try { json = JSON.parse(text); } catch { /* ignore */ }
+  try { json = JSON.parse(text); } catch {}
   return { ok: r.ok, status: r.status, json, text };
 }
 
 async function addToInventory({ userId, item, claimId }) {
   const url = `${SERVER}/api/inventory/nft/add`;
+  const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
   return await postJson(url, {
     userId: String(userId),
     items: [item],
     claimId: String(claimId),
-    initData: "" // relayer is trusted, no initData
-  });
+  }, headers);
 }
+
+
 
 async function addToMarket({ item }) {
   const url = `${SERVER}/api/market/items/add`;
@@ -441,7 +443,8 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
       tg: tgPayload
     };
 
-    const claimId = `tg_msg_${String(msg.id)}`;
+    const claimId = `tg_${fromId}_${String(msg.id)}`;
+
 
     try {
       let r;
