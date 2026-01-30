@@ -191,6 +191,7 @@ const PORT = process.env.PORT || 3000; // port
 import { WebSocketServer } from 'ws';
 
 const wss = new WebSocketServer({ noServer: true });
+const wheelWss = new WebSocketServer({ noServer: true });
 
 const crashGame = {
   phase: 'betting',
@@ -262,8 +263,8 @@ function buildGameState(now = Date.now()) {
 }
 
 // WS heartbeat (close dead/stuck sockets)
-setInterval(() => {
-  wss.clients.forEach(ws => {
+function heartbeat(wssInst) {
+  wssInst.clients.forEach(ws => {
     if (ws.isAlive === false) {
       try { ws.terminate(); } catch {}
       return;
@@ -271,7 +272,14 @@ setInterval(() => {
     ws.isAlive = false;
     try { ws.ping(); } catch {}
   });
+}
+
+setInterval(() => {
+  heartbeat(wss);
+  heartbeat(wheelWss);
 }, HEARTBEAT_MS);
+
+
 
 function getXFromSeeds(serverSeed, clientSeed, nonce) {
   // HMAC_SHA512(serverSeed, clientSeed:nonce)
@@ -520,15 +528,22 @@ httpServer.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit('connection', ws, request);
     });
+  } else if (request.url === '/ws/wheel') {
+    wheelWss.handleUpgrade(request, socket, head, (ws) => {
+      wheelWss.emit('connection', ws, request);
+    });
   } else {
     socket.destroy();
   }
 });
 
+
 // Start first round
 startBetting();
 
 // Rest of your Express routes below...
+
+
 
 
 
@@ -541,6 +556,235 @@ const WHEEL_ORDER = [
   '1.5x','11x','1.1x','1.5x','Loot Rush','1.1x','5x','50&50',
   '1.1x','1.5x','1.1x','Wild Time','11x','1.5x','1.1x','5x','50&50'
 ];
+// ==============================
+// WHEEL GAME WebSocket Server (shared wheel for everyone, Crash-style)
+// ==============================
+
+const WHEEL_BETTING_TIME = 9000;     // ms
+const WHEEL_ACCEL_MS = 1200;         // ms
+const WHEEL_DECEL_MIN_MS = 5000;     // ms
+const WHEEL_DECEL_MAX_MS = 7000;     // ms
+const WHEEL_EXTRA_TURNS = 4;
+const WHEEL_RESULT_TIME = 2500;      // ms
+
+const WHEEL_ALLOWED = new Set(WHEEL_ORDER);
+
+const wheelGame = {
+  phase: 'betting',           // betting | spin | result
+  phaseStart: Date.now(),
+  roundId: 0,
+  players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
+  history: [],
+  spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
+  phaseTimeout: null
+};
+
+function normWheelSeg(seg) {
+  if (!seg) return null;
+  const s = String(seg).trim();
+  if (s === '50/50' || s === '50-50') return '50&50';
+  return s;
+}
+
+function buildWheelPlayersArray() {
+  const order = ['1.1x','1.5x','5x','11x','50&50','Loot Rush','Wild Time'];
+
+  const list = Array.from(wheelGame.players.values()).map(p => {
+    const segEntries = Array.from(p.segments.entries())
+      .map(([seg, amount]) => [normWheelSeg(seg), Number(amount || 0)])
+      .filter(([seg, amount]) => seg && WHEEL_ALLOWED.has(seg) && Number.isFinite(amount) && amount > 0)
+      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+      .map(([segment, amount]) => ({
+        segment,
+        amount: (p.currency === 'stars') ? Math.round(amount) : (Math.round(amount * 100) / 100)
+      }));
+
+    return {
+      userId: p.userId,
+      name: p.name,
+      avatar: p.avatar,
+      currency: p.currency,
+      totalAmount: p.totalAmount,
+      segments: segEntries
+    };
+  });
+
+  // Sort by bet size desc (Crash-style)
+  list.sort((a, b) => Number(b.totalAmount || 0) - Number(a.totalAmount || 0));
+  return list;
+}
+
+function buildWheelState(now = Date.now()) {
+  const bettingLeftMs = (wheelGame.phase === 'betting')
+    ? Math.max(0, (wheelGame.phaseStart + WHEEL_BETTING_TIME) - now)
+    : null;
+
+  return {
+    type: 'wheelState',
+    serverTime: now,
+    bettingTimeMs: WHEEL_BETTING_TIME,
+    bettingLeftMs,
+    phase: wheelGame.phase,
+    phaseStart: wheelGame.phaseStart,
+    roundId: wheelGame.roundId,
+    spin: wheelGame.spin,
+    players: buildWheelPlayersArray(),
+    history: wheelGame.history.slice(0, 20)
+  };
+}
+
+function broadcastWheelState() {
+  const payload = JSON.stringify(buildWheelState());
+  wheelWss.clients.forEach(ws => wsSendSafe(ws, payload));
+}
+
+function wheelClearPhaseTimeout() {
+  if (wheelGame.phaseTimeout) {
+    clearTimeout(wheelGame.phaseTimeout);
+    wheelGame.phaseTimeout = null;
+  }
+}
+
+function wheelStartBetting() {
+  wheelClearPhaseTimeout();
+
+  wheelGame.phase = 'betting';
+  wheelGame.phaseStart = Date.now();
+  wheelGame.roundId += 1;
+  wheelGame.spin = null;
+  wheelGame.players.clear();
+
+  broadcastWheelState();
+
+  wheelGame.phaseTimeout = setTimeout(() => {
+    wheelStartSpin();
+  }, WHEEL_BETTING_TIME);
+}
+
+function wheelPickResult() {
+  const sliceIndex = Math.floor(Math.random() * WHEEL_ORDER.length);
+  const type = WHEEL_ORDER[sliceIndex];
+  return { sliceIndex, type };
+}
+
+function wheelStartSpin() {
+  wheelClearPhaseTimeout();
+
+  wheelGame.phase = 'spin';
+  wheelGame.phaseStart = Date.now();
+
+  const { sliceIndex, type } = wheelPickResult();
+  const decelMs = WHEEL_DECEL_MIN_MS + Math.floor(Math.random() * (WHEEL_DECEL_MAX_MS - WHEEL_DECEL_MIN_MS + 1));
+
+  wheelGame.spin = {
+    sliceIndex,
+    type,
+    accelMs: WHEEL_ACCEL_MS,
+    decelMs,
+    extraTurns: WHEEL_EXTRA_TURNS,
+    spinStartAt: wheelGame.phaseStart,
+    spinTotalMs: WHEEL_ACCEL_MS + decelMs
+  };
+
+  broadcastWheelState();
+
+  wheelGame.phaseTimeout = setTimeout(() => {
+    wheelStartResult();
+  }, wheelGame.spin.spinTotalMs);
+}
+
+function wheelStartResult() {
+  wheelClearPhaseTimeout();
+
+  wheelGame.phase = 'result';
+  wheelGame.phaseStart = Date.now();
+
+  if (wheelGame.spin?.type) {
+    wheelGame.history.unshift(wheelGame.spin.type);
+    if (wheelGame.history.length > 20) wheelGame.history.length = 20;
+  }
+
+  broadcastWheelState();
+
+  wheelGame.phaseTimeout = setTimeout(() => {
+    wheelStartBetting();
+  }, WHEEL_RESULT_TIME);
+}
+
+// WS: Wheel connections
+wheelWss.on('connection', (ws) => {
+  console.log('[Wheel WS] Client connected');
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  wsSendSafe(ws, JSON.stringify(buildWheelState()));
+
+  ws.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data);
+
+      if (msg.type === 'placeBet') {
+        if (wheelGame.phase !== 'betting') {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
+          return;
+        }
+
+        const userId = String(msg.userId || '').trim();
+        if (!userId) return;
+
+        const seg = normWheelSeg(msg.segment);
+        if (!seg || !WHEEL_ALLOWED.has(seg)) return;
+
+        const currency = (String(msg.currency || 'ton').toLowerCase() === 'stars') ? 'stars' : 'ton';
+        let amount = Number(msg.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) return;
+
+        if (currency === 'stars') amount = Math.round(amount);
+        else amount = Math.round(amount * 100) / 100;
+
+        const name = String(msg.userName || 'Player').slice(0, 64);
+        const avatar = msg.userAvatar ? String(msg.userAvatar).slice(0, 500) : null;
+
+        let p = wheelGame.players.get(userId);
+        if (!p) {
+          p = { userId, name, avatar, currency, totalAmount: 0, segments: new Map() };
+          wheelGame.players.set(userId, p);
+        }
+
+        if (name) p.name = name;
+        if (avatar) p.avatar = avatar;
+
+        if (p.currency !== currency) return;
+
+        const prevSeg = Number(p.segments.get(seg) || 0);
+        p.segments.set(seg, prevSeg + amount);
+
+        p.totalAmount = (Number(p.totalAmount) || 0) + amount;
+        if (currency === 'stars') p.totalAmount = Math.round(p.totalAmount);
+        else p.totalAmount = Math.round(p.totalAmount * 100) / 100;
+
+        broadcastWheelState();
+      }
+
+      if (msg.type === 'clearBets') {
+        if (wheelGame.phase !== 'betting') return;
+        const userId = String(msg.userId || '').trim();
+        if (!userId) return;
+        wheelGame.players.delete(userId);
+        broadcastWheelState();
+      }
+
+    } catch (e) {
+      console.error('[Wheel WS] Message error:', e);
+    }
+  });
+});
+
+// Start shared loop
+wheelStartBetting();
+
+
+
 
 // --- Base settings
 app.set("trust proxy", true);
@@ -742,8 +986,16 @@ let giftsCatalog = [
       "Vintage Cigar",
       "Voodoo Doll",
       "Flying Broom",
-      "Hex Pot"
-]; // tracked gift collection names (strings)
+      "Hex Pot",
+        "Mighty Arm",
+        "Scared Cat",
+        "Bonded Ring",
+        "Genie Lamp",
+        "Jack-in-the-Box",
+        "Winter Wreath"
+];
+  
+ // tracked gift collection names (strings)
 let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
 let giftsCatalogLastUpdate = 0;
@@ -778,6 +1030,7 @@ async function refreshGiftsCatalogStatic() {
 
 // (B) Цены: Portals collections endpoint (без auth) — берём floor_price по поиску.
 // Источник: пример использования /api/collections?search=...&limit=10 -> collections[0].floor_price
+// Фоллбэк: если портал недоступен, используем market.tonnel.network
 async function refreshGiftsPricesFromPortals() {
   if (!giftsCatalog.length) {
     await refreshGiftsCatalogStatic();
@@ -790,42 +1043,73 @@ async function refreshGiftsPricesFromPortals() {
     const q = normalizeGiftName(giftName);
     if (!q) continue;
 
-    const url = `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`;
-
-    try {
-      const res = await fetchWithTimeout(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-      if (!res.ok) throw new Error(`portals http ${res.status}`);
-      const data = await res.json();
-
-      const cols = Array.isArray(data?.collections) ? data.collections
-                : Array.isArray(data?.items) ? data.items
-                : [];
-      if (!cols.length) continue;
-
-      const target = q.toLowerCase();
-      let best = cols[0];
-
-      for (const c of cols) {
-        const nm = normalizeGiftName(c?.name || c?.title || c?.gift || "");
-        if (nm && nm.toLowerCase() === target) { best = c; break; }
+    const sources = [
+      {
+        name: 'portal-market.com',
+        url: `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`
+      },
+      {
+        name: 'market.tonnel.network',
+        url: `https://market.tonnel.network/api/collections?search=${encodeURIComponent(q)}&limit=10`
       }
+    ];
 
-      const floorRaw = (best && (best.floor_price ?? best.floorPrice ?? best.floor)) ?? null;
-      const price = Number(floorRaw);
-      if (!Number.isFinite(price) || price <= 0) continue;
+    let priceFound = false;
 
-      giftsPrices.set(giftName, {
-        priceTon: price,
-        updatedAt: now,
-        source: "portals"
-      });
-      updatedCount++;
-    } catch (e) {
-      // не падаем, просто пропускаем этот gift
-      console.warn('[gifts] portals fetch failed for', q, '-', e?.message || e);
+    for (const source of sources) {
+      if (priceFound) break;
+
+      try {
+        const res = await fetchWithTimeout(source.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        if (!res.ok) {
+          console.warn(`[gifts] ${source.name} returned status ${res.status} for ${q}`);
+          continue;
+        }
+        
+        const data = await res.json();
+
+        const cols = Array.isArray(data?.collections) ? data.collections
+                  : Array.isArray(data?.items) ? data.items
+                  : [];
+        if (!cols.length) {
+          console.warn(`[gifts] ${source.name} returned no results for ${q}`);
+          continue;
+        }
+
+        const target = q.toLowerCase();
+        let best = cols[0];
+
+        for (const c of cols) {
+          const nm = normalizeGiftName(c?.name || c?.title || c?.gift || "");
+          if (nm && nm.toLowerCase() === target) { best = c; break; }
+        }
+
+        const floorRaw = (best && (best.floor_price ?? best.floorPrice ?? best.floor)) ?? null;
+        const price = Number(floorRaw);
+        if (!Number.isFinite(price) || price <= 0) {
+          console.warn(`[gifts] ${source.name} returned invalid price for ${q}: ${floorRaw}`);
+          continue;
+        }
+
+        giftsPrices.set(giftName, {
+          priceTon: price,
+          updatedAt: now,
+          source: source.name
+        });
+        updatedCount++;
+        priceFound = true;
+        console.log(`[gifts] ✅ Updated ${giftName} from ${source.name}: ${price} TON`);
+      } catch (e) {
+        // не падаем, просто пропускаем этот источник и пробуем следующий
+        console.warn(`[gifts] ${source.name} fetch failed for ${q} -`, e?.message || e);
+      }
     }
 
-    // небольшая пауза, чтобы не долбить сервис
+    if (!priceFound) {
+      console.warn(`[gifts] ⚠️  All sources failed for ${giftName}`);
+    }
+
+    // небольшая пауза, чтобы не долбить сервисы
     await sleep(150);
   }
 

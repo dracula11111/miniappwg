@@ -12,8 +12,10 @@ class Bonus5050 {
       boomSrc: options.boomSrc || 'images/boom.webp',
       particlesSrc: options.particlesSrc || 'images/boomparticles.webp',
       lightningIcon: options.lightningIcon || 'icons/lighting.webp',
+      backIcon: options.backIcon || 'icons/back.svg',
       ...options
     };
+    
 
     this._scrollLocked = false;
 
@@ -52,6 +54,57 @@ class Bonus5050 {
   _fxRoot() {
     // Keep all FX (boom/particles/flying labels) inside the bonus overlay so it only appears on Wheel page
     return (this.container && this.container.closest && this.container.closest('#bonus5050Overlay')) || this.container || document.body;
+  }
+
+  _setGlobalBackHandler() {
+    // единый обработчик для универсальной кнопки Back в оверлее
+    this._backHandler = () => this.abort();
+    window.__bonusBackHandler = this._backHandler;
+  }
+
+  _clearGlobalBackHandler() {
+    if (window.__bonusBackHandler === this._backHandler) {
+      window.__bonusBackHandler = null;
+    }
+    this._backHandler = null;
+  }
+
+  async _closeOverlayAndCleanup() {
+    const overlay = this._overlayEl();
+    if (!overlay) return;
+
+    overlay.classList.add('bonus-overlay--leave');
+    await this._wait(260);
+
+    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+    overlay.style.display = 'none';
+
+    if (this.container) this.container.innerHTML = '';
+    this._unlockScroll();
+  }
+
+  // Public: called by universal Back button via window.__bonusBackHandler
+  abort() {
+    if (!this._running || this._completed) return;
+    this._aborted = true;
+    this._running = false;
+    // fire and forget
+    this._abort('cancelled');
+  }
+
+  async _abort(val = 'cancelled') {
+    if (this._completed) return;
+    this._completed = true;
+
+    await this._closeOverlayAndCleanup();
+    this._clearGlobalBackHandler();
+    this._running = false;
+
+    if (typeof this.options.onBack === 'function') {
+      this.options.onBack();
+    } else {
+      this.options.onComplete(val);
+    }
   }
 
   _render() {
@@ -336,6 +389,8 @@ class Bonus5050 {
   async start() {
     if (this._running) return;
     this._running = true;
+    this._aborted = false;
+    this._completed = false;
 
     const overlay = this._overlayEl();
     if (!overlay || !this.container) {
@@ -347,9 +402,9 @@ class Bonus5050 {
     overlay.style.display = 'flex';
     overlay.classList.add('bonus-overlay--active');
 
+    this._setGlobalBackHandler();
     this._lockScroll();
     const ui = this._render();
-
     // 50/50 winner side
     const pickGood = Math.random() < 0.5;
 
@@ -365,31 +420,47 @@ class Bonus5050 {
 
     try {
       await this._wait(450);
+      if (this._aborted) return;
+
 
       await Promise.all([
         this._spinReel(ui.good, goodX, this.GOOD_XS, { durationMs: 6100 }),
         this._spinReel(ui.bad,  badX,  this.BAD_XS,  { durationMs: 5850 })
       ]);
+      if (this._aborted) return;
+
 
       // пауза чтобы увидеть оба выпавших
       await this._wait(700);
+      if (this._aborted) return;
+
 
       // (A) плавно убрать барабаны
       ui.machine.classList.add('b5050-machine--collapse');
       await this._wait(650); // дать CSS красиво отработать
+      if (this._aborted) return;
+
 
       await this._holdThenCollide(ui, goodX, badX);
+      if (this._aborted) return;
+
 
 
       // (D) winner reveal (как раньше)
       ui.result.textContent = this._fmtX(chosenX);
       ui.machine.classList.add('b5050-machine--result');
       await this._wait(900);
+      if (this._aborted) return;
+
 
       await cdPromise;
     } catch (e) {
       console.error('[Bonus5050] ❌ Error:', e);
     } finally {
+      // если уже закрыли через abort() — не дублируем очистку/коллбэки
+      if (this._completed) return;
+      this._completed = true;
+
       overlay.classList.add('bonus-overlay--leave');
       await this._wait(260);
 
@@ -399,6 +470,7 @@ class Bonus5050 {
       this.container.innerHTML = '';
       this._unlockScroll();
       this._running = false;
+      this._clearGlobalBackHandler();
 
       this.options.onComplete(this._fmtX(chosenX));
     }

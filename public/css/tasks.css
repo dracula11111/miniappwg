@@ -1,109 +1,404 @@
-/* =========================
-   Tasks page
-   ========================= */
+/* /css/tasks.css */
+/* Стили под Tasks как на скрине. Стараюсь не ломать другие страницы. */
 
-   .tasks-page{
-    padding: 18px 16px 90px;
+#tasksPage .tasks-page{
+  padding: 18px 16px 96px; /* низ под bottom nav */
+  -webkit-tap-highlight-color: transparent;
+}
+
+#tasksPage .tasks-title{
+  margin: 2px 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  color: rgba(255,255,255,.92);
+}
+
+/* Убираем subtitle "Complete easy Tasks..." */
+#tasksPage .tasks-subtitle{
+  display: none;
+}
+
+/* Карточка как на скрине */
+#tasksPage .tasks-card.tasks-card--new{
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 14px 12px;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+  background-color: #15161a;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* Заголовки секций */
+#tasksPage .tsec{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin: 4px 6px 10px;
+}
+
+#tasksPage .tsec__left{
+  font-size: 18px;
+  font-weight: 750;
+  color: rgba(255,255,255,.38);
+}
+
+#tasksPage .tsec__right{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  color: rgba(255,255,255,.40);
+  font-weight: 700;
+}
+
+#tasksPage .tsec__clock{
+  font-size: 14px;
+  opacity: .75;
+}
+
+#tasksPage .tsec__time{
+  font-size: 16px;
+  letter-spacing: .3px;
+}
+
+/* Ряд таска */
+#tasksPage .trow{
+  display:flex;
+  align-items:center;
+  gap: 14px;
+  padding: 12px 10px;
+  border-radius: 18px;
+}
+
+#tasksPage .trow + .trow{
+  margin-top: 6px;
+}
+
+/* Иконка слева (цветной квадрат) */
+#tasksPage .trow__icon{
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--icon-bg), black 12%);
+  box-shadow:
+    0 10px 25px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.20);
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  flex: 0 0 auto;
+}
+
+#tasksPage .trow__iconImg{
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,.35));
+}
+
+#tasksPage .trow__iconFallback{
+  font-size: 20px;
+  font-weight: 900;
+  color: rgba(255,255,255,.95);
+}
+
+/* Тексты */
+#tasksPage .trow__meta{
+  flex: 1 1 auto;
+  min-width: 0;
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+}
+
+#tasksPage .trow__title{
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#tasksPage .trow__sub{
+  margin-top: -2px;
+  font-size: 13px;
+  font-weight: 650;
+  color: rgba(255,255,255,.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Пилюля награды под названием - базовые стили */
+#tasksPage .trow__reward{
+  width: fit-content;
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 950;
+  font-size: 14px;
+  letter-spacing: .2px;
+  box-shadow:
+    0 10px 18px rgba(0,0,0,.30),
+    inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+/* Вариант для Stars - желтая панель */
+#tasksPage .trow__reward--stars{
+  background: #f4c21a;
+  color: #141414;
+}
+
+/* Вариант для TON - голубая панель */
+#tasksPage .trow__reward--ton{
+  background: linear-gradient(135deg, #0098ea 0%, #0088cc 100%);
+  color: #ffffff;
+  box-shadow:
+    0 10px 18px rgba(0,152,234,.35),
+    inset 0 1px 0 rgba(255,255,255,.30);
+}
+
+/* Иконка награды - картинка */
+#tasksPage .trow__rewardIcon{
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  display: block;
+  transform: translateY(-0.5px);
+}
+
+/* Fallback иконка если картинка не загрузится */
+#tasksPage .trow__rewardIconFallback{
+  font-size: 14px;
+  transform: translateY(-0.5px);
+}
+
+#tasksPage .trow__rewardNum{
+  line-height: 1;
+}
+
+/* Кнопки справа */
+#tasksPage .tbtn{
+  flex: 0 0 auto;
+  border: 0;
+  outline: none;
+  cursor: pointer;
+
+  height: 40px;
+  min-width: 108px;
+  padding: 0 16px;
+  border-radius: 999px;
+
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: .2px;
+
+  color: rgba(255,255,255,.92);
+  box-shadow:
+    0 14px 28px rgba(0,0,0,.40),
+    inset 0 1px 0 rgba(255,255,255,.10);
+
+  transition: transform .08s ease, filter .15s ease, opacity .15s ease;
+}
+
+#tasksPage .tbtn:active{ transform: scale(.98); }
+
+#tasksPage .tbtn--start{
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  background-color: #3a3b40;
+}
+
+#tasksPage .tbtn--check{
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  background-color: #2e2f34;
+}
+
+#tasksPage .tbtn--claimed{
+  background: linear-gradient(180deg, rgba(120,255,160,.10), rgba(30,120,60,.10));
+  background-color: rgba(46,160,78,.25);
+  color: #6cf08a;
+  border: 1px solid rgba(60,200,90,.35);
+}
+
+#tasksPage .tbtn__check{
+  margin-left: 6px;
+  font-weight: 950;
+}
+
+/* Адаптация для средних экранов (до 420px) */
+@media (max-width: 420px){
+  #tasksPage .tasks-page{
+    padding: 16px 14px 96px;
   }
   
-  .tasks-title{
-    font-size: 28px;
-    font-weight: 900;
-    color: rgba(255,255,255,.92);
-    text-align: center;
-    margin: 10px 0 6px;
+  #tasksPage .tasks-card.tasks-card--new{
+    padding: 12px 10px;
+    border-radius: 22px;
   }
   
-  .tasks-subtitle{
-    text-align: center;
-    font-size: 14px;
-    font-weight: 650;
-    color: rgba(255,255,255,.55);
-    margin: 0 0 14px;
-  }
-  
-  .tasks-card{
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 18px;
-    padding: 10px;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .task-row{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  #tasksPage .trow{
     gap: 12px;
-    padding: 10px 10px;
+    padding: 10px 8px;
+  }
+  
+  #tasksPage .trow__icon{
+    width: 50px;
+    height: 50px;
     border-radius: 16px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.06);
   }
   
-  .task-left{
-    display: flex;
-    align-items: center;
+  #tasksPage .trow__iconImg{
+    width: 28px;
+    height: 28px;
+  }
+  
+  #tasksPage .trow__title{
+    font-size: 18px;
+  }
+  
+  #tasksPage .trow__sub{
+    font-size: 12px;
+  }
+  
+  #tasksPage .tbtn{
+    min-width: 96px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+}
+
+/* Адаптация для маленьких экранов типа iPhone 13 Mini (до 375px) */
+@media (max-width: 375px){
+  #tasksPage .tasks-page{
+    padding: 14px 12px 96px;
+  }
+  
+  #tasksPage .tasks-title{
+    font-size: 20px;
+  }
+  
+  #tasksPage .tasks-card.tasks-card--new{
+    padding: 10px 8px;
+    border-radius: 20px;
+  }
+  
+  #tasksPage .trow{
     gap: 10px;
-    min-width: 0;
+    padding: 9px 6px;
   }
   
-  .task-icon{
+  #tasksPage .trow__icon{
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+  
+  #tasksPage .trow__iconImg{
+    width: 26px;
+    height: 26px;
+  }
+  
+  #tasksPage .trow__meta{
+    gap: 5px;
+  }
+  
+  #tasksPage .trow__title{
+    font-size: 16px;
+    line-height: 1.2;
+  }
+  
+  #tasksPage .trow__sub{
+    font-size: 11px;
+    margin-top: -1px;
+  }
+  
+  #tasksPage .trow__reward{
+    padding: 2px 8px;
+    gap: 5px;
+    font-size: 13px;
+  }
+  
+  #tasksPage .trow__rewardIcon,
+  #tasksPage .trow__rewardIconFallback{
+    width: 13px;
+    height: 13px;
+    font-size: 13px;
+  }
+  
+  #tasksPage .tbtn{
+    height: 38px;
+    min-width: 88px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+  
+  #tasksPage .tsec__left{
+    font-size: 16px;
+  }
+  
+  #tasksPage .tsec__time{
+    font-size: 15px;
+  }
+}
+
+/* Адаптация для очень маленьких экранов (до 360px) */
+@media (max-width: 360px){
+  #tasksPage .tasks-page{
+    padding: 12px 10px 96px;
+  }
+  
+  #tasksPage .tasks-card.tasks-card--new{
+    padding: 8px 6px;
+  }
+  
+  #tasksPage .trow{
+    gap: 8px;
+    padding: 8px 5px;
+  }
+  
+  #tasksPage .trow__icon{
     width: 44px;
     height: 44px;
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    background: rgba(255,255,255,0.08);
+    border-radius: 13px;
   }
   
-  .task-icon--blue{ background: rgba(46,166,255,0.18); }
-  .task-icon--green{ background: rgba(30,220,120,0.16); }
-  
-  .task-icon img{
-    width: 22px;
-    height: 22px;
-    object-fit: contain;
+  #tasksPage .trow__iconImg{
+    width: 24px;
+    height: 24px;
   }
   
-  .task-meta{
-    min-width: 0;
+  #tasksPage .trow__title{
+    font-size: 15px;
   }
   
-  .task-name{
-    font-size: 16px;
-    font-weight: 850;
-    color: rgba(255,255,255,.92);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  #tasksPage .trow__sub{
+    font-size: 10px;
   }
   
-  .task-reward{
-    margin-top: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: rgba(255,255,255,.65);
+  #tasksPage .trow__reward{
+    padding: 2px 7px;
+    font-size: 12px;
+  }
+  
+  #tasksPage .trow__rewardIcon,
+  #tasksPage .trow__rewardIconFallback{
+    width: 12px;
+    height: 12px;
+    font-size: 12px;
+  }
+  
+  #tasksPage .tbtn{
+    height: 36px;
+    min-width: 82px;
+    padding: 0 10px;
     font-size: 13px;
-    font-weight: 750;
   }
-  
-  .task-btn{
-    border: 0;
-    cursor: pointer;
-    padding: 10px 16px;
-    border-radius: 14px;
-    font-weight: 900;
-    background: linear-gradient(180deg, #2EA6FF 0%, #187BFF 100%);
-    color: #fff;
-    box-shadow: 0 12px 28px rgba(46,166,255,0.22);
-  }
-  
-  .task-btn:active{ transform: translateY(1px); }
-  
+}

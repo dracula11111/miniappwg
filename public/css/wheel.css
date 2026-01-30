@@ -32,8 +32,11 @@
     display:flex; 
     justify-content:center; 
     align-items:center; 
-    padding:8px 10px 12px; 
+    padding:8px 10px 12px;
+    overflow: visible; /* Важно для эффекта заезда панели */
   }
+  
+  /* Блюр эффект убран - карточки теперь видны чётко */
     #wheelCanvas{
       display:block;
       width:min(92vw, 420px, 44vh); 
@@ -356,13 +359,27 @@
    =========================== */
 .bet-overlay {
   position: relative; 
-  padding: 6px 10px 14px; 
-  transition: transform .4s ease, opacity .4s ease; 
+  padding: 6px 10px 14px;
+  
+  /* 🔥 Заезжаем на колесо */
+  margin-top: -15vh; /* Поднимаем панель вверх, заезжая на колесо */
+  z-index: 10; /* Над колесом */
+  
+  /* Плавная трансформация */
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(0);
+  opacity: 1;
 }
 
-.app.is-spinning .bet-overlay { 
-  transform: translateY(18px); 
-  opacity: .55; 
+/* 🔥 При спине — скрываем панель ставок (вместо неё показываем Players) */
+.app.is-spinning .bet-overlay {
+  margin-top: 0;
+  padding: 0 10px;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(22px);
+  overflow: hidden;
+  pointer-events: none;
 }
 
 /* ===========================
@@ -446,6 +463,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+/* 🔥 Скрываем betting UI при спине */
+.app.is-spinning .bet-controls {
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  position: absolute;
+  visibility: hidden;
 }
 
 /* Кнопка очистки - маленькая, слева */
@@ -492,6 +519,284 @@
   grid-template-columns: 1fr 1fr; 
   gap: 12px;
   padding: 4px 4px 0;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+
+
+/* ===========================
+       WHEEL PLAYERS PANEL
+   (slides in under the wheel)
+   =========================== */
+.wheel-players-panel{
+  width: min(92vw, 420px);
+  margin: 0 auto 0;
+  background: #141414;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+
+  /* hidden by default */
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(26px);
+  padding: 0 12px;
+  pointer-events: none;
+
+  transition:
+    max-height 0.55s ease,
+    opacity 0.25s ease,
+    transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+    padding 0.55s ease,
+    margin 0.55s ease;
+}
+
+/* show on round start (spin) */
+.app.is-spinning .wheel-players-panel{
+  max-height: 260px;
+  opacity: 1;
+  transform: translateY(0);
+  padding: 12px;
+  margin-top: 12px;
+  pointer-events: auto;
+}
+
+.wheel-players-panel__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding-bottom: 10px;
+}
+
+.wheel-players-panel__title{
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  color: var(--text);
+}
+
+.wheel-players-panel__count{
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.wheel-players-panel__list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-height: 200px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.wheel-players-panel__empty{
+  padding: 18px 12px;
+  color: rgba(255,255,255,.65);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+}
+
+.wheel-player-pill{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding: 10px 10px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+}
+
+.wheel-player-pill__left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width: 0;
+}
+
+.wheel-player-pill__ava{
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  overflow:hidden;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink: 0;
+}
+
+.wheel-player-pill__ava img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+}
+
+.wheel-player-pill__meta{
+  min-width: 0;
+}
+
+.wheel-player-pill__name{
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.wheel-player-pill__total{
+  margin-top: 3px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.wheel-player-pill__total img{
+  width: 14px;
+  height: 14px;
+  opacity: .95;
+}
+
+.wheel-player-pill__segments{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 190px;
+  padding-bottom: 2px;
+}
+
+.wheel-player-pill__segments::-webkit-scrollbar{ display:none; }
+
+.wheel-player-pill__segIcon{
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+  overflow:hidden;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.22);
+  flex: 0 0 auto;
+}
+
+.wheel-player-pill__segIcon img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+}
+
+@media (max-width: 360px){
+  .wheel-player-pill__name{ max-width: 120px; }
+  .wheel-player-pill__segments{ max-width: 150px; }
+}
+/* 🔥 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (показываются при спине) */
+.bet-cards-compact {
+  display: none; /* Скрыты по умолчанию */
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  max-width: min(92vw, 420px);
+  gap: 8px;
+  margin: 0 auto;
+  padding: 12px;
+  opacity: 0;
+  transform: scale(0.9) translateY(-10px);
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+
+/* Показываем компактные карточки при спине */
+.app.is-spinning .bet-cards-compact {
+  display: grid;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* Скрываем обычную сетку при спине */
+.app.is-spinning .bet-grid {
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
+  position: absolute;
+  visibility: hidden;
+}
+
+/* Компактная карточка */
+.bet-card-compact {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: cardSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Анимация появления карточек с задержкой */
+.bet-card-compact:nth-child(1) { animation-delay: 0.1s; }
+.bet-card-compact:nth-child(2) { animation-delay: 0.15s; }
+.bet-card-compact:nth-child(3) { animation-delay: 0.2s; }
+.bet-card-compact:nth-child(4) { animation-delay: 0.25s; }
+.bet-card-compact:nth-child(5) { animation-delay: 0.3s; }
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Картинка сегмента в компактной карточке */
+.bet-card-compact__img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+/* Сумма ставки */
+.bet-card-compact__amount {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+
+}
+
+.bet-card-compact__amount img {
+  width: 10px;
+  height: 10px;
 }
 
 /* ===========================
@@ -700,10 +1005,26 @@
   border-radius: 14px;
   display: block;
   transition: transform .25s ease, filter .25s ease;
+  
+  /* Добавляем тень к изображению */
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  
+  /* Добавляем небольшое затемнение фона под изображением */
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
 }
 
 .bet-tile:hover > img.bet-img {
   transform: scale(1.02);
+  
+  /* Усиливаем тень при ховере */
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 /* Hover эффект - легкий подъем */
@@ -1288,7 +1609,499 @@
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"]::after {
   filter: drop-shadow(0 0 12px rgba(255, 208, 74, 1)) drop-shadow(0 0 4px rgba(255, 208, 74, 0.8)) !important;
 }
+/* ===== 🎴 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (под колесом во время спина) ===== */
+.bet-cards-compact {
+  /* Фиксированное позиционирование для стабильности */
+  position: fixed;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  
+  /* Flexbox для идеального центрирования */
+  display: flex;
+  flex-wrap: nowrap; /* КРИТИЧНО: всегда в один ряд */
+  justify-content: center;
+  align-items: center;
+  gap: clamp(4px, 1.8vw, 10px);
+  
+  /* Ограничения по ширине */
+  width: fit-content; /* Размер по содержимому */
+  max-width: calc(100vw - 20px); /* Отступы от краёв */
+  padding: 0 10px;
+  
+  /* Видимость */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  
+  /* Анимация */
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+  
+  /* Z-индекс */
+  z-index: 999;
+}
 
+/* Анимация появления */
+.bet-cards-compact:not(:empty) {
+  animation: compactCardsSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
 
+@keyframes compactCardsSlideUp {
+  from {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(30px);
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+  }
+}
 
+/* 🔥 КРИТИЧНО: Прячем карточки когда betting UI активен */
+.app.is-betting .bet-cards-compact {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 
+/* Показываем только когда колесо крутится */
+.app.is-spinning .bet-cards-compact:not(:empty) {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ===== ОТДЕЛЬНАЯ КАРТОЧКА ===== */
+.bet-card-compact {
+  position: relative;
+  flex-shrink: 0; /* КРИТИЧНО: не сжимаем */
+  flex-grow: 0;
+  
+  /* Базовые размеры */
+  width: clamp(38px, 11vw, 65px);
+  height: clamp(26px, 7.5vw, 44px);
+  
+  border-radius: 6px;
+  overflow: hidden;
+  
+  /* Тень для глубины */
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+  
+  transition: transform 0.2s ease;
+}
+
+/* ===== АДАПТИВНЫЕ РАЗМЕРЫ ПО КОЛИЧЕСТВУ КАРТОЧЕК ===== */
+
+/* 1 карточка - самая большая */
+.bet-cards-compact:has(.bet-card-compact:first-child:last-child) .bet-card-compact {
+  width: clamp(60px, 18vw, 90px);
+  height: clamp(42px, 12vw, 62px);
+}
+
+/* 2 карточки */
+.bet-cards-compact:has(.bet-card-compact:nth-child(2):last-child) .bet-card-compact {
+  width: clamp(52px, 15vw, 80px);
+  height: clamp(36px, 10vw, 55px);
+}
+
+/* 3 карточки */
+.bet-cards-compact:has(.bet-card-compact:nth-child(3):last-child) .bet-card-compact {
+  width: clamp(46px, 13vw, 72px);
+  height: clamp(32px, 9vw, 50px);
+}
+
+/* 4 карточки */
+.bet-cards-compact:has(.bet-card-compact:nth-child(4):last-child) .bet-card-compact {
+  width: clamp(42px, 12vw, 66px);
+  height: clamp(29px, 8vw, 45px);
+}
+
+/* 5 карточек */
+.bet-cards-compact:has(.bet-card-compact:nth-child(5):last-child) .bet-card-compact {
+  width: clamp(38px, 11vw, 60px);
+  height: clamp(26px, 7.5vw, 41px);
+}
+
+/* 6 карточек */
+.bet-cards-compact:has(.bet-card-compact:nth-child(6):last-child) .bet-card-compact {
+  width: clamp(35px, 10vw, 54px);
+  height: clamp(24px, 7vw, 37px);
+}
+
+/* 7 карточек - самые маленькие */
+.bet-cards-compact:has(.bet-card-compact:nth-child(7):last-child) .bet-card-compact {
+  width: clamp(32px, 9vw, 50px);
+  height: clamp(22px, 6.5vw, 34px);
+}
+
+/* Изображение ставки (фон) - БЕЗ затемнения, фотка видна полностью */
+.bet-card-compact__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  
+  /* Без фильтров - фотка видна четко! */
+}
+
+/* Количество ставки (по центру) */
+.bet-card-compact__amount {
+  position: absolute;
+  inset: 0;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  
+  font-family: 'mf', system-ui, -apple-system, sans-serif;
+  font-weight: 900;
+  font-size: clamp(9px, 2.5vw, 13px); /* Уменьшенный шрифт */
+  color: #fff;
+  
+  z-index: 2;
+}
+
+/* Иконка валюты */
+.bet-card-compact__amount img {
+  width: clamp(10px, 3vw, 14px); /* Уменьшенная иконка */
+  height: clamp(10px, 3vw, 14px);
+}
+
+/* Текст суммы */
+.bet-card-compact__amount span {
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===========================
+   НОВАЯ НИЖНЯЯ ПИЛЮЛЯ ДЛЯ СТАВОК
+   (встроена снизу карточки)
+=========================== */
+.bet-card-compact__badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1px, 0.8vw, 3px); /* Уменьшенный gap */
+  
+  height: clamp(12px, 3.5vw, 18px); /* Уменьшенная высота */
+  padding: 0 clamp(3px, 1.5vw, 6px); /* Уменьшенный padding */
+  
+  /* Полупрозрачный темный фон по умолчанию */
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  
+  font-family: 'mf', system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  font-size: clamp(7px, 2vw, 10px); /* Уменьшенный шрифт */
+  color: #fff;
+  
+  border-radius: 0 0 6px 6px;
+  
+  z-index: 3;
+  
+  transition: all 0.3s ease;
+}
+
+.bet-card-compact__badge-icon {
+  width: clamp(8px, 2.2vw, 11px); /* Уменьшенная иконка */
+  height: clamp(8px, 2.2vw, 11px);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.bet-card-compact__badge-text {
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ===========================
+   ТЕМНЫЕ ОТТЕНКИ ПОД КАЖДЫЙ СЕГМЕНТ
+=========================== */
+
+/* 1.1x - темно-оранжевый */
+.bet-card-compact[data-segment="1.1x"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(47, 25, 0, 0.95), rgba(80, 42, 0, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 3x - темно-зеленый */
+.bet-card-compact[data-segment="3x"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(22, 61, 0, 0.95), rgba(28, 80, 0, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 5x - темно-изумрудный (как вы хотели) */
+.bet-card-compact[data-segment="5x"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(24, 70, 43, 0.95), rgba(10, 65, 33, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 11x - темно-синий */
+.bet-card-compact[data-segment="11x"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(0, 38, 65, 0.95), rgba(7, 45, 72, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 50&50 - темно-розовый */
+.bet-card-compact[data-segment="50&50"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(75, 0, 38, 0.95), rgba(180, 20, 100, 0.98));
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 12px rgba(217, 25, 122, 0.3);
+}
+
+/* Loot Rush - темно-фиолетовый */
+.bet-card-compact[data-segment="Loot Rush"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(26, 0, 72, 0.95), rgba(85, 33, 170, 0.98));
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 12px rgba(108, 43, 217, 0.3);
+}
+
+/* Wild Time - темно-красный */
+.bet-card-compact[data-segment="Wild Time"] .bet-card-compact__badge {
+  background: linear-gradient(to bottom, rgba(75, 0, 3, 0.95), rgba(160, 18, 24, 0.98));
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 12px rgba(197, 22, 29, 0.3);
+}
+
+/* Для больших экранов - увеличиваем gap и максимальные размеры */
+@media (min-width: 768px) {
+  .bet-cards-compact {
+    gap: 14px;
+  }
+  
+  /* Карточки будут автоматически масштабироваться через clamp */
+  /* Максимальные значения в clamp сработают на больших экранах */
+}
+/* ===========================
+   BETTING PHASE SHADOWS
+   (активируется через .app.is-betting)
+=========================== */
+
+/* Тени для картинок ставок */
+.app.is-betting .bet-tile .bet-img {
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4)) 
+          drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+  transition: filter 0.3s ease;
+}
+
+/* Дополнительное свечение при наведении */
+.app.is-betting .bet-tile:hover .bet-img {
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5)) 
+          drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4))
+          drop-shadow(0 0 20px rgba(255, 255, 255, 0.1));
+}
+
+/* Тени для кнопки Clear */
+.app.is-betting .clear-bets-btn {
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4)) 
+          drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+  transition: filter 0.3s ease;
+}
+
+.app.is-betting .clear-bets-btn:hover {
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) 
+          drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4))
+          drop-shadow(0 0 16px rgba(255, 100, 100, 0.2));
+}
+
+/* Тени для кнопок выбора суммы (amount pills) */
+.app.is-betting .amount-btn {
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.35),
+    0 3px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.app.is-betting .amount-btn:hover {
+  box-shadow: 
+    0 8px 18px rgba(0, 0, 0, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(0, 166, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Усиленные тени для выбранной кнопки суммы */
+.app.is-betting .amount-btn.selected,
+.app.is-betting .amount-btn[data-selected="true"] {
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(0, 166, 255, 0.4),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Специальные тени для Stars кнопок */
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.35),
+    0 3px 6px rgba(0, 0, 0, 0.25),
+    0 0 16px rgba(255, 208, 74, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
+  box-shadow: 
+    0 8px 18px rgba(0, 0, 0, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(255, 208, 74, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    0 0 40px rgba(255, 208, 74, 0.6),
+    0 0 70px rgba(255, 208, 74, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Тени для иконок внутри кнопок */
+.app.is-betting .amount-btn .amount-icon {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}/* ===========================
+   BETTING PHASE SHADOWS - ПРАВИЛЬНАЯ ВЕРСИЯ
+   (активируется через .app.is-betting)
+=========================== */
+
+/* 🔥 ТЕНИ ДЛЯ BET-TILE - переопределяем muted класс */
+.app.is-betting .bet-tile.muted {
+  /* Объединяем существующий фильтр с тенями */
+  filter: saturate(.7) brightness(.85) 
+          drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) 
+          drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+}
+
+.app.is-betting .bet-tile.muted:hover {
+  filter: saturate(.85) brightness(.95)
+          drop-shadow(0 12px 24px rgba(0, 0, 0, 0.6)) 
+          drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4))
+          drop-shadow(0 0 20px rgba(255, 255, 255, 0.15));
+}
+
+/* 🔥 ТЕНИ ДЛЯ БОНУСНЫХ ПЛИТОК */
+.app.is-betting .bet-tile.bonus {
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(255, 100, 255, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.app.is-betting .bet-tile.bonus:hover {
+  box-shadow: 
+    0 12px 28px rgba(0, 0, 0, 0.6),
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(255, 100, 255, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+/* 🔥 ТЕНИ ДЛЯ КНОПКИ CLEAR */
+.app.is-betting .clear-bets-btn {
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(255, 77, 79, 0.2);
+}
+
+.app.is-betting .clear-bets-btn:hover {
+  box-shadow: 
+    0 8px 18px rgba(0, 0, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(255, 77, 79, 0.4);
+}
+
+/* 🔥 ТЕНИ ДЛЯ AMOUNT BUTTONS */
+.app.is-betting .amount-btn {
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.app.is-betting .amount-btn:hover {
+  box-shadow: 
+    0 8px 18px rgba(0, 0, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.35),
+    0 0 20px rgba(0, 166, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+/* 🔥 УСИЛЕННЫЕ ТЕНИ ДЛЯ ВЫБРАННОЙ КНОПКИ */
+.app.is-betting .amount-btn.active,
+.app.is-betting .amount-btn.selected,
+.app.is-betting .amount-btn[data-selected="true"] {
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(0, 166, 255, 0.5),
+    0 0 0 3px rgba(0, 166, 255, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* 🔥 СПЕЦИАЛЬНЫЕ ТЕНИ ДЛЯ STARS КНОПОК */
+.app.is-betting .amount-btn:has(.amount-icon[src*="star"]),
+.app.is-betting .amount-btn:has(.amount-icon[src*="Star"]),
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
+  box-shadow: 
+    0 6px 14px rgba(0, 0, 0, 0.4),
+    0 3px 6px rgba(0, 0, 0, 0.3),
+    0 0 16px rgba(255, 208, 74, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.app.is-betting .amount-btn:has(.amount-icon[src*="star"]):hover,
+.app.is-betting .amount-btn:has(.amount-icon[src*="Star"]):hover,
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
+  box-shadow: 
+    0 8px 18px rgba(0, 0, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.35),
+    0 0 28px rgba(255, 208, 74, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.app.is-betting .amount-btn:has(.amount-icon[src*="star"]).active,
+.app.is-betting .amount-btn:has(.amount-icon[src*="Star"]).active,
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).active,
+.app.is-betting .amount-btn:has(.amount-icon[src*="star"]).selected,
+.app.is-betting .amount-btn:has(.amount-icon[src*="Star"]).selected,
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
+.app.is-betting .amount-btn:has(.amount-icon[src*="star"])[data-selected="true"],
+.app.is-betting .amount-btn:has(.amount-icon[src*="Star"])[data-selected="true"],
+.app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.5),
+    0 4px 10px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(255, 208, 74, 0.7),
+    0 0 70px rgba(255, 208, 74, 0.4),
+    0 0 0 3px rgba(255, 208, 74, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+/* 🔥 ДОПОЛНИТЕЛЬНЫЕ ТЕНИ ДЛЯ ИКОНОК */
+.app.is-betting .amount-btn .amount-icon {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+.app.is-betting .clear-bets-btn img {
+  filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) 
+          hue-rotate(335deg) brightness(100%) contrast(92%)
+          drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}

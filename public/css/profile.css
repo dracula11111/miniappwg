@@ -835,10 +835,10 @@ html[data-currency="stars"] .profile-ava,
                     border-radius: 20px 20px 0 0; /* ← сглаженные верхние углы */
                     /* iPhone: добавляем safe-area снизу (home indicator), чтобы навигацию не перекрывало */
                     /* Увеличиваем отступ снизу, чтобы панель была выше home indicator */
-                    height: calc(60px + constant(safe-area-inset-bottom));
-                    padding-bottom: calc(constant(safe-area-inset-bottom) + 8px);
-                    height: calc(60px + env(safe-area-inset-bottom, 0px));
-                    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+                    height: calc(75px + constant(safe-area-inset-bottom));
+                    padding-bottom: calc(constant(safe-area-inset-bottom) + 12px);
+                    height: calc(75px + env(safe-area-inset-bottom, 0px));
+                    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
                   }
                   
 
@@ -870,8 +870,8 @@ html[data-currency="stars"] .profile-ava,
             }
             /* Bottom nav: profile avatar вместо svg */
               .nav-avatar{
-                width: 24px;
-                height: 24px;
+                width: 28px;
+                height: 28px;
                 border-radius: 999px;
                 object-fit: cover;
                 display: block;
@@ -901,7 +901,7 @@ html[data-currency="stars"] .profile-ava,
             background: transparent;
             border: none;
             border-radius: 0;
-            padding: 6px 4px;
+            padding: 8px 4px;
             flex: 1;
             color: #999;                 /* серый текст */
             font-size: 12px;
@@ -910,24 +910,24 @@ html[data-currency="stars"] .profile-ava,
 
           /* иконки внутри - СЕРЫЕ по умолчанию */
           .bottom-nav .nav-item .nav-icon {
-            width: 22px;
-            height: 22px;
+            width: 26px;
+            height: 26px;
             margin-bottom: 4px;
             /* фильтр для перекраски SVG в серый */
             filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
             transition: filter 0.2s ease;
           }
 
-          /* активное состояние — ПОЛНАЯ ПЕРЕКРАСКА в голубой */
+          /* активное состояние — ПОЛНАЯ ПЕРЕКРАСКА в белый */
           .bottom-nav .nav-item.active {
             background: transparent;
             box-shadow: none;
-            color: #00aaff;              /* голубой текст */
+            color: #ffffff;              /* белый текст */
           }
 
           .bottom-nav .nav-item.active .nav-icon {
-            /* фильтр для полной перекраски SVG в голубой (#00aaff) */
-            filter: brightness(0) saturate(100%) invert(56%) sepia(97%) saturate(3071%) hue-rotate(181deg) brightness(101%) contrast(106%);
+            /* фильтр для полной перекраски SVG в белый (#ffffff) */
+            filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
           }
 
 
@@ -4982,6 +4982,3 @@ html[data-currency="stars"] .profile-ava,
   width: 16px;
   height: 16px;
 }
-
-
-

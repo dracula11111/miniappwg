@@ -18,9 +18,9 @@ class LootRush {
       bagSrc: options.bagSrc || '/images/bets/loot.png',
       
       multAppearDelay: 40,
-      coverDelay: 30,
-      spinFastMs: 2500,
-      spinSlowMs: 1500,
+      coverDelay: 20,  // Ускорено с 30
+      spinFastMs: 1500,  // Ускорено с 2500
+      spinSlowMs: 1000,   // Ускорено с 1500
       
       ...options
     };
@@ -29,6 +29,7 @@ class LootRush {
     this._allBagSrcs = [];
 
     this._running = false;
+    this._aborted = false;
     this._scrollY = 0;
     this._tiles = [];
     this._selectedIndex = 0;
@@ -65,6 +66,33 @@ class LootRush {
     const top = document.body.style.top;
     document.body.style.top = '';
     window.scrollTo(0, top ? -parseInt(top, 10) : this._scrollY);
+  }
+
+
+  _setGlobalBackHandler() {
+    this._backHandler = () => this.abort();
+    window.__bonusBackHandler = this._backHandler;
+  }
+
+  _clearGlobalBackHandler() {
+    if (window.__bonusBackHandler === this._backHandler) {
+      window.__bonusBackHandler = null;
+    }
+    this._backHandler = null;
+  }
+
+  // Public: called by universal Back button
+  abort() {
+    if (!this._running) return;
+    this._aborted = true;
+    this._running = false;
+    this._selectEnabled = false;
+    this._spinning = false;
+
+    if (this._spinTimer) {
+      clearTimeout(this._spinTimer);
+      this._spinTimer = null;
+    }
   }
 
   _buildMultipliersPool() {
@@ -178,24 +206,18 @@ class LootRush {
   }
 
   async _showMultipliers() {
-    const order = this._rowMajorOrder();
-    
-    for (let k = 0; k < order.length; k++) {
-      const idx = order[k];
-      const tile = this._tiles[idx];
-      if (tile) {
-        tile.classList.add('lr-mult-show');
-      }
-      await this._wait(this.options.multAppearDelay);
-    }
-    
-    await this._wait(2000);
+    // 🔥 УБРАНО: Множители НЕ показываются в начале для честности игры
+    // Они будут видны только во время reveal
+    if (!this._running) return;
+    await this._wait(100);
   }
 
   async _coverWithBags() {
+    if (!this._running) return;
     const order = this._colMajorOrder();
     
     for (let k = 0; k < order.length; k++) {
+      if (!this._running) return;
       const idx = order[k];
       const tile = this._tiles[idx];
       if (tile) {
@@ -378,33 +400,30 @@ class LootRush {
   }
 
   async _revealSequence(pickedIdx) {
+    if (!this._running) return;
     this._selectEnabled = false;
     
-    const order = this._rowMajorOrder();
-    
-    for (let k = 0; k < order.length; k++) {
-      const idx = order[k];
-      const tile = this._tiles[idx];
+    // 🔥 ОПТИМИЗИРОВАНО: Показываем все сразу без задержек
+    this._tiles.forEach((tile, idx) => {
       if (tile) {
-        // 🔥 ВАЖНО: убираем lr-covered перед reveal
+        // Убираем сумку (поднимаем вверх) и показываем множитель
         tile.classList.remove('lr-covered');
         tile.classList.add('lr-reveal');
         
+        // Помечаем выбранную сумку
         if (idx === pickedIdx) {
-          setTimeout(() => {
-            tile.classList.add('lr-picked', 'lr-winner');
-          }, 200);
+          tile.classList.add('lr-picked', 'lr-winner');
         }
       }
-      await this._wait(30);
-    }
+    });
   
-    await this._wait(4000);
+    await this._wait(2000); // Сокращено с 4000 до 2000
   }
 
   async start() {
     if (this._running) return;
     this._running = true;
+    this._aborted = false;
 
     const overlay = this._overlayEl();
     if (!overlay || !this.container) {
@@ -415,6 +434,7 @@ class LootRush {
 
     overlay.style.display = 'flex';
     overlay.classList.add('bonus-overlay--active');
+    this._setGlobalBackHandler();
     this._lockScroll();
 
     let chosenMult = 1.1;
@@ -428,20 +448,32 @@ class LootRush {
 
       const ui = this._render();
       await this._wait(300);
+      if (this._aborted) return;
+
 
       await this._showMultipliers();
+      if (this._aborted) return;
+
       await this._coverWithBags();
+      if (this._aborted) return;
+
       await this._spinRows();
+      if (this._aborted) return;
+
 
       this._enableSelection();
       if (ui.title) ui.title.classList.add('lr-show');
 
       const pickedIdx = await this._runCountdown(ui.timer, this.options.durationSec);
+      if (this._aborted) return;
+
       await this._revealSequence(pickedIdx);
+      if (this._aborted) return;
+
 
       chosenMult = this._multipliers[pickedIdx] || 1.1;
 
-      await this._wait(1500);
+      await this._wait(800);  // Сокращено с 1500
 
     } catch (e) {
       console.error('[LootRush] ❌ Error:', e);
@@ -456,7 +488,13 @@ class LootRush {
       this._unlockScroll();
       this._running = false;
 
-      this.options.onComplete(this._fmtX(chosenMult), chosenMult);
+      this._clearGlobalBackHandler();
+
+      if (this._aborted) {
+        this.options.onComplete('cancelled', NaN);
+      } else {
+        this.options.onComplete(this._fmtX(chosenMult), chosenMult);
+      }
     }
   }
 }
@@ -468,10 +506,28 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
   window.startLootRushBonus = window.startLootRushBonus || async function startLootRushBonus(betAmount = 0) {
     console.log('[LootRush] 🎁 Starting bonus with bet:', betAmount);
 
-    const overlay = document.getElementById('bonus5050Overlay');
+    // ВСЕГДА вызываем ensureBonusOverlay для проверки/создания кнопки Back
+    let overlay;
+    if (typeof window.ensureBonusOverlay === 'function') {
+      overlay = window.ensureBonusOverlay();
+    } else {
+      overlay = document.getElementById('bonus5050Overlay');
+    }
+    
     if (!overlay) {
       console.error('[LootRush] ❌ Overlay not found');
       return '1.1x';
+    }
+    
+    // Debug: проверяем наличие кнопки Back
+    const backBtn = overlay.querySelector('.universal-back-btn');
+    console.log('[LootRush] 🔍 Back button check:', backBtn ? '✅ Found' : '❌ Not found');
+    if (backBtn) {
+      console.log('[LootRush] 🔍 Back button styles:', {
+        display: window.getComputedStyle(backBtn).display,
+        opacity: window.getComputedStyle(backBtn).opacity,
+        zIndex: window.getComputedStyle(backBtn).zIndex
+      });
     }
 
     const container = overlay.querySelector('.bonus-container') || 

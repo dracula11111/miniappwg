@@ -129,6 +129,15 @@
         </div>
       </section>
 
+      <!-- ===== PLAYERS (slides in under wheel during spin) ===== -->
+      <section id="wheelPlayersPanel" class="wheel-players-panel" aria-label="Players">
+        <div class="wheel-players-panel__head">
+          <div class="wheel-players-panel__title">Players</div>
+          <div class="wheel-players-panel__count" id="wheelPlayersCount">0</div>
+        </div>
+        <div id="wheelPlayersList" class="wheel-players-panel__list" role="list"></div>
+      </section>
+
       <!-- ===== BET OVERLAY ===== -->
       <section id="betOverlay" class="bet-overlay bet-overlay--redesign" aria-label="Betting panel">
         <!-- Сетка лотов (большие картинки) + центральная колонка ставок -->
@@ -191,6 +200,16 @@
             <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
           </button>
         </div>
+
+
+        <!-- ===== PLAYERS PANEL (shown while wheel is spinning) ===== -->
+        <section id="wheelPlayersPanel" class="wheel-players-panel" aria-label="Players">
+          <div class="wheel-players-panel__head">
+            <div class="wheel-players-panel__title">Players</div>
+            <div class="wheel-players-panel__count" id="wheelPlayersCount">0</div>
+          </div>
+          <div class="wheel-players" id="wheelPlayersList"></div>
+        </section>
       </section>
       </main>
 
@@ -717,6 +736,7 @@
   <script src="/js/features/cases/nft-win-screen.js" defer></script>
   <script src="/js/features/cases/cases.js" defer></script>
   <script src="/js/features/market/market.js" defer></script>
+  <script src="/js/features/tasks/tasks.js" defer></script>
   <script src="/js/features/profile/profile.js" defer></script>
   <script src="/js/shared/validation.js" defer></script>
   <script src="/js/shared/balance-live.js" defer></script> 
@@ -732,8 +752,3 @@
   
 </body>
 </html>
-
-  
-
-
-     

@@ -4,6 +4,21 @@
 
   const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
+  // ====== ASSET URL HELPERS ======
+  // Важно для Telegram WebApp и любых деплоев в подпапку: убираем ведущий "/" и строим URL относительно document.baseURI.
+  const __ASSET_BASE__ = new URL('.', document.baseURI).toString();
+  function assetUrl(p) {
+    if (!p) return p;
+    const s = String(p);
+    // абсолютные ссылки / data / blob оставляем как есть
+    if (/^(https?:)?\/\//i.test(s) || s.startsWith('data:') || s.startsWith('blob:')) return s;
+    // если путь начинается с "/", делаем его относительным к baseURI, а не к доменному корню
+    const clean = s.startsWith('/') ? s.slice(1) : s;
+    return new URL(clean, __ASSET_BASE__).toString();
+  }
+
+
+
   // ====== CASE DATA ======
   const CASES = {
     case1: {
@@ -98,14 +113,14 @@
       price: { ton: 1, stars: 200 },
       items: [
         // Premium NFTs
-        { id: 'nft1', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 0.00, stars: 0 }, rarity: 'legendary' },
-        { id: 'nft2', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 0.00, stars: 0 }, rarity: 'legendary' },
-        { id: 'nft3', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
-        { id: 'nft4', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
-        { id: 'nft5', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
-        { id: 'nft6', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 0.00, stars: 0  }, rarity: 'legendary' },
-
-        // High-value Gifts       
+   
+        { id: 'nft1', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
+        { id: 'nft2', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
+        { id: 'nft3', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
+        { id: 'nft4', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
+        { id: 'nft5', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
+        { id: 'nft6', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
+                // High-value Gifts       
         { id: 'gift14', icon: 'stars.webp', price: { ton: 0.065, stars: 25 }, rarity: 'common' },
         { id: 'gift12', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
         { id: 'gift13', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
@@ -138,18 +153,21 @@ function itemType(item) {
 }
 
 function itemIconPath(item) {
-  // ВАЖНО: у тебя NFT лежат в /images/gifts/nfts/
-  // (то есть папка nfts внутри gifts). Поэтому путь для NFT именно такой.
-  // Если потом перенесёшь в /images/nfts/, просто поменяй строку ниже.
-  var base = itemType(item) === 'nft' ? '/images/gifts/nfts/' : '/images/gifts/';
-  var icon = (item && item.icon) ? String(item.icon) : 'stars.webp';
-    if (icon.startsWith('/') || icon.startsWith('http')) return icon; // важно для /icons/ton.svg
-    return base + icon;
+  // NFT лежат в /images/gifts/nfts/ (папка nfts внутри gifts)
+  const base = itemType(item) === 'nft' ? 'images/gifts/nfts/' : 'images/gifts/';
+  const icon = (item && item.icon) ? String(item.icon) : 'stars.webp';
 
+  // Если уже дали абсолютную ссылку — не трогаем.
+  if (/^(https?:)?\/\//i.test(icon) || icon.startsWith('data:') || icon.startsWith('blob:')) return icon;
+
+  // Если пришёл абсолютный путь вида "/images/..." — всё равно делаем его относительным к baseURI (а не к корню домена)
+  if (icon.startsWith('/')) return assetUrl(icon);
+
+  return assetUrl(base + icon);
 }
 
 // общий фолбэк (если картинка не найдена)
-const ITEM_ICON_FALLBACK = '/images/gifts/stars.webp';
+const ITEM_ICON_FALLBACK = assetUrl('images/gifts/stars.webp');
 
 
 function isStarsPrizeGift(item) {
@@ -167,7 +185,7 @@ function normalizeItemForCurrency(item, currency) {
   return {
     ...item,
     displayName: 'TON',
-    icon: '/icons/ton.svg',
+    icon: assetUrl('icons/ton.svg'),
     price: {
       ...(item.price || {}),
       ton
@@ -231,17 +249,35 @@ async function ensurePeekFloorsLoaded() {
     try {
       const r1 = await fetch('/api/gifts/prices');
       if (r1.ok) j = await r1.json();
-    } catch (e) {}
-      // 2) dev fallback: try Node on :7700
-      if (!j) {
-        try {
-          const r2a = await fetch('http://localhost:7700/api/gifts/prices');
-          if (r2a.ok) j = await r2a.json();
-        } catch (e) {}
-      }
+    } catch (e) {
+      console.warn('[Cases] Failed to fetch from /api/gifts/prices:', e);
+    }
     
+    // 2) dev fallback: try Node on :7700
+    if (!j) {
+      try {
+        const r2a = await fetch('http://localhost:7700/api/gifts/prices');
+        if (r2a.ok) j = await r2a.json();
+      } catch (e) {
+        console.warn('[Cases] Failed to fetch from localhost:7700:', e);
+      }
+    }
+    
+    // 3) Alternative: try market.tonnel.network
+    if (!j) {
+      try {
+        console.log('[Cases] Trying alternative source: market.tonnel.network');
+        const r3 = await fetch('https://market.tonnel.network/api/gifts/prices');
+        if (r3.ok) j = await r3.json();
+      } catch (e) {
+        console.warn('[Cases] Failed to fetch from market.tonnel.network:', e);
+      }
+    }
 
-    if (!j) return;
+    if (!j) {
+      console.error('[Cases] All price sources failed');
+      return;
+    }
     const items = Array.isArray(j?.items) ? j.items : [];
 
     const m = new Map();
@@ -344,7 +380,7 @@ function pickStripItem(caseData, demoMode) {
 
 
 
-function getLineXInItems(carousel) {
+  function getLineXInItems(carousel) {
   const cont = carousel.itemsContainer;
   const indicator = carousel.element?.querySelector?.('.case-carousel-indicator');
   if (!cont || !indicator) return 0;
@@ -352,15 +388,15 @@ function getLineXInItems(carousel) {
   const contRect = cont.getBoundingClientRect();
   const indRect = indicator.getBoundingClientRect();
 
-  // центр линии в координатах itemsContainer
+  // Центр линии в координатах контента ленты (itemsContainer)
   const x = (indRect.left + indRect.width / 2) - contRect.left;
   return Number.isFinite(x) ? x : 0;
 }
 
 function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) {
+  // где линия указывает в координатах контента ленты
   const xContent = finalPos + lineX;
 
-  // выбираем слот, чей ЦЕНТР ближе всего к линии
   const w = (Number.isFinite(itemWidth) && itemWidth > 0) ? itemWidth : step;
   let idx = Math.round((xContent - padL - (w / 2)) / step);
 
@@ -586,7 +622,7 @@ function getBalanceSafe(currency) {
       item.className = 'cases-hero__ticker-item';
       item.style.animationDuration = `${totalMs}ms`;
       item.style.animationDelay = `${idx * slotMs}ms`;
-      item.innerHTML = `<img src="/images/cases/${escapeHtml(caseData.id)}.png" alt="${escapeHtml(caseData.name)}">`;
+      item.innerHTML = `<img src="images/cases/${escapeHtml(caseData.id)}.png" alt="${escapeHtml(caseData.name)}">`;
       heroTickerEl.appendChild(item);
     });
   }
@@ -603,7 +639,7 @@ function getBalanceSafe(currency) {
       return `
         <div class="cases-history-item" title="${userLabel} • ${itemLabel}">
           <div class="cases-history-item__thumb">
-            <img class="cases-history-item__case" src="/images/cases/${caseId}.png" alt="${caseId}">
+            <img class="cases-history-item__case" src="images/cases/${caseId}.png" alt="${caseId}">
             <div class="cases-history-item__drop"><img src="${dropIcon}" alt="${itemLabel}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'"></div>
           </div>
           <div class="cases-history-item__meta">
@@ -779,6 +815,81 @@ function getBalanceSafe(currency) {
 
     console.log('[Cases] ✅ Ready');
   }
+  // ====== EMERGENCY FIX FOR Z-INDEX & SCROLL ======
+
+  function applyScrollAndZIndexFix() {
+    console.log('[Cases] Applying scroll & z-index fix...');
+    
+    // Fix 1: Ensure overlay is properly layered
+    if (overlay) {
+      overlay.style.zIndex = '2000';
+      // When overlay becomes active, make it clickable
+      const originalOverlayClick = overlay.onclick;
+      overlay.addEventListener('click', function(e) {
+        if (this.classList.contains('active') && e.target === this) {
+          closeBottomSheet();
+        }
+      });
+    }
+    
+    // Fix 2: Ensure sheet panel structure
+    if (sheetPanel) {
+      sheetPanel.style.zIndex = '2200';
+      sheetPanel.style.overflow = 'hidden';
+      sheetPanel.style.display = 'flex';
+      sheetPanel.style.flexDirection = 'column';
+    }
+    
+    // Fix 3: Make contents section scrollable
+    const contentsSection = document.querySelector('.case-contents-section');
+    if (contentsSection) {
+      contentsSection.style.flex = '1 1 auto';
+      contentsSection.style.overflowY = 'auto';
+      contentsSection.style.overflowX = 'hidden';
+      contentsSection.style.webkitOverflowScrolling = 'touch';
+      
+      // Monitor scroll capability
+      const checkScroll = () => {
+        const canScroll = contentsSection.scrollHeight > contentsSection.clientHeight;
+        console.log('[Cases] Scroll check:', {
+          scrollHeight: contentsSection.scrollHeight,
+          clientHeight: contentsSection.clientHeight,
+          canScroll: canScroll
+        });
+      };
+      
+      // Check scroll when panel opens
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class' && sheetPanel.classList.contains('active')) {
+            setTimeout(checkScroll, 300);
+          }
+        });
+      });
+      
+      if (sheetPanel) {
+        observer.observe(sheetPanel, { attributes: true });
+      }
+    }
+    
+    // Fix 4: Ensure bottom button is above content
+    const bottomButton = document.querySelector('.case-bottom-button');
+    if (bottomButton) {
+      bottomButton.style.position = 'absolute';
+      bottomButton.style.zIndex = '100';
+      bottomButton.style.pointerEvents = 'none';
+      
+      // But make the button itself clickable
+      const openButton = document.getElementById('caseOpenBtn');
+      if (openButton) {
+        openButton.style.pointerEvents = 'all';
+      }
+    }
+    
+    console.log('[Cases] Fix applied ✅');
+  }
+
+
 
   // ====== CREATE DEMO TOGGLE ======
   function createDemoToggle() {
@@ -833,7 +944,7 @@ function getBalanceSafe(currency) {
     Object.values(CASES).forEach(caseData => {
       const currency = window.WildTimeCurrency?.current || 'ton';
       const price = caseData.price[currency];
-      const icon = currency === 'ton' ? '/icons/tgTonWhite.svg' : '/icons/stars.svg';
+      const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/stars.svg');
 
       const card = document.createElement('div');
       card.className = 'case-card';
@@ -841,7 +952,7 @@ function getBalanceSafe(currency) {
 
       card.innerHTML = `
         <div class="case-card__image">
-          <img src="/images/cases/${caseData.id}.png" alt="${caseData.name}" class="case-img">
+          <img src="images/cases/${caseData.id}.png" alt="${caseData.name}" class="case-img">
           <div class="case-card__glow"></div>
         </div>
         <div class="case-card__info">
@@ -917,7 +1028,7 @@ function getBalanceSafe(currency) {
   
     const currency = window.WildTimeCurrency?.current || 'ton';
     const price = currentCase.price[currency];
-    const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
   
     const title = document.getElementById('caseSheetTitle');
     if (title) title.textContent = currentCase.name;
@@ -935,8 +1046,9 @@ function getBalanceSafe(currency) {
     // Set case image for count section
     const countSection = document.querySelector('.case-count-section');
     if (countSection) {
-      countSection.style.setProperty('--current-case-image', `url('/images/cases/${currentCase.id}.png')`);
-    }
+      const caseImg = assetUrl(`images/cases/${currentCase.id}.png`);
+      countSection.style.setProperty('--current-case-image', `url('${caseImg}')`);
+}
   
     renderCarousels(selectedCount, currency);
 
@@ -1054,15 +1166,12 @@ function getBalanceSafe(currency) {
     const padR = parseFloat(cs.paddingRight) || 0;
 
     const step = itemWidth + gap;
-    
     const baseLen = (carousel.baseItems && carousel.baseItems.length)
       ? carousel.baseItems.length
       : Math.floor((carousel.items?.length || 0) / 2);
 
     const loopWidth = Math.max(0, baseLen * step);
     return { itemWidth, gap, padL, padR, step, baseLen, loopWidth };
-
-    
   }
 
   function renderCarouselItems(itemsContainer, items) {
@@ -1192,7 +1301,7 @@ function getBalanceSafe(currency) {
   function renderContents(currency) {
     if (!contentsGrid) return;
   
-    const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
   
     contentsGrid.innerHTML = currentCase.items.map(raw => {
       const item = normalizeItemForCurrency(raw, currency);
@@ -1419,7 +1528,6 @@ function getBalanceSafe(currency) {
 
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
-
         // 1) Выбираем выигрыш
         const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
             const winItem = normalizeItemForCurrency(winRaw, currency);
@@ -1440,11 +1548,9 @@ function getBalanceSafe(currency) {
 
         // 3) Удлиняем ленту
         while (strip.length < MIN_STRIP_LENGTH) {
-          const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode))
-            || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+          const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
           strip.push(normalizeItemForCurrency(raw, currency));
         }
-        
 
         // 4) Фиксируем позицию выигрыша ближе к концу
         const winAt = strip.length - TAIL_AFTER_WIN;
@@ -1511,18 +1617,31 @@ function getBalanceSafe(currency) {
           }
         }
 
-        const firstItem = cont.querySelector('.case-carousel-item');
-        if (!firstItem) { resolve(); return; }
+        // 5.5) Надёжный замер размеров (иногда в момент переключения fullscreen браузер может вернуть 0)
+let itemWidth = 0;
+let gap = 0;
+let padL = 0;
+let step = 0;
 
-        const itemWidth = firstItem.getBoundingClientRect().width;
-        const containerWidth = carousel.element.getBoundingClientRect().width;
+for (let a = 0; a < 12; a++) {
+  const firstItem = cont.querySelector('.case-carousel-item');
+  if (!firstItem) break;
 
-        const cs = getComputedStyle(cont);
-        const gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
-        const padL = parseFloat(cs.paddingLeft) || 0;
+  itemWidth = firstItem.getBoundingClientRect().width;
 
-        const step = itemWidth + gap;
-        
+  const cs = getComputedStyle(cont);
+  gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
+  padL = parseFloat(cs.paddingLeft) || 0;
+
+  step = itemWidth + gap;
+
+  if (Number.isFinite(step) && step > 5) break;
+  await new Promise(r => requestAnimationFrame(r));
+}
+
+if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
+
+
         // 6) Стартовая позиция — текущая
         let startPosition = (typeof carousel.position === 'number') ? carousel.position : 0;
         if (!startPosition) {
@@ -1534,30 +1653,6 @@ function getBalanceSafe(currency) {
               const tx = parseFloat(parts[4]) || 0;
               startPosition = -tx;
             }
-            // Надёжный замер размеров (иногда в момент переключения fullscreen браузер возвращает 0)
-        let itemWidth = 0;
-        let gap = 0;
-          let padL = 0;
-          let step = 0;
-
-          for (let a = 0; a < 12; a++) {
-            const firstItem = cont.querySelector('.case-carousel-item');
-            if (!firstItem) break;
-
-            itemWidth = firstItem.getBoundingClientRect().width;
-
-            const cs = getComputedStyle(cont);
-            gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
-            padL = parseFloat(cs.paddingLeft) || 0;
-
-            step = itemWidth + gap;
-
-            if (Number.isFinite(step) && step > 5) break;
-            await new Promise(r => requestAnimationFrame(r));
-          }
-
-          if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
-
           }
         }
 
@@ -1569,7 +1664,9 @@ function getBalanceSafe(currency) {
         const span = Math.max(0, itemWidth - innerMargin * 2);
         const randomPoint = innerMargin + Math.random() * span;
 
+        // 9) Целевая позиция: под линию попадает randomPoint у winAt
         let targetPosition = padL + winAt * step + randomPoint - lineX;
+
         const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineX;
         targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
 
@@ -1610,7 +1707,7 @@ function getBalanceSafe(currency) {
             cont.style.willChange = '';
 
             // ВАЖНО: финальный выигрыш = то, что реально под линией
-            syncWinByLine(carousel, targetPosition, strip, padL, step, lineX);
+            syncWinByLine(carousel, targetPosition, strip, padL, step, lineX, itemWidth);
 
             highlightWinningItem(carousel, index);
             resolve();
@@ -1721,7 +1818,7 @@ function ensureClaimBar() {
       <button id="caseClaimBtn" class="case-claim-btn" type="button">
         <span class="case-claim-btn__label">Claim</span>
         <span class="case-claim-btn__amount" id="caseClaimAmount">0</span>
-        <img class="case-claim-btn__icon" id="caseClaimIcon" src="/icons/ton.svg" alt="">
+        <img class="case-claim-btn__icon" id="caseClaimIcon" src="icons/ton.svg" alt="">
       </button>
 
       <div id="caseNftActions" class="case-nft-actions-inline" style="display:none" hidden>
@@ -1733,7 +1830,7 @@ function ensureClaimBar() {
         <button id="caseNftSellBtn" class="case-nft-btn-inline case-nft-btn-inline--secondary" type="button">
           <span>Sell</span>
           <span id="caseNftSellAmount" class="case-nft-btn-inline__amount">0</span>
-          <img id="caseNftSellIcon" class="case-nft-btn-inline__icon" src="/icons/ton.svg" alt="">
+          <img id="caseNftSellIcon" class="case-nft-btn-inline__icon" src="icons/ton.svg" alt="">
         </button>
       </div>
     </div>
@@ -1914,7 +2011,7 @@ async function showResult(currency, demoModeOverride) {
     ? Math.max(0, Math.round(giftsRaw))
     : Math.max(0, +(+giftsRaw).toFixed(2));
 
-  const icon = currency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
 
   // Use one roundId for the whole open -> claim flow
   const roundId = activeSpin?.roundId || `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;

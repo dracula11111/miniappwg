@@ -3,6 +3,143 @@
    
    ========================================================= */
 
+/* =========================================================
+   УНИВЕРСАЛЬНАЯ КНОПКА "НАЗАД" ДЛЯ ВСЕХ БОНУСОВ
+   ========================================================= */
+
+/* 
+ * CSS переменные для настройки позиции кнопки:
+ * --back-btn-top: вертикальное положение (по умолчанию 20px)
+ * --back-btn-left: горизонтальное положение (по умолчанию 20px)
+ * 
+ * Как изменить позицию:
+ * 1. В этом файле измените значения переменных в :root
+ * 2. Или добавьте стили в свой CSS:
+ *    .universal-back-btn { --back-btn-top: 30px; --back-btn-left: 30px; }
+ */
+
+ :root {
+  --back-btn-top: 100px;    /* Измените это значение чтобы опустить/поднять кнопку */
+  --back-btn-left: 20px;   /* Измените это значение чтобы сдвинуть кнопку влево/вправо */
+}
+
+.universal-back-btn {
+  /* Позиция - настраивается через CSS переменные */
+  position: fixed;
+  top: var(--back-btn-top);
+  left: var(--back-btn-left);
+  z-index: 1000000;
+  
+  /* Внешний вид */
+  display: flex !important; /* !important чтобы гарантировать видимость */
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  
+  min-width: 48px;
+  height: 48px;
+  padding: 0 16px;
+  
+  /* Стеклянный эффект */
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  
+  /* Текст и иконка */
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+  
+  /* Интерактивность */
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Анимация */
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+/* Анимация появления */
+#bonus5050Overlay.bonus-overlay--active .universal-back-btn,
+.wt-overlay.wt-active .universal-back-btn,
+.bonus-overlay--active .universal-back-btn {
+  opacity: 1;
+  transform: translateX(0);
+  animation: universalBackSlideIn 0.4s ease 0.2s backwards;
+}
+
+@keyframes universalBackSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Иконка стрелки */
+.universal-back-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* Текст "Back" */
+.universal-back-text {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Hover эффект */
+.universal-back-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateX(0) scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Active (нажатие) */
+.universal-back-btn:active {
+  transform: translateX(0) scale(0.95);
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* Адаптив для мобильных устройств */
+@media (max-width: 768px) {
+  .universal-back-btn {
+    /* На мобильных можно уменьшить отступы */
+    min-width: 44px;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 16px;
+  }
+  
+  .universal-back-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Скрытие текста на очень маленьких экранах */
+@media (max-width: 380px) {
+  .universal-back-text {
+    display: none;
+  }
+  
+  .universal-back-btn {
+    padding: 0;
+    width: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Lock scroll during cutscene */
 html.bonus-active,
 body.bonus-active{
@@ -688,8 +825,6 @@ body.bonus-active{
 
 
 
-
-
 /* =========================================================
    LOOT RUSH BONUS - CS:GO STYLE (УЛУЧШЕННАЯ ВЕРСИЯ)
    🔥 НОВОЕ: Плавные градиенты, glow эффекты, улучшенные анимации
@@ -700,7 +835,7 @@ body.bonus-active{
 .lr-cutscene {
   width: 100%;
   max-width: 480px;
-  margin: 0 auto;
+  margin: 60px auto 0 auto; /* 🔥 Опускаем весь бонус ниже */
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -855,19 +990,20 @@ body.bonus-active{
   transform: scale(0.8) translateY(-10px);
 }
 
-/* Show multiplier */
-.lr-tile.lr-mult-show .lr-mult {
-  animation: lrMultShow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+/* Show multiplier - 🔥 ТОЛЬКО ПРИ REVEAL */
+.lr-tile.lr-mult-show .lr-mult,
+.lr-tile.lr-reveal .lr-mult {
+  animation: lrMultShow 0.3s ease forwards;
 }
 
 @keyframes lrMultShow {
   from {
     opacity: 0;
-    transform: scale(0.6) translateY(-15px) rotate(-5deg);
+    transform: scale(0.8);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0) rotate(0deg);
+    transform: scale(1);
   }
 }
 
@@ -1106,84 +1242,29 @@ body.bonus-active{
 }
 
 
-/* Reveal - bag lifts up revealing mult underneath */
+/* 🔥 ОПТИМИЗИРОВАНО: Reveal - сумка просто поднимается вверх */
 .lr-tile.lr-reveal .lr-bag {
-  animation: lrBagLiftUp 1.2s ease-out forwards;
-  z-index: 3; /* bag on top of mult */
+  animation: lrBagLiftUp 0.5s ease-out forwards;
+  z-index: 3;
 }
 
 .lr-tile.lr-reveal .lr-mult {
-  z-index: 1; /* mult stays underneath */
-  opacity: 1; /* mult is already there, just hidden by bag */
+  z-index: 1;
+  opacity: 1;
 }
 
 @keyframes lrBagLiftUp {
   0% {
     opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
-    filter: blur(0px) brightness(1);
-  }
-  15% {
-    opacity: 1;
-    transform: translateY(-12px) scale(1.02) rotate(1deg);
-    filter: blur(0px) brightness(1.05);
-  }
-  35% {
-    opacity: 0.95;
-    transform: translateY(-35px) scale(1.03) rotate(-2deg);
-    filter: blur(2px) brightness(1.1);
-  }
-  55% {
-    opacity: 0.7;
-    transform: translateY(-65px) scale(0.92) rotate(3deg);
-    filter: blur(6px) brightness(1.15);
-  }
-  75% {
-    opacity: 0.35;
-    transform: translateY(-100px) scale(0.7) rotate(-4deg);
-    filter: blur(14px) brightness(1.2);
+    transform: translateY(0);
   }
   100% {
     opacity: 0;
-    transform: translateY(-150px) scale(0.5) rotate(-6deg);
-    filter: blur(22px) brightness(1.25);
+    transform: translateY(-120%);
   }
 }
 
-/* Subtle white mist as bag lifts */
-.lr-tile.lr-reveal::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: 
-    radial-gradient(circle at 40% 50%, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 60% 45%, rgba(250, 250, 255, 0.12) 0%, transparent 35%),
-    radial-gradient(circle at 50% 55%, rgba(255, 255, 255, 0.1) 0%, transparent 38%);
-  filter: blur(18px);
-  opacity: 0;
-  animation: lrMistRise 1.2s ease-out forwards;
-  pointer-events: none;
-  z-index: 2;
-}
-
-@keyframes lrMistRise {
-  0% {
-    opacity: 0;
-    transform: scale(0.7) translateY(0);
-  }
-  20% {
-    opacity: 0.3;
-    transform: scale(1) translateY(-15px);
-  }
-  50% {
-    opacity: 0.25;
-    transform: scale(1.6) translateY(-35px);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.5) translateY(-60px);
-  }
-}
+/* 🔥 УБРАНО: эффект тумана при reveal */
 
 /* Multiplier is already visible, no animation needed */
 .lr-tile.lr-reveal .lr-mult {
@@ -1946,5 +2027,187 @@ body.bonus-active{
 
   
 
+/* ========================================
+   BONUS OVERLAYS - SIMPLE BACK BUTTON
+   Просто белая иконка + текст "Back"
+   Без фонов, рамок и эффектов
+   ======================================== */
 
+/* ===== BONUS 5050 - Back Button ===== */
+.b5050-back-btn {
+  position: fixed;
+  top: 100px;
+  left: 20px;
+  z-index: 10002;
+  
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  padding: 0;
+  margin: 0;
+  
+  background: transparent;
+  border: none;
+  
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
 
+.b5050-back-btn:hover {
+  opacity: 0.7;
+}
+
+.b5050-back-btn:active {
+  opacity: 0.5;
+}
+
+.b5050-back-icon {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}
+
+.b5050-back-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ===== LOOT RUSH - Back Button ===== */
+.lr-back-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10002;
+  
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  padding: 0;
+  margin: 0;
+  
+  background: transparent;
+  border: none;
+  
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.lr-back-btn:hover {
+  opacity: 0.7;
+}
+
+.lr-back-btn:active {
+  opacity: 0.5;
+}
+
+.lr-back-icon {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}
+
+.lr-back-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ===== WILD TIME - Back Button ===== */
+.wt-back-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10002;
+  
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  padding: 0;
+  margin: 0;
+  
+  background: transparent;
+  border: none;
+  
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.wt-back-btn:hover {
+  opacity: 0.7;
+}
+
+.wt-back-btn:active {
+  opacity: 0.5;
+}
+
+.wt-back-icon {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}
+
+.wt-back-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #ffffff;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .b5050-back-btn,
+  .lr-back-btn,
+  .wt-back-btn {
+    top: 16px;
+    left: 16px;
+    gap: 6px;
+  }
+  
+  .b5050-back-icon,
+  .lr-back-icon,
+  .wt-back-icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .b5050-back-text,
+  .lr-back-text,
+  .wt-back-text {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .b5050-back-btn,
+  .lr-back-btn,
+  .wt-back-btn {
+    top: 2px;
+    left: 12px;
+    gap: 6px;
+  }
+  
+  .b5050-back-icon,
+  .lr-back-icon,
+  .wt-back-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .b5050-back-text,
+  .lr-back-text,
+  .wt-back-text {
+    font-size: 14px;
+  }
+}
