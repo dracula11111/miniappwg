@@ -503,7 +503,7 @@ window.LootRush = LootRush;
 console.log('[LootRush] ✅ Class exported to window.LootRush');
 
 (function() {
-  window.startLootRushBonus = window.startLootRushBonus || async function startLootRushBonus(betAmount = 0) {
+  window.startLootRushBonus = window.startLootRushBonus || async function startLootRushBonus(betAmount = 0, opts = {}) {
     console.log('[LootRush] 🎁 Starting bonus with bet:', betAmount);
 
     // ВСЕГДА вызываем ensureBonusOverlay для проверки/создания кнопки Back
@@ -538,9 +538,11 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
       return '1.1x';
     }
 
+    const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 10;
+
     return new Promise((resolve) => {
       const bonus = new LootRush(container, {
-        durationSec: 10,
+        durationSec: durationSec,
         bagFolder: '/images/lootrush/',
         bagPrefix: 'lootbag',
         bagExt: '.png',

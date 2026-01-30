@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 
@@ -420,6 +420,7 @@ function applyWheelServerState(state) {
 
     // on entering a new bonus -> optional toast + auto-open for bettors
     const nowBonusId = state.bonus?.id;
+    const bonusElapsedMs = getBonusElapsedMs(state.bonus);
     if (nowBonusId && nowBonusId !== prevBonusId) {
       try {
         if (typeof window.showBonusNotification === 'function') {
@@ -428,11 +429,11 @@ function applyWheelServerState(state) {
       } catch (_) {}
 
       // auto open only for users who actually bet on this bonus (and only on wheel page)
-      if (isWheelPageActive()) {
+      if (isWheelPageActive() && (!Number.isFinite(bonusElapsedMs) || bonusElapsedMs < 2000)) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
         if (myBet > 0) {
           setTimeout(() => {
-            openBonusOverlay(state.bonus.type, myBet).catch(() => {});
+            openBonusOverlay(state.bonus.type, myBet, state.bonus).catch(() => {});
           }, 2000);
         }
       }
@@ -1118,6 +1119,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   rafId = requestAnimationFrame(tick);
 
   connectWheelWS();
+
+  if (window.WT?.bus) {
+    window.WT.bus.addEventListener('page:change', (e) => {
+      if (e?.detail?.id === 'wheelPage') {
+        refreshWheelBonusBarFromState();
+      } else {
+        hideWheelBonusBar();
+      }
+    });
+  }
 
 
   window.addEventListener('resize', () => {
@@ -2371,6 +2382,33 @@ function isWheelPageActive() {
 let __wheelBonusBarEl = null;
 let __wheelBonusBarStyleDone = false;
 let __wheelBonusBarShownForId = null;
+let __wheelBonusBarTimer = null;
+
+function getBonusEndsAt(bonus) {
+  if (!bonus) return null;
+  if (Number.isFinite(bonus.endsAt)) return bonus.endsAt;
+  if (Number.isFinite(bonus.startedAt) && Number.isFinite(bonus.durationMs)) {
+    return bonus.startedAt + bonus.durationMs;
+  }
+  return null;
+}
+
+function getBonusRemainingMs(bonus, now = Date.now()) {
+  const endsAt = getBonusEndsAt(bonus);
+  if (!Number.isFinite(endsAt)) return null;
+  return Math.max(0, endsAt - now);
+}
+
+function getBonusElapsedMs(bonus, now = Date.now()) {
+  if (!bonus || !Number.isFinite(bonus.startedAt)) return null;
+  return Math.max(0, now - bonus.startedAt);
+}
+
+function formatBonusRemaining(remainingMs) {
+  if (!Number.isFinite(remainingMs)) return '';
+  const sec = Math.max(0, Math.ceil(remainingMs / 1000));
+  return `${sec}s left`;
+}
 
 function ensureWheelBonusBarStyles() {
   if (__wheelBonusBarStyleDone) return;
@@ -2447,11 +2485,11 @@ function ensureWheelBonusBar() {
     <div class="wbb-left">
       <img class="wbb-icon" alt="bonus" />
       <div class="wbb-text">
-        <div class="wbb-title">Сейчас бонус раунд</div>
+        <div class="wbb-title">Bonus round in progress</div>
         <div class="wbb-sub">—</div>
       </div>
     </div>
-    <button class="wbb-btn" type="button">Watch</button>
+    <button class="wbb-btn" type="button">Watch live</button>
   `;
 
   host.appendChild(el);
@@ -2471,7 +2509,8 @@ function showWheelBonusBar(bonus) {
   const type = normSeg(bonus.type);
   const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
   if (icon) icon.src = iconSrc;
-  if (sub) sub.textContent = `Бонус: ${type}`;
+  const remaining = formatBonusRemaining(getBonusRemainingMs(bonus));
+  if (sub) sub.textContent = remaining ? `Bonus: ${type} • ${remaining}` : `Bonus: ${type}`;
 
   // bind click once per bonus id
   const bonusId = String(bonus.id || `${bonus.type}:${bonus.startedAt || ''}`);
@@ -2482,7 +2521,7 @@ function showWheelBonusBar(bonus) {
       btn.onclick = async () => {
         try {
           const myBet = getMyBetAmountFromServer(wheelServerState?.players, type);
-          await openBonusOverlay(type, myBet);
+          await openBonusOverlay(type, myBet, bonus);
         } catch (e) {
           console.warn('[Wheel] Watch bonus failed', e);
         }
@@ -2491,10 +2530,41 @@ function showWheelBonusBar(bonus) {
   }
 
   el.classList.add('active');
+
+  if (__wheelBonusBarTimer) clearInterval(__wheelBonusBarTimer);
+  __wheelBonusBarTimer = setInterval(() => {
+    if (!wheelServerState || wheelServerState.phase !== 'bonus') {
+      clearInterval(__wheelBonusBarTimer);
+      __wheelBonusBarTimer = null;
+      return;
+    }
+    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(bonus));
+    if (sub && nextRemaining) sub.textContent = `Bonus: ${type} • ${nextRemaining}`;
+  }, 1000);
 }
 
 function hideWheelBonusBar() {
   if (__wheelBonusBarEl) __wheelBonusBarEl.classList.remove('active');
+  if (__wheelBonusBarTimer) {
+    clearInterval(__wheelBonusBarTimer);
+    __wheelBonusBarTimer = null;
+  }
+}
+
+function refreshWheelBonusBarFromState() {
+  if (!isWheelPageActive()) {
+    hideWheelBonusBar();
+    return;
+  }
+  if (wheelServerState?.phase === 'bonus') {
+    if (wheelServerState.bonus) {
+      showWheelBonusBar(wheelServerState.bonus);
+    } else if (wheelServerState.spin?.type) {
+      showWheelBonusBar({ type: wheelServerState.spin.type, id: `fallback:${wheelServerState.roundId}` });
+    }
+  } else {
+    hideWheelBonusBar();
+  }
 }
 
 function closeBonusOverlayIfOpen() {
@@ -2532,22 +2602,25 @@ function getMyBetAmountFromServer(players, seg) {
   return Math.round(amt * 100) / 100;
 }
 
-async function openBonusOverlay(type, betAmount = 0) {
+async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const t = normSeg(type);
+  const remainingMs = getBonusRemainingMs(bonusState);
+  const remainingSec = Number.isFinite(remainingMs) ? Math.max(1, Math.ceil(remainingMs / 1000)) : null;
+  const bonusOpts = remainingSec ? { remainingSec, durationSec: remainingSec } : null;
 
   // We don't force-lock UI here — server already pauses the round
   if (t === '50&50' && typeof window.start5050Bonus === 'function') {
-    await window.start5050Bonus(betAmount);
+    await window.start5050Bonus(betAmount, bonusOpts);
     return;
   }
 
   if (t === 'Loot Rush' && typeof window.startLootRushBonus === 'function') {
-    await window.startLootRushBonus(betAmount);
+    await window.startLootRushBonus(betAmount, bonusOpts);
     return;
   }
 
   if (t === 'Wild Time' && typeof window.startWildTimeBonus === 'function') {
-    await window.startWildTimeBonus(betAmount);
+    await window.startWildTimeBonus(betAmount, bonusOpts);
     return;
   }
 
@@ -2567,8 +2640,13 @@ function isWheelServerControlled() {
 function clientRoundReset(typeFinished, opts = {}) {
   const { addHistory = true } = opts;
   if (isWheelServerControlled()) return; // server will drive next round
-  if (addHistory && typeFinished) clientRoundReset(typeFinished);
-            }
+  if (addHistory && typeFinished) pushHistory(normSeg(typeFinished));
+  clearBets();
+  bettingLocked = false;
+  setPhase('betting', { force: true });
+  setOmega(IDLE_OMEGA, { force: true });
+  setBetPanel(true);
+}
 
 function renderWheelHistoryFromServer(historyArr) {
   if (!historyList) return;
@@ -3345,7 +3423,7 @@ function getMultiplier(type) {
   }
 
   // ✅ вот этого как раз не хватало на обычном флоу колеса
-  window.start5050Bonus = window.start5050Bonus || async function start5050Bonus(betAmount = 0) {
+  window.start5050Bonus = window.start5050Bonus || async function start5050Bonus(betAmount = 0, opts = {}) {
     const overlay = ensureBonusOverlay();
     const container = overlay.querySelector('.bonus-container') || overlay;
 
@@ -3353,6 +3431,7 @@ function getMultiplier(type) {
 
     // Определяем, есть ли ставка на этот бонус
     const hasBet = betAmount > 0;
+    const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 12;
 
     return await new Promise((resolve) => {
       const bonus = new window.Bonus5050(container, {
@@ -3361,7 +3440,7 @@ function getMultiplier(type) {
         lightningIcon: 'icons/lighting.webp',
         backIcon: 'icons/back.svg',
         hasBet: hasBet, // ✅ Передаем флаг наличия ставки
-        durationSec: 12,
+        durationSec: durationSec,
         
         // Callback при завершении бонуса
         onComplete: (result) => {

@@ -866,53 +866,67 @@
   }
 
   // ---- public API ----
-  window.startWildTimeBonus = async function startWildTimeBonus(betAmount = 0) {
-    overlay = ensureOverlay();
-    canvas = overlay.querySelector(`#${CFG.canvasId}`);
-    if (!canvas) return "error";
+  window.startWildTimeBonus = async function startWildTimeBonus(betAmount = 0, opts = {}) {
+    const prevPickCountdownSec = CFG.pickCountdownSec;
+    const prevAppearWaitMs = CFG.appearWaitMs;
+    const remainingSec = Number.isFinite(opts?.remainingSec) ? Math.max(1, Math.ceil(opts.remainingSec)) : null;
 
-    betAmount_ = betAmount;
-    aborted = false;
-    resetScreens();
+    if (remainingSec) {
+      CFG.pickCountdownSec = Math.min(prevPickCountdownSec, remainingSec);
+      CFG.appearWaitMs = remainingSec <= 3 ? 0 : Math.min(prevAppearWaitMs, 1000);
+    }
 
-    sectors = buildSectors();
-    await preloadMultiplierImages();
+    try {
+      overlay = ensureOverlay();
+      canvas = overlay.querySelector(`#${CFG.canvasId}`);
+      if (!canvas) return "error";
 
-    openOverlay();
-    bindClose();
-    window.__bonusBackHandler = () => { abortClose('closed'); };
+      betAmount_ = betAmount;
+      aborted = false;
+      resetScreens();
 
-    prepareCanvas();
-    drawWheel();
+      sectors = buildSectors();
+      await preloadMultiplierImages();
 
-    const onResize = () => { if (!aborted) { prepareCanvas(); drawWheel(); } };
-    window.addEventListener("resize", onResize, { passive: true });
-    overlay.__wt_resize = onResize;
+      openOverlay();
+      bindClose();
+      window.__bonusBackHandler = () => { abortClose('closed'); };
 
-    stopLoop();
-    phase = "idle";
-    omega = CFG.idleOmega;
-    lastTs = performance.now();
-    raf = requestAnimationFrame(tick);
+      prepareCanvas();
+      drawWheel();
 
-    // wait before spin
-    await sleep(CFG.appearWaitMs);
-    if (aborted) return "closed";
+      const onResize = () => { if (!aborted) { prepareCanvas(); drawWheel(); } };
+      window.addEventListener("resize", onResize, { passive: true });
+      overlay.__wt_resize = onResize;
 
-    // accelerate
-    phase = "accel";
-    await accelerateTo(CFG.fastOmega, CFG.accelMs);
-    if (aborted) return "closed";
+      stopLoop();
+      phase = "idle";
+      omega = CFG.idleOmega;
+      lastTs = performance.now();
+      raf = requestAnimationFrame(tick);
 
-    // choose stop index
-    const centerIdx = (Math.random() * sectors.length) | 0;
-    const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
-    const extra = randInt(CFG.extraTurnsMin, CFG.extraTurnsMax);
+      // wait before spin
+      await sleep(CFG.appearWaitMs);
+      if (aborted) return "closed";
 
-    decelerateToCenterIndex(centerIdx, dur, extra);
+      // accelerate
+      phase = "accel";
+      await accelerateTo(CFG.fastOmega, CFG.accelMs);
+      if (aborted) return "closed";
 
-    return await new Promise((resolve) => {
-      resolve_ = (val) => resolve(val);
-    });
+      // choose stop index
+      const centerIdx = (Math.random() * sectors.length) | 0;
+      const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
+      const extra = randInt(CFG.extraTurnsMin, CFG.extraTurnsMax);
+
+      decelerateToCenterIndex(centerIdx, dur, extra);
+
+      return await new Promise((resolve) => {
+        resolve_ = (val) => resolve(val);
+      });
+    } finally {
+      CFG.pickCountdownSec = prevPickCountdownSec;
+      CFG.appearWaitMs = prevAppearWaitMs;
+    }
   };
 })();
