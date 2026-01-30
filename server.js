@@ -566,16 +566,25 @@ const WHEEL_DECEL_MIN_MS = 5000;     // ms
 const WHEEL_DECEL_MAX_MS = 7000;     // ms
 const WHEEL_EXTRA_TURNS = 4;
 const WHEEL_RESULT_TIME = 2500;      // ms
+const WHEEL_BONUS_TYPES = new Set(['50&50','Loot Rush','Wild Time']);
+const WHEEL_BONUS_TIME_BY_TYPE = {
+  '50&50': 14000,
+  'Loot Rush': 15000,
+  'Wild Time': 15000
+};
+const WHEEL_BONUS_FALLBACK_MS = 15000;
+
 
 const WHEEL_ALLOWED = new Set(WHEEL_ORDER);
 
 const wheelGame = {
-  phase: 'betting',           // betting | spin | result
+  phase: 'betting',           // betting | spin | bonus | result
   phaseStart: Date.now(),
   roundId: 0,
   players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
   history: [],
   spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
+  bonus: null,               // { id,type,startedAt,durationMs,endsAt }
   phaseTimeout: null
 };
 
@@ -628,6 +637,7 @@ function buildWheelState(now = Date.now()) {
     phaseStart: wheelGame.phaseStart,
     roundId: wheelGame.roundId,
     spin: wheelGame.spin,
+    bonus: wheelGame.bonus,
     players: buildWheelPlayersArray(),
     history: wheelGame.history.slice(0, 20)
   };
@@ -652,6 +662,7 @@ function wheelStartBetting() {
   wheelGame.phaseStart = Date.now();
   wheelGame.roundId += 1;
   wheelGame.spin = null;
+  wheelGame.bonus = null;
   wheelGame.players.clear();
 
   broadcastWheelState();
@@ -689,26 +700,75 @@ function wheelStartSpin() {
   broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
-    wheelStartResult();
+    wheelSpinFinished();
   }, wheelGame.spin.spinTotalMs);
 }
 
-function wheelStartResult() {
+function wheelSpinFinished() {
+  wheelClearPhaseTimeout();
+
+  const now = Date.now();
+  const resultType = wheelGame.spin?.type || null;
+
+  // Update history once per spin
+  if (resultType) {
+    wheelGame.history.unshift(resultType);
+    if (wheelGame.history.length > 20) wheelGame.history.length = 20;
+  }
+
+  // Bonus handling: pause game until bonus is over
+  if (resultType && WHEEL_BONUS_TYPES.has(resultType)) {
+    wheelStartBonus(resultType);
+    return;
+  }
+
+  // Normal result
+  wheelStartResultPhase();
+}
+
+function wheelStartResultPhase() {
   wheelClearPhaseTimeout();
 
   wheelGame.phase = 'result';
   wheelGame.phaseStart = Date.now();
-
-  if (wheelGame.spin?.type) {
-    wheelGame.history.unshift(wheelGame.spin.type);
-    if (wheelGame.history.length > 20) wheelGame.history.length = 20;
-  }
+  wheelGame.bonus = null;
 
   broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
     wheelStartBetting();
   }, WHEEL_RESULT_TIME);
+}
+
+function wheelStartBonus(type) {
+  wheelClearPhaseTimeout();
+
+  const now = Date.now();
+  const durationMs = Number(WHEEL_BONUS_TIME_BY_TYPE[type]) || WHEEL_BONUS_FALLBACK_MS;
+
+  wheelGame.phase = 'bonus';
+  wheelGame.phaseStart = now;
+  wheelGame.bonus = {
+    id: `${wheelGame.roundId}:${type}:${now}`,
+    type,
+    startedAt: now,
+    durationMs,
+    endsAt: now + durationMs
+  };
+
+  broadcastWheelState();
+
+  wheelGame.phaseTimeout = setTimeout(() => {
+    wheelEndBonus();
+  }, durationMs);
+}
+
+function wheelEndBonus() {
+  wheelClearPhaseTimeout();
+
+  // After bonus: short result phase, then next round
+  wheelGame.bonus = null;
+  wheelStartResultPhase();
 }
 
 // WS: Wheel connections

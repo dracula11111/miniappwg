@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 
@@ -140,6 +140,10 @@ let wheelServerState = null;
 let wheelLastRoundId = null;
 let wheelSpinStartedForRound = null;
 
+let wheelLastSettledKey = null;
+let wheelPrevPhase = null;
+let wheelPrevBonusId = null;
+
 
 function connectWheelWS() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -186,6 +190,63 @@ function setCountdownFromMs(msLeft) {
   const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
   countNumEl.textContent = String(secLeft);
   countdownBox.classList.add('visible');
+}
+
+// ===== Live countdown interpolation (Crash-style) =====
+// Server sends bettingLeftMs only on events; we interpolate locally to avoid "stuck at 9".
+let wheelBettingLeftMs = null;
+let wheelBettingLeftAt = 0;
+let wheelLastTimerSec = null;
+
+function cacheWheelCountdownFromState(state) {
+  if (state && state.phase === 'betting' && typeof state.bettingLeftMs === 'number' && Number.isFinite(state.bettingLeftMs)) {
+    wheelBettingLeftMs = state.bettingLeftMs;
+    wheelBettingLeftAt = Date.now();
+  } else {
+    wheelBettingLeftMs = null;
+    wheelBettingLeftAt = 0;
+    wheelLastTimerSec = null;
+    // hide immediately when not betting
+    setCountdownFromMs(null);
+  }
+}
+
+function getWheelBettingSecondsLeft() {
+  if (!wheelServerState || wheelServerState.phase !== 'betting') return null;
+
+  // Prefer "bettingLeftMs + receivedAt" for smoothness
+  if (typeof wheelBettingLeftMs === 'number' && wheelBettingLeftAt) {
+    const rem = Math.max(0, wheelBettingLeftMs - (Date.now() - wheelBettingLeftAt));
+    return Math.ceil(rem / 1000);
+  }
+
+  // Fallback to phaseStart if needed
+  if (wheelServerState.phaseStart && typeof wheelServerState.bettingTimeMs === 'number') {
+    const rem = Math.max(0, wheelServerState.bettingTimeMs - (Date.now() - wheelServerState.phaseStart));
+    return Math.ceil(rem / 1000);
+  }
+
+  return null;
+}
+
+function updateWheelCountdownUI() {
+  if (!countdownBox || !countNumEl) return;
+
+  const sec = getWheelBettingSecondsLeft();
+  if (sec == null) {
+    if (wheelLastTimerSec !== null) {
+      wheelLastTimerSec = null;
+      countdownBox.classList.remove('visible');
+    }
+    return;
+  }
+
+  // Only touch DOM when second changes
+  if (sec !== wheelLastTimerSec) {
+    wheelLastTimerSec = sec;
+    countNumEl.textContent = String(sec);
+    countdownBox.classList.add('visible');
+  }
 }
 
 function renderWheelPlayersFromServer(players) {
@@ -308,14 +369,19 @@ async function startSpinFromServer(spin) {
 
 function applyWheelServerState(state) {
   const prevRoundId = wheelServerState?.roundId;
+  const prevPhase = wheelServerState?.phase;
+  const prevBonusId = wheelServerState?.bonus?.id;
+
   wheelServerState = state;
 
   // classes for CSS
   document.body.classList.toggle('is-betting', state.phase === 'betting');
   document.body.classList.toggle('is-spinning', state.phase !== 'betting');
+  document.body.classList.toggle('is-bonus', state.phase === 'bonus');
 
-  // server timer
-  setCountdownFromMs(state.bettingLeftMs);
+  // server timer (interpolated locally)
+  cacheWheelCountdownFromState(state);
+  updateWheelCountdownUI();
 
   // new round hygiene (like Crash)
   if (typeof prevRoundId !== 'undefined' && prevRoundId !== state.roundId) {
@@ -323,38 +389,97 @@ function applyWheelServerState(state) {
     // cancel any in-flight decel to avoid fighting the server
     decel = null;
     clearBets();
+
+    // allow settlement again for the new round
+    wheelLastSettledKey = null;
   }
 
-  // bets UI: enabled only in betting
+  // Players list + History from server (so refresh does NOT reset UI)
+  renderWheelPlayersFromServer(state.players);
+  renderWheelHistoryFromServer(state.history);
+
+  // Restore my bet pills after refresh / reconnect
+  restoreMyBetsFromServer(state.players);
+
+  // Phase-based UI
   if (state.phase === 'betting') {
     bettingLocked = false;
     setPhase('betting', { force: true });
     setOmega(IDLE_OMEGA, { force: true });
     setBetPanel(true);
+    hideWheelBonusBar();
+  } else if (state.phase === 'bonus') {
+    bettingLocked = true;
+    setBetPanel(false);
+    setPhase('bonus_waiting', { force: true });
+    setOmega(0, { force: true });
+
+    // show glass "Watch" bar for everyone on wheel page
+    if (state.bonus) showWheelBonusBar(state.bonus);
+    else if (state.spin?.type) showWheelBonusBar({ type: state.spin.type, id: `fallback:${state.roundId}` });
+
+    // on entering a new bonus -> optional toast + auto-open for bettors
+    const nowBonusId = state.bonus?.id;
+    if (nowBonusId && nowBonusId !== prevBonusId) {
+      try {
+        if (typeof window.showBonusNotification === 'function') {
+          window.showBonusNotification(normSeg(state.bonus.type));
+        }
+      } catch (_) {}
+
+      // auto open only for users who actually bet on this bonus (and only on wheel page)
+      if (isWheelPageActive()) {
+        const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
+        if (myBet > 0) {
+          setTimeout(() => {
+            openBonusOverlay(state.bonus.type, myBet).catch(() => {});
+          }, 2000);
+        }
+      }
+    }
   } else {
     bettingLocked = true;
     setBetPanel(false);
+    setPhase('result_waiting', { force: true });
+    setOmega(0, { force: true });
+    hideWheelBonusBar();
+
+    // when bonus ends -> close overlay to return to wheel
+    if (prevPhase === 'bonus' && state.phase !== 'bonus') {
+      closeBonusOverlayIfOpen();
+    }
   }
-
-  // Players list
-  renderWheelPlayersFromServer(state.players);
-
-  // History from server (so refresh does NOT reset history)
-  renderWheelHistoryFromServer(state.history);
-
-  // Restore my bet pills after refresh / reconnect
-  restoreMyBetsFromServer(state.players);
 
   // Start spin strictly by server
   if (state.phase === 'spin' && state.spin) {
     startSpinFromServer(state.spin);
   }
 
-  // reset "spinStarted" guard when round changes
-  if (wheelLastRoundId !== state.roundId) {
-    wheelLastRoundId = state.roundId;
-    wheelSpinStartedForRound = null;
+  // Settlement: pay ONLY once per round (after bonus is finished, if bonus)
+  const resultType = normSeg(state.spin?.type);
+  if (state.phase === 'result' && resultType) {
+    const settleKey = `${state.roundId}:${resultType}:${currentCurrency}`;
+    const bonus = isWheelBonusType(resultType);
+
+    if (!bonus) {
+      // normal segments: settle on result phase
+      if (wheelLastSettledKey !== settleKey) {
+        wheelLastSettledKey = settleKey;
+        void checkBetsAndShowResult(resultType);
+      }
+    } else {
+      // bonus segments: settle only AFTER bonus phase completes
+      if (prevPhase === 'bonus' || prevPhase === 'result') {
+        if (wheelLastSettledKey !== settleKey) {
+          wheelLastSettledKey = settleKey;
+          void checkBetsAndShowResult(resultType);
+        }
+      }
+    }
   }
+
+  wheelPrevPhase = state.phase;
+  wheelPrevBonusId = state.bonus?.id || null;
 }
 
 
@@ -799,10 +924,9 @@ function initTestModeBalance() {
 
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  if (!TEST_MODE) return;
+  console.log('[Wheel] 💸 Deducting bet:', amount, currency, 'TEST_MODE:', TEST_MODE);
   
-  console.log('[Wheel] 💸 Deducting bet:', amount, currency);
-  
+  // Всегда снимаем локально
   if (currency === 'ton') {
     userBalance.ton = Math.max(0, userBalance.ton - amount);
   } else {
@@ -810,6 +934,8 @@ function deductBetAmount(amount, currency) {
   }
   
   updateTestBalance();
+  
+  console.log('[Wheel] ✅ Balance after deduction:', userBalance);
 }
 
 
@@ -847,7 +973,7 @@ async function addWinAmount(amount, currency) {
         amount: amount,
         currency: currency,
         type: 'wheel_win',
-        depositId: `bonus_win_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        depositId: `${makeWheelPayoutId('wheel_miscwin', userId, (wheelServerState?.spin?.type || 'win'), currency)}_${Math.round(Number(amount || 0) * 100)}`,
         timestamp: Date.now(),
         notify: false
       })
@@ -876,7 +1002,7 @@ window.addWinAmount = addWinAmount;
 
 /* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
-  if (!TEST_MODE) return;
+  console.log('[Wheel] 📊 Updating balance UI:', userBalance);
   
   // Update currency system
   if (window.WildTimeCurrency) {
@@ -897,11 +1023,11 @@ function updateTestBalance() {
     detail: { 
       ton: userBalance.ton, 
       stars: userBalance.stars,
-      _testMode: true
+      _testMode: TEST_MODE
     }
   }));
   
-  console.log('[Wheel] 📊 Test balance updated:', userBalance);
+  console.log('[Wheel] ✅ Balance UI updated:', userBalance);
 }
 
 
@@ -1100,15 +1226,37 @@ function ensureBetPill(tile, seg) {
 }
 
 function setBetPill(tile, seg, amount, currency) {
+  console.log('[DEBUG] setBetPill called:', { tile, seg, amount, currency });
+  
   const { pill, isNew } = ensureBetPill(tile, seg);
   const iconEl = pill.querySelector('.bet-pill__icon');
   const amountEl = pill.querySelector('.bet-pill__amount');
 
-  if (iconEl) iconEl.src = getCurrencyIconSrc(currency);
-  if (amountEl) amountEl.textContent = String(amount);
+  if (iconEl) {
+    iconEl.src = getCurrencyIconSrc(currency);
+    console.log('[DEBUG] Set icon src:', iconEl.src);
+  }
+  if (amountEl) {
+    amountEl.textContent = String(amount);
+    console.log('[DEBUG] Set amount text:', amountEl.textContent);
+  }
 
   pill.dataset.currency = currency;
+  pill.dataset.segment = seg;
+  
+  // CRITICAL: Убираем hidden и обеспечиваем видимость
   pill.hidden = false;
+  pill.style.display = 'flex';
+  pill.style.opacity = '1';
+  pill.style.visibility = 'visible';
+  pill.style.zIndex = '100';
+
+  console.log('[DEBUG] Pill styles:', {
+    display: pill.style.display,
+    opacity: pill.style.opacity,
+    visibility: pill.style.visibility,
+    hidden: pill.hidden
+  });
 
   // subtle "update" pop only when pill already exists
   if (!isNew) {
@@ -1119,6 +1267,8 @@ function setBetPill(tile, seg, amount, currency) {
   } else {
     pill.classList.remove('is-updating');
   }
+  
+  console.log('[DEBUG] setBetPill completed, pill visible:', !pill.hidden);
 }
 
 window.updateCurrentAmount = function(amount) {
@@ -1277,11 +1427,16 @@ function initBettingUI(){
         }
       }
       
-      // 🔥 Deduct balance in test mode
-      if (TEST_MODE) {
-        deductBetAmount(currentAmount, currentCurrency);
-      }
-  
+      // 🔥 Deduct balance (всегда, не только в TEST_MODE)
+      deductBetAmount(currentAmount, currentCurrency);
+      
+      console.log('[DEBUG] Before setBetPill:', { // ДОБАВИТЬ ПЕРЕД строкой 1410
+        tile: tile,
+        seg: seg,
+        next: next,
+        currentCurrency: currentCurrency,
+        betsMap: Array.from(betsMap.entries())
+      });
       setBetPill(tile, seg, next, currentCurrency);
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
@@ -1460,6 +1615,9 @@ function tick(ts){
   const dt = Math.min(0.033, (ts - lastTs)/1000);
   lastTs = ts;
 
+  // Keep betting countdown smooth even if server doesn't broadcast every second
+  updateWheelCountdownUI();
+
   if (phase === 'decelerate' && decel){
     const elapsed = ts - decel.t0;
     const t = Math.min(1, elapsed / decel.dur);
@@ -1479,6 +1637,7 @@ function tick(ts){
       setBetPanel(false); // Keep panel disabled
 
       if (typeFinished) {
+        if (!wheelServerState) {
         checkBetsAndShowResult(typeFinished);
         
         // 🔥 SPECIAL HANDLING FOR 50/50 BONUS
@@ -1599,8 +1758,9 @@ function tick(ts){
             clientRoundReset(typeFinished);
             }, 3000);
         }
+        }
       } else {
-        clientRoundReset(null, { addHistory: false });
+        if (!wheelServerState) clientRoundReset(null, { addHistory: false });
             }
 
       if (resolveFn) resolveFn();
@@ -1623,7 +1783,13 @@ function tick(ts){
 
 
 
-/* ===== Check bets and show result ===== */
+/* ===== Check bets and show result ===== */// Deterministic depositId (prevents double payout on refresh/reconnect)
+function makeWheelPayoutId(kind, userId, resultType, currency) {
+  const roundId = wheelServerState?.roundId ?? 'local';
+  const seg = String(normSeg(resultType) || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'unknown';
+  const cur = String(currency || 'ton').toLowerCase() === 'stars' ? 'stars' : 'ton';
+  return `${kind}_${userId}_${roundId}_${seg}_${cur}`;
+}
 async function checkBetsAndShowResult(resultType, opts = {}) {
   resultType = normSeg(resultType);
 
@@ -1670,7 +1836,7 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
                 amount: winAmount,
                 currency: currentCurrency,
                 type: 'wheel_bonus_bet',
-                depositId: `bonus_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                depositId: makeWheelPayoutId('wheel_bonus', userId, resultType, currentCurrency),
                 timestamp: Date.now(),
                 notify: false,
                 roundId: `round_${Date.now()}`,
@@ -1743,7 +1909,7 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
               amount: winAmount, // positive = add
               currency: currentCurrency,
               type: 'wheel_win',
-              depositId: `win_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              depositId: makeWheelPayoutId('wheel_win', userId, resultType, currentCurrency),
               timestamp: Date.now(),
               notify: false, // don't send telegram message
               roundId: `round_${Date.now()}`,
@@ -2184,6 +2350,213 @@ const __WHEEL_HISTORY_ICONS = {
   'Loot Rush': '/images/history/loot_small.png',
   'Wild Time': '/images/history/wild_small.png'
 };
+
+// ===== Bonus helpers + "Watch" liquid-glass bar =====
+const __WHEEL_BONUS_TYPES = new Set(['50&50','Loot Rush','Wild Time']);
+
+function isWheelBonusType(t) {
+  const k = normSeg(t);
+  return __WHEEL_BONUS_TYPES.has(k);
+}
+
+function wheelSlugSeg(t) {
+  return String(normSeg(t) || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'unknown';
+}
+
+function isWheelPageActive() {
+  const wp = document.getElementById('wheelPage');
+  return !!(wp && wp.classList.contains('page-active'));
+}
+
+let __wheelBonusBarEl = null;
+let __wheelBonusBarStyleDone = false;
+let __wheelBonusBarShownForId = null;
+
+function ensureWheelBonusBarStyles() {
+  if (__wheelBonusBarStyleDone) return;
+  __wheelBonusBarStyleDone = true;
+  const st = document.createElement('style');
+  st.id = 'wheel-bonus-bar-style';
+  st.textContent = `
+    #wheelBonusBar{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform: translate(60px, -50%);
+      width: min(620px, 92vw);
+      height: 66px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: 22px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 14px 38px rgba(0,0,0,0.35);
+      backdrop-filter: blur(18px) saturate(1.4);
+      -webkit-backdrop-filter: blur(18px) saturate(1.4);
+      color: #fff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    #wheelBonusBar.active{
+      opacity: 1;
+      pointer-events: auto;
+      animation: wheelBonusBarIn .28s ease forwards;
+    }
+    @keyframes wheelBonusBarIn{
+      from{ transform: translate(60px, -50%); opacity: 0; }
+      to{ transform: translate(-50%, -50%); opacity: 1; }
+    }
+    #wheelBonusBar .wbb-left{ display:flex; align-items:center; gap: 12px; min-width: 0; }
+    #wheelBonusBar .wbb-icon{ width: 42px; height: 42px; border-radius: 14px; object-fit: cover; flex: 0 0 auto; box-shadow: 0 8px 18px rgba(0,0,0,0.25); }
+    #wheelBonusBar .wbb-text{ display:flex; flex-direction:column; min-width: 0; line-height: 1.05; }
+    #wheelBonusBar .wbb-title{ font-weight: 700; font-size: 14px; letter-spacing: 0.3px; opacity: 0.95; }
+    #wheelBonusBar .wbb-sub{ font-size: 12px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #wheelBonusBar .wbb-btn{
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.10);
+      color:#fff;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      cursor:pointer;
+      backdrop-filter: blur(18px) saturate(1.4);
+      -webkit-backdrop-filter: blur(18px) saturate(1.4);
+      transition: transform .08s ease, background .15s ease;
+      user-select: none;
+    }
+    #wheelBonusBar .wbb-btn:active{ transform: scale(0.98); }
+    #wheelBonusBar .wbb-btn:hover{ background: rgba(255,255,255,0.16); }
+  `;
+  document.head.appendChild(st);
+}
+
+function ensureWheelBonusBar() {
+  if (__wheelBonusBarEl) return __wheelBonusBarEl;
+  ensureWheelBonusBarStyles();
+
+  const host = document.getElementById('wheelPage') || document.body;
+
+  const el = document.createElement('div');
+  el.id = 'wheelBonusBar';
+  el.innerHTML = `
+    <div class="wbb-left">
+      <img class="wbb-icon" alt="bonus" />
+      <div class="wbb-text">
+        <div class="wbb-title">Сейчас бонус раунд</div>
+        <div class="wbb-sub">—</div>
+      </div>
+    </div>
+    <button class="wbb-btn" type="button">Watch</button>
+  `;
+
+  host.appendChild(el);
+  __wheelBonusBarEl = el;
+  return el;
+}
+
+function showWheelBonusBar(bonus) {
+  if (!bonus || !bonus.type) return;
+  if (!isWheelPageActive()) return;
+
+  const el = ensureWheelBonusBar();
+  const icon = el.querySelector('.wbb-icon');
+  const sub = el.querySelector('.wbb-sub');
+  const btn = el.querySelector('.wbb-btn');
+
+  const type = normSeg(bonus.type);
+  const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
+  if (icon) icon.src = iconSrc;
+  if (sub) sub.textContent = `Бонус: ${type}`;
+
+  // bind click once per bonus id
+  const bonusId = String(bonus.id || `${bonus.type}:${bonus.startedAt || ''}`);
+  if (__wheelBonusBarShownForId !== bonusId) {
+    __wheelBonusBarShownForId = bonusId;
+
+    if (btn) {
+      btn.onclick = async () => {
+        try {
+          const myBet = getMyBetAmountFromServer(wheelServerState?.players, type);
+          await openBonusOverlay(type, myBet);
+        } catch (e) {
+          console.warn('[Wheel] Watch bonus failed', e);
+        }
+      };
+    }
+  }
+
+  el.classList.add('active');
+}
+
+function hideWheelBonusBar() {
+  if (__wheelBonusBarEl) __wheelBonusBarEl.classList.remove('active');
+}
+
+function closeBonusOverlayIfOpen() {
+  const overlay = document.getElementById('bonus5050Overlay');
+  if (!overlay) return;
+  if (!overlay.classList.contains('bonus-overlay--active')) return;
+  overlay.classList.add('bonus-overlay--leave');
+  setTimeout(() => {
+    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+    overlay.style.display = 'none';
+    const container = overlay.querySelector('.bonus-container');
+    if (container) container.innerHTML = '';
+    document.documentElement.classList.remove('bonus-active');
+    document.body.classList.remove('bonus-active');
+  }, 260);
+}
+
+function getMyBetAmountFromServer(players, seg) {
+  const myId = String(getWheelUserId());
+  const list = Array.isArray(players) ? players : [];
+  const me = list.find(p => String(p.userId) === myId);
+  if (!me || !Array.isArray(me.segments)) return 0;
+
+  const target = normSeg(seg);
+  let amt = 0;
+  for (const segEntry of me.segments) {
+    const segName = (typeof segEntry === 'string') ? segEntry : (segEntry?.segment || segEntry?.name);
+    const key = normSeg(segName);
+    if (key !== target) continue;
+    const a = (typeof segEntry === 'object') ? Number(segEntry?.amount || 0) : 0;
+    amt += Number.isFinite(a) ? a : 0;
+  }
+
+  if (me.currency === 'stars') return Math.round(amt);
+  return Math.round(amt * 100) / 100;
+}
+
+async function openBonusOverlay(type, betAmount = 0) {
+  const t = normSeg(type);
+
+  // We don't force-lock UI here — server already pauses the round
+  if (t === '50&50' && typeof window.start5050Bonus === 'function') {
+    await window.start5050Bonus(betAmount);
+    return;
+  }
+
+  if (t === 'Loot Rush' && typeof window.startLootRushBonus === 'function') {
+    await window.startLootRushBonus(betAmount);
+    return;
+  }
+
+  if (t === 'Wild Time' && typeof window.startWildTimeBonus === 'function') {
+    await window.startWildTimeBonus(betAmount);
+    return;
+  }
+
+  if (typeof window.showBonusNotification === 'function') {
+    window.showBonusNotification(t);
+  }
+}
+
+
 
 // ===== Server-controlled wheel helpers (Crash-style) =====
 function isWheelServerControlled() {
