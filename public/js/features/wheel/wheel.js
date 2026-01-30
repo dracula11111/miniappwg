@@ -2697,7 +2697,18 @@ function restoreMyBetsFromServer(players) {
         if (Number(betsMap.get(k) || 0) !== Number(v || 0)) { same = false; break; }
       }
     }
-    if (same) return;
+    if (same) {
+      // If pills are missing from DOM, rebuild from server state
+      let missingPill = false;
+      for (const [seg] of serverBets.entries()) {
+        const tile = Array.from(betTiles).find(t => normSeg(t?.dataset?.seg) === seg);
+        if (tile && !tile.querySelector('.bet-pill')) {
+          missingPill = true;
+          break;
+        }
+      }
+      if (!missingPill) return;
+    }
   }
 
   // Replace local bets UI
