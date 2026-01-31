@@ -143,6 +143,8 @@ let wheelSpinStartedForRound = null;
 let wheelLastSettledKey = null;
 let wheelPrevPhase = null;
 let wheelPrevBonusId = null;
+let wheelBonusOverlayActive = false;  // 🔥 отслеживает открыт ли оверлей
+window.__bonusOverlayOpenedFor = null; // 🔥 ID бонуса для которого открыт оверлей
 
 
 function connectWheelWS() {
@@ -177,6 +179,14 @@ function connectWheelWS() {
       console.warn('[WheelWS] bad message', e);
     }
   };
+}
+
+function wheelWsSend(payload) {
+  if (wheelWs && wheelWs.readyState === WebSocket.OPEN) {
+    wheelWs.send(JSON.stringify(payload));
+  } else {
+    console.warn('[WheelWS] Cannot send — socket not open (readyState=' + (wheelWs?.readyState ?? 'null') + '). Payload dropped:', payload);
+  }
 }
 
 function setCountdownFromMs(msLeft) {
@@ -418,27 +428,38 @@ function applyWheelServerState(state) {
     if (state.bonus) showWheelBonusBar(state.bonus);
     else if (state.spin?.type) showWheelBonusBar({ type: state.spin.type, id: `fallback:${state.roundId}` });
 
-    // on entering a new bonus -> optional toast + auto-open for bettors
+    // 🔥 ИСПРАВЛЕНИЕ: проверяем новый бонус и автооткрытие с учётом истекшего времени
     const nowBonusId = state.bonus?.id;
-    const bonusElapsedMs = getBonusElapsedMs(state.bonus);
-    if (nowBonusId && nowBonusId !== prevBonusId) {
+    const isNewBonus = nowBonusId && nowBonusId !== prevBonusId;
+    
+    if (isNewBonus) {
+      // Показываем уведомление только при новом бонусе
       try {
         if (typeof window.showBonusNotification === 'function') {
           window.showBonusNotification(normSeg(state.bonus.type));
         }
       } catch (_) {}
 
-      // auto open only for users who actually bet on this bonus (and only on wheel page)
-      if (isWheelPageActive() && (!Number.isFinite(bonusElapsedMs) || bonusElapsedMs < 2000)) {
+      // 🔥 КРИТИЧНО: автооткрытие только если бонус только начался И есть ставка
+      // Используем elapsedMs или remainingMs с сервера для точной проверки
+      const elapsedMs = state.bonus?.elapsedMs ?? getBonusElapsedMs(state.bonus);
+      const hasEnoughTimeLeft = !Number.isFinite(elapsedMs) || elapsedMs < 2000;
+      
+      if (isWheelPageActive() && hasEnoughTimeLeft) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
         if (myBet > 0) {
+          // 🔥 ИСПРАВЛЕНИЕ: отмечаем что оверлей будет открыт для этого бонуса
+          window.__bonusOverlayOpenedFor = nowBonusId;
+          
           setTimeout(() => {
             openBonusOverlay(state.bonus.type, myBet, state.bonus).catch(() => {});
           }, 2000);
         }
       }
     }
-  } else {
+  }
+  
+    else {
     bettingLocked = true;
     setBetPanel(false);
     setPhase('result_waiting', { force: true });
@@ -460,19 +481,33 @@ function applyWheelServerState(state) {
   const resultType = normSeg(state.spin?.type);
   if (state.phase === 'result' && resultType) {
     const settleKey = `${state.roundId}:${resultType}:${currentCurrency}`;
-    const bonus = isWheelBonusType(resultType);
+    const isBonus = isWheelBonusType(resultType);
 
-    if (!bonus) {
-      // normal segments: settle on result phase
+    if (!isBonus) {
+      // normal segments: settle immediately on result phase
       if (wheelLastSettledKey !== settleKey) {
         wheelLastSettledKey = settleKey;
         void checkBetsAndShowResult(resultType);
       }
     } else {
-      // bonus segments: settle only AFTER bonus phase completes
-      if (prevPhase === 'bonus' || prevPhase === 'result') {
-        if (wheelLastSettledKey !== settleKey) {
-          wheelLastSettledKey = settleKey;
+      // 🔥 КРИТИЧНО: бонусные сегменты - выплата только ПОСЛЕ закрытия оверлея
+      // Проверяем что бонус закончился (prevPhase === 'bonus')
+      const bonusJustEnded = prevPhase === 'bonus' && state.phase === 'result';
+      
+      if (bonusJustEnded && wheelLastSettledKey !== settleKey) {
+        wheelLastSettledKey = settleKey;
+        
+        // 🔥 ИСПРАВЛЕНИЕ: если оверлей был открыт - ждём его закрытия перед выплатой
+        const wasOverlayOpened = window.__bonusOverlayOpenedFor === prevBonusId;
+        
+        if (wasOverlayOpened) {
+          // Даём время на закрытие оверлея (300ms анимация + запас)
+          setTimeout(() => {
+            void checkBetsAndShowResult(resultType);
+            window.__bonusOverlayOpenedFor = null;
+          }, 500);
+        } else {
+          // Оверлей не открывался - выплачиваем сразу
           void checkBetsAndShowResult(resultType);
         }
       }
@@ -925,8 +960,12 @@ function initTestModeBalance() {
 
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  console.log('[Wheel] 💸 Deducting bet:', amount, currency, 'TEST_MODE:', TEST_MODE);
-  
+  console.log('[Wheel] 💸 DEDUCT START!', { 
+    amount, 
+    currency, 
+    TEST_MODE,
+    balanceBefore: {...userBalance}
+  });
   // Всегда снимаем локально
   if (currency === 'ton') {
     userBalance.ton = Math.max(0, userBalance.ton - amount);
@@ -1098,9 +1137,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     showTestModeNotification();
     
     // Initialize test balance
-    setTimeout(() => {
+   
       initTestModeBalance();
-    }, 500);
+    
   }
 
   await preloadImages();
@@ -1237,9 +1276,20 @@ function ensureBetPill(tile, seg) {
 }
 
 function setBetPill(tile, seg, amount, currency) {
-  console.log('[DEBUG] setBetPill called:', { tile, seg, amount, currency });
+  console.log('[Wheel] 🏷️ SET BET PILL!', { 
+    tile: !!tile, 
+    seg, 
+    amount, 
+    currency 
+  });
   
   const { pill, isNew } = ensureBetPill(tile, seg);
+  
+  console.log('[Wheel] 📌 Pill element:', {
+    pillExists: !!pill,
+    isNew,
+    pillHTML: pill?.outerHTML?.substring(0, 100)
+  });
   const iconEl = pill.querySelector('.bet-pill__icon');
   const amountEl = pill.querySelector('.bet-pill__amount');
 
@@ -1287,9 +1337,11 @@ window.updateCurrentAmount = function(amount) {
   console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
 };
 
-/* ===== Betting UI ===== */
+
 /* ===== Betting UI ===== */
 function initBettingUI(){
+
+  console.log('[Wheel] 🎮 Init Betting UI, userBalance:', userBalance);
   // ===== AMOUNT BUTTONS WITH SELECTION HIGHLIGHT =====
   amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1352,7 +1404,18 @@ function initBettingUI(){
   // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
   betTiles.forEach(tile => {
     tile.addEventListener('click', async () => {
+      // 🔥 ДИАГНОСТИКА
+      console.log('[Wheel] 🎯 TILE CLICKED!', {
+        seg: tile.dataset.seg,
+        TEST_MODE: TEST_MODE,
+        phase: phase,
+        userBalance: userBalance,
+        currentCurrency: currentCurrency,
+        currentAmount: currentAmount
+      });
+      
       if (bettingLocked) {
+        
         console.log('[Wheel] ⛔ Betting locked - waiting for history update');
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
@@ -1384,15 +1447,19 @@ function initBettingUI(){
       const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
       const userId = tgUser?.id ? String(tgUser.id) : 'guest';
 
-      wheelWsSend({
-        type: 'placeBet',
-        userId,
-        userName: tgUser?.username || tgUser?.first_name || 'Player',
-        userAvatar: window.userAvatarUrl || null,  // если у тебя иначе — скажи
-        segment: seg,
-        amount: currentAmount,
-        currency: currentCurrency
-      });
+      try {
+        wheelWsSend({
+          type: 'placeBet',
+          userId,
+          userName: tgUser?.username || tgUser?.first_name || 'Player',
+          userAvatar: window.userAvatarUrl || null,
+          segment: seg,
+          amount: currentAmount,
+          currency: currentCurrency
+        });
+      } catch (wsErr) {
+        console.warn('[WheelWS] Failed to send placeBet, continuing locally:', wsErr);
+      }
 
   
       // 🔥 SEND BET TO SERVER (not just in test mode!)
@@ -2404,6 +2471,27 @@ function getBonusElapsedMs(bonus, now = Date.now()) {
   return Math.max(0, now - bonus.startedAt);
 }
 
+function getBonusRemainingMs(bonus, now = Date.now()) {
+  if (!bonus) return null;
+  
+  // 🔥 Используем remainingMs с сервера если есть
+  if (Number.isFinite(bonus.remainingMs)) {
+    return Math.max(0, bonus.remainingMs);
+  }
+  
+  // Фолбэк: вычисляем сами
+  if (Number.isFinite(bonus.endsAt)) {
+    return Math.max(0, bonus.endsAt - now);
+  }
+  
+  if (Number.isFinite(bonus.startedAt) && Number.isFinite(bonus.durationMs)) {
+    const elapsed = now - bonus.startedAt;
+    return Math.max(0, bonus.durationMs - elapsed);
+  }
+  
+  return null;
+}
+
 function formatBonusRemaining(remainingMs) {
   if (!Number.isFinite(remainingMs)) return '';
   const sec = Math.max(0, Math.ceil(remainingMs / 1000));
@@ -2604,9 +2692,18 @@ function getMyBetAmountFromServer(players, seg) {
 
 async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const t = normSeg(type);
-  const remainingMs = getBonusRemainingMs(bonusState);
+  
+  // 🔥 ИСПРАВЛЕНИЕ: используем remainingMs с сервера если есть
+  const remainingMs = bonusState?.remainingMs ?? getBonusRemainingMs(bonusState);
   const remainingSec = Number.isFinite(remainingMs) ? Math.max(1, Math.ceil(remainingMs / 1000)) : null;
-  const bonusOpts = remainingSec ? { remainingSec, durationSec: remainingSec } : null;
+  
+  // 🔥 КРИТИЧНО: передаём hasBet для корректной работы бонусов
+  const hasBet = betAmount > 0;
+  const bonusOpts = {
+    hasBet,
+    durationSec: remainingSec || 12,
+    remainingSec: remainingSec || null
+  };
 
   // We don't force-lock UI here — server already pauses the round
   if (t === '50&50' && typeof window.start5050Bonus === 'function') {
@@ -2628,7 +2725,6 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
     window.showBonusNotification(t);
   }
 }
-
 
 
 // ===== Server-controlled wheel helpers (Crash-style) =====
@@ -3246,10 +3342,7 @@ function showBonusNotification(bonusType) {
   const toast = document.createElement('div');
   toast.id = 'bonus-trigger-toast';
 
-  toast.innerHTML = `
-    <div>${bonusType}</div>
-    <div>Bonus Round</div>
-  `;
+ 
 
   (document.getElementById('wheelPage') || document.body).appendChild(toast);
 
@@ -3433,16 +3526,19 @@ function getMultiplier(type) {
     throw new Error('Bonus5050 class not loaded (bonus-5050.js path wrong)');
   }
 
-  // ✅ вот этого как раз не хватало на обычном флоу колеса
+  // 
   window.start5050Bonus = window.start5050Bonus || async function start5050Bonus(betAmount = 0, opts = {}) {
     const overlay = ensureBonusOverlay();
     const container = overlay.querySelector('.bonus-container') || overlay;
 
     await ensureBonusClass();
 
-    // Определяем, есть ли ставка на этот бонус
-    const hasBet = betAmount > 0;
+    // 🔥 ИСПРАВЛЕНИЕ: используем hasBet из opts
+    const hasBet = opts?.hasBet ?? (betAmount > 0);
     const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 12;
+
+    // 🔥 Отмечаем что оверлей активен
+    wheelBonusOverlayActive = true;
 
     return await new Promise((resolve) => {
       const bonus = new window.Bonus5050(container, {
@@ -3456,12 +3552,14 @@ function getMultiplier(type) {
         // Callback при завершении бонуса
         onComplete: (result) => {
           console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);
+          wheelBonusOverlayActive = false;  // 🔥 оверлей закрыт
           resolve(result);
         },
         
         // ✅ Callback при нажатии кнопки Back
         onBack: () => {
           console.log('[Wheel] ⬅️ User cancelled bonus 50/50');
+          wheelBonusOverlayActive = false;  // 🔥 оверлей закрыт
           resolve('cancelled');
         }
       });

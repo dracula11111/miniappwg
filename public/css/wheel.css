@@ -4,27 +4,92 @@
    .app:has(#wheelPage.page-active) {
     background: 
       radial-gradient(
-        circle at 50% -20%,
-        rgba(80, 40, 140, 0.08) 0%,
-        transparent 45%
+        ellipse 55% 18% at 62% 42%,
+        rgba(255, 220, 240, 0.55) 0%,
+        transparent 100%
       ),
       radial-gradient(
-        circle at 50% 10%,
-        rgba(20, 60, 100, 0.12) 0%,
-        transparent 55%
+        ellipse 70% 30% at 60% 45%,
+        rgba(210, 140, 200, 0.45) 0%,
+        transparent 100%
+      ),
+      radial-gradient(
+        ellipse 50% 60% at 15% 55%,
+        rgba(100, 50, 160, 0.50) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 45% 55% at 85% 40%,
+        rgba(40, 80, 180, 0.45) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 60% 50% at 10% 20%,
+        rgba(70, 30, 130, 0.35) 0%,
+        transparent 70%
       ),
       linear-gradient(
-        180deg,
-        #0d0e0f 0%,
-        #151f2c 20%,
-        #101822 40%,
-        #0c121a 60%,
-        #0a0e14 80%,
-        #0d0e0f 100%
+        135deg,
+        #0a0510 0%,
+        #0d0a1a 25%,
+        #0a1020 50%,
+        #080e1a 75%,
+        #050810 100%
       ) !important;
     background-repeat: no-repeat !important;
     background-attachment: fixed !important;
     background-size: 100% 100% !important;
+  }
+
+  /* ===== Falling pstar.svg — layer 1 ===== */
+  .app:has(#wheelPage.page-active)::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    /* wider than viewport so stars tile across the full diagonal */
+    width: 200vw;
+    height: 200vh;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url('icons/pstar.svg');
+    /* each tile cell: 140px wide × 110px tall — stars sparse and staggered */
+    background-size: 140px 110px;
+    background-repeat: repeat;
+    /* start: sheet sits fully to the right and above */
+    background-position: 0 0;
+    animation: pstarScroll 6s linear infinite;
+  }
+
+  /* ===== Falling pstar.svg — layer 2 (offset + slower) ===== */
+  .app:has(#wheelPage.page-active)::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 200vw;
+    height: 200vh;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url('icons/pstar.svg');
+    background-size: 100px 140px;
+    background-repeat: repeat;
+    /* offset half a tile so layer-2 stars fall between layer-1 stars */
+    background-position: 50px 70px;
+    opacity: 0.5;
+    animation: pstarScroll2 9s linear infinite;
+  }
+
+  /*
+   * Stars scroll diagonally: right→left, top→bottom.
+   * We move background-position by exactly one tile size so the
+   * repeat seamlessly loops — no jump, no gap.
+   */
+  @keyframes pstarScroll {
+    0%   { background-position: 140px 0px; }
+    100% { background-position: 0px 110px; }
+  }
+  @keyframes pstarScroll2 {
+    0%   { background-position: 150px 70px; }
+    100% { background-position: 50px 210px; }
   }
    
    .wheel{
@@ -402,29 +467,273 @@
 /* ===========================
             BET PANEL
    =========================== */
+/* ===========================
+   🔥 PREMIUM LIQUID GLASS BET OVERLAY
+   =========================== */
 .bet-overlay {
   position: relative; 
-  padding: 6px 10px 14px;
+  padding: 20px 12px 100px; /* Увеличили padding снизу */
   
   /* 🔥 Заезжаем на колесо */
-  margin-top: -15vh; /* Поднимаем панель вверх, заезжая на колесо */
-  z-index: 10; /* Над колесом */
+  margin-top: -15vh; 
+  margin-bottom: -80px; /* Увеличили чтобы глубже уходила под навигацию */
+  z-index: 10; 
+  
+  /* 🔥 REALISTIC GLASS ЭФФЕКТ */
+  background: 
+    /* Subtle noise для реализма */
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="3" /><feColorMatrix values="0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 0.02 0"/></filter><rect width="200" height="200" filter="url(%23n)" opacity="0.6"/></svg>'),
+    /* Highlight градиент (как на настоящем стекле) */
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.02) 30%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.01) 70%,
+      rgba(255, 255, 255, 0.08) 100%
+    ),
+    /* Основной полупрозрачный слой */
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 35, 0.75) 0%,
+      rgba(12, 18, 28, 0.82) 100%
+    );
+  
+  /* Легкое стеклянное размытие */
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  
+  /* Границы - только сверху и по бокам, без нижней! */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: none; /* Убираем нижнюю границу */
+  border-radius: 28px 28px 0 0; /* Скругление только сверху */
+  
+  /* Премиум тени */
+  box-shadow:
+    /* Основная объемная тень */
+    0 -8px 32px rgba(0, 0, 0, 0.3),
+    0 16px 48px rgba(0, 0, 0, 0.4),
+    /* Внутренний highlight сверху (как на стекле) */
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 2px 4px rgba(255, 255, 255, 0.1),
+    /* Внутренняя тень по бокам для глубины */
+    inset 2px 0 3px rgba(0, 0, 0, 0.15),
+    inset -2px 0 3px rgba(0, 0, 0, 0.15),
+    /* Subtle голубое свечение */
+    0 0 40px rgba(0, 166, 255, 0.06),
+    /* Дополнительная тень снизу */
+    0 20px 50px rgba(0, 0, 0, 0.25);
   
   /* Плавная трансформация */
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform: translateY(0);
   opacity: 1;
+  
+  overflow: visible;
+  
+  /* Создаем slight искажение как у настоящего стекла */
+  filter: contrast(1.02) brightness(1.01);
+  
+  /* 🔥 ГРАДИЕНТНАЯ МАСКА - плавное исчезновение внизу */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 70%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 70%,
+    transparent 100%
+  );
 }
 
-/* 🔥 При спине — скрываем панель ставок (вместо неё показываем Players) */
+/* 🔥 При спине — скрываем панель ставок */
 .app.is-spinning .bet-overlay {
   margin-top: 0;
-  padding: 0 10px;
+  padding: 0 12px;
   max-height: 0;
   opacity: 0;
   transform: translateY(22px);
   overflow: hidden;
   pointer-events: none;
+}
+
+/* 🔥 Интерактивное усиление glass эффекта */
+.bet-overlay:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  
+  box-shadow:
+    0 -10px 40px rgba(0, 0, 0, 0.35),
+    0 18px 56px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    inset 0 2px 6px rgba(255, 255, 255, 0.12),
+    inset 2px 0 4px rgba(0, 0, 0, 0.18),
+    inset -2px 0 4px rgba(0, 0, 0, 0.18),
+    0 0 50px rgba(0, 166, 255, 0.1),
+    0 22px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* 🔥 Премиум анимация появления */
+@keyframes premiumGlassAppear {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.92);
+    backdrop-filter: blur(0px) saturate(100%);
+    filter: contrast(1) brightness(1) blur(8px);
+  }
+  60% {
+    transform: translateY(-5px) scale(1.01);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    backdrop-filter: blur(10px) saturate(140%);
+    filter: contrast(1.02) brightness(1.01) blur(0);
+  }
+}
+
+.bet-overlay {
+  animation: premiumGlassAppear 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 🔥 Дополнительный reflex эффект (как блик на стекле) */
+.bet-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 80px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    transparent 100%
+  );
+  border-radius: 28px 28px 0 0;
+  pointer-events: none;
+  opacity: 0.6;
+  filter: blur(20px);
+}
+
+/* 🔥 Тонкая линия бликов по краям */
+.bet-overlay::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  right: 1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 30%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.4) 70%,
+    transparent 100%
+  );
+  border-radius: 28px 28px 0 0;
+  pointer-events: none;
+}
+
+/* ===========================
+   🔥 УЛУЧШЕНИЯ ВНУТРЕННИХ ЭЛЕМЕНТОВ
+   =========================== */
+
+/* Стеклянные акценты для bet-center */
+.bet-center.bet-controls {
+  background: 
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.01) 100%
+    );
+  border-radius: 18px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Улучшенные amount-btn */
+.app.is-betting .amount-btn {
+  background: 
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 100%
+    ),
+    var(--panel);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Clear button с glass эффектом */
+.clear-bets-btn {
+  backdrop-filter: blur(6px);
+  background: 
+    linear-gradient(
+      135deg,
+      rgba(255, 77, 79, 0.14) 0%,
+      rgba(255, 77, 79, 0.09) 100%
+    );
+  border: 1px solid rgba(255, 77, 79, 0.3);
+}
+
+.clear-bets-btn:hover {
+  background: 
+    linear-gradient(
+      135deg,
+      rgba(255, 77, 79, 0.2) 0%,
+      rgba(255, 77, 79, 0.14) 100%
+    );
+  border-color: rgba(255, 77, 79, 0.45);
+}
+
+/* Усиленное свечение при betting фазе */
+.app.is-betting .bet-overlay {
+  box-shadow:
+    0 -8px 32px rgba(0, 0, 0, 0.35),
+    0 16px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    inset 0 2px 4px rgba(255, 255, 255, 0.12),
+    inset 2px 0 3px rgba(0, 0, 0, 0.15),
+    inset -2px 0 3px rgba(0, 0, 0, 0.15),
+    0 0 50px rgba(0, 166, 255, 0.12),
+    0 0 80px rgba(0, 166, 255, 0.06),
+    0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+/* Subtle glass для bet-tiles */
+.bet-tile {
+  position: relative;
+}
+
+.bet-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1; /* 🔥 Под bet-pill чтобы он был виден */
+}
+
+.bet-tile:hover::after {
+  opacity: 1;
 }
 
 /* ===========================
@@ -571,183 +880,345 @@
 
 /* ===========================
        WHEEL PLAYERS PANEL
-   (slides in under the wheel)
+   🔥 LIQUID GLASS — matches .bet-overlay
    =========================== */
-.wheel-players-panel{
+
+/* ── outer shell ── */
+.wheel-players-panel {
   width: min(92vw, 420px);
-  margin: 0 auto 0;
-  background: #141414;
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  margin: 0 auto;
+  border-radius: 24px;
   overflow: hidden;
 
-  /* hidden by default */
+  /* 🔥 glass background (same recipe as .bet-overlay) */
+  background:
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="3"/><feColorMatrix values="0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 0.02 0"/></filter><rect width="200" height="200" filter="url(%23n)" opacity="0.6"/></svg>'),
+    linear-gradient(
+      165deg,
+      rgba(255,255,255,0.10) 0%,
+      rgba(255,255,255,0.02) 30%,
+      transparent 50%,
+      rgba(255,255,255,0.01) 70%,
+      rgba(255,255,255,0.06) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 35, 0.72) 0%,
+      rgba(12, 18, 28, 0.80) 100%
+    );
+
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+
+  border: 1px solid rgba(255,255,255,0.13);
+  box-shadow:
+    0 -4px 24px rgba(0,0,0,0.28),
+    0 12px 40px rgba(0,0,0,0.38),
+    inset 0 1px 1px rgba(255,255,255,0.22),
+    inset 0 2px 4px rgba(255,255,255,0.08),
+    inset 2px 0 3px rgba(0,0,0,0.12),
+    inset -2px 0 3px rgba(0,0,0,0.12),
+    0 0 32px rgba(0,166,255,0.05);
+
+  filter: contrast(1.02) brightness(1.01);
+
+  /* ── hidden by default ── */
   max-height: 0;
   opacity: 0;
-  transform: translateY(26px);
-  padding: 0 12px;
+  transform: translateY(22px);
+  padding: 0 14px;
   pointer-events: none;
 
   transition:
     max-height 0.55s ease,
-    opacity 0.25s ease,
+    opacity   0.30s ease,
     transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
-    padding 0.55s ease,
-    margin 0.55s ease;
+    padding   0.55s ease,
+    margin    0.55s ease;
 }
 
-/* show on round start (spin) */
-.app.is-spinning .wheel-players-panel{
-  max-height: 260px;
+/* ── top-edge highlight line (same as .bet-overlay::after) ── */
+.wheel-players-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 1px; right: 1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.35) 25%,
+    rgba(255,255,255,0.55) 50%,
+    rgba(255,255,255,0.35) 75%,
+    transparent 100%
+  );
+  border-radius: 24px 24px 0 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── soft reflex glow at top (same as .bet-overlay::before) ── */
+.wheel-players-panel::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 60px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.12) 0%,
+    rgba(255,255,255,0.04) 45%,
+    transparent 100%
+  );
+  border-radius: 24px 24px 0 0;
+  pointer-events: none;
+  opacity: 0.55;
+  filter: blur(16px);
+  z-index: 0;
+}
+
+/* ── visible state (spin phase) ── */
+.app.is-spinning .wheel-players-panel {
+  max-height: 280px;
   opacity: 1;
   transform: translateY(0);
-  padding: 12px;
-  margin-top: 12px;
+  padding: 14px;
+  margin-top: 10px;
   pointer-events: auto;
+  position: relative; /* needed so ::before / ::after position correctly */
 }
 
-.wheel-players-panel__head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
+/* ── header row ── */
+.wheel-players-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding-bottom: 10px;
+  position: relative;
+  z-index: 1;
 }
 
-.wheel-players-panel__title{
-  font-size: 14px;
+.wheel-players-panel__title {
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: .2px;
-  color: var(--text);
+  letter-spacing: 0.3px;
+  color: rgba(255,255,255,0.88);
+  text-transform: uppercase;
 }
 
-.wheel-players-panel__count{
-  font-size: 12px;
+/* count badge — frosted pill */
+.wheel-players-panel__count {
+  font-size: 11px;
   font-weight: 800;
-  color: rgba(255,255,255,.78);
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,0.80);
+  background: rgba(255,255,255,0.07);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 3px 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
-.wheel-players-panel__list{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  max-height: 200px;
-  overflow: auto;
-  padding-right: 4px;
+/* ── scrollable list ── */
+.wheel-players-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 195px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  position: relative;
+  z-index: 1;
+
+  /* subtle bottom fade so last row doesn't hard-clip */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 72%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0%,
+    black 72%,
+    transparent 100%
+  );
 }
 
-.wheel-players-panel__empty{
-  padding: 18px 12px;
-  color: rgba(255,255,255,.65);
+.wheel-players-panel__list::-webkit-scrollbar { display: none; }
+.wheel-players-panel__list { scrollbar-width: none; }
+
+/* ── empty state ── */
+.wheel-players-panel__empty {
+  padding: 20px 12px;
+  color: rgba(255,255,255,0.42);
   font-weight: 700;
   font-size: 12px;
   text-align: center;
+  letter-spacing: 0.2px;
 }
 
-.wheel-player-pill{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding: 10px 10px;
-  background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.08);
+/* ── single player row (pill) ── */
+.wheel-player-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
   border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+
+  /* inner glass layer */
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.07) 0%,
+      rgba(255,255,255,0.01) 60%,
+      transparent 100%
+    ),
+    rgba(255,255,255,0.04);
+
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    0 2px 8px rgba(0,0,0,0.18);
+
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.wheel-player-pill__left{
-  display:flex;
-  align-items:center;
-  gap:10px;
+.wheel-player-pill:active {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.10) 0%,
+      rgba(255,255,255,0.03) 60%,
+      transparent 100%
+    ),
+    rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.16);
+}
+
+/* ── left section: avatar + meta ── */
+.wheel-player-pill__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
-.wheel-player-pill__ava{
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  overflow:hidden;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
-  display:flex;
-  align-items:center;
-  justify-content:center;
+/* avatar — frosted circle */
+.wheel-player-pill__ava {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    0 2px 6px rgba(0,0,0,0.22);
+}
+
+.wheel-player-pill__ava img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── meta: name + total ── */
+.wheel-player-pill__meta {
+  min-width: 0;
+}
+
+.wheel-player-pill__name {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  letter-spacing: 0.1px;
+}
+
+.wheel-player-pill__total {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.2px;
+}
+
+.wheel-player-pill__total img {
+  width: 13px;
+  height: 13px;
+  opacity: 0.90;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+
+/* ── right section: segment icons ── */
+.wheel-player-pill__segments {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  max-width: 160px;
+  padding-bottom: 1px;
   flex-shrink: 0;
 }
 
-.wheel-player-pill__ava img{
-  width:100%;
-  height:100%;
-  object-fit: cover;
-}
+.wheel-player-pill__segments::-webkit-scrollbar { display: none; }
 
-.wheel-player-pill__meta{
-  min-width: 0;
-}
-
-.wheel-player-pill__name{
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text);
-  white-space: nowrap;
-  overflow:hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-}
-
-.wheel-player-pill__total{
-  margin-top: 3px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--accent);
-}
-
-.wheel-player-pill__total img{
-  width: 14px;
-  height: 14px;
-  opacity: .95;
-}
-
-.wheel-player-pill__segments{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  max-width: 190px;
-  padding-bottom: 2px;
-}
-
-.wheel-player-pill__segments::-webkit-scrollbar{ display:none; }
-
-.wheel-player-pill__segIcon{
-  width: 26px;
-  height: 26px;
+/* individual segment chip — mini frosted tile */
+.wheel-player-pill__segIcon {
+  width: 28px;
+  height: 28px;
   border-radius: 10px;
-  overflow:hidden;
-  border: 1px solid rgba(255,255,255,.10);
-  background: rgba(0,0,0,.22);
+  overflow: hidden;
   flex: 0 0 auto;
+
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.11);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    0 2px 5px rgba(0,0,0,0.20);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.wheel-player-pill__segIcon img{
-  width:100%;
-  height:100%;
+.wheel-player-pill__segIcon:hover {
+  border-color: rgba(255,255,255,0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.16),
+    0 3px 8px rgba(0,0,0,0.28);
+}
+
+.wheel-player-pill__segIcon img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 
-@media (max-width: 360px){
-  .wheel-player-pill__name{ max-width: 120px; }
-  .wheel-player-pill__segments{ max-width: 150px; }
+/* ── responsive ── */
+@media (max-width: 360px) {
+  .wheel-player-pill__name      { max-width: 105px; }
+  .wheel-player-pill__segments  { max-width: 120px; }
 }
 /* 🔥 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (показываются при спине) */
 .bet-cards-compact {

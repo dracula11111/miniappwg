@@ -628,6 +628,23 @@ function buildWheelState(now = Date.now()) {
     ? Math.max(0, (wheelGame.phaseStart + WHEEL_BETTING_TIME) - now)
     : null;
 
+  // 🔥 КРИТИЧНО: всегда передаём актуальное состояние бонуса с учётом текущего времени
+  let bonusData = null;
+  if (wheelGame.bonus) {
+    const elapsed = now - wheelGame.bonus.startedAt;
+    const remaining = Math.max(0, wheelGame.bonus.endsAt - now);
+    
+    bonusData = {
+      id: wheelGame.bonus.id,
+      type: wheelGame.bonus.type,
+      startedAt: wheelGame.bonus.startedAt,
+      durationMs: wheelGame.bonus.durationMs,
+      endsAt: wheelGame.bonus.endsAt,
+      elapsedMs: elapsed,        // 🔥 ДОБАВЛЕНО: сколько прошло
+      remainingMs: remaining     // 🔥 ДОБАВЛЕНО: сколько осталось
+    };
+  }
+
   return {
     type: 'wheelState',
     serverTime: now,
@@ -637,11 +654,12 @@ function buildWheelState(now = Date.now()) {
     phaseStart: wheelGame.phaseStart,
     roundId: wheelGame.roundId,
     spin: wheelGame.spin,
-    bonus: wheelGame.bonus,
+    bonus: bonusData,  // 🔥 используем обогащённые данные
     players: buildWheelPlayersArray(),
     history: wheelGame.history.slice(0, 20)
   };
 }
+
 
 function broadcastWheelState() {
   const payload = JSON.stringify(buildWheelState());
