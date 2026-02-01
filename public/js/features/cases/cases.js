@@ -1670,15 +1670,20 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         // 7) Линия (центр) в координатах itemsContainer
         const lineX = getLineXInItems(carousel);
 
+        // 🔥 FIX: lineX зависит от текущей позиции ленты (contRect сдвигается при translateX).
+        // Вычитаем startPosition, чтобы получить КОНСТАНТУ — смещение индикатора
+        // относительно начала контента при position=0.
+        const lineOffset = lineX - startPosition;
+
         // 8) Точка внутри выигрышного айтема (чтобы не попадать строго в край)
         const innerMargin = Math.max(0, Math.min(18, itemWidth * 0.18));
         const span = Math.max(0, itemWidth - innerMargin * 2);
         const randomPoint = innerMargin + Math.random() * span;
 
         // 9) Целевая позиция: под линию попадает randomPoint у winAt
-        let targetPosition = padL + winAt * step + randomPoint - lineX;
+        let targetPosition = padL + winAt * step + randomPoint - lineOffset;
 
-        const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineX;
+        const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineOffset;
         targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
 
         // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
@@ -1718,7 +1723,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
             cont.style.willChange = '';
 
             // ВАЖНО: финальный выигрыш = то, что реально под линией
-            syncWinByLine(carousel, targetPosition, strip, padL, step, lineX, itemWidth);
+            syncWinByLine(carousel, targetPosition, strip, padL, step, lineOffset, itemWidth);
 
             highlightWinningItem(carousel, index);
             resolve();

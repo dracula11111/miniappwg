@@ -17,6 +17,89 @@
   const tg = window.Telegram?.WebApp;
 
   // =========================
+  // Wallet pill: "Connect Wallet" when TON wallet is not connected
+  // =========================
+  let __wtWalletConnected = false;
+  let __wtTonPillTpl = null;
+  let __wtTonPillStyleAttr = null;
+
+  function __wtGetWalletConnected() {
+    try {
+      if (window.WildTimeTonConnect?.isConnected) return !!window.WildTimeTonConnect.isConnected();
+      if (window.tonConnectUI?.account) return true;
+    } catch {}
+    return !!__wtWalletConnected;
+  }
+
+  function __wtCaptureTonPillState(tonPill) {
+    if (!tonPill) return;
+    // capture only NON-connect state so we can restore correctly
+    if (tonPill.dataset.wtMode === 'connect') return;
+    __wtTonPillTpl = tonPill.innerHTML;
+    __wtTonPillStyleAttr = tonPill.getAttribute('style');
+  }
+
+  function __wtRenderConnectWalletPill(tonPill) {
+    if (!tonPill) return;
+    __wtCaptureTonPillState(tonPill);
+
+    tonPill.dataset.wtMode = 'connect';
+    tonPill.setAttribute('aria-label', 'Connect Wallet');
+
+    // Inline styles so it works without touching CSS
+    tonPill.style.background = '#2AABEE';
+    tonPill.style.color = '#fff';
+    tonPill.style.display = 'inline-flex';
+    tonPill.style.alignItems = 'center';
+    tonPill.style.justifyContent = 'center';
+    tonPill.style.gap = '8px';
+    tonPill.style.whiteSpace = 'nowrap';
+    tonPill.style.width = 'auto';
+    tonPill.style.paddingLeft = '14px';
+    tonPill.style.paddingRight = '14px';
+
+    tonPill.innerHTML = `
+      <img src="icons/telegram.svg" alt="" aria-hidden="true"
+           style="width:16px;height:16px;flex:0 0 auto;display:block;" />
+      <span style="font-weight:600;">Connect Wallet</span>
+    `;
+  }
+
+  function __wtRestoreTonPill(tonPill) {
+    if (!tonPill) return;
+    if (__wtTonPillTpl == null) return;
+
+    if (tonPill.dataset.wtMode === 'connect') {
+      // restore HTML
+      tonPill.innerHTML = __wtTonPillTpl;
+
+      // restore inline style attribute (only if we had it)
+      if (__wtTonPillStyleAttr) tonPill.setAttribute('style', __wtTonPillStyleAttr);
+      else tonPill.removeAttribute('style');
+
+      delete tonPill.dataset.wtMode;
+      tonPill.removeAttribute('aria-label');
+    }
+  }
+
+  function updateTonPillState() {
+    const tonPill = document.getElementById('tonPill');
+    if (!tonPill) return;
+
+    const connected = __wtGetWalletConnected();
+
+    // Only turn it into "Connect Wallet" in TON mode
+    if (currentCurrency === 'ton' && !connected) {
+      __wtRenderConnectWalletPill(tonPill);
+    } else {
+      __wtRestoreTonPill(tonPill);
+      // ensure balance text updates after restore
+      try { updateBalanceDisplay(false); } catch {}
+    }
+  }
+
+
+  // =========================
   // TON ↔ Stars dynamic rate
   // =========================
   // Source of truth: server endpoint /api/rates/ton-stars
@@ -163,7 +246,8 @@
     
     loadBalanceFromServer();
     updateBalanceDisplay();
-  }
+      try { updateTonPillState(); } catch {}
+}
   
   // ================== UI SETUP ==================
   function initUI() {
@@ -204,9 +288,36 @@
 
     const tonPill = document.getElementById('tonPill');
     if (tonPill) {
-      tonPill.addEventListener('click', (e) => {
+      // initial render
+      try { updateTonPillState(); } catch {}
+
+      tonPill.addEventListener('click', async (e) => {
         e.preventDefault();
+
+        // If wallet is not connected - show connect modal instead of deposit popup
+        if (tonPill.dataset.wtMode === 'connect') {
+          try {
+            if (window.WildTimeTonConnect?.openModal) return await window.WildTimeTonConnect.openModal();
+            if (window.WildTimeTonConnect?.connect) return await window.WildTimeTonConnect.connect();
+            if (window.tonConnectUI?.openModal) return await window.tonConnectUI.openModal();
+          } catch (err) {
+            console.error('[Switch] ❌ Connect modal failed:', err);
+          }
+          // fallback: open deposit popup (it has Connect button inside)
+          return openDepositPopup();
+        }
+
         openDepositPopup();
+      });
+
+      // sync pill when wallet status changes
+      window.addEventListener('wt-wallet-changed', (ev) => {
+        __wtWalletConnected = !!ev?.detail?.connected;
+        try { updateTonPillState(); } catch {}
+      });
+      window.addEventListener('wt-tc-ready', () => {
+        __wtWalletConnected = __wtGetWalletConnected();
+        try { updateTonPillState(); } catch {}
       });
     }
 
@@ -442,7 +553,8 @@
     saveCurrency();
     updateCurrencyUI();
     updateBalanceDisplay(true);
-    syncAmountButtons();
+        try { updateTonPillState(); } catch {}
+syncAmountButtons();
     
     setTimeout(() => {
       createFloatingIcons();
@@ -664,8 +776,9 @@
       }
     }, stepDuration);
   }
-  //Stars Format
-  function formatStars(amount) {
+
+   //Stars Format
+   function formatStars(amount) {
     return amount.toString();                 
   }
 
@@ -1143,3 +1256,4 @@
   console.log('[Switch] 📦 Module loaded');
 
 })();
+ 
