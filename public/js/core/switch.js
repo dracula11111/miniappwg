@@ -15,6 +15,115 @@
 
   // Telegram Web App API
   const tg = window.Telegram?.WebApp;
+
+  // =========================
+  // TON ↔ Stars dynamic rate
+  // =========================
+  // Source of truth: server endpoint /api/rates/ton-stars
+  // Fallback: cached localStorage value or legacy constant.
+  const WT_RATE_KEY = 'WT_RATE_TON_STARS_V1';
+  const WT_RATE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+  const STARS_USD_FALLBACK = 0.013;
+  const STARS_PER_TON_FALLBACK = 115; // legacy-ish fallback (used only if no cache & no server)
+
+  const __wtRateState = (() => {
+    const s = { starsPerTon: STARS_PER_TON_FALLBACK, tonUsd: null, starsUsd: STARS_USD_FALLBACK, fetchedAt: 0, source: 'fallback', error: null };
+    try {
+      const raw = localStorage.getItem(WT_RATE_KEY);
+      if (raw) {
+        const j = JSON.parse(raw);
+        if (j && Number.isFinite(+j.starsPerTon) && +j.starsPerTon > 0) {
+          s.starsPerTon = +j.starsPerTon;
+          s.tonUsd = Number.isFinite(+j.tonUsd) ? +j.tonUsd : null;
+          s.starsUsd = Number.isFinite(+j.starsUsd) && +j.starsUsd > 0 ? +j.starsUsd : STARS_USD_FALLBACK;
+          s.fetchedAt = Number.isFinite(+j.fetchedAt) ? +j.fetchedAt : 0;
+          s.source = j.source || 'cache';
+        }
+      }
+    } catch {}
+    return s;
+  })();
+
+  function __storeRateState() {
+    try {
+      localStorage.setItem(WT_RATE_KEY, JSON.stringify({
+        starsPerTon: __wtRateState.starsPerTon,
+        tonUsd: __wtRateState.tonUsd,
+        starsUsd: __wtRateState.starsUsd,
+        fetchedAt: __wtRateState.fetchedAt,
+        source: __wtRateState.source
+      }));
+    } catch {}
+    // backward compat for old code:
+    try { localStorage.setItem('starsPerTon', String(__wtRateState.starsPerTon)); } catch {}
+    try { window.STARS_PER_TON = __wtRateState.starsPerTon; } catch {}
+  }
+
+  async function __fetchTonStarsRate() {
+    const r = await fetch('/api/rates/ton-stars', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json().catch(() => null);
+    if (!j || !j.ok) throw new Error(j?.error || 'Bad response');
+    const spt = Number(j.starsPerTon);
+    if (!Number.isFinite(spt) || spt <= 0) throw new Error('Invalid starsPerTon');
+    __wtRateState.starsPerTon = spt;
+    __wtRateState.tonUsd = Number.isFinite(+j.tonUsd) ? +j.tonUsd : null;
+    __wtRateState.starsUsd = Number.isFinite(+j.starsUsd) && +j.starsUsd > 0 ? +j.starsUsd : STARS_USD_FALLBACK;
+    __wtRateState.fetchedAt = Date.now();
+    __wtRateState.source = j.source || 'server';
+    __wtRateState.error = null;
+    __storeRateState();
+    return __wtRateState;
+  }
+
+  async function ensureTonStarsRate(force = false) {
+    const age = Date.now() - (__wtRateState.fetchedAt || 0);
+    const stale = !__wtRateState.fetchedAt || age > WT_RATE_TTL_MS;
+    if (!force && !stale) return __wtRateState;
+
+    try {
+      return await __fetchTonStarsRate();
+    } catch (e) {
+      __wtRateState.error = String(e?.message || e || 'rate fetch failed');
+      // Keep cached value if present, otherwise fallback stays.
+      return __wtRateState;
+    }
+  }
+
+  function getStarsPerTon() {
+    const v = Number(__wtRateState.starsPerTon);
+    return (Number.isFinite(v) && v > 0) ? v : STARS_PER_TON_FALLBACK;
+  }
+
+  function tonToStars(ton) {
+    const v = Number(ton);
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    // floor => "not overpriced"
+    return Math.max(0, Math.floor(v * getStarsPerTon() + 1e-9));
+  }
+
+  function starsToTon(stars) {
+    const v = Number(stars);
+    if (!Number.isFinite(v) || v <= 0) return 0;
+    const spt = getStarsPerTon();
+    if (!spt) return 0;
+    // keep precision for small values
+    return Math.round((v / spt) * 10000) / 10000;
+  }
+
+  // Expose globally for other modules (do not override if already exists)
+  try {
+    window.WildTimeRates = window.WildTimeRates || {};
+    if (typeof window.WildTimeRates.ensureTonStarsRate !== 'function') window.WildTimeRates.ensureTonStarsRate = ensureTonStarsRate;
+    if (typeof window.WildTimeRates.getStarsPerTon !== 'function') window.WildTimeRates.getStarsPerTon = getStarsPerTon;
+    if (typeof window.WildTimeRates.tonToStars !== 'function') window.WildTimeRates.tonToStars = tonToStars;
+    if (typeof window.WildTimeRates.starsToTon !== 'function') window.WildTimeRates.starsToTon = starsToTon;
+    if (typeof window.WildTimeRates.getInfo !== 'function') window.WildTimeRates.getInfo = () => ({ ...__wtRateState });
+  } catch {}
+
+  // Warm-up in background
+  ensureTonStarsRate(false).catch(() => {});
+
   
   function applyCurrencyTheme() {
     const root = document.documentElement;
@@ -555,15 +664,9 @@
       }
     }, stepDuration);
   }
-
+  //Stars Format
   function formatStars(amount) {
-    if (amount >= 1000000) {
-      return (amount / 1000000).toFixed(1) + 'M';
-    }
-    if (amount >= 1000) {
-      return (amount / 1000).toFixed(1) + 'K';
-    }
-    return amount.toString();
+    return amount.toString();                 
   }
 
   // ================== SERVER SYNC ==================

@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 
@@ -260,9 +260,9 @@ function updateWheelCountdownUI() {
 }
 
 function renderWheelPlayersFromServer(players) {
-  if (!wheelPlayersList || !wheelPlayersCount) return;
+ 
 
-  wheelPlayersCount.textContent = String(players?.length || 0);
+  
   wheelPlayersList.innerHTML = '';
 
   if (!players || players.length === 0) {
@@ -445,7 +445,7 @@ function applyWheelServerState(state) {
       const elapsedMs = state.bonus?.elapsedMs ?? getBonusElapsedMs(state.bonus);
       const hasEnoughTimeLeft = !Number.isFinite(elapsedMs) || elapsedMs < 2000;
       
-      if (isWheelPageActive() && hasEnoughTimeLeft) {
+      if (isWheelPageActive()) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
         if (myBet > 0) {
           // 🔥 ИСПРАВЛЕНИЕ: отмечаем что оверлей будет открыт для этого бонуса
@@ -453,7 +453,7 @@ function applyWheelServerState(state) {
           
           setTimeout(() => {
             openBonusOverlay(state.bonus.type, myBet, state.bonus).catch(() => {});
-          }, 2000);
+          }, 500);
         }
       }
     }
@@ -805,7 +805,7 @@ let canvas, ctx, DPR = 1;
 let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
-let wheelPlayersPanel, wheelPlayersList, wheelPlayersCount;
+let wheelPlayersPanel, wheelPlayersList;
 
 /* ===== wheel state ===== */
 let currentAngle = 0;
@@ -1121,7 +1121,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   countNumEl   = document.getElementById('countNum') || countdownBox?.querySelector('span');
   wheelPlayersPanel = document.getElementById('wheelPlayersPanel');
   wheelPlayersList  = document.getElementById('wheelPlayersList');
-  wheelPlayersCount = document.getElementById('wheelPlayersCount');
+  
+  // 🔥 Скрываем счётчик при загрузке
+  setTimeout(() => hidePlayersPanelCounter(), 100);
+ 
   // Берём элементы ставок только из оверлея (чтобы не цеплять элементы с других страниц)
   const __betScope = betOverlay || document;
   amountBtns = Array.from(__betScope.querySelectorAll('.amount-btn'));
@@ -2460,11 +2463,7 @@ function getBonusEndsAt(bonus) {
   return null;
 }
 
-function getBonusRemainingMs(bonus, now = Date.now()) {
-  const endsAt = getBonusEndsAt(bonus);
-  if (!Number.isFinite(endsAt)) return null;
-  return Math.max(0, endsAt - now);
-}
+
 
 function getBonusElapsedMs(bonus, now = Date.now()) {
   if (!bonus || !Number.isFinite(bonus.startedAt)) return null;
@@ -2701,7 +2700,7 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const hasBet = betAmount > 0;
   const bonusOpts = {
     hasBet,
-    durationSec: remainingSec || 12,
+    durationSec: (bonusState?.durationMs ? Math.ceil(bonusState.durationMs / 1000) : 12),
     remainingSec: remainingSec || null
   };
 
@@ -2875,7 +2874,7 @@ function renderWheelPlayers(players) {
   wheelPlayersList.innerHTML = '';
 
   const list = Array.isArray(players) ? players : [];
-  if (wheelPlayersCount) wheelPlayersCount.textContent = String(list.length);
+ 
 
   if (!list.length) {
     const empty = document.createElement('div');
@@ -2928,15 +2927,55 @@ function renderWheelPlayers(players) {
   }
 }
 
+
+// 🔥 Функция для скрытия счётчика игроков в правом углу панели
+function hidePlayersPanelCounter() {
+  if (!wheelPlayersPanel) return;
+  
+  // Ищем все возможные элементы счётчика
+  const selectors = [
+    '.wheel-players-panel__counter',
+    '.wheel-players-panel__count',
+    '.wheel-players-count',
+    '.players-counter',
+    '.players-count',
+    '[class*="counter"]',
+    '[class*="count"]'
+  ];
+  
+  for (const selector of selectors) {
+    const counters = wheelPlayersPanel.querySelectorAll(selector);
+    counters.forEach(counter => {
+      // Проверяем, не является ли это важным элементом
+      const text = counter.textContent?.trim();
+      if (text === '0' || text === '' || /^\d+$/.test(text)) {
+        counter.style.display = 'none';
+      }
+    });
+  }
+  
+  // Также проверяем прямые дочерние элементы панели
+  if (wheelPlayersPanel.children) {
+    Array.from(wheelPlayersPanel.children).forEach(child => {
+      if (child !== wheelPlayersList && child.textContent?.trim() === '0') {
+        child.style.display = 'none';
+      }
+    });
+  }
+}
+
 function showWheelPlayersPanel() {
   // CSS shows/hides the panel. Here we only render актуальные данные.
   if (!wheelPlayersPanel) return;
   const players = getWheelPlayersSnapshot();
   renderWheelPlayers(players);
+  
+  // 🔥 Скрываем счётчик "0" в правом углу панели
+  hidePlayersPanelCounter();
 }
 
 function hideWheelPlayersPanel() {
-  if (wheelPlayersCount) wheelPlayersCount.textContent = '0';
+ 
   if (wheelPlayersList) wheelPlayersList.innerHTML = '';
 }
 
@@ -3548,6 +3587,7 @@ function getMultiplier(type) {
         backIcon: 'icons/back.svg',
         hasBet: hasBet, // ✅ Передаем флаг наличия ставки
         durationSec: durationSec,
+        remainingSec: opts?.remainingSec || null,
         
         // Callback при завершении бонуса
         onComplete: (result) => {
@@ -3558,6 +3598,14 @@ function getMultiplier(type) {
         
         // ✅ Callback при нажатии кнопки Back
         onBack: () => {
+          // 🔥 Проверяем есть ли ставка - если да, показываем предупреждение
+          if (hasBet) {
+            const confirmClose = confirm('You have a bet on this bonus. Are you sure you want to close?');
+            if (!confirmClose) {
+              return; // Пользователь отменил закрытие
+            }
+          }
+          
           console.log('[Wheel] ⬅️ User cancelled bonus 50/50');
           wheelBonusOverlayActive = false;  // 🔥 оверлей закрыт
           resolve('cancelled');

@@ -423,62 +423,73 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) 
 
    // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
       // ====== TON <-> STARS rate (0.4332 TON = 50 ⭐) ======
-        const TON_FOR_50_STARS = 0.4332;
-        const STARS_FOR_50 = 50;
-
-        const STARS_PER_TON = STARS_FOR_50 / TON_FOR_50_STARS;
-        const TON_PER_STAR = TON_FOR_50_STARS / STARS_FOR_50;
-
-        function tonToStars(ton) {
-          const v = Number(ton);
-          if (!Number.isFinite(v) || v <= 0) return 0;
-          return Math.max(0, Math.round(v * STARS_PER_TON));
-        }
-
-        function starsToTon(stars) {
-          const v = Number(stars);
-          if (!Number.isFinite(v) || v <= 0) return 0;
-          // 4 знака чтобы мелочь не терялась
-          return Math.round(v * TON_PER_STAR * 10000) / 10000;
-        }
-
-      
-      function prizeValue(item, currency) {
-        const p = item?.price || {};
-      
-        if (currency === 'ton') {
-          // ⭐-приз -> конвертим в TON по курсу
-          if (isStarsPrizeGift(item)) {
-            const s = Number(p.stars);
-            return (Number.isFinite(s) && s > 0) ? starsToTon(s) : 0;
-          }
-          const t = Number(p.ton);
-          return (Number.isFinite(t) && t > 0) ? t : 0;
-        }
-      
-        // currency === 'stars'
-        const s = Number(p.stars);
-        return (Number.isFinite(s) && s > 0) ? s : 0;
-      }
-
-      
-      function tonToStars(ton) {
-        const v = Number(ton);
-        if (!Number.isFinite(v) || v <= 0) return 0;
-        return Math.max(0, Math.round(v * STARS_PER_TON));
-      }
-
-      function starsToTon(stars) {
-        const v = Number(stars);
-        if (!Number.isFinite(v) || v <= 0) return 0;
-        return Math.max(0, Math.round(v * TON_PER_STAR * 100) / 100);
-      }
-
-  // ====== Stars -> TON rate (0.4332 TON = 50 ⭐) ======
- 
 
 
-  function formatAmount(currency, value) {
+// =========================
+// TON ↔ Stars rate (dynamic)
+// =========================
+// Prefer window.WildTimeRates (defined in switch.js). Fallback to cached localStorage or legacy constant.
+const __Rates = (typeof window !== 'undefined') ? (window.WildTimeRates || null) : null;
+try { __Rates?.ensureTonStarsRate?.(false); } catch (_) {}
+
+function __getStarsPerTonSafe() {
+  const v = Number(__Rates?.getStarsPerTon?.());
+  if (Number.isFinite(v) && v > 0) return v;
+
+  // fallback: try cached localStorage used elsewhere
+  try {
+    const ls = Number(localStorage.getItem('starsPerTon'));
+    if (Number.isFinite(ls) && ls > 0) return ls;
+  } catch {}
+
+  // final fallback
+  return 115;
+}
+
+function tonToStars(ton) {
+  const v = Number(ton);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  // floor => "not overpriced"
+  return Math.max(0, Math.floor(v * __getStarsPerTonSafe() + 1e-9));
+}
+
+function starsToTon(stars) {
+  const v = Number(stars);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  const spt = __getStarsPerTonSafe();
+  if (!spt) return 0;
+  return Math.round((v / spt) * 10000) / 10000;
+}
+
+function prizeValue(item, currency) {
+  const p = item?.price || {};
+
+  if (currency === 'ton') {
+    // ⭐-приз -> конвертим в TON по курсу
+    if (isStarsPrizeGift(item)) {
+      const s = Number(p.stars);
+      return (Number.isFinite(s) && s > 0) ? starsToTon(s) : 0;
+    }
+    const t = Number(p.ton);
+    return (Number.isFinite(t) && t > 0) ? t : 0;
+  }
+
+  // currency === 'stars'
+  // ⭐-приз остаётся в звёздах как есть
+  if (isStarsPrizeGift(item)) {
+    const s = Number(p.stars);
+    return (Number.isFinite(s) && s > 0) ? s : 0;
+  }
+
+  // Всё остальное: считаем Stars из TON (актуальный курс, чтобы цены не были завышены/занижены)
+  const t = Number(p.ton);
+  if (Number.isFinite(t) && t > 0) return tonToStars(t);
+
+  const s = Number(p.stars);
+  return (Number.isFinite(s) && s > 0) ? s : 0;
+}
+
+function formatAmount(currency, value) {
     if (currency === 'ton') return (Math.round((parseFloat(value) || 0) * 100) / 100).toFixed(2);
     return String(Math.round(parseFloat(value) || 0));
 

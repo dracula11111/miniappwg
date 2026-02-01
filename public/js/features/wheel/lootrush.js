@@ -10,7 +10,9 @@ class LootRush {
     this.container = container;
     this.options = {
       onComplete: typeof options.onComplete === 'function' ? options.onComplete : () => {},
+      onBack: typeof options.onBack === 'function' ? options.onBack : () => {},
       durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 10,
+      remainingSec: Number.isFinite(options.remainingSec) ? Math.max(1, Math.ceil(options.remainingSec)) : null,
       
       bagFolder: options.bagFolder || '/images/lootrush/',
       bagPrefix: options.bagPrefix || 'lootbag',
@@ -82,8 +84,17 @@ class LootRush {
   }
 
   // Public: called by universal Back button
+  // Public: called by universal Back button
   abort() {
     if (!this._running) return;
+    
+    // 🔥 Вызываем callback onBack - он может прервать закрытие
+    try {
+      this.options.onBack();
+    } catch (e) {
+      console.error('[LootRush] onBack error:', e);
+    }
+    
     this._aborted = true;
     this._running = false;
     this._selectEnabled = false;
@@ -94,7 +105,6 @@ class LootRush {
       this._spinTimer = null;
     }
   }
-
   _buildMultipliersPool() {
     const pool = [];
     const pushN = (v, n) => { for (let i = 0; i < n; i++) pool.push(v); };
@@ -223,10 +233,10 @@ class LootRush {
       if (tile) {
         tile.classList.add('lr-covered');
       }
-      await this._wait(this.options.coverDelay);
+      await this._wait(Math.max(10, this.options.coverDelay / (this.speedupFactor || 1)));
     }
     
-    await this._wait(300);
+    await this._wait(Math.max(100, 300 / (this.speedupFactor || 1)));
   }
 
   // 🎰 CS:GO Style Spinning with SMOOTH transitions
@@ -235,7 +245,7 @@ class LootRush {
     this._tiles.forEach(t => t.classList.add('lr-spinning'));
 
     const startTime = Date.now();
-    const duration = this.options.spinFastMs + this.options.spinSlowMs;
+    const duration = Math.max(500, (this.options.spinFastMs + this.options.spinSlowMs) / (this.speedupFactor || 1));
     
     let currentSpeed = 120; // Start speed (ms per shift)
     const minSpeed = 50;     // Fastest speed
@@ -436,6 +446,11 @@ class LootRush {
     overlay.classList.add('bonus-overlay--active');
     this._setGlobalBackHandler();
     this._lockScroll();
+    
+    // 🔥 Вычисляем speedupFactor заранее для ускорения всех анимаций
+    const effectiveDuration = this.options.remainingSec || this.options.durationSec;
+    const speedupFactor = this.options.durationSec / effectiveDuration;
+    this.speedupFactor = speedupFactor;
 
     let chosenMult = 1.1;
 
@@ -447,7 +462,7 @@ class LootRush {
       await this._preloadImages(bagSrcs);
 
       const ui = this._render();
-      await this._wait(300);
+      await this._wait(Math.max(100, 300 / speedupFactor));
       if (this._aborted) return;
 
 
@@ -464,7 +479,8 @@ class LootRush {
       this._enableSelection();
       if (ui.title) ui.title.classList.add('lr-show');
 
-      const pickedIdx = await this._runCountdown(ui.timer, this.options.durationSec);
+      // 🔥 Используем оставшееся время если оно передано (для случая когда пользователь зашел в середине бонуса)
+      const pickedIdx = await this._runCountdown(ui.timer, effectiveDuration);
       if (this._aborted) return;
 
       await this._revealSequence(pickedIdx);
@@ -473,13 +489,13 @@ class LootRush {
 
       chosenMult = this._multipliers[pickedIdx] || 1.1;
 
-      await this._wait(800);  // Сокращено с 1500
+      await this._wait(Math.max(200, 800 / speedupFactor));  // Сокращено с 1500
 
     } catch (e) {
       console.error('[LootRush] ❌ Error:', e);
     } finally {
       overlay.classList.add('bonus-overlay--leave');
-      await this._wait(300);
+      await this._wait(Math.max(100, 300 / speedupFactor));
 
       overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
       overlay.style.display = 'none';

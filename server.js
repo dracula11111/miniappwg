@@ -1,5 +1,6 @@
 // server.js - CLEAN VERSION
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
+
 import "dotenv/config";
 
 import express from "express";
@@ -1095,6 +1096,106 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = GIFT_REQUEST_TIMEOUT
 function normalizeGiftName(s) {
   return String(s || "").trim();
 }
+
+// ==============================
+// TON -> USD -> Telegram Stars RATE (in-memory)
+// ==============================
+// Used to show "fair" Stars prices in the mini-app based on TON market price.
+// 1 Star ~= $0.013 (Telegram official for in-app purchases). You can override via env.
+const STARS_USD = Number(process.env.STARS_USD || process.env.STARS_USD_PRICE || process.env.STAR_USD || 0.013);
+const TON_USD_REFRESH_MS = 24 * 60 * 60 * 1000; // 24h
+const TON_USD_TIMEOUT_MS = 12_000;
+
+let tonUsdCache = {
+  tonUsd: null,      // number
+  updatedAt: 0,      // ms
+  source: "",        // string
+  error: ""          // string
+};
+
+function clampFinite(n) {
+  const v = Number(n);
+  return Number.isFinite(v) ? v : null;
+}
+
+async function fetchTonUsdFromCoinGecko() {
+  // Try both IDs to be safe (CoinGecko has used both "toncoin" and "the-open-network")
+  const ids = ["toncoin", "the-open-network"];
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(","))}&vs_currencies=usd`;
+  const res = await fetchWithTimeout(url, { headers: { "accept": "application/json" } }, TON_USD_TIMEOUT_MS);
+  if (!res.ok) throw new Error(`CoinGecko status ${res.status}`);
+  const j = await res.json();
+
+  let price = null;
+  for (const id of ids) {
+    const p = clampFinite(j?.[id]?.usd);
+    if (p && p > 0) { price = p; break; }
+  }
+  if (!price) throw new Error("CoinGecko response missing TON usd price");
+  return { tonUsd: price, source: "coingecko" };
+}
+
+async function refreshTonUsdRate(force = false) {
+  const now = Date.now();
+
+  // Keep last good value until a successful refresh.
+  if (!force && tonUsdCache.updatedAt && (now - tonUsdCache.updatedAt) < TON_USD_REFRESH_MS && tonUsdCache.tonUsd) {
+    return tonUsdCache;
+  }
+
+  try {
+    const r = await fetchTonUsdFromCoinGecko();
+    tonUsdCache = {
+      tonUsd: r.tonUsd,
+      updatedAt: now,
+      source: r.source,
+      error: ""
+    };
+    console.log(`[rates] ✅ TON/USD updated: ${r.tonUsd} (${r.source})`);
+  } catch (e) {
+    tonUsdCache = {
+      ...tonUsdCache,
+      error: String(e?.message || e)
+    };
+    console.warn("[rates] ⚠️ TON/USD update failed:", tonUsdCache.error);
+  }
+
+  return tonUsdCache;
+}
+
+async function getTonUsdRate() {
+  return await refreshTonUsdRate(false);
+}
+
+function tonToStars(tonAmount, tonUsd = tonUsdCache.tonUsd) {
+  const ton = Number(tonAmount);
+  const usd = Number(tonUsd);
+  if (!Number.isFinite(ton) || ton <= 0) return null;
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  if (!Number.isFinite(STARS_USD) || STARS_USD <= 0) return null;
+
+  const stars = (ton * usd) / STARS_USD;
+
+  // Intentionally round DOWN to avoid "overpriced" Stars labels.
+  return Math.max(1, Math.floor(stars + 1e-9));
+}
+
+function starsPerTon(tonUsd = tonUsdCache.tonUsd) {
+  const usd = Number(tonUsd);
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  if (!Number.isFinite(STARS_USD) || STARS_USD <= 0) return null;
+  return usd / STARS_USD;
+}
+
+// Scheduler: refresh TON/USD once a day with jitter.
+(function startTonUsdScheduler() {
+  const firstDelay = 3000 + Math.floor(Math.random() * 20_000);
+  setTimeout(async () => {
+    await refreshTonUsdRate(true);
+    setInterval(() => refreshTonUsdRate(true), TON_USD_REFRESH_MS);
+  }, firstDelay);
+})();
+
 
 // (A) Каталог:
 // В Portals есть открытый endpoint для поиска коллекций, но полноценный "лист всех коллекций"
@@ -2220,7 +2321,29 @@ function fragmentMediumPreviewUrlFromSlug(slug) {
 app.get("/api/market/items/list", async (req, res) => {
   try {
     const items = await readMarketItems();
-    return res.json({ ok: true, count: items.length, items });
+    const rate = await getTonUsdRate();
+    const tonUsd = rate?.tonUsd;
+
+    const outItems = items.map((it) => {
+      if (!it || typeof it !== "object") return it;
+      const priceTon = (it.priceTon == null ? null : Number(it.priceTon));
+      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      return { ...it, priceStars };
+    });
+
+    return res.json({
+      ok: true,
+      count: outItems.length,
+      items: outItems,
+      rate: {
+        tonUsd: tonUsd || null,
+        starsUsd: STARS_USD,
+        starsPerTon: starsPerTon(tonUsd),
+        updatedAt: rate?.updatedAt || 0,
+        source: rate?.source || "",
+        error: tonUsd ? null : (rate?.error || "rate unavailable")
+      }
+    });
   } catch (e) {
     console.error("[MarketStore] list error:", e);
     return res.status(500).json({ ok: false, error: "market list error" });
@@ -2232,7 +2355,30 @@ app.get("/api/market/items", async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 200));
     const items = await readMarketItems();
-    return res.json({ ok: true, count: items.length, items: items.slice(0, limit) });
+    const rate = await getTonUsdRate();
+    const tonUsd = rate?.tonUsd;
+
+    const slice = items.slice(0, limit);
+    const outItems = slice.map((it) => {
+      if (!it || typeof it !== "object") return it;
+      const priceTon = (it.priceTon == null ? null : Number(it.priceTon));
+      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      return { ...it, priceStars };
+    });
+
+    return res.json({
+      ok: true,
+      count: items.length,
+      items: outItems,
+      rate: {
+        tonUsd: tonUsd || null,
+        starsUsd: STARS_USD,
+        starsPerTon: starsPerTon(tonUsd),
+        updatedAt: rate?.updatedAt || 0,
+        source: rate?.source || "",
+        error: tonUsd ? null : (rate?.error || "rate unavailable")
+      }
+    });
   } catch (e) {
     console.error("[MarketStore] list error:", e);
     return res.status(500).json({ ok: false, error: "market list error" });
@@ -2550,7 +2696,7 @@ app.get("/api/test/info", async (req, res) => {
 
 
 // ====== CORS for gifts endpoints (dev) ======
-app.use(['/api/gifts/prices','/api/gifts/catalog','/api/gifts/price','/api/gifts/portals-search'], (req,res,next)=>{
+app.use(['/api/gifts/prices','/api/gifts/catalog','/api/gifts/price','/api/gifts/portals-search','/api/rates/ton-stars'], (req,res,next)=>{
   res.setHeader('Access-Control-Allow-Origin','*');
   res.setHeader('Access-Control-Allow-Methods','GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
@@ -2558,23 +2704,95 @@ app.use(['/api/gifts/prices','/api/gifts/catalog','/api/gifts/price','/api/gifts
   next();
 });
 
+app.get("/api/rates/ton-stars", async (req, res) => {
+  try {
+    // Prevent caching in Telegram WebView / proxies
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    const rate = await getTonUsdRate();
+    const tonUsd = rate?.tonUsd;
+
+    return res.json({
+      ok: !!tonUsd,
+      tonUsd: tonUsd || null,
+      starsUsd: STARS_USD,
+      starsPerTon: starsPerTon(tonUsd),
+      updatedAt: rate?.updatedAt || 0,
+      source: rate?.source || "",
+      error: tonUsd ? null : (rate?.error || "rate unavailable")
+    });
+  } catch (e) {
+    console.error("[rates] endpoint error:", e);
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+
+// GET price for a single gift (by name)
+app.get("/api/gifts/price", async (req, res) => {
+  // dev-friendly CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const q = normalizeGiftName(req.query?.name || req.query?.q || "");
+  if (!q) return res.status(400).json({ ok: false, error: "name required" });
+
+  // Resolve name from catalog case-insensitively
+  const foundName = giftsCatalog.find(n => String(n).toLowerCase() === String(q).toLowerCase()) || q;
+  const p = giftsPrices.get(foundName);
+
+  if (!p) {
+    return res.status(404).json({ ok: false, error: "gift not found (or price not cached yet)", name: foundName });
+  }
+
+  const rate = await getTonUsdRate();
+  const tonUsd = rate?.tonUsd;
+
+  return res.json({
+    ok: true,
+    item: { name: foundName, ...p, priceStars: tonUsd ? tonToStars(p.priceTon, tonUsd) : null },
+    rate: {
+      tonUsd: tonUsd || null,
+      starsUsd: STARS_USD,
+      starsPerTon: starsPerTon(tonUsd),
+      updatedAt: rate?.updatedAt || 0,
+      source: rate?.source || "",
+      error: tonUsd ? null : (rate?.error || "rate unavailable")
+    }
+  });
+});
+
+
 // GET prices cache
-app.get("/api/gifts/prices", (req, res) => {
+app.get("/api/gifts/prices", async (req, res) => {
   // dev-friendly CORS (helps if you open UI on another port like 5500)
   res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const rate = await getTonUsdRate();
+  const tonUsd = rate?.tonUsd;
 
   const list = [];
   for (const name of giftsCatalog) {
     const p = giftsPrices.get(name);
     if (!p) continue;
-    list.push({ name, ...p });
+    list.push({ name, ...p, priceStars: tonUsd ? tonToStars(p.priceTon, tonUsd) : null });
   }
+
   return res.json({
     ok: true,
     updatedAt: giftsLastUpdate,
     catalogUpdatedAt: giftsCatalogLastUpdate,
     count: list.length,
-    items: list
+    items: list,
+    rate: {
+      tonUsd: tonUsd || null,
+      starsUsd: STARS_USD,
+      starsPerTon: starsPerTon(tonUsd),
+      updatedAt: rate?.updatedAt || 0,
+      source: rate?.source || "",
+      error: tonUsd ? null : (rate?.error || "rate unavailable")
+    }
   });
 });
 

@@ -890,8 +890,18 @@
 
       openOverlay();
       bindClose();
-      window.__bonusBackHandler = () => { abortClose('closed'); };
 
+      const hasBet = betAmount > 0;
+      window.__bonusBackHandler = () => { 
+        // 🔥 Проверяем есть ли ставка - если да, показываем предупреждение
+        if (hasBet) {
+          const confirmClose = confirm('You have a bet on this bonus. Are you sure you want to close?');
+          if (!confirmClose) {
+            return; // Пользователь отменил закрытие
+          }
+        }
+        abortClose('closed'); 
+      };
       prepareCanvas();
       drawWheel();
 

@@ -24,7 +24,7 @@
   ];
 
   // Telegram Stars conversion (fallback). You can override via localStorage key 'starsPerTon'.
-  const STARS_PER_TON_DEFAULT = 1000;
+  const STARS_PER_TON_DEFAULT = 115;
 
   const PLACEHOLDER_IMG = svgDataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
@@ -96,6 +96,7 @@
 
     // Detect currency + listen changes
     state.currency = getCurrency();
+    try { await window.WildTimeRates?.ensureTonStarsRate?.(false); } catch (_) {}
     attachCurrencyListeners();
 
     // Load prices from server cache (optional)
@@ -396,7 +397,7 @@ function formatBuyPrice(tonPrice) {
   if (!Number.isFinite(tonPrice) || tonPrice <= 0) return { num: '—', icon: currencyIconPath(state.currency) };
 
   if (state.currency === 'stars') {
-    const stars = Math.max(1, Math.round(tonPrice * getStarsPerTon()));
+    const stars = Math.max(1, Math.floor(tonPrice * getStarsPerTon() + 1e-9));
     return { num: String(stars), icon: currencyIconPath('stars') };
   }
   // TON

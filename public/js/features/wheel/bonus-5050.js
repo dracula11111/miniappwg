@@ -9,6 +9,7 @@ class Bonus5050 {
     this.options = {
       onComplete: typeof options.onComplete === 'function' ? options.onComplete : () => {},
       durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 15,
+      remainingSec: Number.isFinite(options.remainingSec) ? Math.max(1, Math.ceil(options.remainingSec)) : null,
       boomSrc: options.boomSrc || 'images/boom.webp',
       particlesSrc: options.particlesSrc || 'images/boomparticles.webp',
       lightningIcon: options.lightningIcon || 'icons/lighting.webp',
@@ -252,7 +253,7 @@ class Bonus5050 {
     xBad.classList.add('b5050-flyx--idle');
   
     // 2) повисеть 2 секунды
-    await this._wait(2000);
+    await this._wait(Math.max(500, 2000 / (this.speedupFactor || 1)));
   
     // перед движением: убираем idle
     xGood.classList.remove('b5050-flyx--idle');
@@ -264,7 +265,7 @@ class Bonus5050 {
   
     // запланировать взрыв в процессе движения
     const boomPromise = (async () => {
-      await this._wait(boomAt);
+      await this._wait(Math.max(200, boomAt / (this.speedupFactor || 1)));
       await this._boomWithParticles(ui); // взрыв + частицы + флэш
     })();
   
@@ -291,7 +292,7 @@ class Bonus5050 {
             opacity: 0.0, filter: 'blur(0.6px)' }
         ],
         {
-          duration: moveDuration,
+          duration: Math.max(400, moveDuration / (this.speedupFactor || 1)),
           easing: 'cubic-bezier(0.16, 0.9, 0.14, 1)', // очень приятное "подсасывание"
           fill: 'forwards'
         }
@@ -300,9 +301,9 @@ class Bonus5050 {
   
     // лёгкая встряска в момент удара (почти в конце)
     const shakePromise = (async () => {
-      await this._wait(Math.max(0, boomAt - 60));
+      await this._wait(Math.max(0, (boomAt - 60) / (this.speedupFactor || 1)));
       ui.machine.classList.add('b5050-shake');
-      await this._wait(240);
+      await this._wait(Math.max(100, 240 / (this.speedupFactor || 1)));
       ui.machine.classList.remove('b5050-shake');
     })();
   
@@ -416,28 +417,33 @@ class Bonus5050 {
     ui.good.unit.classList.toggle('is-picked', pickGood);
     ui.bad.unit.classList.toggle('is-picked', !pickGood);
 
-    const cdPromise = this._countdown(ui.timer, this.options.durationSec);
+    // 🔥 Используем оставшееся время если оно передано (для случая когда пользователь зашел в середине бонуса)
+    const effectiveDuration = this.options.remainingSec || this.options.durationSec;
+    const speedupFactor = this.options.durationSec / effectiveDuration; // > 1 если нужно ускорить
+    this.speedupFactor = speedupFactor; // сохраняем для использования в других методах
+
+    const cdPromise = this._countdown(ui.timer, effectiveDuration);
 
     try {
-      await this._wait(450);
+      await this._wait(Math.max(100, 450 / speedupFactor));
       if (this._aborted) return;
 
 
       await Promise.all([
-        this._spinReel(ui.good, goodX, this.GOOD_XS, { durationMs: 6100 }),
-        this._spinReel(ui.bad,  badX,  this.BAD_XS,  { durationMs: 5850 })
+        this._spinReel(ui.good, goodX, this.GOOD_XS, { durationMs: Math.max(1000, 6100 / speedupFactor) }),
+        this._spinReel(ui.bad,  badX,  this.BAD_XS,  { durationMs: Math.max(1000, 5850 / speedupFactor) })
       ]);
       if (this._aborted) return;
 
 
       // пауза чтобы увидеть оба выпавших
-      await this._wait(700);
+      await this._wait(Math.max(200, 700 / speedupFactor));
       if (this._aborted) return;
 
 
       // (A) плавно убрать барабаны
       ui.machine.classList.add('b5050-machine--collapse');
-      await this._wait(650); // дать CSS красиво отработать
+      await this._wait(Math.max(200, 650 / speedupFactor)); // дать CSS красиво отработать
       if (this._aborted) return;
 
 
@@ -449,7 +455,7 @@ class Bonus5050 {
       // (D) winner reveal (как раньше)
       ui.result.textContent = this._fmtX(chosenX);
       ui.machine.classList.add('b5050-machine--result');
-      await this._wait(900);
+      await this._wait(Math.max(200, 900 / speedupFactor));
       if (this._aborted) return;
 
 
