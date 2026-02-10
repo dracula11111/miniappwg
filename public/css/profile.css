@@ -4982,3 +4982,95 @@ html[data-currency="stars"] .profile-ava,
   width: 16px;
   height: 16px;
 }
+
+/* ============================================
+   PROMOCODE PANEL + LIQUID GLASS TOAST
+   ============================================ */
+
+.promo-card{
+  margin-top:12px;
+  border-radius:18px;
+  padding:14px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+}
+
+.promo-title{
+  font-weight:800;
+  font-size:14px;
+  opacity:0.95;
+}
+
+.promo-row{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+
+.promo-input{
+  flex:1;
+  height:42px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.18);
+  color:#fff;
+  padding:0 12px;
+  outline:none;
+}
+
+.promo-btn{
+  height:42px;
+  border-radius:14px;
+  padding:0 14px;
+  border:1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+  color:#fff;
+  font-weight:800;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+.promo-btn:disabled{
+  opacity:0.55;
+  cursor:default;
+}
+
+/* Liquid glass toast */
+#promo-toast{
+  position: fixed;
+  left: 50%;
+  bottom: 86px;
+  transform: translateX(-50%) translateY(0);
+  z-index: 10050;
+  min-width: 220px;
+  max-width: 90vw;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: .2px;
+  text-align: center;
+}
+
+#promo-toast.show{
+  opacity: 1;
+  transform: translateX(-50%) translateY(-6px);
+}
+
+#promo-toast small{
+  display:block;
+  opacity: .8;
+  font-weight: 700;
+  margin-top: 2px;
+}

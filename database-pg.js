@@ -104,6 +104,26 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_market_items_created ON market_items(created_at DESC);
 
+    -- Promocodes (secure, hashed)
+    CREATE TABLE IF NOT EXISTS promo_codes (
+      code_hash TEXT PRIMARY KEY,
+      reward_stars BIGINT NOT NULL,
+      max_uses BIGINT NOT NULL,
+      used_count BIGINT NOT NULL DEFAULT 0,
+      created_at BIGINT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS promo_redemptions (
+      code_hash TEXT NOT NULL REFERENCES promo_codes(code_hash) ON DELETE CASCADE,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      redeemed_at BIGINT NOT NULL,
+      PRIMARY KEY (code_hash, telegram_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(telegram_id);
+
+
+
 
   `);
   console.log("[DB] ✅ Postgres schema ready");
@@ -595,6 +615,122 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
 
     await client.query("COMMIT");
     return { sold: soldItems.length, amount, newBalance };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+
+// ============================
+// PROMOCODES (hashed + anti-dup)
+// ============================
+
+function promoHash(code) {
+  const pepper = process.env.PROMO_PEPPER || "dev_pepper_change_me";
+  const norm = String(code || "").trim().toLowerCase();
+  return crypto.createHash("sha256").update(norm + ":" + pepper).digest("hex");
+}
+
+// Seed WildGiftPromo100 into DB (idempotent)
+export async function ensurePromoSeed() {
+  const now = Math.floor(Date.now() / 1000);
+  const h = promoHash("WildGiftPromo100");
+  const max = Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000);
+
+  await query(
+    `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
+     VALUES ($1,$2,$3,0,$4)
+     ON CONFLICT (code_hash) DO NOTHING`,
+    [h, 100, Number.isFinite(max) ? max : 1000, now]
+  );
+}
+
+// Redeem promocode atomically (limit + per-user anti-dup)
+export async function redeemPromocode(telegramId, code) {
+  const id = BigInt(telegramId);
+  const now = Math.floor(Date.now() / 1000);
+  const h = promoHash(code);
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Ensure user + balance exist
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen)
+       VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, now]
+    );
+    await client.query(
+      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
+       VALUES ($1,0,0,$2)
+       ON CONFLICT (telegram_id) DO NOTHING`,
+      [id, now]
+    );
+
+    // Lock promo row
+    const pr = await client.query(
+      `SELECT reward_stars, max_uses, used_count FROM promo_codes WHERE code_hash = $1 FOR UPDATE`,
+      [h]
+    );
+    if (!pr.rows[0]) {
+      await client.query("ROLLBACK");
+      return { ok: false, errorCode: "PROMO_INVALID", error: "invalid promo" };
+    }
+
+    const reward = Number(pr.rows[0].reward_stars || 0);
+    const maxUses = Number(pr.rows[0].max_uses || 0);   // 0 => unlimited
+    const used = Number(pr.rows[0].used_count || 0);
+
+    if (maxUses > 0 && used >= maxUses) {
+      await client.query("ROLLBACK");
+      return { ok: false, errorCode: "PROMO_LIMIT_REACHED", error: "limit reached" };
+    }
+
+    // Per-user anti-dup
+    try {
+      await client.query(
+        `INSERT INTO promo_redemptions (code_hash, telegram_id, redeemed_at)
+         VALUES ($1,$2,$3)`,
+        [h, id, now]
+      );
+    } catch {
+      await client.query("ROLLBACK");
+      return { ok: false, errorCode: "PROMO_ALREADY_REDEEMED", error: "already redeemed" };
+    }
+
+    // Increment used_count
+    await client.query(
+      `UPDATE promo_codes SET used_count = used_count + 1 WHERE code_hash = $1`,
+      [h]
+    );
+
+    // Update stars balance atomically
+    const br = await client.query(
+      `SELECT stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+      [id]
+    );
+    const before = Number(br.rows[0]?.stars_balance || 0);
+    const after = before + reward;
+
+    await client.query(
+      `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+      [Math.trunc(after), now, id]
+    );
+
+    await client.query(
+      `INSERT INTO transactions
+       (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, "promocode", "stars", reward, before, after, "Promocode redeem", now]
+    );
+
+    await client.query("COMMIT");
+    return { ok: true, added: reward, newBalance: after };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

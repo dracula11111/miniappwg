@@ -1,6 +1,6 @@
 /* ============================================
-   CASES PATH — VERTICAL STAIR (ZIGZAG) + GLOW + GLASS
-   (Hero/History hidden, no cards, no price tables)
+   CASES PAGE — PREMIUM RIBBON TRACK + GLASS
+   (Works with generateCasesGrid() markup in public/js/cases.js)
    ============================================ */
 
 /* Body/page safety for Telegram Mini App */
@@ -9,145 +9,416 @@ body:has(.page-active#casesPage){
   overflow-x: hidden;
 }
 
+/* ============================================
+   SKY THEME (Cases page only)
+   ============================================ */
+body:has(.page-active#casesPage){
+  /* Sky gradient + soft clouds (as background layers) */
+  background:
+    url('/images/cloud1.webp') 50% -120px / 980px auto repeat-x,
+    url('/images/cloud1.webp') 15% 160px / 740px auto repeat-x,
+    radial-gradient(1200px 760px at 50% -240px,
+      rgba(255,255,255,0.85) 0%,
+      rgba(170,230,255,0.28) 42%,
+      rgba(90,180,255,0.14) 70%,
+      rgba(30,80,160,0.10) 100%),
+    linear-gradient(180deg,
+      #63b7ff 0%,
+      #bfeaff 52%,
+      #f7fdff 100%);
+  background-repeat: repeat-x, repeat-x, no-repeat, no-repeat;
+  background-attachment: fixed;
+  background-size: 980px auto, 740px auto, 100% 100%, 100% 100%;
+
+  /* Local “sky” palette for overlays (keeps global dark variables intact) */
+  --sky-glass: rgba(8, 28, 60, 0.18);
+  --sky-border: rgba(255,255,255,0.22);
+  --sky-shadow: rgba(7, 30, 70, 0.22);
+  --sky-ink: rgba(255,255,255,0.94);
+
+  color: var(--sky-ink);
+}
+
+#casesPage{
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ============================================
+   TOP AREA (logo + pills) — sky liquid glass
+   ============================================ */
+body:has(.page-active#casesPage) .topbar{
+  position: sticky;
+  top: 0;
+  z-index: 1200; /* below case overlays (2xxx) */
+
+  padding-top: 10px;
+  padding-bottom: 10px;
+
+  background: linear-gradient(180deg, rgba(7, 34, 82, 0.32) 0%, rgba(7, 34, 82, 0.16) 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.14);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+body:has(.page-active#casesPage) .topbar::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  opacity: 0.65;
+  pointer-events:none;
+}
+
+/* Make logo feel “airy” */
+body:has(.page-active#casesPage) .main-logo{
+  filter:
+    drop-shadow(0 8px 18px rgba(0,0,0,0.25))
+    drop-shadow(0 0 22px rgba(255,255,255,0.18));
+}
+
+/* Pills */
+body:has(.page-active#casesPage) .pill{
+  background: linear-gradient(180deg, var(--sky-glass) 0%, rgba(8, 28, 60, 0.12) 100%);
+  border: 1px solid var(--sky-border);
+  box-shadow:
+    0 12px 28px var(--sky-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.20);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+body:has(.page-active#casesPage) .pill:hover{
+  background: linear-gradient(180deg, rgba(8, 28, 60, 0.26) 0%, rgba(8, 28, 60, 0.16) 100%);
+  border-color: rgba(255,255,255,0.30);
+  transform: translateY(-1px);
+}
+body:has(.page-active#casesPage) #tonAmount{
+  color: rgba(255,255,255,0.94);
+}
+
+/* Avatar + burger become liquid glass buttons */
+body:has(.page-active#casesPage) .avatar-btn,
+body:has(.page-active#casesPage) .burger-btn{
+  background: linear-gradient(180deg, rgba(8, 28, 60, 0.22) 0%, rgba(8, 28, 60, 0.14) 100%);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  box-shadow:
+    0 10px 24px rgba(7, 30, 70, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+body:has(.page-active#casesPage) .avatar-btn:hover,
+body:has(.page-active#casesPage) .burger-btn:hover{
+  border-color: rgba(255,255,255,0.34);
+  box-shadow:
+    0 14px 30px rgba(7, 30, 70, 0.26),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+}
+body:has(.page-active#casesPage) .burger-btn__line{
+  background: rgba(255,255,255,0.90);
+}
+
+
 #casesPage{
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
 }
 
-/* Убираем верхнюю промо-панель (Spin/Win + крутилка) и глобальную историю */
+/* Hide old hero/history blocks on Cases page */
 #casesPage .cases-hero,
 #casesPage .cases-history{
   display: none !important;
 }
 
-/* Если где-то остался старый grid/cards — скрываем */
+/* If any legacy grid/cards are still in DOM — hide */
 #casesPage .cases-grid,
 #casesPage .case-card{
   display: none !important;
 }
 
 /* ----------------------------
-   Cases Path Container
+   Cases container
    ---------------------------- */
 #casesPage #casesGrid.cases-path,
 #casesPage .cases-path{
   position: relative;
   width: 100%;
   max-width: 100%;
-  padding: 18px 0 120px; /* снизу под навбар */
+  padding: 18px 0 120px; /* bottom safe for navbar */
   min-height: 100dvh;
   overflow-x: hidden;
   scroll-behavior: smooth;
 }
 
-/* центральная “дорожка” */
+/* We no longer use the vertical “road” */
 #casesPage #casesGrid.cases-path::before,
 #casesPage .cases-path::before{
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 8px;
-  bottom: 8px;
-  width: 1px;
-  transform: translateX(-50%);
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(255,255,255,0.05) 14%,
-    rgba(255,255,255,0.10) 50%,
-    rgba(255,255,255,0.05) 86%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 0;
+  display: none !important;
 }
 
 /* ----------------------------
-   One step (case row)
+   One case row
    ---------------------------- */
 #casesPage .case-path-item{
+  /* layout variables (easy tuning) */
+  --track-w: min(680px, 92vw);
+  --track-h: clamp(118px, 24vw, 150px);
+  --case-s: clamp(176px, 48vw, 246px);
+
   position: relative;
-  display: flex;
-  align-items: center;
-  padding: 22px 0;
-  margin: 0;
+  width: 100%;
+  min-height: clamp(240px, 36vh, 320px);
+  padding: 14px 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 
-  /* ключ: не делаем “полэкрана на кейс” */
-  min-height: clamp(280px, 44vh, 380px);
+  display: grid;
+  place-items: center;
 }
 
-/* точка на дорожке (узел) */
-#casesPage .case-path-item::before{
+
+/* ----------------------------
+   Cloud divider / base (after each case)
+   - Cloud is BEHIND ribbon + case
+   - Price pill stays above everything
+   ---------------------------- */
+#casesPage .case-path-item::after{
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 10px;
-  height: 10px;
+
+  width: min(980px, 132vw);
+  height: clamp(120px, 22vw, 190px);
+
+  background: url('/images/cloud1.webp') center / contain no-repeat;
+  opacity: 0.78;
+
+  z-index: -1;
+  pointer-events: none;
+
+  filter: drop-shadow(0 22px 34px rgba(0,0,0,0.22));
+  transform: translate(-50%, 22%);
+  animation: wtCloudFloatCenter 6.2s ease-in-out infinite;
+}
+
+/* keep cloud behind row content */
+#casesPage .case-path-item{ isolation: isolate; }
+
+/* small variation left/right so it feels “alive” */
+#casesPage .case-path-item[data-position="left"]::after{
+  animation-name: wtCloudFloatLeft;
+}
+#casesPage .case-path-item[data-position="right"]::after{
+  animation-name: wtCloudFloatRight;
+}
+
+@keyframes wtCloudFloatCenter{
+  0%,100%{ transform: translate(-50%, 22%) translateY(0); }
+  50%{ transform: translate(-50%, 22%) translateY(-6px); }
+}
+@keyframes wtCloudFloatLeft{
+  0%,100%{ transform: translate(-50%, 22%) translateX(-26px) translateY(0); }
+  50%{ transform: translate(-50%, 22%) translateX(-26px) translateY(-6px); }
+}
+@keyframes wtCloudFloatRight{
+  0%,100%{ transform: translate(-50%, 22%) translateX(26px) translateY(0); }
+  50%{ transform: translate(-50%, 22%) translateX(26px) translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  #casesPage .case-path-item::after{ animation: none; }
+}
+
+/* No node dot in new layout */
+#casesPage .case-path-item::before{
+  display: none !important;
+}
+
+/* ----------------------------
+   Ribbon / track (base)
+   ---------------------------- */
+#casesPage .case-path-track{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--track-w);
+  height: var(--track-h);
   transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.14);
-  box-shadow: 0 0 0 6px rgba(255,255,255,0.04);
-  z-index: 1;
+  border-radius: 30px;
+  overflow: hidden;
+
+  background:
+    radial-gradient(280px 180px at 18% 30%, rgba(255,255,255,0.10) 0%, transparent 70%),
+    radial-gradient(260px 180px at 82% 70%, rgba(255,255,255,0.08) 0%, transparent 72%),
+    rgba(255,255,255,0.06);
+
+  border: 1px solid rgba(255,255,255,0.10);
+
+  box-shadow:
+    0 22px 52px rgba(0,0,0,0.52),
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.36);
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  z-index: 0;
   pointer-events: none;
 }
 
-/* stair left/right */
-#casesPage .case-path-item[data-position="left"]{
-  justify-content: flex-start;
-  padding-left: 14px;
-  padding-right: 42%;
-}
-#casesPage .case-path-item[data-position="right"]{
-  justify-content: flex-end;
-  padding-right: 14px;
-  padding-left: 42%;
+/* Inner “groove” line where gifts ride */
+#casesPage .case-path-track::before{
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.10) 16%,
+    rgba(255,255,255,0.18) 50%,
+    rgba(255,255,255,0.10) 84%,
+    transparent 100%
+  );
+  opacity: 0.9;
+  pointer-events: none;
 }
 
-/* лёгкий “выезд” в сторону */
-#casesPage .case-path-item[data-position="left"] .case-path-case{
-  transform: translateX(-12px);
+/* Slight highlight border */
+#casesPage .case-path-track::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.06),
+    inset 0 22px 40px rgba(255,255,255,0.04);
+  pointer-events: none;
 }
-#casesPage .case-path-item[data-position="right"] .case-path-case{
-  transform: translateX(12px);
+
+/* Shimmer pass */
+#casesPage .case-path-track-shimmer{
+  position: absolute;
+  inset: -30%;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    rgba(255,255,255,0.00) 35%,
+    rgba(255,255,255,0.20) 48%,
+    rgba(255,255,255,0.00) 62%,
+    transparent 100%
+  );
+  transform: translateX(-120%);
+  animation: wtTrackShimmer 2.8s ease-in-out infinite;
+  opacity: 0.55;
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }
-#casesPage .case-path-item[data-position="left"]:active .case-path-case{
-  transform: translateX(-12px) scale(0.97);
+
+@keyframes wtTrackShimmer{
+  0%   { transform: translateX(-120%); }
+  55%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
 }
-#casesPage .case-path-item[data-position="right"]:active .case-path-case{
-  transform: translateX(12px) scale(0.97);
+
+@media (prefers-reduced-motion: reduce){
+  #casesPage .case-path-track-shimmer{ animation: none; }
 }
 
 /* ----------------------------
-   Case container (no card)
+   Gifts moving along the ribbon
+   ---------------------------- */
+#casesPage .case-path-items{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--track-w);
+  height: var(--track-h);
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+
+  /* fade-out on edges */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+}
+
+/* Each gift “rides” left -> right with offsets */
+#casesPage .case-path-item-float{
+  position: absolute;
+  top: 50%;
+  width: clamp(46px, 12vw, 74px);
+  height: clamp(46px, 12vw, 74px);
+  transform: translateY(-50%);
+  opacity: 0.96;
+
+  animation: wtGiftRide 5.4s linear infinite;
+  will-change: left, transform, opacity;
+}
+
+#casesPage .case-path-item-float:nth-child(1){ animation-delay: 0s; }
+#casesPage .case-path-item-float:nth-child(2){ animation-delay: -1.8s; }
+#casesPage .case-path-item-float:nth-child(3){ animation-delay: -3.6s; }
+
+@keyframes wtGiftRide{
+  0%{
+    left: -90px;
+    transform: translateY(-50%) scale(0.92);
+    opacity: 0;
+  }
+  10%{ opacity: 1; }
+  52%{ transform: translateY(-50%) scale(1.02); }
+  90%{ opacity: 1; }
+  100%{
+    left: calc(100% + 90px);
+    transform: translateY(-50%) scale(0.92);
+    opacity: 0;
+  }
+}
+
+#casesPage .case-path-item-float img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.42));
+}
+
+/* ----------------------------
+   Case (center)
    ---------------------------- */
 #casesPage .case-path-case{
-  position: relative;
-  z-index: 2;
-  width: min(320px, 74vw);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  transition: transform .16s ease;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--case-s);
+  transform: translate(-50%, -56%); /* a bit above the ribbon */
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  pointer-events: none; /* click is on .case-path-item */
 }
 
-/* ----------------------------
-   Image + glow
-   ---------------------------- */
 #casesPage .case-path-image-wrapper{
   position: relative;
-  width: clamp(170px, 52vw, 240px);
-  height: clamp(170px, 52vw, 240px);
+  width: var(--case-s);
+  height: var(--case-s);
   display: grid;
   place-items: center;
   overflow: visible;
 }
 
-/* круглое свечение (пятно) */
+/* Glow stays (case-specific colors) */
 #casesPage .case-path-glow{
   position: absolute;
   inset: -42%;
@@ -159,7 +430,6 @@ body:has(.page-active#casesPage){
   transform: translateZ(0);
 }
 
-/* “пол” под кейсом, чтобы выглядело как левитация */
 #casesPage .case-path-glow::after{
   content: "";
   position: absolute;
@@ -174,7 +444,7 @@ body:has(.page-active#casesPage){
   opacity: 0.55;
 }
 
-/* индивидуальные цвета свечения */
+/* Individual glow colors */
 #casesPage .case-path-item[data-case-id="case1"] .case-path-glow{
   background: radial-gradient(circle at 50% 55%, rgba(255,255,255,0.34), transparent 64%);
 }
@@ -191,7 +461,6 @@ body:has(.page-active#casesPage){
   background: radial-gradient(circle at 50% 55%, rgba(255,165,0,0.36), transparent 64%);
 }
 
-/* сам PNG кейса — строго в рамках wrapper */
 #casesPage img.case-path-image{
   position: relative;
   z-index: 3;
@@ -203,83 +472,15 @@ body:has(.page-active#casesPage){
 }
 
 /* ----------------------------
-   Floating items (peek PNG)
-   ---------------------------- */
-#casesPage .case-path-items{
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-#casesPage .case-path-item-float{
-  position: absolute;
-  width: clamp(54px, 14vw, 86px);
-  height: clamp(54px, 14vw, 86px);
-  animation: wtFloat 4.2s ease-in-out infinite;
-  transform: translateZ(0);
-}
-
-#casesPage .case-path-item-float img{
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-  filter: drop-shadow(0 10px 18px rgba(0,0,0,0.45));
-}
-
-/* LEFT: выглядывают из левого края */
-#casesPage .case-path-item[data-position="left"] .case-path-item-float:nth-child(1){
-  left: -58px; top: 14%;
-  z-index: 1; animation-delay: 0s;
-}
-#casesPage .case-path-item[data-position="left"] .case-path-item-float:nth-child(2){
-  left: -76px; bottom: 18%;
-  width: clamp(62px, 16vw, 98px);
-  height: clamp(62px, 16vw, 98px);
-  z-index: 3; animation-delay: 1.2s;
-}
-#casesPage .case-path-item[data-position="left"] .case-path-item-float:nth-child(3){
-  left: 10px; bottom: -8%;
-  width: clamp(48px, 12vw, 78px);
-  height: clamp(48px, 12vw, 78px);
-  z-index: 2; animation-delay: 2.4s;
-}
-
-/* RIGHT: выглядывают из правого края */
-#casesPage .case-path-item[data-position="right"] .case-path-item-float:nth-child(1){
-  right: -58px; top: 14%;
-  z-index: 1; animation-delay: 0s;
-}
-#casesPage .case-path-item[data-position="right"] .case-path-item-float:nth-child(2){
-  right: -76px; bottom: 18%;
-  width: clamp(62px, 16vw, 98px);
-  height: clamp(62px, 16vw, 98px);
-  z-index: 3; animation-delay: 1.2s;
-}
-#casesPage .case-path-item[data-position="right"] .case-path-item-float:nth-child(3){
-  right: 10px; bottom: -8%;
-  width: clamp(48px, 12vw, 78px);
-  height: clamp(48px, 12vw, 78px);
-  z-index: 2; animation-delay: 2.4s;
-}
-
-@keyframes wtFloat{
-  0%,100%{ transform: translateY(0) rotate(0deg); }
-  35%{ transform: translateY(-8px) rotate(2deg); }
-  70%{ transform: translateY(-4px) rotate(-2deg); }
-}
-
-@media (prefers-reduced-motion: reduce){
-  #casesPage .case-path-item-float{ animation: none; }
-}
-
-/* ----------------------------
-   Liquid glass price pill
+   Liquid glass price pill (over the case, sitting on ribbon)
    ---------------------------- */
 #casesPage .case-path-price{
-  position: relative;
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
   z-index: 4;
+
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -296,13 +497,6 @@ body:has(.page-active#casesPage){
     inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
-/* pill “подсветка” под кейс */
-#casesPage .case-path-item[data-case-id="case1"] .case-path-price{ box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 22px rgba(255,255,255,0.14), inset 0 1px 0 rgba(255,255,255,0.10); }
-#casesPage .case-path-item[data-case-id="case2"] .case-path-price{ box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 22px rgba(64,224,208,0.16), inset 0 1px 0 rgba(255,255,255,0.10); }
-#casesPage .case-path-item[data-case-id="case3"] .case-path-price{ box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 22px rgba(224,64,171,0.16), inset 0 1px 0 rgba(255,255,255,0.10); }
-#casesPage .case-path-item[data-case-id="case4"] .case-path-price{ box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 22px rgba(64,150,255,0.16), inset 0 1px 0 rgba(255,255,255,0.10); }
-#casesPage .case-path-item[data-case-id="case5"] .case-path-price{ box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 22px rgba(255,165,0,0.16), inset 0 1px 0 rgba(255,255,255,0.10); }
-
 #casesPage .case-path-price-icon{
   width: 20px;
   height: 20px;
@@ -311,6 +505,7 @@ body:has(.page-active#casesPage){
   opacity: 0.95;
 }
 
+#casesPage .case-path-price-val,
 #casesPage .case-path-price-value{
   font-size: 16px;
   font-weight: 900;
@@ -318,9 +513,58 @@ body:has(.page-active#casesPage){
   font-variant-numeric: tabular-nums;
 }
 
-/* чуть ближе к стороне кейса */
-#casesPage .case-path-item[data-position="left"] .case-path-price{ align-self: flex-start; margin-left: 6px; }
-#casesPage .case-path-item[data-position="right"] .case-path-price{ align-self: flex-end; margin-right: 6px; }
+/* ----------------------------
+   CASE 1 — WHITE PREMIUM RIBBON (requested example)
+   ---------------------------- */
+#casesPage .case-path-item[data-case-id="case1"]{
+  --track-w: min(720px, 92vw);
+}
+
+#casesPage .case-path-item[data-case-id="case1"] .case-path-track{
+  background:
+    radial-gradient(420px 260px at 12% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.00) 70%),
+    radial-gradient(420px 260px at 88% 80%, rgba(235,238,255,0.92) 0%, rgba(255,255,255,0.00) 72%),
+    linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,247,255,0.82) 42%, rgba(236,238,252,0.74) 100%);
+
+  border: 1px solid rgba(255,255,255,0.62);
+
+  box-shadow:
+    0 26px 64px rgba(0,0,0,0.58),
+    inset 0 1px 0 rgba(255,255,255,0.78),
+    inset 0 -1px 0 rgba(0,0,0,0.06);
+}
+
+#casesPage .case-path-item[data-case-id="case1"] .case-path-track::before{
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0,0,0,0.08) 18%,
+    rgba(0,0,0,0.12) 50%,
+    rgba(0,0,0,0.08) 82%,
+    transparent 100%
+  );
+  opacity: 0.55;
+}
+
+#casesPage .case-path-item[data-case-id="case1"] .case-path-track-shimmer{
+  opacity: 0.65;
+  mix-blend-mode: soft-light;
+}
+
+/* Case1: price pill as “liquid glass” on white (darker text for readability) */
+#casesPage .case-path-item[data-case-id="case1"] .case-path-price{
+  background: rgba(255,255,255,0.58);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow:
+    0 14px 34px rgba(0,0,0,0.24),
+    0 0 26px rgba(255,255,255,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.70);
+}
+
+#casesPage .case-path-item[data-case-id="case1"] .case-path-price-val,
+#casesPage .case-path-item[data-case-id="case1"] .case-path-price-value{
+  color: rgba(14,14,18,0.92);
+}
 
 /* ----------------------------
    Small screens
@@ -332,12 +576,12 @@ body:has(.page-active#casesPage){
   }
 
   #casesPage .case-path-item{
-    min-height: clamp(250px, 40vh, 340px);
-    padding: 18px 0;
+    min-height: clamp(220px, 34vh, 300px);
   }
 
-  #casesPage .case-path-item[data-position="left"]{ padding-right: 40%; }
-  #casesPage .case-path-item[data-position="right"]{ padding-left: 40%; }
+  #casesPage .case-path-price{
+    padding: 9px 16px;
+  }
 }
 
 

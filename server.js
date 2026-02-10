@@ -35,6 +35,17 @@ function createMemoryDb() {
   let txId = 1;
   let betId = 1;
 
+  // Promocodes (memory/test only)
+  const promoCodes = new Map();       // code_hash -> { rewardStars, maxUses, usedCount, createdAt }
+  const promoRedemptions = new Set(); // `${code_hash}:${telegram_id}`
+
+  function promoHash(code) {
+    const pepper = process.env.PROMO_PEPPER || "dev_pepper_change_me";
+    const norm = String(code || "").trim().toLowerCase();
+    return crypto.createHash("sha256").update(norm + ":" + pepper).digest("hex");
+  }
+
+
   const nowSec = () => Math.floor(Date.now() / 1000);
 
   function key(id) {
@@ -73,7 +84,51 @@ function createMemoryDb() {
     async initDatabase() {
       console.log("[DB] 🧪 Memory DB enabled (TEST_MODE=1). Nothing will be persisted.");
     },
-    async saveUser(userData) {
+    async ensurePromoSeed() {
+      const now = nowSec();
+      const codeHash = promoHash("WildGiftPromo100");
+      const max = Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000);
+      if (!promoCodes.has(codeHash)) {
+        promoCodes.set(codeHash, {
+          rewardStars: 100,
+          maxUses: Number.isFinite(max) ? max : 1000, // 0 => unlimited
+          usedCount: 0,
+          createdAt: now
+        });
+      }
+    },
+    async redeemPromocode(telegramId, code) {
+      const k = ensure(telegramId);
+      const h = promoHash(code);
+      const promo = promoCodes.get(h);
+      if (!promo) return { ok: false, errorCode: "PROMO_INVALID", error: "invalid promo" };
+
+      const maxUses = Number(promo.maxUses || 0);
+      if (maxUses > 0 && promo.usedCount >= maxUses) {
+        return { ok: false, errorCode: "PROMO_LIMIT_REACHED", error: "limit reached" };
+      }
+
+      const redKey = `${h}:${k}`;
+      if (promoRedemptions.has(redKey)) {
+        return { ok: false, errorCode: "PROMO_ALREADY_REDEEMED", error: "already redeemed" };
+      }
+
+      promoRedemptions.add(redKey);
+      promo.usedCount += 1;
+      promoCodes.set(h, promo);
+
+      try {
+        const newBal = await this.updateBalance(k, "stars", promo.rewardStars, "promocode", "Promocode redeem", { promo: h });
+        return { ok: true, added: promo.rewardStars, newBalance: newBal };
+      } catch (e) {
+        // rollback in-memory counters on failure
+        promoRedemptions.delete(redKey);
+        promo.usedCount = Math.max(0, promo.usedCount - 1);
+        promoCodes.set(h, promo);
+        throw e;
+      }
+    },
+        async saveUser(userData) {
       const k = ensure(userData?.id ?? userData?.telegram_id ?? userData);
       const u = users.get(k);
       users.set(k, {
@@ -157,121 +212,8 @@ function createMemoryDb() {
         total_wagered,
         total_bets
       };
-    },
-
-    // ====== INVENTORY METHODS ======
-    async getUserInventory(telegramId) {
-      const k = key(telegramId);
-      const invMap = this._inventory || new Map();
-      this._inventory = invMap;
-      return invMap.get(k) || [];
-    },
-
-    async addInventoryItems(telegramId, items, claimId) {
-      const k = key(telegramId);
-      const invMap = this._inventory || new Map();
-      this._inventory = invMap;
-      const current = invMap.get(k) || [];
-      
-      // Проверка дубликатов по claimId
-      if (claimId) {
-        const hasClaim = current.some(it => it.claimId === claimId);
-        if (hasClaim) {
-          console.log(`[MemDB] Duplicate claimId ${claimId} - skipping add`);
-          return current;
-        }
-      }
-      
-      // Добавляем новые предметы с уникальными instanceId
-      const newItems = items.map((item, idx) => ({
-        ...item,
-        instanceId: item.instanceId || `${k}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2)}`,
-        claimId: claimId || item.claimId || null,
-        createdAt: item.createdAt || Date.now()
-      }));
-      
-      const updated = [...current, ...newItems];
-      invMap.set(k, updated);
-      return updated;
-    },
-
-    async sellInventoryItems(telegramId, instanceIds, currency) {
-      const k = key(telegramId);
-      const invMap = this._inventory || new Map();
-      this._inventory = invMap;
-      const current = invMap.get(k) || [];
-      const idsSet = new Set(instanceIds.map(String));
-      
-      // Находим предметы для продажи
-      const toSell = current.filter(it => idsSet.has(String(it.instanceId)));
-      const remaining = current.filter(it => !idsSet.has(String(it.instanceId)));
-      
-      if (toSell.length === 0) {
-        return { sold: 0, amount: 0, newBalance: null };
-      }
-      
-      // Подсчитываем общую стоимость
-      const cur = currency === "stars" ? "stars" : "ton";
-      let totalValue = 0;
-      
-      toSell.forEach(item => {
-        const price = item?.price?.[cur];
-        let value = typeof price === 'string' ? parseFloat(price) : (typeof price === 'number' ? price : 0);
-        
-        // Fallback конвертация если цена не указана
-        if (!value || value <= 0) {
-          if (cur === 'stars') {
-            const tonPrice = item?.price?.ton;
-            const ton = typeof tonPrice === 'string' ? parseFloat(tonPrice) : (typeof tonPrice === 'number' ? tonPrice : 0);
-            if (ton > 0) {
-              // Конвертация TON -> Stars (50 stars = 0.4332 TON)
-              value = Math.round(ton * (50 / 0.4332));
-            }
-          } else {
-            const starsPrice = item?.price?.stars;
-            const stars = typeof starsPrice === 'string' ? parseFloat(starsPrice) : (typeof starsPrice === 'number' ? starsPrice : 0);
-            if (stars > 0) {
-              // Конвертация Stars -> TON
-              value = Math.round(stars * (0.4332 / 50) * 100) / 100;
-            }
-          }
-        }
-        
-        if (value > 0) {
-          totalValue += cur === 'ton' ? (Math.round(value * 100) / 100) : Math.round(value);
-        }
-      });
-      
-      // Обновляем инвентарь
-      invMap.set(k, remaining);
-      
-      // Обновляем баланс
-      let newBalance = null;
-      if (totalValue > 0) {
-        try {
-          newBalance = await this.updateBalance(k, cur, totalValue, 'inventory_sell', `Sold ${toSell.length} item(s)`);
-        } catch (err) {
-          console.error('[MemDB] sellInventoryItems balance update failed:', err);
-          // Откатываем изменения инвентаря
-          invMap.set(k, current);
-          throw err;
-        }
-      }
-      
-      return {
-        sold: toSell.length,
-        amount: totalValue,
-        newBalance
-      };
     }
   };
-}
-// перед dbReal = await import("./database-pg.js");
-try {
-  const u = new URL(process.env.DATABASE_URL || "");
-  console.log("[DB] DATABASE_URL host =", u.host); // пароль не логируем
-} catch {
-  console.log("[DB] DATABASE_URL is missing or invalid");
 }
 
 const dbMem = createMemoryDb();
@@ -280,8 +222,14 @@ const dbMem = createMemoryDb();
 if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
   await dbReal.initDatabase();
+  if (typeof dbReal.ensurePromoSeed === "function") {
+    await dbReal.ensurePromoSeed();
+  }
 } else {
   await dbMem.initDatabase();
+  if (typeof dbMem.ensurePromoSeed === "function") {
+    await dbMem.ensurePromoSeed();
+  }
 }
 
 // Select DB
@@ -1552,6 +1500,63 @@ app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
   }
 });
 
+
+
+// ============================================
+// PROMOCODE
+// ============================================
+
+// Promocode redeem rate-limit (best-effort, in-memory)
+const promoRedeemRL = new Map(); // userId -> { windowStart, count }
+function promoTooMany(userId) {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const limit = 12;
+  const cur = promoRedeemRL.get(userId) || { windowStart: now, count: 0 };
+  if (now - cur.windowStart > windowMs) {
+    cur.windowStart = now;
+    cur.count = 0;
+  }
+  cur.count += 1;
+  promoRedeemRL.set(userId, cur);
+  return cur.count > limit;
+}
+
+// Redeem promocode -> +stars (server-authoritative, anti-dup in DB)
+app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
+  try {
+    const user = req.tg.user;
+    await db.saveUser(user);
+
+    const userId = String(user.id);
+    if (promoTooMany(userId)) {
+      return res.status(429).json({ ok: false, errorCode: "PROMO_RATE_LIMIT", error: "too many attempts" });
+    }
+
+    const code = String(req.body?.code || "").trim();
+    if (!code) return res.status(400).json({ ok: false, errorCode: "PROMO_EMPTY", error: "code required" });
+
+    if (typeof db.redeemPromocode !== "function") {
+      return res.status(500).json({ ok: false, errorCode: "PROMO_DB_NOT_READY", error: "promos not configured" });
+    }
+
+    const out = await db.redeemPromocode(userId, code);
+
+    if (!out?.ok) {
+      const status =
+        out.errorCode === "PROMO_LIMIT_REACHED" ? 409 :
+        out.errorCode === "PROMO_ALREADY_REDEEMED" ? 409 :
+        out.errorCode === "PROMO_INVALID" ? 404 :
+        400;
+      return res.status(status).json(out);
+    }
+
+    return res.json(out);
+  } catch (e) {
+    console.error("[Promocode] redeem error:", e);
+    return res.status(500).json({ ok: false, errorCode: "PROMO_SERVER_ERROR", error: "server error" });
+  }
+});
 
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {

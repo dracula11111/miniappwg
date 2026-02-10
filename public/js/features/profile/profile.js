@@ -42,6 +42,19 @@
   function getTelegramUser() {
     return tg?.initDataUnsafe?.user || { id: 'guest', username: null, first_name: 'Guest' };
   }
+  function getInitData() {
+    return window.Telegram?.WebApp?.initData || "";
+  }
+  
+  async function tgFetch(url, options = {}) {
+    const initData = getInitData();
+    const headers = {
+      ...(options.headers || {}),
+      "x-telegram-init-data": initData
+    };
+    return fetch(url, { ...options, headers });
+  }
+  
 
   function readLocalInventory(userId) {
     try {
@@ -494,15 +507,15 @@
     let serverOk = false;
   
     try {
-      const r = await fetch('/api/inventory/sell', {
+      const r = await tgFetch('/api/inventory/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
           currency,
           instanceIds: [instanceId]
         })
       });
+      
   
       if (r.ok) {
         const j = await r.json().catch(() => null);
@@ -521,12 +534,15 @@
     } catch {}
   
     // локальный fallback
-    // вместо локального fallback:
-      if (!serverOk) {
-        showToast('Sell failed: server not reachable');
-        return;
-}
-
+    let j = null;
+    try { j = await r.json(); } catch {}
+    
+    if (!r.ok || !j?.ok) {
+      showToast(j?.error || `Sell failed (${r.status})`);
+      return;
+    }
+    serverOk = true;
+    
   
     await loadInventory();
     haptic('medium');
@@ -800,11 +816,12 @@
         return;
       }
   
-      const r = await fetch('/api/inventory/sell', {
+      const r = await tgFetch('/api/inventory/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, currency, instanceIds })
+        body: JSON.stringify({ currency, instanceIds })
       });
+      
   
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) {
@@ -838,11 +855,12 @@
     try {
       if (!lastInventory.length) return;
   
-      const r = await fetch('/api/inventory/sell-all', {
+      const r = await tgFetch('/api/inventory/sell-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, currency })
+        body: JSON.stringify({ currency })
       });
+      
   
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) {
@@ -870,7 +888,8 @@
     const userId = user.id;
 
     try {
-      const r = await fetch(`/api/user/inventory?userId=${encodeURIComponent(userId)}`, { method: 'GET' });
+      const r = await tgFetch(`/api/user/inventory`, { method: 'GET' });
+
       if (r.ok) {
         const j = await r.json().catch(() => null);
         if (j && j.ok === true && Array.isArray(j.items)) {

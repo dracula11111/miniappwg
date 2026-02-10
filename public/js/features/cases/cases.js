@@ -946,6 +946,7 @@ function getBalanceSafe(currency) {
   }
 
   // ====== GENERATE CASES GRID ======
+
   function generateCasesGrid() {
     const casesPath = document.getElementById('casesGrid');
     if (!casesPath) return;
@@ -960,36 +961,43 @@ function getBalanceSafe(currency) {
 
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
-      const position = index % 2 === 0 ? 'left' : 'right';
       
-      // Get 3 items for floating display
+      // Get 3 items for animated track display
       const displayItems = caseData.items.slice(0, 3);
 
       const pathItem = document.createElement('div');
       pathItem.className = 'case-path-item';
       pathItem.dataset.caseId = caseData.id;
-      pathItem.dataset.position = position;
 
       pathItem.innerHTML = `
+        <!-- Premium horizontal track with border & shimmer -->
+        <div class="case-path-track">
+          <div class="case-path-track-shimmer"></div>
+        </div>
+        
+        <!-- Animated items sliding on track -->
+        <div class="case-path-items">
+          ${displayItems.map(item => `
+            <div class="case-path-item-float">
+              <img src="${itemIconPath(item)}" 
+                   alt="${item.id}"
+                   onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+            </div>
+          `).join('')}
+        </div>
+        
+        <!-- Case positioned ON the track -->
         <div class="case-path-case">
           <div class="case-path-image-wrapper">
             <div class="case-path-glow"></div>
             <img src="${assetUrl(`images/cases/${caseData.id}.png`)}" 
                  alt="${caseData.name}" 
                  class="case-path-image">
-            <div class="case-path-items">
-              ${displayItems.map(item => `
-                <div class="case-path-item-float">
-                  <img src="${itemIconPath(item)}" 
-                       alt="${item.id}"
-                       onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
-                </div>
-              `).join('')}
-            </div>
           </div>
+          <!-- Liquid glass price pill OVER the case -->
           <div class="case-path-price">
             <img src="${icon}" class="case-path-price-icon" alt="${currency}">
-            <span class="case-path-price-value">${price}</span>
+            <span class="case-path-price-val">${price}</span>
           </div>
         </div>
       `;
@@ -998,6 +1006,7 @@ function getBalanceSafe(currency) {
       casesPath.appendChild(pathItem);
     });
   }
+
 
   // ====== OPEN BOTTOM SHEET ======
   function openBottomSheet(caseId) {
