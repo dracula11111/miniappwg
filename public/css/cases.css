@@ -7,36 +7,75 @@
 body:has(.page-active#casesPage){
   overflow-y: auto;
   overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ============================================
    SKY THEME (Cases page only)
    ============================================ */
 body:has(.page-active#casesPage){
-  /* Sky gradient + soft clouds (as background layers) */
+  /* Sky -> space gradient (NO clouds in page background) */
   background:
-    url('/images/cloud1.webp') 50% -120px / 980px auto repeat-x,
-    url('/images/cloud1.webp') 15% 160px / 740px auto repeat-x,
-    radial-gradient(1200px 760px at 50% -240px,
-      rgba(255,255,255,0.85) 0%,
-      rgba(170,230,255,0.28) 42%,
-      rgba(90,180,255,0.14) 70%,
-      rgba(30,80,160,0.10) 100%),
+    radial-gradient(980px 560px at 50% 112%,
+      rgba(255,255,255,0.26) 0%,
+      rgba(150,220,255,0.12) 40%,
+      rgba(0,0,0,0.00) 74%),
+    radial-gradient(820px 420px at 50% -160px,
+      rgba(120,170,255,0.22) 0%,
+      rgba(40,90,220,0.10) 34%,
+      rgba(0,0,0,0.00) 72%),
     linear-gradient(180deg,
-      #63b7ff 0%,
-      #bfeaff 52%,
-      #f7fdff 100%);
-  background-repeat: repeat-x, repeat-x, no-repeat, no-repeat;
-  background-attachment: fixed;
-  background-size: 980px auto, 740px auto, 100% 100%, 100% 100%;
+      #020413 0%,
+      #041137 20%,
+      #062a67 40%,
+      #0b4aa0 64%,
+      #4fb3ff 84%,
+      #bfeaff 100%);
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+  background-size: 100% 300vh;
+  min-height: 100vh;
 
-  /* Local “sky” palette for overlays (keeps global dark variables intact) */
+  /* Local "sky" palette for overlays (keeps global dark variables intact) */
   --sky-glass: rgba(8, 28, 60, 0.18);
   --sky-border: rgba(255,255,255,0.22);
   --sky-shadow: rgba(7, 30, 70, 0.22);
   --sky-ink: rgba(255,255,255,0.94);
 
   color: var(--sky-ink);
+  position: relative;
+}
+
+/* Слой со звездами поверх градиента */
+body:has(.page-active#casesPage)::before{
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  
+  background:
+    url('/icons/pstar.svg') 15% 8% / 8px 8px no-repeat,
+    url('/icons/pstar.svg') 82% 12% / 6px 6px no-repeat,
+    url('/icons/pstar.svg') 28% 18% / 7px 7px no-repeat,
+    url('/icons/pstar.svg') 91% 25% / 5px 5px no-repeat,
+    url('/icons/pstar.svg') 42% 6% / 6px 6px no-repeat,
+    url('/icons/pstar.svg') 68% 15% / 8px 8px no-repeat,
+    url('/icons/pstar.svg') 8% 22% / 5px 5px no-repeat,
+    url('/icons/pstar.svg') 95% 9% / 7px 7px no-repeat,
+    url('/icons/pstar.svg') 55% 11% / 6px 6px no-repeat,
+    url('/icons/pstar.svg') 73% 4% / 5px 5px no-repeat,
+    url('/icons/pstar.svg') 22% 14% / 7px 7px no-repeat,
+    url('/icons/pstar.svg') 88% 19% / 6px 6px no-repeat;
+  
+  background-repeat: no-repeat;
+  
+  /* Инвертируем цвет чтобы звезды стали белыми и добавляем яркость */
+  filter: invert(1) brightness(1.5);
+  opacity: 0.8;
 }
 
 #casesPage{
@@ -49,83 +88,12 @@ body:has(.page-active#casesPage){
 /* ============================================
    TOP AREA (logo + pills) — sky liquid glass
    ============================================ */
-body:has(.page-active#casesPage) .topbar{
-  position: sticky;
-  top: 0;
-  z-index: 1200; /* below case overlays (2xxx) */
-
-  padding-top: 10px;
-  padding-bottom: 10px;
-
-  background: linear-gradient(180deg, rgba(7, 34, 82, 0.32) 0%, rgba(7, 34, 82, 0.16) 100%);
-  border-bottom: 1px solid rgba(255,255,255,0.14);
-
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-body:has(.page-active#casesPage) .topbar::after{
-  content:"";
-  position:absolute;
-  left:0; right:0; bottom:0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
-  opacity: 0.65;
-  pointer-events:none;
-}
-
-/* Make logo feel “airy” */
-body:has(.page-active#casesPage) .main-logo{
-  filter:
-    drop-shadow(0 8px 18px rgba(0,0,0,0.25))
-    drop-shadow(0 0 22px rgba(255,255,255,0.18));
-}
-
-/* Pills */
-body:has(.page-active#casesPage) .pill{
-  background: linear-gradient(180deg, var(--sky-glass) 0%, rgba(8, 28, 60, 0.12) 100%);
-  border: 1px solid var(--sky-border);
-  box-shadow:
-    0 12px 28px var(--sky-shadow),
-    inset 0 1px 0 rgba(255,255,255,0.20);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-body:has(.page-active#casesPage) .pill:hover{
-  background: linear-gradient(180deg, rgba(8, 28, 60, 0.26) 0%, rgba(8, 28, 60, 0.16) 100%);
-  border-color: rgba(255,255,255,0.30);
-  transform: translateY(-1px);
-}
-body:has(.page-active#casesPage) #tonAmount{
-  color: rgba(255,255,255,0.94);
-}
-
-/* Avatar + burger become liquid glass buttons */
-body:has(.page-active#casesPage) .avatar-btn,
-body:has(.page-active#casesPage) .burger-btn{
-  background: linear-gradient(180deg, rgba(8, 28, 60, 0.22) 0%, rgba(8, 28, 60, 0.14) 100%);
-  border: 1.5px solid rgba(255,255,255,0.22);
-  box-shadow:
-    0 10px 24px rgba(7, 30, 70, 0.22),
-    inset 0 1px 0 rgba(255,255,255,0.18);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-body:has(.page-active#casesPage) .avatar-btn:hover,
-body:has(.page-active#casesPage) .burger-btn:hover{
-  border-color: rgba(255,255,255,0.34);
-  box-shadow:
-    0 14px 30px rgba(7, 30, 70, 0.26),
-    inset 0 1px 0 rgba(255,255,255,0.22);
-}
-body:has(.page-active#casesPage) .burger-btn__line{
-  background: rgba(255,255,255,0.90);
-}
-
 
 #casesPage{
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
+  position: relative;
 }
 
 /* Hide old hero/history blocks on Cases page */
@@ -147,10 +115,10 @@ body:has(.page-active#casesPage) .burger-btn__line{
 #casesPage .cases-path{
   position: relative;
   width: 100%;
-  max-width: 100%;
+  max-width: 100vw;
   padding: 18px 0 120px; /* bottom safe for navbar */
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
   scroll-behavior: smooth;
 }
 
@@ -192,43 +160,43 @@ body:has(.page-active#casesPage) .burger-btn__line{
   left: 50%;
   top: 50%;
 
-  width: min(980px, 132vw);
-  height: clamp(120px, 22vw, 190px);
+  width: min(1100px, 150vw);
+  height: clamp(260px, 45vw, 380px);
 
-  background: url('/images/cloud1.webp') center / contain no-repeat;
-  opacity: 0.78;
+  background: url('/images/cases/clouds/cloudupdown.webp') center / contain no-repeat;
+  opacity: 0.85;
 
   z-index: -1;
   pointer-events: none;
 
-  filter: drop-shadow(0 22px 34px rgba(0,0,0,0.22));
-  transform: translate(-50%, 22%);
-  animation: wtCloudFloatCenter 6.2s ease-in-out infinite;
+  filter: drop-shadow(0 32px 48px rgba(0,0,0,0.28));
+  transform: translate(-50%, -30%);
+  /* animation: отключена */
 }
 
 /* keep cloud behind row content */
 #casesPage .case-path-item{ isolation: isolate; }
 
 /* small variation left/right so it feels “alive” */
-#casesPage .case-path-item[data-position="left"]::after{
-  animation-name: wtCloudFloatLeft;
-}
-#casesPage .case-path-item[data-position="right"]::after{
-  animation-name: wtCloudFloatRight;
-}
-
-@keyframes wtCloudFloatCenter{
-  0%,100%{ transform: translate(-50%, 22%) translateY(0); }
-  50%{ transform: translate(-50%, 22%) translateY(-6px); }
-}
-@keyframes wtCloudFloatLeft{
-  0%,100%{ transform: translate(-50%, 22%) translateX(-26px) translateY(0); }
-  50%{ transform: translate(-50%, 22%) translateX(-26px) translateY(-6px); }
-}
-@keyframes wtCloudFloatRight{
-  0%,100%{ transform: translate(-50%, 22%) translateX(26px) translateY(0); }
-  50%{ transform: translate(-50%, 22%) translateX(26px) translateY(-6px); }
-}
+/* #casesPage .case-path-item[data-position="left"]::after{ */
+/*   animation-name: wtCloudFloatLeft; */
+/* } */
+/* #casesPage .case-path-item[data-position="right"]::after{ */
+/*   animation-name: wtCloudFloatRight; */
+/* } */
+/*  */
+/* @keyframes wtCloudFloatCenter{ */
+/*   0%,100%{ transform: translate(-50%, 15%) translateY(0); } */
+/*   50%{ transform: translate(-50%, 15%) translateY(-6px); } */
+/* } */
+/* @keyframes wtCloudFloatLeft{ */
+/*   0%,100%{ transform: translate(-50%, 15%) translateX(-26px) translateY(0); } */
+/*   50%{ transform: translate(-50%, 15%) translateX(-26px) translateY(-6px); } */
+/* } */
+/* @keyframes wtCloudFloatRight{ */
+/*   0%,100%{ transform: translate(-50%, 15%) translateX(26px) translateY(0); } */
+/*   50%{ transform: translate(-50%, 15%) translateX(26px) translateY(-6px); } */
+/* } */
 
 @media (prefers-reduced-motion: reduce){
   #casesPage .case-path-item::after{ animation: none; }
@@ -251,11 +219,15 @@ body:has(.page-active#casesPage) .burger-btn__line{
   transform: translate(-50%, -50%);
   border-radius: 30px;
   overflow: hidden;
+  isolation: isolate;
 
   background:
+    url('/images/cases/clouds/cloud1.webp') 50% 55% / min(560px, 92%) auto no-repeat,
     radial-gradient(280px 180px at 18% 30%, rgba(255,255,255,0.10) 0%, transparent 70%),
     radial-gradient(260px 180px at 82% 70%, rgba(255,255,255,0.08) 0%, transparent 72%),
     rgba(255,255,255,0.06);
+  background-blend-mode: soft-light, normal, normal, normal;
+
 
   border: 1px solid rgba(255,255,255,0.10);
 
@@ -291,6 +263,7 @@ body:has(.page-active#casesPage) .burger-btn__line{
   );
   opacity: 0.9;
   pointer-events: none;
+  z-index: 1;
 }
 
 /* Slight highlight border */
@@ -520,51 +493,13 @@ body:has(.page-active#casesPage) .burger-btn__line{
   --track-w: min(720px, 92vw);
 }
 
-#casesPage .case-path-item[data-case-id="case1"] .case-path-track{
-  background:
-    radial-gradient(420px 260px at 12% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.00) 70%),
-    radial-gradient(420px 260px at 88% 80%, rgba(235,238,255,0.92) 0%, rgba(255,255,255,0.00) 72%),
-    linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(245,247,255,0.82) 42%, rgba(236,238,252,0.74) 100%);
+/* Удалено: белый фон панели - теперь использует базовый прозрачный */
 
-  border: 1px solid rgba(255,255,255,0.62);
+/* Удалено: темная линия внутри панели */
 
-  box-shadow:
-    0 26px 64px rgba(0,0,0,0.58),
-    inset 0 1px 0 rgba(255,255,255,0.78),
-    inset 0 -1px 0 rgba(0,0,0,0.06);
-}
+/* Удалено: особый shimmer для case1 */
 
-#casesPage .case-path-item[data-case-id="case1"] .case-path-track::before{
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(0,0,0,0.08) 18%,
-    rgba(0,0,0,0.12) 50%,
-    rgba(0,0,0,0.08) 82%,
-    transparent 100%
-  );
-  opacity: 0.55;
-}
 
-#casesPage .case-path-item[data-case-id="case1"] .case-path-track-shimmer{
-  opacity: 0.65;
-  mix-blend-mode: soft-light;
-}
-
-/* Case1: price pill as “liquid glass” on white (darker text for readability) */
-#casesPage .case-path-item[data-case-id="case1"] .case-path-price{
-  background: rgba(255,255,255,0.58);
-  border: 1px solid rgba(0,0,0,0.08);
-  box-shadow:
-    0 14px 34px rgba(0,0,0,0.24),
-    0 0 26px rgba(255,255,255,0.28),
-    inset 0 1px 0 rgba(255,255,255,0.70);
-}
-
-#casesPage .case-path-item[data-case-id="case1"] .case-path-price-val,
-#casesPage .case-path-item[data-case-id="case1"] .case-path-price-value{
-  color: rgba(14,14,18,0.92);
-}
 
 /* ----------------------------
    Small screens
@@ -2381,6 +2316,12 @@ body:has(.page-active#casesPage) .burger-btn__line{
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
   
+  /* Скрываем topbar полностью (убираем блюр панель) */
+  body.case-sheet-open .topbar {
+    opacity: 0;
+    pointer-events: none;
+  }
+  
   /* Скрываем остальные элементы topbar */
   body.case-sheet-open .topbar__left {
     opacity: 0;
@@ -2419,5 +2360,3 @@ body:has(.page-active#casesPage) .burger-btn__line{
         display: block;
       }
     }
-
-  
