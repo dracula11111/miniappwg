@@ -634,25 +634,26 @@ function promoHash(code) {
   return crypto.createHash("sha256").update(norm + ":" + pepper).digest("hex");
 }
 
-// Seed WildGiftPromo100 into DB (idempotent)
 export async function ensurePromoSeed() {
-  const now = Math.floor(Date.now() / 1000);
-  const h = promoHash("WildGiftPromo100");
-  const max = Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000);
-  
+  const now = Math.floor(Date.now() / 1000); // ← ВАЖНО
 
-  await query(
-    `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
-     VALUES ($1,$2,$3,0,$4)
-     ON CONFLICT (code_hash) DO NOTHING`,
-    [h, 100, Number.isFinite(max) ? max : 1000, now]
-  );
-}
+  // ---- Promo 100 Stars ----
+  {
+    const h = promoHash("WildGiftPromo100");
+    const max = Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000);
+
+    await query(
+      `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
+       VALUES ($1,$2,$3,0,$4)
+       ON CONFLICT (code_hash) DO NOTHING`,
+      [h, 100, Number.isFinite(max) ? max : 1000, now]
+    );
+  }
 
   // ---- Promo 50 Stars ----
   {
     const h = promoHash("WildGiftPromo50");
-    const max = Number(process.env.PROMO_WILDGIFT50_MAX ?? 2000);
+    const max = Number(process.env.PROMO_WILDGIFT50_MAX ?? 500);
 
     await query(
       `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
@@ -661,6 +662,8 @@ export async function ensurePromoSeed() {
       [h, 50, Number.isFinite(max) ? max : 500, now]
     );
   }
+}
+
 
 
 // Redeem promocode atomically (limit + per-user anti-dup)
