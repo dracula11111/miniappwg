@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 
