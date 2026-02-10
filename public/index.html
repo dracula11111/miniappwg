@@ -407,6 +407,18 @@
 </div>
 
 
+<!-- ===== PROMOCODE PANEL ===== -->
+<div class="promo-card" id="promoCard">
+  <div class="promo-title">Promocode</div>
+  <div class="promo-row">
+    <input id="promoInput" class="promo-input" type="text" placeholder="Enter code" maxlength="64" autocomplete="off" />
+    <button id="promoApplyBtn" class="promo-btn" type="button" disabled>Apply</button>
+  </div>
+  <div style="margin-top:8px;opacity:.75;font-size:12px;">
+    Example: <b>WildGiftPromo100</b> (+100 ⭐)
+  </div>
+</div>
+
 <!-- Inventory panel (separate, bottom of Profile page) -->
 <section class="profile-invpanel" id="profileInventoryPanel">
   <div class="profile-invpanel__title">Inventory</div>
@@ -750,5 +762,8 @@
 
 
   
+<!-- Promo toast (liquid glass) -->
+<div id="promo-toast"></div>
+
 </body>
 </html>

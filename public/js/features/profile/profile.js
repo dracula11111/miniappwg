@@ -36,6 +36,129 @@
 
   const inventoryPanel = document.getElementById('profileInventoryPanel');
 
+  // ====== PROMOCODE UI ======
+  const promoInput = document.getElementById('promoInput');
+  const promoApplyBtn = document.getElementById('promoApplyBtn');
+  const promoToast = document.getElementById('promo-toast');
+
+  let promoToastTimer = null;
+  let promoSetupDone = false;
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function showPromoToast(main, sub = '') {
+    if (!main) return;
+
+    // Prefer in-app liquid toast if present
+    if (promoToast) {
+      promoToast.innerHTML = escapeHtml(main) + (sub ? `<small>${escapeHtml(sub)}</small>` : '');
+      promoToast.classList.add('show');
+      if (promoToastTimer) clearTimeout(promoToastTimer);
+      promoToastTimer = setTimeout(() => promoToast.classList.remove('show'), 2300);
+      return;
+    }
+
+    // Fallback to Telegram native popup/alert
+    showToast(sub ? `${main} — ${sub}` : main);
+  }
+
+  function promoErrorMessage(code, fallback) {
+    switch (String(code || '')) {
+      case 'PROMO_EMPTY': return 'Enter a promo code';
+      case 'PROMO_INVALID': return 'Invalid promo code';
+      case 'PROMO_ALREADY_REDEEMED': return 'Promo already redeemed';
+      case 'PROMO_LIMIT_REACHED': return 'Promo limit reached';
+      case 'PROMO_RATE_LIMIT': return 'Too many attempts';
+      case 'PROMO_DB_NOT_READY': return 'Promos not configured';
+      default: return fallback || 'Failed to redeem';
+    }
+  }
+
+  function updatePromoBtnState() {
+    if (!promoApplyBtn) return;
+    const v = String(promoInput?.value || '').trim();
+    promoApplyBtn.disabled = v.length < 3;
+  }
+
+  async function applyPromocode() {
+    if (!promoInput || !promoApplyBtn) return;
+    const code = String(promoInput.value || '').trim();
+    if (!code) {
+      showPromoToast('Enter a promo code');
+      updatePromoBtnState();
+      return;
+    }
+
+    haptic('medium');
+
+    const oldText = promoApplyBtn.textContent;
+    promoApplyBtn.disabled = true;
+    promoApplyBtn.textContent = 'Applying...';
+
+    try {
+      const r = await tgFetch('/api/promocode/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+
+      const j = await r.json().catch(() => null);
+
+      if (!r.ok || !j?.ok) {
+        const msg = promoErrorMessage(j?.errorCode, j?.error || `Error (${r.status})`);
+        showPromoToast(msg);
+        haptic('light');
+        return;
+      }
+
+      const added = Number(j.added || 0);
+      const newBal = (typeof j.newBalance === 'number') ? j.newBalance : Number(j.newBalance || 0);
+
+      if (Number.isFinite(newBal)) {
+        setBalance('stars', newBal);
+      } else if (Number.isFinite(added) && added > 0) {
+        addBalance('stars', added);
+      }
+
+      promoInput.value = '';
+      updatePromoBtnState();
+
+      showPromoToast('✅ Promocode applied', added ? `+${added} ⭐` : '');
+      haptic('success');
+
+    } catch (e) {
+      console.warn('[Promo] redeem error', e);
+      showPromoToast('Network error');
+      haptic('light');
+    } finally {
+      promoApplyBtn.textContent = oldText || 'Apply';
+      updatePromoBtnState();
+    }
+  }
+
+  function setupPromocode() {
+    if (promoSetupDone) return;
+    promoSetupDone = true;
+    if (!promoInput || !promoApplyBtn) return;
+
+    updatePromoBtnState();
+
+    promoInput.addEventListener('input', updatePromoBtnState);
+    promoInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyPromocode();
+      }
+    });
+    promoApplyBtn.addEventListener('click', applyPromocode);
+  }
+
+
+
   // ====== LOCAL INVENTORY FALLBACK ======
   const LS_PREFIX = 'WT_INV_'; // WT_INV_<userId> => JSON array
 
@@ -74,7 +197,16 @@
 
   // ====== HELPERS ======
   function haptic(type = 'light') {
-    try { tg?.HapticFeedback?.impactOccurred?.(type); } catch {}
+    try {
+      const hf = tg?.HapticFeedback;
+      if (!hf) return;
+      // Telegram supports notification haptics for success/error/warning
+      if (['success', 'error', 'warning'].includes(type) && typeof hf.notificationOccurred === 'function') {
+        hf.notificationOccurred(type);
+        return;
+      }
+      hf.impactOccurred?.(type);
+    } catch {}
   }
 
   function showToast(msg) {
@@ -545,6 +677,7 @@
     
   
     await loadInventory();
+    setupPromocode();
     haptic('medium');
   }
   
@@ -838,6 +971,7 @@
   
       selection.clear();
       await loadInventory();
+    setupPromocode();
       haptic('medium');
     } finally {
       if (dynActions) dynActions.classList.remove('loading');
@@ -875,6 +1009,7 @@
   
       selection.clear();
       await loadInventory();
+    setupPromocode();
       haptic('medium');
     } finally {
       if (dynActions) dynActions.classList.remove('loading');
@@ -911,6 +1046,7 @@
     updateUserUI();
     updateWalletUI();
     loadInventory();
+    setupPromocode();
 
     if (!walletsSetup) {
       setupWalletListeners();
