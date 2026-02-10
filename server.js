@@ -266,6 +266,13 @@ function createMemoryDb() {
     }
   };
 }
+// перед dbReal = await import("./database-pg.js");
+try {
+  const u = new URL(process.env.DATABASE_URL || "");
+  console.log("[DB] DATABASE_URL host =", u.host); // пароль не логируем
+} catch {
+  console.log("[DB] DATABASE_URL is missing or invalid");
+}
 
 const dbMem = createMemoryDb();
 
