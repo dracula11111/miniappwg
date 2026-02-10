@@ -199,22 +199,35 @@ export async function getUserBalance(telegramId) {
   const id = BigInt(telegramId);
   const now = Math.floor(Date.now() / 1000);
 
+  // 1) гарантируем, что user существует (иначе FK на balances упадёт)
+  await query(
+    `
+    INSERT INTO users (telegram_id, created_at, last_seen)
+    VALUES ($1,$2,$2)
+    ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen
+    `,
+    [id, now]
+  );
+
+  // 2) гарантируем, что balance существует
+  await query(
+    `
+    INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
+    VALUES ($1,0,0,$2)
+    ON CONFLICT (telegram_id) DO NOTHING
+    `,
+    [id, now]
+  );
+
+  // 3) читаем и возвращаем
   const r = await query(
     `SELECT ton_balance, stars_balance, updated_at FROM balances WHERE telegram_id = $1`,
     [id]
   );
 
-  if (r.rows[0]) return r.rows[0];
-
-  // если баланса нет — создадим
-  await query(
-    `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at) VALUES ($1,0,0,$2)
-     ON CONFLICT (telegram_id) DO NOTHING`,
-    [id, now]
-  );
-
-  return { ton_balance: "0", stars_balance: 0, updated_at: now };
+  return r.rows[0] || { ton_balance: "0", stars_balance: 0, updated_at: now };
 }
+
 
 // ВАЖНО: атомарное изменение баланса + запись транзакции
 export async function updateBalance(telegramId, currency, amount, type, description = null, metadata = {}) {
