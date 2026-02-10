@@ -95,6 +95,7 @@
       __wtRestoreTonPill(tonPill);
       // ensure balance text updates after restore
       try { updateBalanceDisplay(false); } catch {}
+      try { updateTopbarIcon(); } catch {}
     }
   }
 
@@ -1256,4 +1257,3 @@ syncAmountButtons();
   console.log('[Switch] 📦 Module loaded');
 
 })();
- 

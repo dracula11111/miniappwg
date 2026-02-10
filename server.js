@@ -157,6 +157,112 @@ function createMemoryDb() {
         total_wagered,
         total_bets
       };
+    },
+
+    // ====== INVENTORY METHODS ======
+    async getUserInventory(telegramId) {
+      const k = key(telegramId);
+      const invMap = this._inventory || new Map();
+      this._inventory = invMap;
+      return invMap.get(k) || [];
+    },
+
+    async addInventoryItems(telegramId, items, claimId) {
+      const k = key(telegramId);
+      const invMap = this._inventory || new Map();
+      this._inventory = invMap;
+      const current = invMap.get(k) || [];
+      
+      // Проверка дубликатов по claimId
+      if (claimId) {
+        const hasClaim = current.some(it => it.claimId === claimId);
+        if (hasClaim) {
+          console.log(`[MemDB] Duplicate claimId ${claimId} - skipping add`);
+          return current;
+        }
+      }
+      
+      // Добавляем новые предметы с уникальными instanceId
+      const newItems = items.map((item, idx) => ({
+        ...item,
+        instanceId: item.instanceId || `${k}_${Date.now()}_${idx}_${Math.random().toString(36).slice(2)}`,
+        claimId: claimId || item.claimId || null,
+        createdAt: item.createdAt || Date.now()
+      }));
+      
+      const updated = [...current, ...newItems];
+      invMap.set(k, updated);
+      return updated;
+    },
+
+    async sellInventoryItems(telegramId, instanceIds, currency) {
+      const k = key(telegramId);
+      const invMap = this._inventory || new Map();
+      this._inventory = invMap;
+      const current = invMap.get(k) || [];
+      const idsSet = new Set(instanceIds.map(String));
+      
+      // Находим предметы для продажи
+      const toSell = current.filter(it => idsSet.has(String(it.instanceId)));
+      const remaining = current.filter(it => !idsSet.has(String(it.instanceId)));
+      
+      if (toSell.length === 0) {
+        return { sold: 0, amount: 0, newBalance: null };
+      }
+      
+      // Подсчитываем общую стоимость
+      const cur = currency === "stars" ? "stars" : "ton";
+      let totalValue = 0;
+      
+      toSell.forEach(item => {
+        const price = item?.price?.[cur];
+        let value = typeof price === 'string' ? parseFloat(price) : (typeof price === 'number' ? price : 0);
+        
+        // Fallback конвертация если цена не указана
+        if (!value || value <= 0) {
+          if (cur === 'stars') {
+            const tonPrice = item?.price?.ton;
+            const ton = typeof tonPrice === 'string' ? parseFloat(tonPrice) : (typeof tonPrice === 'number' ? tonPrice : 0);
+            if (ton > 0) {
+              // Конвертация TON -> Stars (50 stars = 0.4332 TON)
+              value = Math.round(ton * (50 / 0.4332));
+            }
+          } else {
+            const starsPrice = item?.price?.stars;
+            const stars = typeof starsPrice === 'string' ? parseFloat(starsPrice) : (typeof starsPrice === 'number' ? starsPrice : 0);
+            if (stars > 0) {
+              // Конвертация Stars -> TON
+              value = Math.round(stars * (0.4332 / 50) * 100) / 100;
+            }
+          }
+        }
+        
+        if (value > 0) {
+          totalValue += cur === 'ton' ? (Math.round(value * 100) / 100) : Math.round(value);
+        }
+      });
+      
+      // Обновляем инвентарь
+      invMap.set(k, remaining);
+      
+      // Обновляем баланс
+      let newBalance = null;
+      if (totalValue > 0) {
+        try {
+          newBalance = await this.updateBalance(k, cur, totalValue, 'inventory_sell', `Sold ${toSell.length} item(s)`);
+        } catch (err) {
+          console.error('[MemDB] sellInventoryItems balance update failed:', err);
+          // Откатываем изменения инвентаря
+          invMap.set(k, current);
+          throw err;
+        }
+      }
+      
+      return {
+        sold: toSell.length,
+        amount: totalValue,
+        newBalance
+      };
     }
   };
 }

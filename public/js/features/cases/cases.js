@@ -91,16 +91,16 @@
       price: { ton: 0.25, stars: 50 },
       items: [
         // Premium NFTs
-        { id: 'nft1', type: 'nft', icon: 'ElectricSkullNFTSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
-        { id: 'nft2', type: 'nft', icon: 'VintageCigarNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
-        { id: 'nft3', type: 'nft', icon: 'VoodooDollNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'nft3', type: 'nft', icon: 'FlyingBroomNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-        { id: 'nft3', type: 'nft', icon: 'HexPotNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Electric Skull', type: 'nft', icon: 'ElectricSkullNFTSkin.png',   price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'Vintage Cigar', type: 'nft', icon: 'VintageCigarNFTSkin.png', price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
+        { id: 'Voodoo Doll', type: 'nft', icon: 'VoodooDollNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Flying Broom', type: 'nft', icon: 'FlyingBroomNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
+        { id: 'Hex Pot', type: 'nft', icon: 'HexPotNFTSkin.png',    price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
 
         // High-value Gifts       
-        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.01, stars: 3 }, rarity: 'common' },
         
       ]
       
@@ -114,16 +114,16 @@
       items: [
         // Premium NFTs
    
-        { id: 'nft1', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
-        { id: 'nft2', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
-        { id: 'nft3', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
-        { id: 'nft4', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
-        { id: 'nft5', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
-        { id: 'nft6', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
+        { id: 'Mighty Arm', type: 'nft', icon: 'MightyArmNFTSkin.png',   price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
+        { id: 'Scared Cat', type: 'nft', icon: 'ScaredCatNFTSkin.png', price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
+        { id: 'Bonded Ring', type: 'nft', icon: 'BondedRingNFTSkin.png',    price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
+        { id: 'Genie Lamp', type: 'nft', icon: 'GenieLampNFTSkin.png',    price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
+        { id: 'Jack-In-The-Box', type: 'nft', icon: 'JackInTheBoxNFTSkin.png',    price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
+        { id: 'Winter Wreath', type: 'nft', icon: 'WinterWreathNFTSkin.png',    price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
                 // High-value Gifts       
-        { id: 'gift14', icon: 'stars.webp', price: { ton: 0.065, stars: 25 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
-        { id: 'gift13', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.065, stars: 25 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: '', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         
       ]
       
@@ -947,36 +947,55 @@ function getBalanceSafe(currency) {
 
   // ====== GENERATE CASES GRID ======
   function generateCasesGrid() {
-    const casesGrid = document.getElementById('casesGrid');
-    if (!casesGrid) return;
+    const casesPath = document.getElementById('casesGrid');
+    if (!casesPath) return;
 
-    casesGrid.innerHTML = '';
+    // Change class to cases-path for new styling
+    casesPath.className = 'cases-path';
+    casesPath.innerHTML = '';
 
-    Object.values(CASES).forEach(caseData => {
-      const currency = window.WildTimeCurrency?.current || 'ton';
+    const casesArray = Object.values(CASES);
+    const currency = window.WildTimeCurrency?.current || 'ton';
+    const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/stars.svg');
+
+    casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
-      const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/stars.svg');
+      const position = index % 2 === 0 ? 'left' : 'right';
+      
+      // Get 3 items for floating display
+      const displayItems = caseData.items.slice(0, 3);
 
-      const card = document.createElement('div');
-      card.className = 'case-card';
-      card.dataset.caseId = caseData.id;
+      const pathItem = document.createElement('div');
+      pathItem.className = 'case-path-item';
+      pathItem.dataset.caseId = caseData.id;
+      pathItem.dataset.position = position;
 
-      card.innerHTML = `
-        <div class="case-card__image">
-          <img src="images/cases/${caseData.id}.png" alt="${caseData.name}" class="case-img">
-          <div class="case-card__glow"></div>
-        </div>
-        <div class="case-card__info">
-          <h3 class="case-card__title">${caseData.name}</h3>
-          <div class="case-card__price">
-            <span>${price}</span>
-            <img src="${icon}" class="price-icon" alt="${currency}">
+      pathItem.innerHTML = `
+        <div class="case-path-case">
+          <div class="case-path-image-wrapper">
+            <div class="case-path-glow"></div>
+            <img src="${assetUrl(`images/cases/${caseData.id}.png`)}" 
+                 alt="${caseData.name}" 
+                 class="case-path-image">
+            <div class="case-path-items">
+              ${displayItems.map(item => `
+                <div class="case-path-item-float">
+                  <img src="${itemIconPath(item)}" 
+                       alt="${item.id}"
+                       onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <div class="case-path-price">
+            <img src="${icon}" class="case-path-price-icon" alt="${currency}">
+            <span class="case-path-price-value">${price}</span>
           </div>
         </div>
       `;
 
-      card.addEventListener('click', () => openBottomSheet(caseData.id));
-      casesGrid.appendChild(card);
+      pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
+      casesPath.appendChild(pathItem);
     });
   }
 

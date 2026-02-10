@@ -36,7 +36,7 @@
             left: 0;                                       /* Прижато к левому краю */
             right: 0;                                      /* Прижато к правому краю */
             bottom: 0;                                     /* Прижато к низу */
-            background: #1e2329;                           /* Тёмный фон */
+            background: #111316;                           /* Тёмный фон */
             border-radius: 24px 24px 0 0;                  /* Скругление сверху */
             padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px); /* Отступы с учётом safe area */
             max-height: 80vh;                              /* Макс. высота 80% экрана */
