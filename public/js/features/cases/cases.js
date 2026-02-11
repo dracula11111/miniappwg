@@ -2127,73 +2127,62 @@ async function showResult(currency, demoModeOverride) {
   };
 
   // Claim all NFTs (real mode saves them; demo just clears highlight)
-  const claimAllNfts = async (queue) => {
-    if (!queue || !queue.length) return true;
+  
+// Claim all NFTs (real mode saves them; demo just clears highlight)
+const claimAllNfts = async (queue) => {
+  if (!queue || !queue.length) return true;
 
-    const items = queue.map(q => q.item);
+  const items = queue.map(q => q.item);
 
-    if (demoModeForRound) {
-      showToast('Demo: NFT не сохраняются');
-      return true;
-    }
-    
-    if (!serverEnabled) {
-      addToLocalInventory(tgUserId, items);
-      window.dispatchEvent(new Event('inventory:update'));
-      showToast('NFT сохранены (локально)');
-      return true;
-    }
-    
-    if (!serverEnabled) {
-  // ЛОКАЛЬНЫЙ РЕЖИМ (не Telegram): сохраняем в localStorage,
-  // чтобы инвентарь работал на localhost
-  addToLocalInventory(tgUserId, items);
-  try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-  showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
-  return true;
-}
-
-    let r = await fetchJsonSafe('/api/inventory/nft/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: tgUserId,
-        initData,
-        items,
-        claimId: `case_nft_claim_${roundId}`
-      })
-    }, 6500);
-
-    // If initData expired, retry without it
-    if (!r.ok && (r.status === 401 || r.status === 403)) {
-      r = await fetchJsonSafe('/api/inventory/nft/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: tgUserId,
-          items,
-          claimId: `case_nft_claim_${roundId}_noinit`
-        })
-      }, 6500);
-    }
-
-    if (!r.ok) {
-      showToast('Не удалось сохранить NFT. Попробуй ещё раз.');
-      return false;
-    }
-
-    const list = r.json?.items || r.json?.nfts;
-    if (Array.isArray(list)) {
-      writeLocalInventory(tgUserId, list);
-    } else {
-      addToLocalInventory(tgUserId, items);
-    }
-    try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
-    showToast(items.length > 1 ? 'NFT сохранены ✅' : 'NFT сохранено ✅');
+  if (demoModeForRound) {
+    showToast('Demo: NFT не сохраняются');
     return true;
-  };
+  }
+
+  // Local mode (no server / no Telegram)
+  if (!serverEnabled) {
+    addToLocalInventory(tgUserId, items);
+    try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+    showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
+    return true;
+  }
+
+  const claimId = `case_nft_claim_${roundId}`;
+
+  const r = await fetchJsonSafe('/api/inventory/nft/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: tgUserId,
+      initData,
+      items,
+      claimId
+    })
+  }, 6500);
+
+  if (!r.ok) {
+    if (r.status === 401 || r.status === 403) {
+      showToast('Сессия Telegram устарела. Перезапусти мини‑апп и попробуй ещё раз.');
+    } else {
+      showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй ещё раз.');
+    }
+    return false;
+  }
+
+  // Server returns full inventory list
+  const list = r.json?.items || r.json?.nfts;
+  if (Array.isArray(list)) {
+    writeLocalInventory(tgUserId, list);
+  } else {
+    addToLocalInventory(tgUserId, items);
+  }
+  try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+
+  window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+  showToast(items.length > 1 ? 'NFT сохранены ✅' : 'NFT сохранено ✅');
+
+  return true;
+};
 
   return new Promise((resolve) => {
     if (!bar) {
@@ -2476,23 +2465,12 @@ async function onNftClaimClick() {
           claimId: entry.claimId
         })
       }, 6500);
-
-      // If initData expired, retry without it
-      if (!r.ok && (r.status === 401 || r.status === 403)) {
-        r = await fetchJsonSafe('/api/inventory/nft/add', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: pr.userId,
-            initData: '',
-            items: [item],
-            claimId: entry.claimId
-          })
-        }, 6500);
-      }
-
       if (!r.ok) {
-        showToast('Не удалось сохранить NFT. Попробуй ещё раз.');
+        if (r.status === 401 || r.status === 403) {
+        showToast('Сессия Telegram устарела. Перезапусти мини‑апп и попробуй ещё раз.');
+      } else {
+        showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй ещё раз.');
+      }
         return;
       }
 
