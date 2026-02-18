@@ -79,6 +79,41 @@
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const mod = (n, m) => ((n % m) + m) % m;
 
+  function ensureDeniedStyles() {
+    if (document.getElementById('bonusDeniedStyles')) return;
+    const st = document.createElement('style');
+    st.id = 'bonusDeniedStyles';
+    st.textContent = `
+      .lr-denied, .wt-denied {
+        animation: bonusDeniedFlash 0.55s ease;
+      }
+      @keyframes bonusDeniedFlash {
+        0% { box-shadow: 0 0 0 0 rgba(255,0,0,0.0); }
+        20% { box-shadow: 0 0 0 4px rgba(255,0,0,0.85); }
+        60% { box-shadow: 0 0 0 4px rgba(255,0,0,0.35); }
+        100% { box-shadow: 0 0 0 0 rgba(255,0,0,0.0); }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function flashDenied(el) {
+    try {
+      ensureDeniedStyles();
+      el.classList.remove('wt-denied');
+      void el.offsetWidth;
+      el.classList.add('wt-denied');
+      setTimeout(() => el.classList.remove('wt-denied'), 600);
+    } catch (_) {}
+    try {
+      if (typeof window.showInsufficientBalanceNotification === 'function') {
+        window.showInsufficientBalanceNotification();
+      }
+    } catch (_) {}
+  }
+
+
+
   const easeInQuad = (t) => t * t;
   const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
@@ -188,6 +223,25 @@
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     lastTs = 0;
+  }
+
+  function startLoop() {
+    if (raf) cancelAnimationFrame(raf);
+    lastTs = 0;
+    raf = requestAnimationFrame(tick);
+  }
+
+  // alias — код публичного API использует wait() вместо sleep()
+  const wait = sleep;
+
+  function accelerate(ms) {
+    phase = "accel";
+    return accelerateTo(CFG.fastOmega, ms);
+  }
+
+  function pickCenterIndex() {
+    if (!sectors || sectors.length === 0) return 0;
+    return randInt(0, sectors.length - 1);
   }
 
   function resetScreens() {
@@ -490,11 +544,11 @@
   function bindClose() {
     const onClick = async (e) => {
       if (e.target === overlay || e.target.classList.contains("wt-backdrop")) {
-        await abortClose("closed");
+        await closeOverlay();
       }
     };
     const onKey = async (e) => {
-      if (e.key === "Escape") await abortClose("closed");
+      if (e.key === "Escape") await closeOverlay();
     };
 
     overlay.__wt_click = onClick;
@@ -866,77 +920,125 @@
   }
 
   // ---- public API ----
-  window.startWildTimeBonus = async function startWildTimeBonus(betAmount = 0, opts = {}) {
-    const prevPickCountdownSec = CFG.pickCountdownSec;
-    const prevAppearWaitMs = CFG.appearWaitMs;
+  window.startWildTimeBonus = window.startWildTimeBonus || async function startWildTimeBonus(betAmount = 0, opts = {}) {
+    const bonusId = opts?.bonusId || null;
+    const sessionKey = String(opts?.sessionKey || bonusId || `wildtime:${Date.now()}`);
+
+    window.__wildTimeSession = window.__wildTimeSession || { key: null, promise: null };
+    const sess = window.__wildTimeSession;
+
+    // Resume an in-progress session (do not restart)
+    if (sess.key === sessionKey && sess.promise) {
+      overlay = ensureOverlay();
+      betAmount_ = Math.max(Number(betAmount_) || 0, Number(betAmount) || 0);
+      openOverlay();
+      // Back = hide (not abort)
+      window.__bonusBackHandler = () => { try { closeOverlay(); } catch (_) {} };
+      window.__bonusIsRunning = () => !!(window.__wildTimeSession && window.__wildTimeSession.promise);
+      return await sess.promise;
+    }
+
     const remainingSec = Number.isFinite(opts?.remainingSec) ? Math.max(1, Math.ceil(opts.remainingSec)) : null;
 
+    // Adapt countdown & waits to remaining time (for mid-join Watch)
+    const prevPickCountdownSec = CFG.pickCountdownSec;
+    const prevAppearWaitMs = CFG.appearWaitMs;
     if (remainingSec) {
       CFG.pickCountdownSec = Math.min(prevPickCountdownSec, remainingSec);
-      CFG.appearWaitMs = remainingSec <= 3 ? 0 : Math.min(prevAppearWaitMs, 1000);
+      if (remainingSec < prevPickCountdownSec) {
+        CFG.appearWaitMs = 0;
+      }
     }
 
+    // Ensure completion gate exists for settlement ordering
     try {
-      overlay = ensureOverlay();
-      canvas = overlay.querySelector(`#${CFG.canvasId}`);
-      if (!canvas) return "error";
+      if (bonusId && typeof window.__getBonusOverlayDonePromise === 'function') {
+        window.__getBonusOverlayDonePromise(bonusId, 0);
+      }
+    } catch (_) {}
 
-      betAmount_ = betAmount;
-      aborted = false;
-      resetScreens();
+    const runPromise = (async () => {
+      try {
+        overlay = ensureOverlay();
 
-      sectors = buildSectors();
-      await preloadMultiplierImages();
+        // Перед началом подгружаем изображения (множители)
+        await preloadMultiplierImages();
 
-      openOverlay();
-      bindClose();
+        // Сохраняем размеры
+        canvas = overlay.querySelector("canvas");
+        ctx = canvas.getContext("2d");
 
-      const hasBet = betAmount > 0;
-      window.__bonusBackHandler = () => { 
-        // 🔥 Проверяем есть ли ставка - если да, показываем предупреждение
-        if (hasBet) {
-          const confirmClose = confirm('You have a bet on this bonus. Are you sure you want to close?');
-          if (!confirmClose) {
-            return; // Пользователь отменил закрытие
-          }
-        }
-        abortClose('closed'); 
-      };
-      prepareCanvas();
-      drawWheel();
+        betAmount_ = betAmount;
+        aborted = false;
 
-      const onResize = () => { if (!aborted) { prepareCanvas(); drawWheel(); } };
-      window.addEventListener("resize", onResize, { passive: true });
-      overlay.__wt_resize = onResize;
+        // сбросим все экраны/состояния
+        resetScreens();
 
-      stopLoop();
-      phase = "idle";
-      omega = CFG.idleOmega;
-      lastTs = performance.now();
-      raf = requestAnimationFrame(tick);
+        // построим множители/секторы
+        sectors = buildSectors();
 
-      // wait before spin
-      await sleep(CFG.appearWaitMs);
-      if (aborted) return "closed";
+        openOverlay();
+        bindClose();
 
-      // accelerate
-      phase = "accel";
-      await accelerateTo(CFG.fastOmega, CFG.accelMs);
-      if (aborted) return "closed";
+        // Back = hide (not abort)
+        window.__bonusBackHandler = () => { try { closeOverlay(); } catch (_) {} };
 
-      // choose stop index
-      const centerIdx = (Math.random() * sectors.length) | 0;
-      const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
-      const extra = randInt(CFG.extraTurnsMin, CFG.extraTurnsMax);
+        // дать браузеру отрисовать layout до измерения canvas
+        await sleep(20);
+        if (aborted) return "closed";
 
-      decelerateToCenterIndex(centerIdx, dur, extra);
+        prepareCanvas();
+        drawWheel();
 
-      return await new Promise((resolve) => {
-        resolve_ = (val) => resolve(val);
-      });
-    } finally {
-      CFG.pickCountdownSec = prevPickCountdownSec;
-      CFG.appearWaitMs = prevAppearWaitMs;
-    }
+        const onResize = () => { if (!aborted) { prepareCanvas(); drawWheel(); } };
+        overlay.__wt_resize = onResize;
+        window.addEventListener("resize", onResize);
+
+        // Запускаем rAF цикл
+        startLoop();
+
+        // Ждём немного перед стартом прокрутки (ускорение)
+        await wait(CFG.appearWaitMs);
+        if (aborted) return "closed";
+
+        // Ускоряемся
+        accelerate(CFG.accelMs);
+
+        // Ждём окончания ускорения
+        await wait(CFG.accelMs);
+        if (aborted) return "closed";
+
+        // Выбираем целевой сектор (центр)
+        const centerIdx = pickCenterIndex();
+
+        // Децелерация к центру + extra turns
+        const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
+        const extra = randInt(CFG.extraTurnsMin, CFG.extraTurnsMax);
+
+        decelerateToCenterIndex(centerIdx, dur, extra);
+
+        return await new Promise((resolve) => {
+          resolve_ = (val) => resolve(val);
+        });
+      } finally {
+        CFG.pickCountdownSec = prevPickCountdownSec;
+        CFG.appearWaitMs = prevAppearWaitMs;
+      }
+    })();
+
+    sess.key = sessionKey;
+    sess.promise = runPromise;
+    window.__bonusIsRunning = () => !!(window.__wildTimeSession && window.__wildTimeSession.promise);
+
+    runPromise.finally(() => {
+      // session cleanup + settlement unblock
+      if (window.__wildTimeSession && window.__wildTimeSession.key === sessionKey) {
+        window.__wildTimeSession.key = null;
+        window.__wildTimeSession.promise = null;
+      }
+      try { if (bonusId && typeof window.__notifyBonusOverlayDone === 'function') window.__notifyBonusOverlayDone(bonusId); } catch (_) {}
+    });
+
+    return await runPromise;
   };
 })();

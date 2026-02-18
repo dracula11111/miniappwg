@@ -52,6 +52,32 @@ class Bonus5050 {
     window.scrollTo(0, top ? -parseInt(top, 10) : this._scrollY);
   }
 
+
+  // Soft show/hide (used for Back -> hide, and Watch -> resume)
+  show() {
+    const overlay = document.getElementById('bonus5050Overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    overlay.classList.add('bonus-overlay--active');
+    this._lockScroll();
+    this._setGlobalBackHandler();
+  }
+
+  hide() {
+    const overlay = document.getElementById('bonus5050Overlay');
+    if (!overlay) return;
+
+    overlay.classList.remove('bonus-overlay--active');
+    overlay.style.display = 'none';
+
+    // Allow user to continue using the app while bonus continues in background
+    this._unlockScroll();
+
+    try {
+      if (typeof this.options.onBack === 'function') this.options.onBack();
+    } catch (_) {}
+  }
+
   _fxRoot() {
     // Keep all FX (boom/particles/flying labels) inside the bonus overlay so it only appears on Wheel page
     return (this.container && this.container.closest && this.container.closest('#bonus5050Overlay')) || this.container || document.body;
@@ -59,7 +85,7 @@ class Bonus5050 {
 
   _setGlobalBackHandler() {
     // единый обработчик для универсальной кнопки Back в оверлее
-    this._backHandler = () => this.abort();
+    this._backHandler = () => this.hide();
     window.__bonusBackHandler = this._backHandler;
   }
 

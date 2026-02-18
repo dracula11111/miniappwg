@@ -13,6 +13,7 @@ class LootRush {
       onBack: typeof options.onBack === 'function' ? options.onBack : () => {},
       durationSec: Number.isFinite(options.durationSec) ? options.durationSec : 10,
       remainingSec: Number.isFinite(options.remainingSec) ? Math.max(1, Math.ceil(options.remainingSec)) : null,
+      hasBet: options.hasBet !== false,
       
       bagFolder: options.bagFolder || '/images/lootrush/',
       bagPrefix: options.bagPrefix || 'lootbag',
@@ -71,8 +72,54 @@ class LootRush {
   }
 
 
+  _flashInsufficient(el) {
+    try {
+      if (typeof window.showInsufficientBalanceNotification === 'function') {
+        window.showInsufficientBalanceNotification();
+      }
+    } catch (_) {}
+
+    if (!el) return;
+    const _prevBox = el.style.boxShadow;
+    const _prevTf = el.style.transform;
+    el.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.95) inset, 0 0 18px rgba(239, 68, 68, 0.25)';
+    el.style.transform = 'scale(1.03)';
+    el.classList.add('insufficient-balance');
+    setTimeout(() => {
+      el.classList.remove('insufficient-balance');
+      el.style.boxShadow = _prevBox;
+      el.style.transform = _prevTf;
+    }, 800);
+  }
+
+  // Soft show/hide (Back hides overlay; Watch resumes)
+  show() {
+    const overlay = this._overlayEl();
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    overlay.classList.add('bonus-overlay--active');
+    this._setGlobalBackHandler();
+    this._lockScroll();
+  }
+
+  hide() {
+    const overlay = this._overlayEl();
+    if (!overlay) return;
+
+    overlay.classList.remove('bonus-overlay--active');
+    overlay.style.display = 'none';
+
+    // Allow user to continue using the app while bonus continues in background
+    this._unlockScroll();
+
+    try {
+      if (typeof this.options.onBack === 'function') this.options.onBack();
+    } catch (_) {}
+  }
+
+
   _setGlobalBackHandler() {
-    this._backHandler = () => this.abort();
+    this._backHandler = () => this.hide();
     window.__bonusBackHandler = this._backHandler;
   }
 
@@ -357,6 +404,11 @@ class LootRush {
     this._tiles.forEach((tile, i) => {
       tile.classList.add('lr-selectable');
       tile.onclick = () => {
+        // 👀 Watch-only mode: no bet -> can't select (show red flash + toast)
+        if (this.options.hasBet === false) {
+          this._flashInsufficient(tile);
+          return;
+        }
         if (!this._selectEnabled) return;
         this._selectedIndex = i;
         this._applySelection();
@@ -522,6 +574,17 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
   window.startLootRushBonus = window.startLootRushBonus || async function startLootRushBonus(betAmount = 0, opts = {}) {
     console.log('[LootRush] 🎁 Starting bonus with bet:', betAmount);
 
+    const bonusId = opts?.bonusId ?? null;
+    const sessions = window.__wheelBonusSessions || (window.__wheelBonusSessions = {});
+    const sessionKey = `LootRush:${bonusId || 'noid'}`;
+
+    // ✅ Reuse running session: Back hides overlay, Watch should resume (no restart)
+    const existing = sessions[sessionKey];
+    if (existing && !existing.done) {
+      try { existing.instance?.show?.(); } catch (_) {}
+      return existing.promise;
+    }
+
     // ВСЕГДА вызываем ensureBonusOverlay для проверки/создания кнопки Back
     let overlay;
     if (typeof window.ensureBonusOverlay === 'function') {
@@ -529,12 +592,12 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
     } else {
       overlay = document.getElementById('bonus5050Overlay');
     }
-    
+
     if (!overlay) {
       console.error('[LootRush] ❌ Overlay not found');
       return '1.1x';
     }
-    
+
     // Debug: проверяем наличие кнопки Back
     const backBtn = overlay.querySelector('.universal-back-btn');
     console.log('[LootRush] 🔍 Back button check:', backBtn ? '✅ Found' : '❌ Not found');
@@ -554,54 +617,71 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
       return '1.1x';
     }
 
+    const hasBet = opts?.hasBet ?? (betAmount > 0);
     const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 10;
+    const remainingSec = Number.isFinite(opts?.remainingSec) ? Math.max(1, Math.ceil(opts.remainingSec)) : null;
 
-    return new Promise((resolve) => {
-      const bonus = new LootRush(container, {
-        durationSec: durationSec,
-        bagFolder: '/images/lootrush/',
-        bagPrefix: 'lootbag',
-        bagExt: '.png',
+    let resolvePromise;
+    const p = new Promise((resolve) => { resolvePromise = resolve; });
 
-        onComplete: (xStr, mult) => {
-          console.log('[LootRush] ✅ Completed:', xStr, 'multiplier:', mult);
+    sessions[sessionKey] = { promise: p, done: false, instance: null };
 
-          const currency = window.currentCurrency || 'ton';
-          const m = Number(mult);
-          const bet = Number(betAmount) || 0;
+    const bonus = new LootRush(container, {
+      durationSec: durationSec,
+      remainingSec: remainingSec,
+      hasBet,
 
-          if (bet > 0 && Number.isFinite(m)) {
-            const rawWin = bet * m;
-            const winAmount = (currency === 'stars') 
-              ? Math.round(rawWin) 
-              : +rawWin.toFixed(2);
+      bagFolder: '/images/lootrush/',
+      bagPrefix: 'lootbag',
+      bagExt: '.png',
 
-            console.log('[LootRush] 💰 Win:', winAmount, currency);
+      // Back = hide (resume later) — do not resolve/cancel
+      onBack: () => {},
 
-            if (typeof window.showWinNotification === 'function') {
-              try {
-                window.showWinNotification(winAmount);
-              } catch (e) {
-                console.error('[LootRush] Notification error:', e);
-              }
-            }
+      onComplete: (xStr, mult) => {
+        console.log('[LootRush] ✅ Completed:', xStr, 'multiplier:', mult);
 
-            if (window.TEST_MODE && typeof window.addWinAmount === 'function') {
-              try {
-                window.addWinAmount(winAmount, currency);
-              } catch (e) {
-                console.error('[LootRush] Balance error:', e);
-              }
+        const currency = window.currentCurrency || 'ton';
+        const m = Number(mult);
+        const bet = Number(betAmount) || 0;
+
+        if (bet > 0 && Number.isFinite(m)) {
+          const rawWin = bet * m;
+          const winAmount = (currency === 'stars') 
+            ? Math.round(rawWin) 
+            : +rawWin.toFixed(2);
+
+          console.log('[LootRush] 💰 Win:', winAmount, currency);
+
+          if (typeof window.showWinNotification === 'function') {
+            try {
+              window.showWinNotification(winAmount);
+            } catch (e) {
+              console.error('[LootRush] showWinNotification error:', e);
             }
           }
 
-          resolve(xStr);
+          if (typeof window.addWinAmount === 'function') {
+            try {
+              window.addWinAmount(winAmount, currency);
+            } catch (e) {
+              console.error('[LootRush] Balance error:', e);
+            }
+          }
         }
-      });
 
-      bonus.start();
+        // mark session done
+        if (sessions[sessionKey]) {
+          sessions[sessionKey].done = true;
+          try { delete sessions[sessionKey]; } catch (_) {}
+        }
+
+        resolvePromise(xStr);
+      }
     });
-  };
 
-  console.log('[LootRush] ✅ startLootRushBonus function exported');
+    sessions[sessionKey].instance = bonus;
+    bonus.start();
+    return p;
+  };  console.log('[LootRush] ✅ startLootRushBonus function exported');
 })();

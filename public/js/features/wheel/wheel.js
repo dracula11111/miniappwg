@@ -440,21 +440,20 @@ function applyWheelServerState(state) {
         }
       } catch (_) {}
 
-      // 🔥 КРИТИЧНО: автооткрытие только если бонус только начался И есть ставка
+      // 🔥 КРИТИЧНО: автооткрытие для ВСЕХ игроков, даже без ставки
       // Используем elapsedMs или remainingMs с сервера для точной проверки
       const elapsedMs = state.bonus?.elapsedMs ?? getBonusElapsedMs(state.bonus);
       const hasEnoughTimeLeft = !Number.isFinite(elapsedMs) || elapsedMs < 2000;
       
-      if (isWheelPageActive()) {
+      if (isWheelPageActive() && hasEnoughTimeLeft) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
-        if (myBet > 0) {
-          // 🔥 ИСПРАВЛЕНИЕ: отмечаем что оверлей будет открыт для этого бонуса
-          window.__bonusOverlayOpenedFor = nowBonusId;
-          
-          setTimeout(() => {
-            openBonusOverlay(state.bonus.type, myBet, state.bonus).catch(() => {});
-          }, 500);
-        }
+        
+        // 🔥 ИСПРАВЛЕНИЕ: открываем бонус для всех (даже с myBet = 0)
+        window.__bonusOverlayOpenedFor = nowBonusId;
+        
+        setTimeout(() => {
+          openBonusOverlay(state.bonus.type, myBet, state.bonus).catch(() => {});
+        }, 500);
       }
     }
   }
@@ -466,10 +465,9 @@ function applyWheelServerState(state) {
     setOmega(0, { force: true });
     hideWheelBonusBar();
 
-    // when bonus ends -> close overlay to return to wheel
-    if (prevPhase === 'bonus' && state.phase !== 'bonus') {
-      closeBonusOverlayIfOpen();
-    }
+    // NOTE: do NOT force-close bonus overlays on phase switch.
+    // Let the client-side bonus animation finish naturally based on remaining time.
+    // (Fixes: bonus overlay getting cut off when server moves to result phase.)
   }
 
   // Start spin strictly by server
@@ -2607,8 +2605,10 @@ function showWheelBonusBar(bonus) {
     if (btn) {
       btn.onclick = async () => {
         try {
+          // 🔥 ИСПРАВЛЕНИЕ: используем актуальное состояние из wheelServerState
+          const currentBonus = wheelServerState?.bonus || bonus;
           const myBet = getMyBetAmountFromServer(wheelServerState?.players, type);
-          await openBonusOverlay(type, myBet, bonus);
+          await openBonusOverlay(type, myBet, currentBonus);
         } catch (e) {
           console.warn('[Wheel] Watch bonus failed', e);
         }
@@ -2699,6 +2699,7 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   // 🔥 КРИТИЧНО: передаём hasBet для корректной работы бонусов
   const hasBet = betAmount > 0;
   const bonusOpts = {
+    bonusId: bonusState?.id ?? null,
     hasBet,
     durationSec: (bonusState?.durationMs ? Math.ceil(bonusState.durationMs / 1000) : 12),
     remainingSec: remainingSec || null
@@ -3475,8 +3476,9 @@ function getMultiplier(type) {
             overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
             overlay.style.display = 'none';
 
-            const container = overlay.querySelector('.bonus-container');
-            if (container) container.innerHTML = '';
+            // Keep DOM so an in-progress bonus can resume if user re-opens it
+            // const container = overlay.querySelector('.bonus-container');
+            // if (container) container.innerHTML = '';
           }, 300);
         });
       }
@@ -3520,8 +3522,9 @@ function getMultiplier(type) {
           overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
           overlay.style.display = 'none';
 
-          const container = overlay.querySelector('.bonus-container');
-          if (container) container.innerHTML = '';
+          // Keep DOM so an in-progress bonus can resume if user re-opens it
+          // const container = overlay.querySelector('.bonus-container');
+          // if (container) container.innerHTML = '';
 
           document.documentElement.classList.remove('bonus-active');
           document.body.classList.remove('bonus-active');
@@ -3570,52 +3573,61 @@ function getMultiplier(type) {
     const overlay = ensureBonusOverlay();
     const container = overlay.querySelector('.bonus-container') || overlay;
 
+    const bonusId = opts?.bonusId ?? null;
+    const sessions = window.__wheelBonusSessions || (window.__wheelBonusSessions = {});
+    const sessionKey = `50&50:${bonusId || 'noid'}`;
+
+    // ✅ Reuse running session: Back hides overlay, Watch should resume (no restart)
+    const existing = sessions[sessionKey];
+    if (existing && !existing.done) {
+      wheelBonusOverlayActive = true;
+      try { existing.instance?.show?.(); } catch (_) {}
+      return existing.promise;
+    }
+
     await ensureBonusClass();
 
-    // 🔥 ИСПРАВЛЕНИЕ: используем hasBet из opts
     const hasBet = opts?.hasBet ?? (betAmount > 0);
     const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 12;
 
-    // 🔥 Отмечаем что оверлей активен
     wheelBonusOverlayActive = true;
 
-    return await new Promise((resolve) => {
-      const bonus = new window.Bonus5050(container, {
-        boomSrc: 'images/boom.webp',
-        particlesSrc: 'images/boomparticles.webp',
-        lightningIcon: 'icons/lighting.webp',
-        backIcon: 'icons/back.svg',
-        hasBet: hasBet, // ✅ Передаем флаг наличия ставки
-        durationSec: durationSec,
-        remainingSec: opts?.remainingSec || null,
-        
-        // Callback при завершении бонуса
-        onComplete: (result) => {
-          console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);
-          wheelBonusOverlayActive = false;  // 🔥 оверлей закрыт
-          resolve(result);
-        },
-        
-        // ✅ Callback при нажатии кнопки Back
-        onBack: () => {
-          // 🔥 Проверяем есть ли ставка - если да, показываем предупреждение
-          if (hasBet) {
-            const confirmClose = confirm('You have a bet on this bonus. Are you sure you want to close?');
-            if (!confirmClose) {
-              return; // Пользователь отменил закрытие
-            }
-          }
-          
-          console.log('[Wheel] ⬅️ User cancelled bonus 50/50');
-          wheelBonusOverlayActive = false;  // 🔥 оверлей закрыт
-          resolve('cancelled');
-        }
-      });
+    let resolvePromise;
+    const p = new Promise((resolve) => { resolvePromise = resolve; });
 
-      bonus.start();
+    sessions[sessionKey] = { promise: p, done: false, instance: null };
+
+    const bonus = new window.Bonus5050(container, {
+      boomSrc: 'images/boom.webp',
+      particlesSrc: 'images/boomparticles.webp',
+      lightningIcon: 'icons/lighting.webp',
+      backIcon: 'icons/back.svg',
+      hasBet,
+      durationSec,
+      remainingSec: opts?.remainingSec || null,
+
+      onComplete: (result) => {
+        console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);
+        wheelBonusOverlayActive = false;
+
+        if (sessions[sessionKey]) {
+          sessions[sessionKey].done = true;
+          try { delete sessions[sessionKey]; } catch (_) {}
+        }
+
+        resolvePromise(result);
+      },
+
+      // ✅ Back now means "hide" (resume later), NOT cancel/restart
+      onBack: () => {
+        wheelBonusOverlayActive = false;
+      }
     });
-  };
-})();
+
+    sessions[sessionKey].instance = bonus;
+    bonus.start();
+    return p;
+  };})();
 
 console.log('[Wheel] ✅ Notification functions loaded');
 console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
