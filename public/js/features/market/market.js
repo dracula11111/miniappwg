@@ -278,7 +278,8 @@
 
     <div class="market-card__pricePill">
       <img class="market-card__priceIcon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
-      <span>${formatPrice(price)}</span>
+      <span>${formatDisplayPrice(price)}</span>
+
     </div>
   `;
 
@@ -409,6 +410,16 @@ function formatBuyPrice(tonPrice) {
   // TON
   return { num: formatPrice(tonPrice), icon: currencyIconPath('ton') };
 }
+function formatDisplayPrice(tonPrice) {
+  if (!Number.isFinite(tonPrice) || tonPrice <= 0) return '—';
+
+  if (state.currency === 'stars') {
+    const stars = Math.max(1, Math.floor(tonPrice * getStarsPerTon() + 1e-9));
+    return String(stars);
+  }
+
+  return formatPrice(tonPrice); // TON
+}
 
 function openGiftDrawer(gift) {
   ensureGiftDrawer();
@@ -497,16 +508,15 @@ function openGiftDrawer(gift) {
     const next = getCurrency();
     if (next === state.currency) return;
     state.currency = next;
-
-    // Only update icons (no need to rebuild everything)
-    const page = document.getElementById('marketPage');
-    if (!page) return;
-    const icons = page.querySelectorAll('.market-card__priceIcon');
-    const src = currencyIconPath(next);
-    icons.forEach((img) => {
-      img.src = src;
-    });
+  
+    // было: обновляли только иконки
+    // стало: ререндерим, чтобы пересчитались и цифры, и иконки
+    renderMarket();
+  
+    // если открыт фильтр — тоже обновим список, чтобы цены/иконки там совпали
+    try { window.marketFilter?.refresh?.(); } catch (_) {}
   }
+  
 
   function getCurrency() {
     // Try: active button in profile
@@ -1110,23 +1120,23 @@ function createFilterItem(cat) {
     <img class="market-filter-item__icon" src="${escapeHtml(previewSrc)}" alt="${escapeHtml(name)}">
     <span class="market-filter-item__name">${escapeHtml(name)}</span>
     <div class="market-filter-item__price">
-      <img class="market-filter-item__price-icon" src="${escapeHtml(ICONS.tonWhite)}" alt="">
-      <span>${formatPrice(floor)}</span>
+      <img class="market-filter-item__price-icon" src="${escapeHtml(currencyIconPath(getCurrency()))}" alt="">
+        <span>${formatDisplayPrice(floor)}</span>
+
     </div>
     <div class="market-filter-item__checkbox"></div>
   `;
 
   item.addEventListener('click', () => {
     if (filterState.selectedKeys.has(cat.key)) {
-      filterState.selectedKeys.clear();
+      filterState.selectedKeys.delete(cat.key);
     } else {
-      // single-select as requested (show only one gift model)
-      filterState.selectedKeys.clear();
       filterState.selectedKeys.add(cat.key);
     }
     renderFilterList();
     updateShowButton();
   });
+  
 
   return item;
 }
@@ -1258,6 +1268,7 @@ function updatePillIndicator(isFiltered) {
     window.marketFilter = {
       open: openFilterPanel,
       apply: applyFilter,
+      refresh: () => { renderFilterList(); updateShowButton(); },
       clear: () => {
         filterState.selectedKeys.clear();
         applyFilter();

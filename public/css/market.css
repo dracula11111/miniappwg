@@ -104,15 +104,18 @@
   width: 14px;
   height: 14px;
   opacity: 0.45;
+  filter: brightness(0) invert(1);
   transition: opacity .12s ease, transform .12s ease;
 }
 
 .market-pill[data-sort="asc"] .market-arrow--up {
   opacity: 1;
+  filter: brightness(0) invert(1);
 }
 
 .market-pill[data-sort="desc"] .market-arrow--down {
   opacity: 1;
+  filter: brightness(0) invert(1);
 }
 
 /* Grid */
