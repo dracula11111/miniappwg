@@ -4987,55 +4987,96 @@ html[data-currency="stars"] .profile-ava,
    PROMOCODE PANEL + LIQUID GLASS TOAST
    ============================================ */
 
-.promo-card{
-  margin-top:12px;
-  border-radius:18px;
-  padding:14px;
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.18);
+/* === Promo-блок встроен внутрь wallet-card — стили как часть карточки === */
+
+.wallet-card .promo-card {
+  /* Сброс всех "отдельной панели" стилей */
+  width: auto;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Разделитель сверху промо-блока (как горизонтальная линия внутри карточки) */
+.wallet-card .promo-card::before {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 12px 0 14px;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .promo-title{
-  font-weight:800;
-  font-size:14px;
-  opacity:0.95;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0;
 }
 
 .promo-row{
-  display:flex;
-  gap:10px;
-  margin-top:10px;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .promo-input{
-  flex:1;
-  height:42px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.12);
-  background: rgba(0,0,0,0.18);
-  color:#fff;
-  padding:0 12px;
-  outline:none;
+  flex: 1;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  padding: 0 14px;
+  outline: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.promo-input:focus{
+  border-color: rgba(42, 168, 255, 0.45);
+  background: rgba(42, 168, 255, 0.07);
+}
+
+.promo-input::placeholder{
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .promo-btn{
-  height:42px;
-  border-radius:14px;
-  padding:0 14px;
-  border:1px solid rgba(255,255,255,0.14);
-  background: rgba(255,255,255,0.08);
-  color:#fff;
-  font-weight:800;
-  cursor:pointer;
-  white-space:nowrap;
+  height: 44px;
+  border-radius: 14px;
+  padding: 0 16px;
+  border: 0;
+  background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
+  box-shadow: 0 6px 18px rgba(17, 140, 255, 0.28);
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.promo-btn:active{
+  transform: translateY(1px);
 }
 
 .promo-btn:disabled{
-  opacity:0.55;
-  cursor:default;
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Liquid glass toast */

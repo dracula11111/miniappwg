@@ -2130,7 +2130,8 @@ app.post("/api/round/place-bet", async (req, res) => {
     const { bets, currency, roundId, initData } = req.body || {};
     
     // Check authorization
-    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+    const maxAgeSec = Math.max(60, Math.min(30*24*60*60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400));
+  const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
     if (!check.ok) {
       return res.status(401).json({ ok: false, error: "unauthorized" });
     }
@@ -2952,7 +2953,8 @@ function requireTelegramUser(req, res, next) {
   if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
   if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
 
-  const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+  const maxAgeSec = Math.max(60, Math.min(30*24*60*60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400));
+  const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
   if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
 
   let user = null;

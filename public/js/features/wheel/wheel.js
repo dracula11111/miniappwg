@@ -1,7 +1,7 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+const TEST_MODE = true;   // ← В ПРОДЕ false. Для теста руками поставь true.
 window.TEST_MODE = TEST_MODE;
 
 
@@ -405,7 +405,7 @@ function applyWheelServerState(state) {
   }
 
   // Players list + History from server (so refresh does NOT reset UI)
-  renderWheelPlayersFromServer(state.players);
+  renderWheelPlayers(state.players);
   renderWheelHistoryFromServer(state.history);
 
   // Restore my bet pills after refresh / reconnect
@@ -2899,11 +2899,28 @@ function renderWheelPlayers(players) {
     const sumText = formatWheelAmount(p.totalAmount, p.currency || currentCurrency);
 
     const segs = Array.isArray(p.segments) ? p.segments : [];
-    const segIcons = segs.map(seg => {
-      const src = __WHEEL_HISTORY_ICONS[seg] || '/images/history/1.1x_small.png';
+    const segIcons = segs.map(segEntry => {
+      const segName = (typeof segEntry === 'string')
+        ? segEntry
+        : (segEntry?.segment || segEntry?.name || segEntry?.type);
+
+      const key = normSeg(segName);
+      if (!key) return '';
+
+      const src = __WHEEL_HISTORY_ICONS[key] || '/images/history/1.1x_small.png';
+
+      // Server can send per-segment amount (objects). We render it as a small badge.
+      const hasAmt = (typeof segEntry === 'object') && segEntry && Number.isFinite(Number(segEntry.amount));
+      const amt = hasAmt ? Number(segEntry.amount) : null;
+      const cur = p.currency || currentCurrency;
+      const amtText = hasAmt ? formatWheelAmount(amt, cur) : '';
+
+      const title = hasAmt ? `${key}: ${amtText}` : key;
+
       return `
-        <div class="wheel-player-pill__segIcon" title="${seg}">
-          <img src="${src}" alt="${seg}" />
+        <div class="wheel-player-pill__segIcon" title="${title}">
+          <img src="${src}" alt="${key}" />
+          ${hasAmt ? `<span class="wheel-player-pill__segAmt">${amtText}</span>` : ``}
         </div>
       `;
     }).join('');
@@ -2965,12 +2982,21 @@ function hidePlayersPanelCounter() {
   }
 }
 
+function getWheelPlayersForPanel() {
+  // Server is the source of truth when WS is connected.
+  const serverPlayers = wheelServerState?.players;
+  if (Array.isArray(serverPlayers)) return serverPlayers;
+
+  // Fallback: show local snapshot (e.g. before WS connected)
+  return getWheelPlayersSnapshot();
+}
+
 function showWheelPlayersPanel() {
   // CSS shows/hides the panel. Here we only render актуальные данные.
   if (!wheelPlayersPanel) return;
-  const players = getWheelPlayersSnapshot();
+  const players = getWheelPlayersForPanel();
   renderWheelPlayers(players);
-  
+
   // 🔥 Скрываем счётчик "0" в правом углу панели
   hidePlayersPanelCounter();
 }

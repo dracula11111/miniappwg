@@ -241,7 +241,22 @@
 
   function pickCenterIndex() {
     if (!sectors || sectors.length === 0) return 0;
-    return randInt(0, sectors.length - 1);
+    const N = sectors.length;
+    const off = CFG.pointerOffsetSectors;
+
+    // Exclude indices where all three pointers would show the same multiplier
+    const valid = [];
+    for (let i = 0; i < N; i++) {
+      const leftMult  = sectors[mod(i - off, N)];
+      const centerMult = sectors[i];
+      const rightMult = sectors[mod(i + off, N)];
+      if (!(leftMult === centerMult && centerMult === rightMult)) {
+        valid.push(i);
+      }
+    }
+
+    if (valid.length === 0) return randInt(0, N - 1); // fallback (shouldn't happen)
+    return valid[randInt(0, valid.length - 1)];
   }
 
   function resetScreens() {
@@ -644,6 +659,9 @@
   }
 
   async function tweenJar(el, x, y, rotDeg, ms) {
+    // Kill float animation before applying a positional transition
+    el.classList.remove("wt-jarBtn--floating");
+    el.style.marginTop = "";
     el.style.transition = `transform ${ms}ms cubic-bezier(0.22,0.75,0.12,1), opacity 220ms ease`;
     setJarVars(el, x, y, rotDeg, 0, 1);
     await sleep(ms);
@@ -736,17 +754,48 @@
     const coverPad = clamp(jarH * 0.06, 10, 18);
     const slotYs = multRects.map((m) => clamp(m.bottom - jarH + coverPad, 0, rowRect.height - jarH));
 
-    // appear / drop
-    for (const j of jars) {
+    // ── SIMULTANEOUS DROP: position all jars above screen, then drop together ──
+    const dropOffscreenY = -(jarH * 1.4); // start fully above row
+
+    jars.forEach((j) => {
       const x = slotXs[j.pos] - jarW / 2;
       const y = slotYs[j.pos];
-      j.el.style.opacity = "1";
-      await tweenJar(j.el, x, y - 22, 0, 130);
-      await tweenJar(j.el, x, y, 0, CFG.jarAppearMs);
-    }
+      j.dropX = x;
+      j.dropY = y;
+      // Place above, invisible
+      setJarVars(j.el, x, dropOffscreenY, 0, 0, 0);
+    });
+
+    // Let browser paint the off-screen position before starting animation
+    await sleep(24);
+    if (aborted) return "aborted";
+
+    // Make all visible, then drop them all at once
+    jars.forEach((j) => { j.el.style.opacity = "1"; });
+
+    // Phase 1: quick drop onto X positions (with slight overshoot via easing)
+    await Promise.all(
+      jars.map((j) => tweenJar(j.el, j.dropX, j.dropY, 0, CFG.jarAppearMs))
+    );
+
+    // Phase 2: subtle bounce settle
+    await Promise.all(
+      jars.map((j) => tweenJar(j.el, j.dropX, j.dropY - 6, 0, 110))
+    );
+    await Promise.all(
+      jars.map((j) => tweenJar(j.el, j.dropX, j.dropY, 0, 140))
+    );
+
+    // Phase 3: gentle floating hover while jars "sit" over the Xs
+    jars.forEach((j) => j.el.classList.add("wt-jarBtn--floating"));
 
     // SHUFFLE (stronger)
     hint.textContent = "Shuffling...";
+    // Stop float animation cleanly before shuffle movement
+    jars.forEach((j) => {
+      j.el.classList.remove("wt-jarBtn--floating");
+      j.el.style.marginTop = "";
+    });
     jars.forEach((j) => j.el.classList.add("wt-jarBtn--shuffling"));
 
     // we shuffle by applying full random permutations each step
