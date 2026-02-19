@@ -219,6 +219,24 @@ function peerUserId(peer) {
   if (peer?.value != null) return String(peer.value);
   return null;
 }
+function peerKey(peer) {
+  if (!peer) return "p0";
+  try {
+    // GramJS peers can be PeerUser / PeerChannel / PeerChat
+    if (peer instanceof Api.PeerUser || peer.userId != null || peer.user_id != null) {
+      return `u${String(peer.userId ?? peer.user_id ?? peer.value ?? "")}`;
+    }
+    if (peer instanceof Api.PeerChat || peer.chatId != null || peer.chat_id != null) {
+      return `c${String(peer.chatId ?? peer.chat_id ?? peer.value ?? "")}`;
+    }
+    if (peer instanceof Api.PeerChannel || peer.channelId != null || peer.channel_id != null) {
+      return `ch${String(peer.channelId ?? peer.channel_id ?? peer.value ?? "")}`;
+    }
+    if (peer?.value != null) return `v${String(peer.value)}`;
+  } catch {}
+  return `p${String(peer).replace(/[^a-zA-Z0-9]/g, "").slice(0, 24) || "0"}`;
+}
+
 
 function actionFromId(action) {
   // For gifts actions Telegram puts sender in action.fromId (Peer)
@@ -293,7 +311,7 @@ async function addToMarket({ item }) {
   return await postJson(url, { item }, headers);
 }
 
-async function run() {
+async function run({ mode = "run" } = {}) {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
   if (!INLINE_IMAGES) ensureDir(IMG_DIR);
 
@@ -308,9 +326,12 @@ async function run() {
 
   const processed = new Set();
 
-  async function handleGiftMessage(msg, origin = "RAW") {
+  async function handleGiftMessage(msg, origin = "RAW", { notify = true } = {}) {
     if (!msg || msg.id == null) return;
-    const key = String(msg.id);
+    const peerK = peerKey(msg.peerId);
+    const msgId = String(msg.id);
+    const eventKey = `tg_${peerK}_${msgId}`;
+    const key = `${peerK}:${msgId}`;
     if (processed.has(key)) return;
     processed.add(key);
 
@@ -415,14 +436,17 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
         name: assets.patternName || null,
         image: patternDataUrl || ""
       } : null,
-      backdrop: assets.backdrop || null
+      backdrop: assets.backdrop || null,
+      peerKey: peerK,
+      messageId: msgId,
+      eventKey
     };
 
-    const instanceId = `tg_gift_${fromId}_${String(msg.id)}`;
+    const instanceId = `tg_gift_${eventKey}`;
 
     const inventoryItem = {
       type: "nft",
-      id: `nft_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
+      id: `nft_${slug || giftId || "gift"}_${peerK}_${msgId}`,
       name: title,
       displayName: title,
       icon: fragmentPreviewUrl || (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
@@ -433,7 +457,8 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
     };
 
     const marketItem = {
-      id: `m_${slug || giftId || "gift"}_${String(num ?? msg.id)}`,
+      id: `m_${slug || giftId || "gift"}_${String(num ?? "n")}_${peerK}_${msgId}`,
+      sourceKey: eventKey,
       name: title,
       number: numberText,
       image: (preferFragmentPreview ? "" : (imageUrl || "")),
@@ -443,7 +468,7 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
       tg: tgPayload
     };
 
-    const claimId = `tg_${fromId}_${String(msg.id)}`;
+    const claimId = `claim_${eventKey}`;
 
 
     try {
@@ -455,7 +480,9 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
           return;
         }
         console.log(`[Relayer] ✅ Market +1: ${title} #${numberText || "—"} (from ${fromId})`);
-        await client.sendMessage(fromId, { message: `✅ Added to Market: ${title}${numberText ? ` #${numberText}` : ""}` });
+        if (notify) {
+          await client.sendMessage(fromId, { message: `✅ Added to Market: ${title}${numberText ? ` #${numberText}` : ""}` });
+        }
       } else {
         r = await addToInventory({ userId: fromId, item: inventoryItem, claimId });
         if (!r.ok) {
@@ -463,14 +490,60 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
           return;
         }
         console.log(`[Relayer] ✅ Inventory +1: ${title} (to ${fromId})`);
-        await client.sendMessage(fromId, { message: `✅ Gift added to your inventory: ${title}${numberText ? ` #${numberText}` : ""}` });
+        if (notify) {
+          await client.sendMessage(fromId, { message: `✅ Gift added to your inventory: ${title}${numberText ? ` #${numberText}` : ""}` });
+        }
       }
     } catch (e) {
       console.log("[Relayer] ❌ handler error:", e?.message || e);
     }
   }
 
-  // 1) RAW updates (гifts часто приходят именно так)
+    // One-shot sync: scan recent dialogs/messages and (re)push gift actions to the server.
+  // Useful to восстановить маркет после бага — без новых переводов (всё идемпотентно по id/claimId).
+  if (mode === "sync") {
+    const dialogsLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_DIALOGS) || 60));
+    const perDialogLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_LIMIT) || 50));
+
+    console.log(`[Relayer][SYNC] 🔎 Scanning dialogs=${dialogsLimit}, perDialogMessages=${perDialogLimit}...`);
+    let scanned = 0;
+    let gifts = 0;
+
+    let dialogs = [];
+    try {
+      dialogs = await client.getDialogs({ limit: dialogsLimit });
+    } catch (e) {
+      console.log("[Relayer][SYNC] ❌ getDialogs failed:", e?.message || e);
+      dialogs = [];
+    }
+
+    for (const d of dialogs) {
+      const entity = d?.entity || d;
+      let msgs = [];
+      try {
+        msgs = await client.getMessages(entity, { limit: perDialogLimit });
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(msgs) || !msgs.length) continue;
+
+      scanned += msgs.length;
+
+      // process from старых к новым, чтобы лог был понятнее
+      for (const m of msgs.slice().reverse()) {
+        if (m?.action) {
+          gifts++;
+          await handleGiftMessage(m, "SYNC", { notify: false });
+        }
+      }
+    }
+
+    console.log(`[Relayer][SYNC] ✅ Done. scanned=${scanned}, gifts=${gifts}`);
+    try { await client.disconnect(); } catch {}
+    return;
+  }
+
+// 1) RAW updates (гifts часто приходят именно так)
   client.addEventHandler(async (update) => {
     if (!update) return;
 
@@ -525,6 +598,8 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
 
 if (CMD === "login") {
   login().catch((e) => die(e?.stack || e?.message || String(e)));
+} else if (CMD === "sync") {
+  run({ mode: "sync" }).catch((e) => die(e?.stack || e?.message || String(e)));
 } else {
   run().catch((e) => die(e?.stack || e?.message || String(e)));
 }

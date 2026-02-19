@@ -618,28 +618,26 @@
     return null;
   }
   
-  async function sellOne(key) {
+    async function sellOne(key) {
     const currency = getCurrency();
     const user = getTelegramUser();
     const userId = user.id;
-  
+
     const found = findInventoryItemByKey(key);
     if (!found) return;
-  
+
     const item = found.item;
-    const value = itemValue(item, currency);
-  
-    // ВАЖНО: сервер /api/inventory/sell ждёт instanceIds
     const instanceId = item?.instanceId ? String(item.instanceId) : null;
     if (!instanceId) {
       showToast('Sell error: instanceId not found');
       return;
     }
-  
-    let serverOk = false;
-  
+
+    let r = null;
+    let j = null;
+
     try {
-      const r = await tgFetch('/api/inventory/sell', {
+      r = await tgFetch('/api/inventory/sell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -647,40 +645,32 @@
           instanceIds: [instanceId]
         })
       });
-      
-  
-      if (r.ok) {
-        const j = await r.json().catch(() => null);
-        if (j && j.ok === true) {
-          serverOk = true;
-  
-          // сервер возвращает items/nfts + newBalance
-          const items = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : null);
-          if (items) writeLocalInventory(userId, items);
-  
-          if (typeof j.newBalance === 'number') {
-            setBalance(currency, j.newBalance);
-          }
-        }
-      }
-    } catch {}
-  
-    // локальный fallback
-    let j = null;
-    try { j = await r.json(); } catch {}
-    
-    if (!r.ok || !j?.ok) {
-      showToast(j?.error || `Sell failed (${r.status})`);
+
+      j = await r.json().catch(() => null);
+    } catch (e) {
+      showToast('Sell failed (network)');
       return;
     }
-    serverOk = true;
-    
-  
+
+    if (!r || !r.ok || !j?.ok) {
+      showToast(j?.error || `Sell failed (${r?.status || 0})`);
+      return;
+    }
+
+    // сервер возвращает items/nfts + newBalance
+    const items = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : null);
+    if (items) writeLocalInventory(userId, items);
+
+    if (typeof j.newBalance === 'number') {
+      setBalance(currency, j.newBalance);
+    }
+
+    // обновляем UI сразу (без перезагрузки приложения)
     await loadInventory();
     setupPromocode();
     haptic('medium');
   }
-  
+
   function onInventoryClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;

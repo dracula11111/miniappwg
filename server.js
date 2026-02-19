@@ -2332,10 +2332,52 @@ function fragmentMediumPreviewUrlFromSlug(slug) {
 }
 
 
+
+
+// ====== MARKET STORAGE BACKEND (DB-first, file fallback) ======
+// If DB module exposes getMarketItems/addMarketItem/clearMarketItems we use it (Supabase/Postgres),
+// otherwise we fall back to the JSON file store.
+async function marketGetItems(limit = 200) {
+  if (db && typeof db.getMarketItems === "function") {
+    return await db.getMarketItems(limit);
+  }
+  return await readMarketItems();
+}
+
+async function marketAddItem(item) {
+  if (db && typeof db.addMarketItem === "function") {
+    await db.addMarketItem(item);
+    return item;
+  }
+  // fallback to file-store (single-process lock)
+  return await withMarketLock(async () => {
+    const items = await marketGetItems(5000);
+    const filtered = items.filter(x => String(x?.id) !== String(item.id));
+    filtered.unshift(item);
+
+    const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+    if (filtered.length > MAX) filtered.length = MAX;
+
+    const ok = await writeMarketItems(filtered);
+    if (!ok) throw new Error("write failed");
+    return item;
+  });
+}
+
+async function marketClearAll() {
+  if (db && typeof db.clearMarketItems === "function") {
+    await db.clearMarketItems();
+    return true;
+  }
+  // fallback to file-store (single-process lock)
+  await withMarketLock(() => writeMarketItems([]));
+  return true;
+}
+
 // List (new)
 app.get("/api/market/items/list", async (req, res) => {
   try {
-    const items = await readMarketItems();
+    const items = await marketGetItems(5000);
     const rate = await getTonUsdRate();
     const tonUsd = rate?.tonUsd;
 
@@ -2369,7 +2411,7 @@ app.get("/api/market/items/list", async (req, res) => {
 app.get("/api/market/items", async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 200));
-    const items = await readMarketItems();
+    const items = await marketGetItems(5000);
     const rate = await getTonUsdRate();
     const tonUsd = rate?.tonUsd;
 
@@ -2407,7 +2449,7 @@ app.post("/api/market/items/add", async (req, res) => {
     const item = req.body?.item;
     if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
 
-    const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
+    const id = safeMarketString(item.id, 256) || `m_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     const name = safeMarketString(item.name, 120) || "Gift";
     const number = safeMarketString(item.number, 32) || "";
     const createdAt = Number(item.createdAt || Date.now());
@@ -2416,7 +2458,9 @@ app.post("/api/market/items/add", async (req, res) => {
     // image: allow either a normal /images/... path OR a dataURL in image/imageData
     const data = String(item.imageData || "").trim() || (typeof item.image === "string" && item.image.trim().startsWith("data:") ? item.image.trim() : "");
     let image = safeMarketImagePath(item.image);
-    if (data) {
+    // In production avoid saving base64 images to ephemeral filesystem.
+    // Prefer Fragment previewUrl (or provided image URL) instead.
+    if (data && !IS_PROD) {
       const saved = saveMarketImageFromData(data, name);
       if (saved) image = saved;
     }
@@ -2437,24 +2481,10 @@ app.post("/api/market/items/add", async (req, res) => {
     delete out.imageData;
     delete out.previewData;
 
-    const saved = await withMarketLock(async () => {
-      const items = await readMarketItems();
-    
-      // дедуп: если такой id уже есть — убираем старую запись
-      const filtered = items.filter(x => String(x?.id) !== String(out.id));
-      filtered.unshift(out);
-    
-      const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
-      if (filtered.length > MAX) filtered.length = MAX;
-    
-      const ok = await writeMarketItems(filtered);
-      if (!ok) throw new Error("write failed");
-      return out;
-    });
-    
+    const saved = await marketAddItem(out);
+
     return res.json({ ok: true, item: saved });
-    
-  } catch (e) {
+    } catch (e) {
     console.error("[MarketStore] add error:", e);
     return res.status(500).json({ ok: false, error: "market add error" });
   }
@@ -2464,7 +2494,7 @@ app.post("/api/market/items/add", async (req, res) => {
 app.post("/api/market/items/clear", async (req, res) => {
   try {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
-    await withMarketLock(() => writeMarketItems([]));
+    await marketClearAll();
     return res.json({ ok: true });
   } catch (e) {
     console.error("[MarketStore] clear error:", e);

@@ -77,10 +77,8 @@
     const pricePill = page.querySelector('#marketPillPrice');
 
     if (giftsPill) {
-      giftsPill.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        try { window.marketFilter?.open?.(); } catch (_) {}
+      giftsPill.addEventListener('click', () => {
+        giftsPill.classList.toggle('is-open');
       });
     }
 
@@ -226,9 +224,6 @@
       const card = buildGiftCard(gift, i);
       grid.appendChild(card);
     }
-
-    // Re-apply gift filter after re-render (sorting/currency changes rebuild DOM)
-    try { window.marketFilter?.apply?.(); } catch (_) {}
   }
 
   function buildGiftCard(gift, index) {
@@ -252,7 +247,6 @@
   }
 
   btn.dataset.id = String(gift.id || '');
-  btn.dataset.nameKey = normalizeKey(gift?.name);
 
   const number = safeText(gift.number, 32);
   const price = resolvePriceTon(gift);
@@ -278,8 +272,7 @@
 
     <div class="market-card__pricePill">
       <img class="market-card__priceIcon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
-      <span>${formatDisplayPrice(price)}</span>
-
+      <span>${formatPrice(price)}</span>
     </div>
   `;
 
@@ -410,16 +403,6 @@ function formatBuyPrice(tonPrice) {
   // TON
   return { num: formatPrice(tonPrice), icon: currencyIconPath('ton') };
 }
-function formatDisplayPrice(tonPrice) {
-  if (!Number.isFinite(tonPrice) || tonPrice <= 0) return '—';
-
-  if (state.currency === 'stars') {
-    const stars = Math.max(1, Math.floor(tonPrice * getStarsPerTon() + 1e-9));
-    return String(stars);
-  }
-
-  return formatPrice(tonPrice); // TON
-}
 
 function openGiftDrawer(gift) {
   ensureGiftDrawer();
@@ -508,15 +491,16 @@ function openGiftDrawer(gift) {
     const next = getCurrency();
     if (next === state.currency) return;
     state.currency = next;
-  
-    // было: обновляли только иконки
-    // стало: ререндерим, чтобы пересчитались и цифры, и иконки
-    renderMarket();
-  
-    // если открыт фильтр — тоже обновим список, чтобы цены/иконки там совпали
-    try { window.marketFilter?.refresh?.(); } catch (_) {}
+
+    // Only update icons (no need to rebuild everything)
+    const page = document.getElementById('marketPage');
+    if (!page) return;
+    const icons = page.querySelectorAll('.market-card__priceIcon');
+    const src = currencyIconPath(next);
+    icons.forEach((img) => {
+      img.src = src;
+    });
   }
-  
 
   function getCurrency() {
     // Try: active button in profile
@@ -567,7 +551,7 @@ function openGiftDrawer(gift) {
   async function loadGifts() {
     // 1) server market (чтобы подарки появлялись автоматически)
     const fromServer = await fetchMarketItemsFromServer();
-    if (fromServer.length) return fromServer;
+    if (fromServer.length) return fromServer.slice(0, 6);
 
     // 2) localStorage fallback
     return loadGiftsLocal();
@@ -925,275 +909,237 @@ function safeImg(v, maxUrl = 4096) {
 
   (() => {
     'use strict';
-// =========================
-// Filter State
-// =========================
-const filterState = {
-  selectedKeys: new Set(), // normalized gift nameKey
-  categories: [],          // [{ key, name, icon, floorTon, count }]
-  allGifts: []
-};
-
-// =========================
-// Init Filter (click handler set in main initMarket)
-// =========================
-function initFilter() {
-  // no-op (kept for backward compatibility)
-}
-
-function buildCategories(gifts) {
-  const map = new Map();
-  const list = Array.isArray(gifts) ? gifts : [];
-
-  for (const g of list) {
-    const key = normalizeKey(g?.name);
-    if (!key) continue;
-
-    let cat = map.get(key);
-    if (!cat) {
-      const tg = g?.tg || null;
-      const icon =
-        safeImg(g?.previewUrl) ||
-        safeImg(tg?.previewUrl) ||
-        safeImg(tg?.model?.image) ||
-        safeImg(g?.image) ||
-        PLACEHOLDER_IMG;
-
-      cat = {
-        key,
-        name: safeText(g?.name, 64) || 'Gift',
-        icon,
-        floorTon: null,
-        count: 0
-      };
-      map.set(key, cat);
-    }
-
-    cat.count += 1;
-
-    const p = resolvePriceTon(g);
-    if (Number.isFinite(p) && p > 0) {
-      cat.floorTon = (cat.floorTon == null) ? p : Math.min(cat.floorTon, p);
-    }
-  }
-
-  const arr = Array.from(map.values());
-  // sort: by floorTon ASC (nulls last), then name
-  arr.sort((a, b) => {
-    const pa = a.floorTon;
-    const pb = b.floorTon;
-    if (pa == null && pb == null) return a.name.localeCompare(b.name);
-    if (pa == null) return 1;
-    if (pb == null) return -1;
-    if (pa !== pb) return pa - pb;
-    return a.name.localeCompare(b.name);
-  });
-
-  return arr;
-}
-
-// =========================
-// Filter Panel
-// =========================
-let filterOverlay = null;
-let filterPanel = null;
-
-function ensureFilterPanel() {
-  if (filterOverlay && filterPanel) return;
-
-  const overlay = document.createElement('div');
-  overlay.className = 'market-filter-overlay';
-
-  overlay.innerHTML = `
-    <div class="market-filter-panel">
-      <div class="market-filter-header">
-        <h2 class="market-filter-title">Filter Gifts</h2>
-        <button class="market-filter-close" type="button" aria-label="Close">
-          <svg class="market-filter-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="market-filter-list"></div>
-
-      <div class="market-filter-footer">
-        <button class="market-filter-btn market-filter-btn--clear" type="button">
-          Clear All
-        </button>
-        <button class="market-filter-btn market-filter-btn--show" type="button">
-          Show <span class="filter-count"></span>
-        </button>
-      </div>
-    </div>
-  `;
-
-  const panel = overlay.querySelector('.market-filter-panel');
-  const closeBtn = overlay.querySelector('.market-filter-close');
-  const clearBtn = overlay.querySelector('.market-filter-btn--clear');
-  const showBtn = overlay.querySelector('.market-filter-btn--show');
-
-  function close() {
-    overlay.classList.remove('is-open');
-    panel.classList.remove('is-open');
-    setTimeout(() => {
-      overlay.style.display = 'none';
-    }, 350);
-  }
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-
-  closeBtn?.addEventListener('click', close);
-
-  clearBtn?.addEventListener('click', () => {
-    filterState.selectedKeys.clear();
-    renderFilterList();
-    updateShowButton();
-  });
-
-  showBtn?.addEventListener('click', () => {
-    applyFilter();
-    close();
-  });
-
-  panel?.addEventListener('click', (e) => e.stopPropagation());
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
-      close();
-    }
-  });
-
-  document.body.appendChild(overlay);
-
-  filterOverlay = overlay;
-  filterPanel = panel;
-}
-
-function openFilterPanel() {
-  ensureFilterPanel();
-
-  // Get current gifts from market state
-  filterState.allGifts = Array.isArray(state.gifts) ? state.gifts : [];
-  filterState.categories = buildCategories(filterState.allGifts);
-
-  renderFilterList();
-  updateShowButton();
-
-  filterOverlay.style.display = 'block';
-  requestAnimationFrame(() => {
-    filterOverlay.classList.add('is-open');
-    filterPanel.classList.add('is-open');
-  });
-}
-
-function renderFilterList() {
-  const list = filterPanel?.querySelector('.market-filter-list');
-  if (!list) return;
-
-  list.innerHTML = '';
-
-  if (!filterState.categories.length) {
-    list.innerHTML = '<div style="padding: 40px 20px; text-align: center; opacity: 0.6;">No gifts available</div>';
-    return;
-  }
-
-  for (const cat of filterState.categories) {
-    list.appendChild(createFilterItem(cat));
-  }
-}
-
-function createFilterItem(cat) {
-  const isChecked = filterState.selectedKeys.has(cat.key);
-
-  const item = document.createElement('div');
-  item.className = 'market-filter-item';
-  if (isChecked) item.classList.add('is-checked');
-
-  const previewSrc = safeImg(cat?.icon) || PLACEHOLDER_IMG;
-  const name = cat?.name || 'Gift';
-  const floor = Number.isFinite(cat?.floorTon) ? cat.floorTon : null;
-
-  item.innerHTML = `
-    <img class="market-filter-item__icon" src="${escapeHtml(previewSrc)}" alt="${escapeHtml(name)}">
-    <span class="market-filter-item__name">${escapeHtml(name)}</span>
-    <div class="market-filter-item__price">
-      <img class="market-filter-item__price-icon" src="${escapeHtml(currencyIconPath(getCurrency()))}" alt="">
-        <span>${formatDisplayPrice(floor)}</span>
-
-    </div>
-    <div class="market-filter-item__checkbox"></div>
-  `;
-
-  item.addEventListener('click', () => {
-    if (filterState.selectedKeys.has(cat.key)) {
-      filterState.selectedKeys.delete(cat.key);
-    } else {
-      filterState.selectedKeys.add(cat.key);
-    }
-    renderFilterList();
-    updateShowButton();
-  });
   
-
-  return item;
-}
-
-function updateShowButton() {
-  const showBtn = filterPanel?.querySelector('.market-filter-btn--show');
-  const countSpan = showBtn?.querySelector('.filter-count');
-  if (!showBtn || !countSpan) return;
-
-  const totalCount = filterState.allGifts.length;
-
-  if (filterState.selectedKeys.size === 0) {
-    countSpan.textContent = `All (${totalCount})`;
-    return;
-  }
-
-  // visible count
-  let visible = 0;
-  for (const g of filterState.allGifts) {
-    const key = normalizeKey(g?.name);
-    if (key && filterState.selectedKeys.has(key)) visible += 1;
-  }
-  countSpan.textContent = String(visible);
-}
-
-function applyFilter() {
-  const grid = document.querySelector('#marketGrid');
-  if (!grid) return;
-
-  const cards = grid.querySelectorAll('.market-card');
-
-  if (filterState.selectedKeys.size === 0) {
-    cards.forEach(card => { card.style.display = ''; });
-    updatePillIndicator(false);
-    return;
-  }
-
-  cards.forEach(card => {
-    const key = String(card.dataset.nameKey || '');
-    if (filterState.selectedKeys.has(key)) {
-      card.style.display = '';
-    } else {
-      card.style.display = 'none';
+    // =========================
+    // Filter State
+    // =========================
+    const filterState = {
+      selectedIds: new Set(),
+      allGifts: []
+    };
+  
+    // =========================
+    // Init Filter
+    // =========================
+    function initFilter() {
+      const giftsPill = document.querySelector('#marketPillGifts');
+      if (!giftsPill) return;
+  
+      giftsPill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFilterPanel();
+      });
     }
-  });
+  
+    // =========================
+    // Filter Panel
+    // =========================
+    let filterOverlay = null;
+    let filterPanel = null;
+    let closeFilterPanel = () => {};
+  
+    function ensureFilterPanel() {
+      if (filterOverlay && filterPanel) return;
+  
+      const overlay = document.createElement('div');
+      overlay.className = 'market-filter-overlay';
+      
+      overlay.innerHTML = `
+        <div class="market-filter-panel">
+          <div class="market-filter-header">
+            <h2 class="market-filter-title">Filter Gifts</h2>
+            <button class="market-filter-close" type="button" aria-label="Close">
+              <svg class="market-filter-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+  
+          <div class="market-filter-list"></div>
+  
+          <div class="market-filter-footer">
+            <button class="market-filter-btn market-filter-btn--clear" type="button">
+              Clear All
+            </button>
+            <button class="market-filter-btn market-filter-btn--show" type="button">
+              Show <span class="filter-count"></span>
+            </button>
+          </div>
+        </div>
+      `;
+  
+      const panel = overlay.querySelector('.market-filter-panel');
+      const closeBtn = overlay.querySelector('.market-filter-close');
+      const clearBtn = overlay.querySelector('.market-filter-btn--clear');
+      const showBtn = overlay.querySelector('.market-filter-btn--show');
+  
+      function close() {
+        overlay.classList.remove('is-open');
+        panel.classList.remove('is-open');
+        setTimeout(() => {
+          overlay.style.display = 'none';
+        }, 350);
+      }
 
-  updatePillIndicator(true);
-}
-
-function updatePillIndicator(isFiltered) {
-  const giftsPill = document.querySelector('#marketPillGifts');
-  if (!giftsPill) return;
-
-  if (isFiltered) giftsPill.classList.add('is-open');
-  else giftsPill.classList.remove('is-open');
-}
-
+      closeFilterPanel = close;
+  
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close();
+      });
+  
+      closeBtn?.addEventListener('click', close);
+  
+      clearBtn?.addEventListener('click', () => {
+        filterState.selectedIds.clear();
+        renderFilterList();
+        updateShowButton();
+        applyFilter();
+      });
+  
+      showBtn?.addEventListener('click', () => {
+        applyFilter();
+        close();
+      });
+  
+      panel?.addEventListener('click', (e) => e.stopPropagation());
+  
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
+          close();
+        }
+      });
+  
+      document.body.appendChild(overlay);
+  
+      filterOverlay = overlay;
+      filterPanel = panel;
+    }
+  
+    function openFilterPanel() {
+      ensureFilterPanel();
+      
+      // Get current gifts from market state
+      if (window.state && window.state.gifts) {
+        filterState.allGifts = window.state.gifts;
+      }
+  
+      renderFilterList();
+      updateShowButton();
+  
+      filterOverlay.style.display = 'block';
+      requestAnimationFrame(() => {
+        filterOverlay.classList.add('is-open');
+        filterPanel.classList.add('is-open');
+      });
+    }
+  
+    function renderFilterList() {
+      const list = filterPanel?.querySelector('.market-filter-list');
+      if (!list) return;
+  
+      list.innerHTML = '';
+  
+      if (!filterState.allGifts.length) {
+        list.innerHTML = '<div style="padding: 40px 20px; text-align: center; opacity: 0.6;">No gifts available</div>';
+        return;
+      }
+  
+      filterState.allGifts.forEach(gift => {
+        const item = createFilterItem(gift);
+        list.appendChild(item);
+      });
+    }
+  
+    function createFilterItem(gift) {
+      const isChecked = filterState.selectedIds.has(gift.id);
+      
+      const item = document.createElement('div');
+      item.className = 'market-filter-item';
+      if (isChecked) item.classList.add('is-checked');
+  
+      const tg = gift?.tg || null;
+      const previewSrc = gift?.previewUrl || tg?.previewUrl || gift?.image || '/icons/market.webp';
+      const name = gift?.name || 'Gift';
+      const price = resolvePriceTon(gift);
+      const currency = getCurrency();
+  
+      item.innerHTML = `
+        <img class="market-filter-item__icon" src="${escapeHtml(previewSrc)}" alt="${escapeHtml(name)}">
+        <span class="market-filter-item__name">${escapeHtml(name)}</span>
+        <div class="market-filter-item__price">
+          <img class="market-filter-item__price-icon" src="${currencyIconPath(currency)}" alt="">
+          <span>${formatPrice(price)}</span>
+        </div>
+        <div class="market-filter-item__checkbox"></div>
+      `;
+  
+      item.addEventListener('click', () => {
+        if (filterState.selectedIds.has(gift.id)) {
+          filterState.selectedIds.delete(gift.id);
+          item.classList.remove('is-checked');
+        } else {
+          filterState.selectedIds.add(gift.id);
+          item.classList.add('is-checked');
+        }
+        updateShowButton();
+      });
+  
+      return item;
+    }
+  
+    function updateShowButton() {
+      const showBtn = filterPanel?.querySelector('.market-filter-btn--show');
+      const countSpan = showBtn?.querySelector('.filter-count');
+      
+      if (!showBtn || !countSpan) return;
+  
+      const selectedCount = filterState.selectedIds.size;
+      const totalCount = filterState.allGifts.length;
+  
+      if (selectedCount === 0) {
+        countSpan.textContent = `All (${totalCount})`;
+      } else {
+        countSpan.textContent = `${selectedCount}`;
+      }
+    }
+  
+    function applyFilter() {
+      const grid = document.querySelector('#marketGrid');
+      if (!grid) return;
+  
+      const cards = grid.querySelectorAll('.market-card');
+      
+      if (filterState.selectedIds.size === 0) {
+        // Show all
+        cards.forEach(card => {
+          card.style.display = '';
+        });
+        updatePillIndicator(false);
+      } else {
+        // Show only selected
+        cards.forEach(card => {
+          const giftId = card.dataset.id;
+          if (filterState.selectedIds.has(giftId)) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+        updatePillIndicator(true);
+      }
+    }
+  
+    function updatePillIndicator(isFiltered) {
+      const giftsPill = document.querySelector('#marketPillGifts');
+      if (!giftsPill) return;
+  
+      if (isFiltered) {
+        giftsPill.classList.add('is-open');
+      } else {
+        giftsPill.classList.remove('is-open');
+      }
+    }
+  
     // =========================
     // Helpers (reuse from market.js)
     // =========================
@@ -1218,14 +1164,8 @@ function updatePillIndicator(isFiltered) {
     }
   
     function resolvePriceTon(gift) {
-      // 1) item-specific price
       const pLocal = toFiniteNumber(gift?.priceTon);
       if (Number.isFinite(pLocal) && pLocal > 0) return pLocal;
-
-      // 2) server cache (same map used by market cards)
-      const key = normalizeKey(gift?.name);
-      if (key && state.pricesMap && state.pricesMap.has(key)) return state.pricesMap.get(key);
-
       return null;
     }
   
@@ -1267,14 +1207,12 @@ function updatePillIndicator(isFiltered) {
     // Export для доступа из консоли
     window.marketFilter = {
       open: openFilterPanel,
-      apply: applyFilter,
-      refresh: () => { renderFilterList(); updateShowButton(); },
       clear: () => {
-        filterState.selectedKeys.clear();
+        filterState.selectedIds.clear();
         applyFilter();
       },
       reset: () => {
-        filterState.selectedKeys.clear();
+        filterState.selectedIds.clear();
         renderFilterList();
         applyFilter();
       }
