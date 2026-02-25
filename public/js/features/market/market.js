@@ -1,6 +1,18 @@
 (() => {
   'use strict';
 
+
+const tg = window.Telegram?.WebApp;
+
+function getInitData() {
+  return window.Telegram?.WebApp?.initData || "";
+}
+
+async function tgFetch(url, options = {}) {
+  const headers = { ...(options.headers || {}), "x-telegram-init-data": getInitData() };
+  return fetch(url, { ...options, headers });
+}
+
   // =========================
   // Config
   // =========================
@@ -390,6 +402,60 @@ function ensureGiftDrawer() {
   giftDrawerBuyBtn = buyBtn;
 }
 
+
+async function buyOpenGift() {
+  if (!state.openGift) return;
+  const gift = state.openGift;
+  const id = String(gift?.id || "").trim();
+  if (!id) return;
+
+  const currency = getCurrency();
+  const name = safeText(gift?.name, 64) || 'Gift';
+
+  try {
+    if (giftDrawerBuyBtn) {
+      giftDrawerBuyBtn.disabled = true;
+      giftDrawerBuyBtn.classList.add('is-loading');
+    }
+
+    const r = await tgFetch('/api/market/items/buy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, currency })
+    });
+    const j = await r.json().catch(() => null);
+
+    if (!r.ok || !j?.ok) {
+      const code = j?.code || '';
+      if (code === 'NO_FUNDS' || r.status === 402) {
+        toast('❌ Not enough balance');
+      } else if (code === 'NOT_FOUND' || r.status === 404) {
+        toast('❌ Gift already sold');
+      } else {
+        toast('❌ Buy failed');
+      }
+      return;
+    }
+
+    state.gifts = (state.gifts || []).filter(x => String(x?.id) !== id);
+    renderMarket();
+    closeGiftDrawer();
+
+    try { window.dispatchEvent(new CustomEvent('wg:inventory:changed')); } catch {}
+    try { window.dispatchEvent(new CustomEvent('balance:update')); } catch {}
+
+    toast(`✅ Purchased: ${name}`);
+  } catch (e) {
+    console.warn('[Market] buy error', e);
+    toast('❌ Network error');
+  } finally {
+    if (giftDrawerBuyBtn) {
+      giftDrawerBuyBtn.disabled = false;
+      giftDrawerBuyBtn.classList.remove('is-loading');
+    }
+  }
+}
+
 function getStarsPerTon() {
   // 1) WildTimeRates (shared rate module)
   try {
@@ -435,12 +501,9 @@ function refreshGiftDrawerPrice() {
   if (iconEl) iconEl.setAttribute('src', bp.icon);
   if (numEl) numEl.textContent = bp.num;
 
-  // update buy button toast (stub)
+  // update buy button
   if (giftDrawerBuyBtn) {
-    const name = safeText(state.openGift?.name, 64) || 'Gift';
-    giftDrawerBuyBtn.onclick = async () => {
-      toast(`🛒 Buy: ${name} (${bp.num} ${state.currency === 'stars' ? 'Stars' : 'TON'})`);
-    };
+    giftDrawerBuyBtn.onclick = async () => { await buyOpenGift(); };
   }
 }
 
@@ -490,11 +553,8 @@ function openGiftDrawer(gift) {
   if (iconEl) iconEl.setAttribute('src', bp.icon);
   if (numEl) numEl.textContent = bp.num;
 
-  // click buy (stub)
-  giftDrawerBuyBtn.onclick = async () => {
-    // TODO: hook to real buy flow
-    toast(`🛒 Buy: ${name} (${bp.num} ${state.currency === 'stars' ? 'Stars' : 'TON'})`);
-  };
+  // click buy
+  giftDrawerBuyBtn.onclick = async () => { await buyOpenGift(); };
 
   giftDrawerOverlayEl.style.display = 'block';
   // next tick for animation

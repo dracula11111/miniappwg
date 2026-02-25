@@ -158,6 +158,51 @@ function createMemoryDb() {
         total_bets
       };
     }
+
+,
+// ===== Inventory (TEST_MODE memory) =====
+async getUserInventory(telegramId) {
+  const k = ensure(telegramId);
+  const u = users.get(k);
+  if (!u.__inv) u.__inv = [];
+  return u.__inv.slice();
+},
+async addInventoryItems(telegramId, items, claimId = null) {
+  const k = ensure(telegramId);
+  const u = users.get(k);
+  if (!u.__inv) u.__inv = [];
+  if (!u.__claims) u.__claims = new Set();
+  if (claimId && u.__claims.has(String(claimId))) return u.__inv.slice();
+  if (claimId) u.__claims.add(String(claimId));
+
+  const nowMs = Date.now();
+  const list = Array.isArray(items) ? items : [];
+  for (const it of list) {
+    const instanceId = String(it?.instanceId || `${nowMs}_${crypto.randomBytes(6).toString('hex')}`);
+    u.__inv.unshift({ ...(it && typeof it === 'object' ? it : {}), instanceId });
+  }
+  users.set(k, u);
+  return u.__inv.slice();
+},
+async sellInventoryItems(telegramId, instanceIds, currency = 'ton') {
+  const k = ensure(telegramId);
+  const u = users.get(k);
+  if (!u.__inv) u.__inv = [];
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  const before = u.__inv.length;
+  u.__inv = u.__inv.filter(it => !ids.includes(String(it?.instanceId || '')));
+  users.set(k, u);
+  return { sold: Math.max(0, before - u.__inv.length), amount: 0, newBalance: null };
+},
+async deleteInventoryItems(telegramId, instanceIds) {
+  const k = ensure(telegramId);
+  const u = users.get(k);
+  if (!u.__inv) u.__inv = [];
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  u.__inv = u.__inv.filter(it => !ids.includes(String(it?.instanceId || '')));
+  users.set(k, u);
+  return true;
+}
   };
 }
 
@@ -1666,6 +1711,79 @@ app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
 });
 
 
+// Withdraw (send gift via relayer): charges fee and removes from inventory on success
+app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const { currency, instanceId, toUserId } = req.body || {};
+
+    const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+    const inst = String(instanceId || "").trim();
+    const to = String(toUserId || "").trim();
+    if (!inst) return res.status(400).json({ ok: false, error: "instanceId required" });
+    if (!to) return res.status(400).json({ ok: false, error: "toUserId required" });
+
+    const FEE_TON = 0.2;
+    const FEE_STARS = 25;
+
+    const items = await inventoryGet(userId);
+    const item = items.find(x => String(x?.instanceId || "") === inst) || null;
+    if (!item) {
+      return res.status(404).json({ ok: false, code: "NO_STOCK", error: "Item not found in inventory", support: "@wildgift_support" });
+    }
+
+    const msgId = item?.tg?.messageId;
+    if (!msgId) {
+      return res.status(400).json({ ok: false, code: "ITEM_NOT_WITHDRAWABLE", error: "This item cannot be withdrawn", support: "@wildgift_support" });
+    }
+
+    const fee = (cur === "stars") ? FEE_STARS : FEE_TON;
+
+    try {
+      await db.updateBalance(userId, cur, -fee, "withdraw_fee", `Withdraw fee`, { instanceId: inst });
+    } catch (e) {
+      return res.status(402).json({ ok: false, code: "INSUFFICIENT_FUNDS", error: "Insufficient balance for withdraw fee", support: "@wildgift_support" });
+    }
+
+    const rpcUrl = String(process.env.RELAYER_RPC_URL || "").replace(/\/+$/, "");
+    const secret = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
+    if (!rpcUrl || !secret) {
+      try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", "Withdraw fee refund (server misconfig)", { instanceId: inst }); } catch {}
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer is not configured", support: "@wildgift_support" });
+    }
+
+    try {
+      const r = await fetch(`${rpcUrl}/rpc/transfer-stargift`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
+        body: JSON.stringify({ toUserId: to, msgId: String(msgId) })
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        const code = j?.code || `RELAYER_${r.status}`;
+        try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (${code})`, { instanceId: inst }); } catch {}
+        return res.status(400).json({ ok: false, code, error: j?.error || "Withdraw failed", support: "@wildgift_support" });
+      }
+    } catch (e) {
+      try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (network)`, { instanceId: inst }); } catch {}
+      return res.status(502).json({ ok: false, code: "RELAYER_UNREACHABLE", error: "Relayer unreachable", support: "@wildgift_support" });
+    }
+
+    if (typeof db.deleteInventoryItems === "function") {
+      await db.deleteInventoryItems(userId, [inst]);
+    } else if (typeof db.sellInventoryItems === "function") {
+      await db.sellInventoryItems(userId, [inst], cur);
+    }
+
+    const left = await inventoryGet(userId);
+    return res.json({ ok: true, items: left, nfts: left });
+  } catch (e) {
+    console.error("[Withdraw] error:", e);
+    return res.status(500).json({ ok: false, error: "withdraw error", support: "@wildgift_support" });
+  }
+});
+
+
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {
   try {
@@ -2437,6 +2555,62 @@ const MARKET_DB_PATH =
     ? "/opt/render/project/data/market-items.json"
     : path.join(__dirname, "market-items.json"));
 
+
+// ====== MARKET SOLD (anti-readd / hard remove) ======
+// Once an item is bought, we store its sourceKey here to prevent the relayer from re-adding it.
+const MARKET_SOLD_PATH =
+  process.env.MARKET_SOLD_PATH ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/market-sold.json"
+    : path.join(__dirname, "market-sold.json"));
+
+async function readMarketSoldSet() {
+  try {
+    const dir = path.dirname(MARKET_SOLD_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(MARKET_SOLD_PATH)) return new Set();
+    const raw = fs.readFileSync(MARKET_SOLD_PATH, "utf8");
+    const arr = JSON.parse(raw || "[]");
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map(String));
+  } catch (e) {
+    console.error("[MarketSold] read error:", e);
+    return new Set();
+  }
+}
+
+async function writeMarketSoldSet(set) {
+  try {
+    const dir = path.dirname(MARKET_SOLD_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmp = `${MARKET_SOLD_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(Array.from(set || new Set()), null, 2), "utf8");
+    fs.renameSync(tmp, MARKET_SOLD_PATH);
+    return true;
+  } catch (e) {
+    console.error("[MarketSold] write error:", e);
+    return false;
+  }
+}
+
+async function markMarketSold(sourceKey) {
+  const k = String(sourceKey || "").trim();
+  if (!k) return false;
+  return await withMarketLock(async () => {
+    const set = await readMarketSoldSet();
+    set.add(k);
+    await writeMarketSoldSet(set);
+    return true;
+  });
+}
+
+async function isMarketSold(sourceKey) {
+  const k = String(sourceKey || "").trim();
+  if (!k) return false;
+  const set = await readMarketSoldSet();
+  return set.has(k);
+}
+
 function getBearerToken(req) {
   const h = String(req.headers?.authorization || "");
   if (!h) return "";
@@ -2618,6 +2792,11 @@ app.post("/api/market/items/add", async (req, res) => {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
     const item = req.body?.item;
     if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
+    // Hard-skip sold items (prevents re-adding after purchase)
+    if (item?.sourceKey && await isMarketSold(item.sourceKey)) {
+      return res.json({ ok: true, skipped: true, reason: "already_sold" });
+    }
+
 
     const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
     const name = safeMarketString(item.name, 120) || "Gift";
@@ -2684,6 +2863,83 @@ app.post("/api/market/items/clear", async (req, res) => {
   }
 });
 
+
+
+// Buy item (Telegram user only): move market -> inventory, charge balance, and mark as sold
+app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const { id, currency } = req.body || {};
+    const itemId = safeMarketString(id, 128);
+    if (!itemId) return res.status(400).json({ ok: false, error: "id required" });
+
+    const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+
+    const result = await withMarketLock(async () => {
+      const items = await readMarketItems();
+      const idx = items.findIndex(x => String(x?.id) === itemId);
+      if (idx < 0) return { ok: false, code: "NOT_FOUND" };
+
+      const it = items[idx];
+      const priceTon = Number(it?.priceTon || 0);
+      const rate = await getTonUsdRate();
+      const tonUsd = rate?.tonUsd;
+      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+
+      const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
+      if (!Number.isFinite(price) || price <= 0) return { ok: false, code: "BAD_PRICE" };
+
+      // charge
+      let newBalance = null;
+      try {
+        newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
+      } catch (e) {
+        return { ok: false, code: "NO_FUNDS", error: e?.message || "Insufficient balance" };
+      }
+
+      // build inventory item
+      const nowMs = Date.now();
+      const instanceId = `mkt_${itemId}_${crypto.randomBytes(6).toString("hex")}`;
+      const invItem = {
+        type: "nft",
+        id: String(it?.tg?.slug || it?.tg?.giftId || it?.id || "gift"),
+        name: it?.name || "Gift",
+        displayName: it?.name || "Gift",
+        icon: it?.previewUrl || it?.image || "/images/gifts/stars.webp",
+        instanceId,
+        acquiredAt: nowMs,
+        price: { ton: priceTon || null, stars: priceStars || null },
+        fromMarket: true,
+        marketId: itemId,
+        tg: it?.tg || null
+      };
+
+      const addRes = await inventoryAdd(userId, [invItem], `buy_${itemId}`);
+      if (!addRes?.items) {
+        try { await db.updateBalance(userId, cur, +price, "market_buy_refund", `Refund market buy: ${it?.name || "Gift"}`, { marketItemId: itemId }); } catch {}
+        return { ok: false, code: "INV_ADD_FAILED" };
+      }
+
+      // remove from market + mark sold
+      items.splice(idx, 1);
+      await writeMarketItems(items);
+      if (it?.sourceKey) await markMarketSold(it.sourceKey);
+
+      return { ok: true, itemId, newBalance, inventory: addRes.items };
+    });
+
+    if (!result.ok) {
+      const code = result.code || "ERROR";
+      const status = (code === "NOT_FOUND") ? 404 : (code === "NO_FUNDS" ? 402 : 400);
+      return res.status(status).json({ ok: false, code, error: result.error || code });
+    }
+
+    return res.json({ ok: true, id: result.itemId, newBalance: result.newBalance, inventory: result.inventory });
+  } catch (e) {
+    console.error("[Market] buy error:", e);
+    return res.status(500).json({ ok: false, error: "market buy error" });
+  }
+});
 
 // ====== SPA fallback ======"
 // ============================================

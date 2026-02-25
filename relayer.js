@@ -540,12 +540,131 @@ async function addToMarket({ item }) {
   return await postJson(url, { item }, headers);
 }
 
+
+
+// ====== RPC server for withdrawals ======
+const RPC_ENABLED = /^(1|true|yes)$/i.test(String(process.env.RELAYER_RPC_ENABLED || '1'));
+const RPC_HOST = String(process.env.RELAYER_RPC_HOST || '0.0.0.0');
+const RPC_PORT = Number(process.env.RELAYER_RPC_PORT || 3100);
+
+function rpcUnauthorized(res) {
+  res.writeHead(401, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok: false, code: 'UNAUTHORIZED' }));
+}
+
+function rpcJson(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
+
+function parseAuth(req) {
+  const h = String(req.headers?.authorization || '');
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m ? String(m[1] || '').trim() : '';
+}
+
+async function resolvePeer(client, toUserId) {
+  const t = String(toUserId || '').trim();
+  if (!t) return null;
+  if (t.startsWith('@')) return await client.getEntity(t);
+  if (/^\d+$/.test(t)) {
+    try { return await client.getEntity(BigInt(t)); } catch {}
+    try { return await client.getEntity(Number(t)); } catch {}
+  }
+  if (/^[a-zA-Z0-9_]{5,}$/.test(t)) {
+    try { return await client.getEntity('@' + t); } catch {}
+  }
+  return null;
+}
+
+async function transferStarGiftFlow(client, { toUserId, msgId }) {
+  const peer = await resolvePeer(client, toUserId);
+  if (!peer) return { ok: false, code: 'TO_ID_INVALID', error: 'Receiver not found' };
+
+  const stargift = new Api.InputSavedStarGiftUser({ msgId: Number(msgId) });
+
+  // 1) Try free transfer
+  try {
+    await client.invoke(new Api.payments.TransferStarGift({ stargift, toId: peer }));
+    return { ok: true, mode: 'free' };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (!/PAYMENT_REQUIRED|TRANSFER_STARS|STARS_FORM/i.test(msg)) {
+      if (/MSG_ID_INVALID|STARGIFT/i.test(msg)) return { ok: false, code: 'NO_STOCK', error: 'Gift not found' };
+      return { ok: false, code: 'TRANSFER_FAILED', error: msg };
+    }
+  }
+
+  // 2) Paid transfer via Stars form
+  try {
+    const invoice = new Api.InputInvoiceStarGiftTransfer({ stargift, toId: peer });
+    const form = await client.invoke(new Api.payments.GetPaymentForm({ invoice }));
+    await client.invoke(new Api.payments.SendStarsForm({ formId: form.formId, invoice }));
+    return { ok: true, mode: 'paid' };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    if (/BALANCE_TOO_LOW/i.test(msg)) return { ok: false, code: 'RELAYER_STARS_LOW', error: 'Relayer balance too low' };
+    if (/MSG_ID_INVALID|STARGIFT/i.test(msg)) return { ok: false, code: 'NO_STOCK', error: 'Gift not found' };
+    return { ok: false, code: 'TRANSFER_FAILED', error: msg };
+  }
+}
+
+async function startRpcServer(client) {
+  if (!RPC_ENABLED) {
+    console.log('[Relayer RPC] disabled');
+    return { close: () => {} };
+  }
+  const secret = String(SECRET || '').trim();
+  if (!secret) {
+    console.log('[Relayer RPC] RELAYER_SECRET is empty -> RPC disabled');
+    return { close: () => {} };
+  }
+
+  const http = await import('http');
+
+  const srv = http.createServer((req, res) => {
+    try {
+      if (req.method !== 'POST' || req.url !== '/rpc/transfer-stargift') {
+        return rpcJson(res, 404, { ok: false, code: 'NOT_FOUND' });
+      }
+      if (parseAuth(req) !== secret) return rpcUnauthorized(res);
+
+      let body = '';
+      req.on('data', (c) => body += c);
+      req.on('end', async () => {
+        try {
+          const j = JSON.parse(body || '{}');
+          const toUserId = j?.toUserId;
+          const msgId = j?.msgId;
+          if (!toUserId || !msgId) return rpcJson(res, 400, { ok: false, code: 'BAD_REQUEST' });
+
+          const out = await transferStarGiftFlow(client, { toUserId, msgId });
+          if (!out.ok) return rpcJson(res, 400, out);
+          return rpcJson(res, 200, out);
+        } catch (e) {
+          return rpcJson(res, 500, { ok: false, code: 'RPC_ERROR', error: String(e?.message || e) });
+        }
+      });
+    } catch (e) {
+      return rpcJson(res, 500, { ok: false, code: 'RPC_ERROR', error: String(e?.message || e) });
+    }
+  });
+
+  srv.listen(RPC_PORT, RPC_HOST, () => {
+    console.log(`[Relayer RPC] listening on http://${RPC_HOST}:${RPC_PORT}`);
+  });
+
+  return { close: () => { try { srv.close(); } catch {} } };
+}
+
 async function run({ mode = "run" } = {}) {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
   if (!INLINE_IMAGES) ensureDir(IMG_DIR);
 
   const client = await makeClient(SESSION_STR);
   await client.connect();
+
+  const rpc = await startRpcServer(client);
 
   console.log("[Relayer] ✅ Connected. Listening gifts...");
   console.log("[Relayer] SERVER:", SERVER);

@@ -677,10 +677,9 @@
   
     const action = target.getAttribute('data-action');
     const key = target.getAttribute('data-key');
-    if (!key) return;
-  
-    if (action === 'withdraw') {
-      showToast('Withdraw скоро (пока в разработке)');
+    if (!key) return;    if (action === 'withdraw') {
+      const found = findInventoryItemByKey(key);
+      if (found?.item) openWithdrawPanel(found.item);
       haptic('light');
       return;
     }
@@ -723,7 +722,8 @@
       const key = btn.dataset.key;
   
       if (action === 'withdraw') {
-        showToast('Withdraw скоро будет');
+        const found = findInventoryItemByKey(key);
+        if (found?.item) openWithdrawPanel(found.item);
         haptic('light');
         return;
       }
@@ -746,6 +746,175 @@
   function getEmptyTextEl() {
     return inventoryPanel?.querySelector('.profile-invpanel__text') || null;
   }
+
+
+
+// ====== WITHDRAW PANEL ======
+let withdrawOverlay = null;
+
+function ensureWithdrawOverlay() {
+  if (withdrawOverlay) return withdrawOverlay;
+
+  const el = document.createElement('div');
+  el.id = 'wgWithdrawOverlay';
+  el.style.cssText = [
+    'position:fixed',
+    'inset:0',
+    'display:none',
+    'z-index:9999',
+    'background:rgba(0,0,0,.55)',
+    'backdrop-filter: blur(6px)'
+  ].join(';');
+
+  el.innerHTML = `
+    <div class="wg-withdraw" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,420px);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.35);">
+      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.08)">
+        <div style="font-weight:700">Withdraw</div>
+        <button type="button" data-wg-close="1" style="border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer">✕</button>
+      </div>
+
+      <div style="padding:14px 16px">
+        <div data-wg-fee style="font-size:13px;opacity:.75;margin-bottom:10px">За вывод подарка берется …</div>
+
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+          <div style="width:92px;height:92px;border-radius:16px;background:rgba(0,0,0,.06);overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center">
+            <img data-wg-img src="" alt="" style="width:100%;height:100%;object-fit:cover" />
+          </div>
+          <div style="min-width:0">
+            <div data-wg-title style="font-weight:800;font-size:16px;line-height:1.15;word-break:break-word">Gift</div>
+            <div data-wg-num style="margin-top:6px;font-size:13px;opacity:.7">#—</div>
+          </div>
+        </div>
+
+        <label style="display:block;font-size:12px;opacity:.7;margin-bottom:6px">Receiver (game id or @username)</label>
+        <input data-wg-to type="text" placeholder="@username or 123456" style="width:100%;padding:12px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.12);outline:none" />
+
+        <div style="height:12px"></div>
+
+        <button data-wg-continue type="button" style="width:100%;padding:12px 14px;border-radius:14px;border:0;background:#000;color:#fff;font-weight:800;cursor:pointer">Continue</button>
+      </div>
+    </div>
+  `;
+
+  el.addEventListener('click', (e) => {
+    const close = e.target?.closest?.('[data-wg-close="1"]');
+    if (close || e.target === el) closeWithdrawOverlay();
+  });
+
+  document.body.appendChild(el);
+  withdrawOverlay = el;
+  return withdrawOverlay;
+}
+
+function closeWithdrawOverlay() {
+  if (!withdrawOverlay) return;
+  withdrawOverlay.style.display = 'none';
+}
+
+function openSupportChat(username = '@wildgift_support') {
+  const u = String(username || '').trim();
+  const handle = u.startsWith('@') ? u.slice(1) : u;
+  try {
+    if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/${handle}`);
+    else window.open(`https://t.me/${handle}`, '_blank');
+  } catch {
+    try { window.open(`https://t.me/${handle}`, '_blank'); } catch {}
+  }
+}
+
+function showWithdrawErrorPanel(message, support = '@wildgift_support') {
+  const el = ensureWithdrawOverlay();
+  const box = el.querySelector('.wg-withdraw');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.08)">
+      <div style="font-weight:800">Withdraw</div>
+      <button type="button" data-wg-close="1" style="border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:16px">
+      <div style="font-weight:800;margin-bottom:8px">Не удалось вывести подарок</div>
+      <div style="opacity:.8;margin-bottom:12px">${escapeHtml(message || '')}</div>
+      <button type="button" data-wg-support="1" style="width:100%;padding:12px 14px;border-radius:14px;border:0;background:#000;color:#fff;font-weight:800;cursor:pointer">Контактируйте саппорт ${escapeHtml(support)}</button>
+    </div>
+  `;
+
+  box.querySelector('[data-wg-support="1"]')?.addEventListener('click', () => openSupportChat(support));
+
+  el.style.display = 'block';
+}
+
+async function openWithdrawPanel(item) {
+  const el = ensureWithdrawOverlay();
+
+  const currency = getCurrency();
+  const feeText = currency === 'stars' ? 'За вывод подарка берется 25 ⭐' : 'За вывод подарка берется 0.2 TON';
+
+  const title = itemDisplayName(item);
+  const num = String(item?.number || item?.tg?.num || item?.tg?.number || '').trim();
+  const img = itemIconPath(item);  const feeEl = el.querySelector('[data-wg-fee]');
+  if (feeEl) feeEl.textContent = feeText;
+  const titleEl = el.querySelector('[data-wg-title]');
+  if (titleEl) titleEl.textContent = title;
+  const numEl = el.querySelector('[data-wg-num]');
+  if (numEl) numEl.textContent = num ? `#${num}` : '#—';
+
+  const imgEl = el.querySelector('[data-wg-img]');
+  if (imgEl) imgEl.setAttribute('src', img);
+
+  const toInput = el.querySelector('[data-wg-to]');
+  if (toInput) toInput.value = '';
+
+  const btn = el.querySelector('[data-wg-continue]');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Continue';
+
+    btn.onclick = async () => {
+      const to = String(toInput?.value || '').trim();
+      if (!to) {
+        showToast('Enter receiver');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        const r = await tgFetch('/api/inventory/withdraw', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currency, instanceId: String(item?.instanceId || ''), toUserId: to })
+        });
+        const j = await r.json().catch(() => null);
+
+        if (!r.ok || !j?.ok) {
+          const code = j?.code || '';
+          if (code === 'RELAYER_STARS_LOW') {
+            showWithdrawErrorPanel('На релеере недостаточно ⭐ для вывода.', j?.support || '@wildgift_support');
+          } else if (code === 'NO_STOCK') {
+            showWithdrawErrorPanel('Подарка нет в стоке (или релеер его не видит).', j?.support || '@wildgift_support');
+          } else {
+            showWithdrawErrorPanel(j?.error || 'Ошибка вывода.', j?.support || '@wildgift_support');
+          }
+          return;
+        }
+
+        closeWithdrawOverlay();
+        await loadInventory();
+        haptic('success');
+        showToast('✅ Withdraw requested');
+      } catch (e) {
+        showWithdrawErrorPanel('Сетевая ошибка. Попробуйте позже.', '@wildgift_support');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+      }
+    };
+  }
+
+  el.style.display = 'block';
+}
 
   // ====== MODAL (view NFT) ======
   function ensureModal() {
