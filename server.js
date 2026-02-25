@@ -1098,6 +1098,93 @@ function normalizeGiftName(s) {
 }
 
 // ==============================
+// GiftAsset aggregated gift prices (optional)
+// ==============================
+// Why: many marketplaces (portals/tonnel) often return 403 / require Telegram authData or block server-side fetches.
+// GiftAsset provides an aggregated price list (collection floors) across providers in one request.
+const GIFT_PRICE_PROVIDER = String(process.env.GIFT_PRICE_PROVIDER || "auto").toLowerCase(); // auto | giftasset | direct
+const GIFTASSET_BASE = String(process.env.GIFTASSET_BASE || "https://giftasset.pro").replace(/\/+$/, "");
+const GIFTASSET_TIMEOUT_MS = Math.max(3000, Math.min(60000, Number(process.env.GIFTASSET_TIMEOUT_MS || 15000) || 15000));
+// Some deployments may require a key; docs mention contacting for a test key. If you have one, set GIFTASSET_API_KEY.
+const GIFTASSET_API_KEY = String(process.env.GIFTASSET_API_KEY || process.env.GIFTASSET_KEY || "").trim();
+
+let giftAssetCache = {
+  updatedAt: 0,
+  data: null,
+  error: ""
+};
+
+function giftAssetHeaders() {
+  const h = { "accept": "application/json", "user-agent": "Mozilla/5.0" };
+  if (GIFTASSET_API_KEY) {
+    // We don't know the exact auth header contract for all endpoints, so we send the common variants.
+    h["x-api-key"] = GIFTASSET_API_KEY;
+    h["authorization"] = `Bearer ${GIFTASSET_API_KEY}`;
+  }
+  return h;
+}
+
+async function fetchGiftAssetPriceList(force = false) {
+  const now = Date.now();
+  if (!force && giftAssetCache.data && (now - giftAssetCache.updatedAt) < 5 * 60 * 1000) return giftAssetCache.data;
+
+  const url = `${GIFTASSET_BASE}/api/v1/gifts/get_gifts_price_list`;
+  const res = await fetchWithTimeout(url, { headers: giftAssetHeaders() }, GIFTASSET_TIMEOUT_MS);
+  if (!res.ok) {
+    // try to read a small body snippet for debugging (don’t blow logs)
+    let body = "";
+    try { body = (await res.text()).slice(0, 250); } catch {}
+    throw new Error(`GiftAsset status ${res.status}${body ? `: ${body}` : ""}`);
+  }
+  const j = await res.json();
+  if (!j || typeof j !== "object") throw new Error("GiftAsset response is not JSON object");
+  if (!j.collection_floors || typeof j.collection_floors !== "object") throw new Error("GiftAsset response missing collection_floors");
+
+  giftAssetCache = { updatedAt: now, data: j, error: "" };
+  return j;
+}
+
+function pickBestFloorFromGiftAsset(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  // Providers typically present in GiftAsset docs: portals / tonnel / getgems (and sometimes mrkt).
+  const providerOrder = ["portals", "tonnel", "getgems", "mrkt"];
+  let best = null;
+  for (const p of providerOrder) {
+    const v = Number(entry[p]);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    if (!best || v < best.priceTon) best = { provider: p, priceTon: v };
+  }
+  return best;
+}
+
+async function refreshGiftsPricesFromGiftAsset() {
+  if (!giftsCatalog.length) await refreshGiftsCatalogStatic();
+
+  const now = Date.now();
+  const j = await fetchGiftAssetPriceList(true);
+  const floors = j.collection_floors || {};
+  let updated = 0;
+
+  for (const giftName of giftsCatalog) {
+    const key = String(giftName || "").trim();
+    const entry = floors[key] || floors[normalizeGiftName(key)] || null;
+    const best = pickBestFloorFromGiftAsset(entry);
+    if (!best) continue;
+
+    giftsPrices.set(giftName, {
+      priceTon: best.priceTon,
+      updatedAt: now,
+      source: `giftasset:${best.provider}`
+    });
+    updated++;
+  }
+
+  giftsLastUpdate = now;
+  return updated;
+}
+
+
+// ==============================
 // TON -> USD -> Telegram Stars RATE (in-memory)
 // ==============================
 // Used to show "fair" Stars prices in the mini-app based on TON market price.
@@ -1218,19 +1305,32 @@ async function refreshGiftsPricesFromPortals() {
   const now = Date.now();
   let updatedCount = 0;
 
+  // Some marketplaces rate-limit / block bots. We use browser-like headers and small jitter.
+  const baseHeaders = {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9,ru;q=0.8",
+    "cache-control": "no-cache",
+    "pragma": "no-cache"
+  };
+
+  const disableTonnel = String(process.env.DISABLE_TONNEL_PRICES || "").trim() === "1";
+
   for (const giftName of giftsCatalog) {
     const q = normalizeGiftName(giftName);
     if (!q) continue;
 
     const sources = [
       {
-        name: 'portal-market.com',
-        url: `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`
+        name: "portal-market.com",
+        url: `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`,
+        headers: { ...baseHeaders, "referer": "https://portal-market.com/", "origin": "https://portal-market.com" }
       },
-      {
-        name: 'market.tonnel.network',
-        url: `https://market.tonnel.network/api/collections?search=${encodeURIComponent(q)}&limit=10`
-      }
+      ...(disableTonnel ? [] : [{
+        name: "market.tonnel.network",
+        url: `https://market.tonnel.network/api/collections?search=${encodeURIComponent(q)}&limit=10`,
+        headers: { ...baseHeaders, "referer": "https://market.tonnel.network/", "origin": "https://market.tonnel.network" }
+      }])
     ];
 
     let priceFound = false;
@@ -1239,12 +1339,20 @@ async function refreshGiftsPricesFromPortals() {
       if (priceFound) break;
 
       try {
-        const res = await fetchWithTimeout(source.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const res = await fetchWithTimeout(source.url, { headers: source.headers });
         if (!res.ok) {
+          // 403 is common for Tonnel / WAF-protected endpoints.
           console.warn(`[gifts] ${source.name} returned status ${res.status} for ${q}`);
           continue;
         }
-        
+
+        const ct = String(res.headers?.get?.("content-type") || "");
+        if (ct.includes("text/html")) {
+          // Often a WAF / Cloudflare challenge.
+          console.warn(`[gifts] ${source.name} returned HTML (likely blocked) for ${q}`);
+          continue;
+        }
+
         const data = await res.json();
 
         const cols = Array.isArray(data?.collections) ? data.collections
@@ -1277,9 +1385,9 @@ async function refreshGiftsPricesFromPortals() {
         });
         updatedCount++;
         priceFound = true;
-        console.log(`[gifts] ✅ Updated ${giftName} from ${source.name}: ${price} TON`);
+        // Keep logs compact in production
+        if (!IS_PROD) console.log(`[gifts] ✅ Updated ${giftName} from ${source.name}: ${price} TON`);
       } catch (e) {
-        // не падаем, просто пропускаем этот источник и пробуем следующий
         console.warn(`[gifts] ${source.name} fetch failed for ${q} -`, e?.message || e);
       }
     }
@@ -1288,8 +1396,8 @@ async function refreshGiftsPricesFromPortals() {
       console.warn(`[gifts] ⚠️  All sources failed for ${giftName}`);
     }
 
-    // небольшая пауза, чтобы не долбить сервисы
-    await sleep(150);
+    // small pause (w/ jitter) to avoid bursts
+    await sleep(120 + Math.floor(Math.random() * 120));
   }
 
   giftsLastUpdate = now;
@@ -1307,12 +1415,34 @@ async function refreshGiftsAll() {
     }
   }
 
-  // цены — раз в час
-  try {
-    const n = await refreshGiftsPricesFromPortals();
-    console.log(`[gifts] prices updated: ${n} records (tracked=${giftsCatalog.length})`);
-  } catch (e) {
-    console.warn('[gifts] prices refresh failed (keeping old cache):', e?.message || e);
+  // цены — раз в час (provider: auto -> try GiftAsset first, then direct markets)
+  let updated = 0;
+  let usedProvider = "";
+
+  if (GIFT_PRICE_PROVIDER !== "direct") {
+    try {
+      updated = await refreshGiftsPricesFromGiftAsset();
+      usedProvider = updated > 0 ? "giftasset" : "";
+      console.log(`[gifts] GiftAsset price list updated: ${updated} records (tracked=${giftsCatalog.length})`);
+    } catch (e) {
+      console.warn('[gifts] GiftAsset refresh failed:', e?.message || e);
+    }
+  }
+
+  if ((!updated || updated <= 0) && GIFT_PRICE_PROVIDER !== "giftasset") {
+    try {
+      updated = await refreshGiftsPricesFromPortals();
+      usedProvider = "direct";
+      console.log(`[gifts] direct market prices updated: ${updated} records (tracked=${giftsCatalog.length})`);
+    } catch (e) {
+      console.warn('[gifts] direct market prices refresh failed (keeping old cache):', e?.message || e);
+    }
+  }
+
+  if (!updated || updated <= 0) {
+    console.warn(`[gifts] ⚠️ No prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Keeping old cache.`);
+  } else {
+    giftsLastUpdate = Date.now();
   }
 }
 
@@ -2130,8 +2260,7 @@ app.post("/api/round/place-bet", async (req, res) => {
     const { bets, currency, roundId, initData } = req.body || {};
     
     // Check authorization
-    const maxAgeSec = Math.max(60, Math.min(30*24*60*60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400));
-  const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
+    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
     if (!check.ok) {
       return res.status(401).json({ ok: false, error: "unauthorized" });
     }
@@ -2332,52 +2461,10 @@ function fragmentMediumPreviewUrlFromSlug(slug) {
 }
 
 
-
-
-// ====== MARKET STORAGE BACKEND (DB-first, file fallback) ======
-// If DB module exposes getMarketItems/addMarketItem/clearMarketItems we use it (Supabase/Postgres),
-// otherwise we fall back to the JSON file store.
-async function marketGetItems(limit = 200) {
-  if (db && typeof db.getMarketItems === "function") {
-    return await db.getMarketItems(limit);
-  }
-  return await readMarketItems();
-}
-
-async function marketAddItem(item) {
-  if (db && typeof db.addMarketItem === "function") {
-    await db.addMarketItem(item);
-    return item;
-  }
-  // fallback to file-store (single-process lock)
-  return await withMarketLock(async () => {
-    const items = await marketGetItems(5000);
-    const filtered = items.filter(x => String(x?.id) !== String(item.id));
-    filtered.unshift(item);
-
-    const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
-    if (filtered.length > MAX) filtered.length = MAX;
-
-    const ok = await writeMarketItems(filtered);
-    if (!ok) throw new Error("write failed");
-    return item;
-  });
-}
-
-async function marketClearAll() {
-  if (db && typeof db.clearMarketItems === "function") {
-    await db.clearMarketItems();
-    return true;
-  }
-  // fallback to file-store (single-process lock)
-  await withMarketLock(() => writeMarketItems([]));
-  return true;
-}
-
 // List (new)
 app.get("/api/market/items/list", async (req, res) => {
   try {
-    const items = await marketGetItems(5000);
+    const items = await readMarketItems();
     const rate = await getTonUsdRate();
     const tonUsd = rate?.tonUsd;
 
@@ -2411,7 +2498,7 @@ app.get("/api/market/items/list", async (req, res) => {
 app.get("/api/market/items", async (req, res) => {
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 200));
-    const items = await marketGetItems(5000);
+    const items = await readMarketItems();
     const rate = await getTonUsdRate();
     const tonUsd = rate?.tonUsd;
 
@@ -2449,7 +2536,7 @@ app.post("/api/market/items/add", async (req, res) => {
     const item = req.body?.item;
     if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
 
-    const id = safeMarketString(item.id, 256) || `m_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
     const name = safeMarketString(item.name, 120) || "Gift";
     const number = safeMarketString(item.number, 32) || "";
     const createdAt = Number(item.createdAt || Date.now());
@@ -2458,9 +2545,7 @@ app.post("/api/market/items/add", async (req, res) => {
     // image: allow either a normal /images/... path OR a dataURL in image/imageData
     const data = String(item.imageData || "").trim() || (typeof item.image === "string" && item.image.trim().startsWith("data:") ? item.image.trim() : "");
     let image = safeMarketImagePath(item.image);
-    // In production avoid saving base64 images to ephemeral filesystem.
-    // Prefer Fragment previewUrl (or provided image URL) instead.
-    if (data && !IS_PROD) {
+    if (data) {
       const saved = saveMarketImageFromData(data, name);
       if (saved) image = saved;
     }
@@ -2481,10 +2566,24 @@ app.post("/api/market/items/add", async (req, res) => {
     delete out.imageData;
     delete out.previewData;
 
-    const saved = await marketAddItem(out);
-
+    const saved = await withMarketLock(async () => {
+      const items = await readMarketItems();
+    
+      // дедуп: если такой id уже есть — убираем старую запись
+      const filtered = items.filter(x => String(x?.id) !== String(out.id));
+      filtered.unshift(out);
+    
+      const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+      if (filtered.length > MAX) filtered.length = MAX;
+    
+      const ok = await writeMarketItems(filtered);
+      if (!ok) throw new Error("write failed");
+      return out;
+    });
+    
     return res.json({ ok: true, item: saved });
-    } catch (e) {
+    
+  } catch (e) {
     console.error("[MarketStore] add error:", e);
     return res.status(500).json({ ok: false, error: "market add error" });
   }
@@ -2494,7 +2593,7 @@ app.post("/api/market/items/add", async (req, res) => {
 app.post("/api/market/items/clear", async (req, res) => {
   try {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
-    await marketClearAll();
+    await withMarketLock(() => writeMarketItems([]));
     return res.json({ ok: true });
   } catch (e) {
     console.error("[MarketStore] clear error:", e);
@@ -2909,26 +3008,40 @@ httpServer.listen(PORT, () => {
 
 
 app.get('/api/gifts/portals-search', async (req, res) => {
-  const q = String(req.query.q || '').trim();
-  if (!q) return res.status(400).json({ ok:false, error:'q required' });
+  const qRaw = String(req.query.q || '').trim();
+  if (!qRaw) return res.status(400).json({ ok: false, error: 'q required' });
 
-  const url = `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`;
-  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-  const j = await r.json();
+  const needle = qRaw.toLowerCase();
 
-  const cols = Array.isArray(j?.collections) ? j.collections : [];
-  // Backward/forward compatible: return both `collections` and `results`
-  res.json({
+  // Ensure we have at least one refresh attempt (non-blocking for the request).
+  // If cache is empty (fresh server start), try GiftAsset first, then direct.
+  if (!giftsLastUpdate || giftsPrices.size === 0) {
+    try { await refreshGiftsAll(); } catch {}
+  }
+
+  // Local search over tracked catalog + cached prices (so we don't depend on upstream WAF on every request)
+  const matched = giftsCatalog
+    .filter(name => String(name).toLowerCase().includes(needle))
+    .slice(0, 10)
+    .map(name => {
+      const p = giftsPrices.get(name);
+      return {
+        name,
+        short_name: name,
+        floor_price: p?.priceTon ?? null,
+        source: p?.source ?? null,
+        updatedAt: p?.updatedAt ?? null
+      };
+    });
+
+  return res.json({
     ok: true,
-    q,
-    collections: cols,
-    results: cols.map(c => ({
-      name: c.name,
-      short_name: c.short_name,
-      floor_price: c.floor_price
-    }))
+    q: qRaw,
+    collections: matched,
+    results: matched
   });
 });
+
 
 
 // ========== HELPERS ==========
@@ -2983,8 +3096,7 @@ function requireTelegramUser(req, res, next) {
   if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
   if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
 
-  const maxAgeSec = Math.max(60, Math.min(30*24*60*60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400));
-  const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
+  const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
   if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
 
   let user = null;

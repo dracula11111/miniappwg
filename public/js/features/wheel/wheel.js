@@ -1453,7 +1453,7 @@ function initBettingUI(){
           type: 'placeBet',
           userId,
           userName: tgUser?.username || tgUser?.first_name || 'Player',
-          userAvatar: window.userAvatarUrl || null,
+          userAvatar: getWheelUserAvatar() || null,
           segment: seg,
           amount: currentAmount,
           currency: currentCurrency
@@ -2915,12 +2915,11 @@ function renderWheelPlayers(players) {
       const cur = p.currency || currentCurrency;
       const amtText = hasAmt ? formatWheelAmount(amt, cur) : '';
 
-      const title = hasAmt ? `${key}: ${amtText}` : key;
+      const title = key;
 
       return `
         <div class="wheel-player-pill__segIcon" title="${title}">
           <img src="${src}" alt="${key}" />
-          ${hasAmt ? `<span class="wheel-player-pill__segAmt">${amtText}</span>` : ``}
         </div>
       `;
     }).join('');
