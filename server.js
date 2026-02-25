@@ -1079,6 +1079,19 @@ let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
 let giftsCatalogLastUpdate = 0;
 
+// Relayer fallback cache (optional)
+// Relayer pushes prices derived from Telegram MTProto (payments.getStarGifts / payments.getResaleStarGifts).
+// Used ONLY when direct marketplace fetches (portal-market / tonnel) are blocked.
+const GIFT_RELAYER_FALLBACK = !/^(0|false|no)$/i.test(String(process.env.GIFT_RELAYER_FALLBACK || "1"));
+const GIFT_RELAYER_STALE_MS = Math.max(
+  60_000,
+  Math.min(7 * 24 * 60 * 60 * 1000, Number(process.env.GIFT_RELAYER_STALE_MS || 6 * 60 * 60 * 1000) || (6 * 60 * 60 * 1000))
+);
+
+// key: lowercased gift name
+let giftsRelayerPrices = new Map(); // key -> { priceTon?, priceStars?, updatedAt, source }
+let giftsRelayerLastPush = 0;
+
 // small helper
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1095,6 +1108,32 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = GIFT_REQUEST_TIMEOUT
 
 function normalizeGiftName(s) {
   return String(s || "").trim();
+}
+
+
+function giftKey(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function getRelayerPriceEntry(name) {
+  return giftsRelayerPrices.get(giftKey(name)) || null;
+}
+
+function computeRelayerPriceTon(entry, tonUsd) {
+  if (!entry) return null;
+
+  const pTon = Number(entry.priceTon);
+  if (Number.isFinite(pTon) && pTon > 0) return pTon;
+
+  const pStars = Number(entry.priceStars);
+  if (Number.isFinite(pStars) && pStars > 0) {
+    const usd = Number(tonUsd);
+    if (Number.isFinite(usd) && usd > 0) {
+      return starsToTon(pStars, usd);
+    }
+  }
+
+  return null;
 }
 
 // ==============================
@@ -1267,6 +1306,19 @@ function tonToStars(tonAmount, tonUsd = tonUsdCache.tonUsd) {
   return Math.max(1, Math.floor(stars + 1e-9));
 }
 
+
+function starsToTon(starsAmount, tonUsd = tonUsdCache.tonUsd) {
+  const stars = Number(starsAmount);
+  const usd = Number(tonUsd);
+  if (!Number.isFinite(stars) || stars <= 0) return null;
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  if (!Number.isFinite(STARS_USD) || STARS_USD <= 0) return null;
+
+  // stars -> USD -> TON
+  return (stars * STARS_USD) / usd;
+}
+
+
 function starsPerTon(tonUsd = tonUsdCache.tonUsd) {
   const usd = Number(tonUsd);
   if (!Number.isFinite(usd) || usd <= 0) return null;
@@ -1392,9 +1444,40 @@ async function refreshGiftsPricesFromPortals() {
       }
     }
 
-    if (!priceFound) {
-      console.warn(`[gifts] ⚠️  All sources failed for ${giftName}`);
+// If direct markets are blocked, try relayer cache as a LAST resort (only when direct sources failed).
+if (!priceFound && GIFT_RELAYER_FALLBACK) {
+  const rel = getRelayerPriceEntry(giftName);
+  const relUpdatedAt = Number(rel?.updatedAt || 0);
+  const fresh = rel && relUpdatedAt > 0 && (now - relUpdatedAt) <= GIFT_RELAYER_STALE_MS;
+
+  if (fresh) {
+    // Convert Stars->TON only if needed
+    let tonUsd = null;
+    if ((!Number.isFinite(Number(rel?.priceTon)) || Number(rel?.priceTon) <= 0) && Number.isFinite(Number(rel?.priceStars))) {
+      try {
+        const rate = await getTonUsdRate();
+        tonUsd = rate?.tonUsd || null;
+      } catch {}
     }
+
+    const relTon = computeRelayerPriceTon(rel, tonUsd);
+
+    if (Number.isFinite(relTon) && relTon > 0) {
+      giftsPrices.set(giftName, {
+        priceTon: relTon,
+        updatedAt: now,
+        source: String(rel.source || "relayer")
+      });
+      updatedCount++;
+      priceFound = true;
+      if (!IS_PROD) console.log(`[gifts] ✅ Updated ${giftName} from relayer fallback: ${relTon} TON`);
+    }
+  }
+}
+
+if (!priceFound) {
+  console.warn(`[gifts] ⚠️  All sources failed for ${giftName}`);
+}
 
     // small pause (w/ jitter) to avoid bursts
     await sleep(120 + Math.floor(Math.random() * 120));
@@ -2952,6 +3035,52 @@ app.get("/api/gifts/catalog", (req, res) => {
     items: giftsCatalog
   });
 });
+
+
+app.post("/api/gifts/prices/push", requireRelayer, async (req, res) => {
+  try {
+    const now = Date.now();
+
+    const body = req.body || {};
+    const items = Array.isArray(body.items) ? body.items : (Array.isArray(body) ? body : []);
+    if (!items.length) return res.status(400).json({ ok: false, error: "items required" });
+
+    let accepted = 0;
+
+    for (const it of items) {
+      const name = String(it?.name || "").trim();
+      if (!name) continue;
+
+      const key = giftKey(name);
+
+      const priceTon = Number(it?.priceTon ?? it?.price_ton ?? null);
+      const priceStars = Number(it?.priceStars ?? it?.price_stars ?? null);
+      const updatedAt = Number(it?.updatedAt || it?.ts || now);
+      const source = String(it?.source || "relayer").slice(0, 64);
+
+      // At least one numeric value must exist
+      const hasTon = Number.isFinite(priceTon) && priceTon > 0;
+      const hasStars = Number.isFinite(priceStars) && priceStars > 0;
+      if (!hasTon && !hasStars) continue;
+
+      giftsRelayerPrices.set(key, {
+        priceTon: hasTon ? priceTon : null,
+        priceStars: hasStars ? priceStars : null,
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : now,
+        source
+      });
+      accepted++;
+    }
+
+    giftsRelayerLastPush = now;
+
+    return res.json({ ok: true, accepted, relayerUpdatedAt: giftsRelayerLastPush });
+  } catch (e) {
+    console.error("[gifts] relayer push error:", e);
+    return res.status(500).json({ ok: false, error: "server error" });
+  }
+});
+
 
 
 

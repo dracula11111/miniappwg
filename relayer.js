@@ -51,6 +51,37 @@ const DEBUG = /^(1|true|yes)$/i.test(String(process.env.RELAYER_DEBUG || ""));
 const INLINE_IMAGES = !/^(0|false|no)$/i.test(String(process.env.RELAYER_INLINE_IMAGES || "1"));
 
 
+const ENABLE_PRICES = !/^(0|false|no)$/i.test(String(process.env.RELAYER_ENABLE_PRICES || process.env.RELAYER_PRICES || "1"));
+// How often to refresh/push Telegram-based fallback prices to the server
+const PRICES_INTERVAL_MS = Math.max(60_000, Math.min(60 * 60 * 1000, Number(process.env.RELAYER_PRICES_INTERVAL_MS || 10 * 60 * 1000) || (10 * 60 * 1000)));
+// When calling payments.getResaleStarGifts, how many listings to request (we only need floor -> 1 is enough).
+const PRICES_RESALE_LIMIT = Math.max(1, Math.min(10, Number(process.env.RELAYER_PRICES_RESALE_LIMIT || 1) || 1));
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+function toJsNumber(v) {
+  if (v == null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "bigint") return Number(v);
+  try {
+    // GramJS may use bigint-like objects with toString()
+    const s = typeof v === "object" && v && typeof v.toString === "function" ? v.toString() : String(v);
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+
+function normTitleKey(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+
+
 const IMG_DIR = String(process.env.RELAYER_IMG_DIR || path.join(process.cwd(), "public", "images", "gifts", "marketnfts"));
 
 function die(msg) {
@@ -293,6 +324,204 @@ async function postJson(url, body, headers = {}) {
   return { ok: r.ok, status: r.status, json, text };
 }
 
+
+async function getJson(url, headers = {}) {
+  const r = await fetch(url, {
+    method: "GET",
+    headers: { ...headers },
+  });
+  const text = await r.text();
+  let json = null;
+  try { json = JSON.parse(text); } catch {}
+  return { ok: r.ok, status: r.status, json, text };
+}
+
+async function pushRelayerPrices(items) {
+  const url = `${SERVER}/api/gifts/prices/push`;
+  const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
+  return await postJson(url, { items }, headers);
+}
+
+function parseStarsAmount(a) {
+  if (!a) return null;
+  // GramJS TL objects usually have .className
+  const cls = String(a.className || a.constructor?.name || "").toLowerCase();
+
+  // starsAmount#bbb6b4a3 amount:long nanos:int
+  if (typeof a.nanos !== "undefined") {
+    const amount = toJsNumber(a.amount);
+    const nanos = toJsNumber(a.nanos);
+    if (!Number.isFinite(amount)) return null;
+    const v = amount + (Number.isFinite(nanos) ? nanos / 1e9 : 0);
+    return { type: "stars", value: v };
+  }
+
+  // starsTonAmount#74aee3e0 amount:long (nanotons)
+  if (cls.includes("ton")) {
+    const amount = toJsNumber(a.amount);
+    if (!Number.isFinite(amount)) return null;
+    return { type: "ton", value: amount / 1e9 };
+  }
+
+  // fallback: if no nanos and constructor name doesn't say ton, treat as ton (safer for relayer fallback)
+  const amount = toJsNumber(a.amount);
+  if (Number.isFinite(amount)) return { type: "ton", value: amount / 1e9 };
+  return null;
+}
+
+async function refreshAndPushPrices(client) {
+  if (!ENABLE_PRICES) return;
+
+  // 1) Fetch tracked catalog from server
+  const cat = await getJson(`${SERVER}/api/gifts/catalog`);
+  const tracked = Array.isArray(cat?.json?.items) ? cat.json.items : [];
+  if (!tracked.length) {
+    console.log("[Relayer][Prices] ⚠️ No catalog items from server (skip).");
+    return;
+  }
+
+  // 2) Fetch base gifts list from Telegram
+  // payments.getStarGifts#c4923f5b hash:long = payments.StarGifts;
+  let starGiftsRes;
+  try {
+    starGiftsRes = await client.invoke(new Api.payments.GetStarGifts({ hash: 0 }));
+  } catch (e) {
+    console.log("[Relayer][Prices] ❌ payments.getStarGifts failed:", e?.message || e);
+    return;
+  }
+
+  const baseGifts = Array.isArray(starGiftsRes?.gifts) ? starGiftsRes.gifts : [];
+  if (!baseGifts.length) {
+    console.log("[Relayer][Prices] ⚠️ No gifts returned by Telegram (skip).");
+    return;
+  }
+
+  const byTitle = new Map();
+  for (const g of baseGifts) {
+    const title = String(g?.title || g?.name || "").trim();
+    if (!title) continue;
+    byTitle.set(title.toLowerCase(), g);
+    byTitle.set(normTitleKey(title), g);
+  }
+
+  const now = Date.now();
+  const out = [];
+
+  for (const name of tracked) {
+    const keyRaw = String(name || "").trim();
+    const key = keyRaw.toLowerCase();
+    const keyNorm = normTitleKey(keyRaw);
+    if (!key) continue;
+
+    const g = byTitle.get(key) || byTitle.get(keyNorm);
+    if (!g) continue;
+
+    let priceTon = null;
+    let priceStars = null;
+
+    // If the base gift object already contains resell_min_stars, it's the floor in Stars.
+    const resellMinStars = toJsNumber(g?.resellMinStars ?? g?.resell_min_stars ?? null);
+    if (Number.isFinite(resellMinStars) && resellMinStars > 0) {
+      priceStars = resellMinStars;
+    }
+
+    // Otherwise try payments.getResaleStarGifts (sort_by_price asc, limit=1)
+    if (!priceStars) {
+      const giftId = g?.id ?? g?.giftId ?? g?.gift_id ?? null;
+      if (giftId != null) {
+        try {
+          const resale = await client.invoke(new Api.payments.GetResaleStarGifts({
+            giftId,
+            offset: "",
+            limit: PRICES_RESALE_LIMIT,
+            sortByPrice: true,
+          }));
+          const gifts = Array.isArray(resale?.gifts) ? resale.gifts : [];
+          if (gifts.length) {
+            const first = gifts[0];
+            const arr = Array.isArray(first?.resellAmount) ? first.resellAmount
+                      : Array.isArray(first?.resell_amount) ? first.resell_amount
+                      : [];
+            let minTon = null;
+            let minStars = null;
+            for (const a of arr) {
+              const parsed = parseStarsAmount(a);
+              if (!parsed) continue;
+              if (parsed.type === "ton") {
+                minTon = (minTon == null) ? parsed.value : Math.min(minTon, parsed.value);
+              } else if (parsed.type === "stars") {
+                minStars = (minStars == null) ? parsed.value : Math.min(minStars, parsed.value);
+              }
+            }
+            if (Number.isFinite(minTon) && minTon > 0) priceTon = minTon;
+            else if (Number.isFinite(minStars) && minStars > 0) priceStars = minStars;
+          }
+        } catch (e) {
+          // STARGIFT_INVALID is possible for unknown ids; ignore.
+          if (DEBUG) console.log("[Relayer][Prices] getResaleStarGifts failed for", name, "-", e?.message || e);
+        }
+
+        // jitter so we don't look like a bot
+        await sleep(120 + Math.floor(Math.random() * 180));
+      }
+    }
+
+    if ((Number.isFinite(priceTon) && priceTon > 0) || (Number.isFinite(priceStars) && priceStars > 0)) {
+      out.push({
+        name,
+        priceTon: Number.isFinite(priceTon) && priceTon > 0 ? priceTon : null,
+        priceStars: Number.isFinite(priceStars) && priceStars > 0 ? priceStars : null,
+        updatedAt: now,
+        source: "relayer.telegram"
+      });
+    }
+  }
+
+  if (!out.length) {
+    console.log("[Relayer][Prices] ⚠️ No prices resolved (skip push).");
+    return;
+  }
+
+  const r = await pushRelayerPrices(out);
+  if (!r.ok) {
+    console.log("[Relayer][Prices] ❌ push failed:", r.status, r.text);
+    return;
+  }
+
+  console.log(`[Relayer][Prices] ✅ pushed=${out.length} accepted=${r.json?.accepted ?? "?"}`);
+}
+
+function startPricesLoop(client) {
+  if (!ENABLE_PRICES) return { started: false, stop: () => {} };
+
+  let stopped = false;
+  let timer = null;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      await refreshAndPushPrices(client);
+    } catch (e) {
+      console.log("[Relayer][Prices] ❌ loop error:", e?.message || e);
+    } finally {
+      if (!stopped) timer = setTimeout(tick, PRICES_INTERVAL_MS);
+    }
+  };
+
+  // small delay to let the relayer settle (connect + handlers)
+  timer = setTimeout(tick, 5000);
+  console.log(`[Relayer][Prices] 🔁 enabled (interval=${Math.round(PRICES_INTERVAL_MS / 1000)}s)`);
+
+  return {
+    started: true,
+    stop: () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    }
+  };
+}
+
+
 async function addToInventory({ userId, item, claimId }) {
   const url = `${SERVER}/api/inventory/nft/add`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
@@ -322,6 +551,8 @@ async function run({ mode = "run" } = {}) {
   console.log("[Relayer] SERVER:", SERVER);
   console.log("[Relayer] IMG_DIR:", IMG_DIR);
   console.log("[Relayer] ADMIN_IDS:", ADMIN_IDS.join(", ") || "(empty)");
+
+  const pricesLoop = (mode === "sync") ? { stop: () => {} } : startPricesLoop(client);
 
 
   const processed = new Set();
@@ -581,16 +812,20 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
     if (msg.action) await handleGiftMessage(msg, "NewMessage");
   }, new NewMessage({ incoming: true }));
 
-  process.on("SIGINT", async () => {
-    console.log("\n[Relayer] SIGINT -> disconnect");
-    try { await client.disconnect(); } catch {}
-    process.exit(0);
-  });
-  process.on("SIGTERM", async () => {
-    console.log("\n[Relayer] SIGTERM -> disconnect");
-    try { await client.disconnect(); } catch {}
-    process.exit(0);
-  });
+  
+process.on("SIGINT", async () => {
+  console.log("[Relayer] SIGINT -> disconnect");
+  try { pricesLoop?.stop?.(); } catch {}
+  try { await client.disconnect(); } catch {}
+  process.exit(0);
+});
+  
+process.on("SIGTERM", async () => {
+  console.log("[Relayer] SIGTERM -> disconnect");
+  try { pricesLoop?.stop?.(); } catch {}
+  try { await client.disconnect(); } catch {}
+  process.exit(0);
+});
 
   // keep process alive
   await new Promise(() => {});
