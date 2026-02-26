@@ -155,6 +155,18 @@ export async function clearMarketItems() {
   return true;
 }
 
+export async function takeMarketItemById(id) {
+  const k = String(id || "").trim();
+  if (!k) return null;
+
+  const r = await query(
+    `DELETE FROM market_items WHERE id = $1 RETURNING item_json`,
+    [k]
+  );
+
+  return r.rows?.[0]?.item_json || null;
+}
+
 
 export async function saveUser(userData) {
   const now = Math.floor(Date.now() / 1000);
