@@ -1740,6 +1740,17 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
       return res.status(400).json({ ok: false, code: "ITEM_NOT_WITHDRAWABLE", error: "This item cannot be withdrawn", support: "@wildgift_support" });
     }
 
+    // Telegram MTProto often cannot resolve random numeric user IDs without access_hash.
+    // Username gives a stable path via contacts.ResolveUsername in relayer.
+    if (!toUsername) {
+      return res.status(400).json({
+        ok: false,
+        code: "USERNAME_REQUIRED",
+        error: "Set a Telegram username in your profile and try withdraw again",
+        support: "@wildgift_support"
+      });
+    }
+
     const fee = (cur === "stars") ? FEE_STARS : FEE_TON;
 
     let newBalance = null;
@@ -1768,11 +1779,17 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
         body: JSON.stringify({ toUserId: to, toUsername, toId, msgId: String(msgId) })
       });
-      const j = await r.json().catch(() => null);
+
+      const raw = await r.text();
+      let j = null;
+      try { j = raw ? JSON.parse(raw) : null; } catch {}
+
       if (!r.ok || !j?.ok) {
         const code = j?.code || `RELAYER_${r.status}`;
+        const errText = String(j?.error || raw || "").trim();
+        const error = errText || `Withdraw failed (relayer HTTP ${r.status})`;
         try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (${code})`, { instanceId: inst }); } catch {}
-        return res.status(400).json({ ok: false, code, error: j?.error || "Withdraw failed", support: "@wildgift_support" });
+        return res.status(400).json({ ok: false, code, error, support: "@wildgift_support" });
       }
     } catch (e) {
       try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (network)`, { instanceId: inst }); } catch {}
