@@ -918,8 +918,20 @@ async function withdrawContinue() {
         showToast('Not enough balance to pay withdraw fee.');
         return;
       }
+      if (code === 'USERNAME_REQUIRED') {
+        showWithdrawErrorPanel('Set your Telegram @username in settings and try again.\nTelegram requires resolvable recipient for gift transfer.');
+        return;
+      }
+      if (code === 'TO_ID_INVALID') {
+        showWithdrawErrorPanel('Cannot resolve recipient in Telegram (TO_ID_INVALID).\nSet @username and try again, then contact support @' + SUPPORT_USERNAME);
+        return;
+      }
+      if (code === 'RELAYER_UNREACHABLE' || code === 'RELAYER_NOT_CONFIGURED') {
+        showWithdrawErrorPanel((j?.error || 'Relayer is not configured/reachable.') + `\nContact support @${SUPPORT_USERNAME}`);
+        return;
+      }
 
-      showWithdrawErrorPanel((j?.error || 'Failed to withdraw gift.') + `\nContact support @${SUPPORT_USERNAME}`);
+      showWithdrawErrorPanel((j?.error || `Failed to withdraw gift (${code || 'unknown error'}).`) + `\nContact support @${SUPPORT_USERNAME}`);
       return;
     }
 

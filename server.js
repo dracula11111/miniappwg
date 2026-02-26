@@ -1740,6 +1740,17 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
       return res.status(400).json({ ok: false, code: "ITEM_NOT_WITHDRAWABLE", error: "This item cannot be withdrawn", support: "@wildgift_support" });
     }
 
+    // Telegram MTProto often cannot resolve random numeric user IDs without access_hash.
+    // Username gives a stable path via contacts.ResolveUsername in relayer.
+    if (!toUsername) {
+      return res.status(400).json({
+        ok: false,
+        code: "USERNAME_REQUIRED",
+        error: "Set a Telegram username in your profile and try withdraw again",
+        support: "@wildgift_support"
+      });
+    }
+
     const fee = (cur === "stars") ? FEE_STARS : FEE_TON;
 
     let newBalance = null;
@@ -1750,11 +1761,16 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
       return res.status(402).json({ ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance for withdraw fee", support: "@wildgift_support" });
     }
 
-    const rpcUrl = String(process.env.RELAYER_RPC_URL || "").replace(/\/+$/, "");
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(
+      process.env.RELAYER_RPC_URL ||
+      process.env.RELAYER_SERVER ||
+      `http://127.0.0.1:${rpcPort}`
+    ).replace(/\/+$/, "");
     const secret = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
-    if (!rpcUrl || !secret) {
+    if (!secret) {
       try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", "Withdraw fee refund (server misconfig)", { instanceId: inst }); } catch {}
-      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer is not configured", support: "@wildgift_support" });
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer secret is not configured on server", support: "@wildgift_support" });
     }
 
     try {
@@ -1763,11 +1779,17 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
         body: JSON.stringify({ toUserId: to, toUsername, toId, msgId: String(msgId) })
       });
-      const j = await r.json().catch(() => null);
+
+      const raw = await r.text();
+      let j = null;
+      try { j = raw ? JSON.parse(raw) : null; } catch {}
+
       if (!r.ok || !j?.ok) {
         const code = j?.code || `RELAYER_${r.status}`;
+        const errText = String(j?.error || raw || "").trim();
+        const error = errText || `Withdraw failed (relayer HTTP ${r.status})`;
         try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (${code})`, { instanceId: inst }); } catch {}
-        return res.status(400).json({ ok: false, code, error: j?.error || "Withdraw failed", support: "@wildgift_support" });
+        return res.status(400).json({ ok: false, code, error, support: "@wildgift_support" });
       }
     } catch (e) {
       try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", `Withdraw fee refund (network)`, { instanceId: inst }); } catch {}
@@ -1788,6 +1810,34 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
   }
 });
 
+
+
+// Debug: check relayer RPC config/reachability (without exposing secrets)
+app.get("/api/relayer/rpc-health", async (req, res) => {
+  try {
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(
+      process.env.RELAYER_RPC_URL ||
+      process.env.RELAYER_SERVER ||
+      `http://127.0.0.1:${rpcPort}`
+    ).replace(/\/+$/, "");
+    const hasSecret = !!String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "").trim();
+
+    if (!hasSecret) {
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", rpcUrl, hasSecret: false });
+    }
+
+    try {
+      const r = await fetch(`${rpcUrl}/rpc/health`, { method: "GET" });
+      const j = await r.json().catch(() => null);
+      return res.status(r.ok ? 200 : 502).json({ ok: !!(r.ok && j?.ok), rpcUrl, hasSecret: true, status: r.status, body: j || null });
+    } catch (e) {
+      return res.status(502).json({ ok: false, code: "RELAYER_UNREACHABLE", rpcUrl, hasSecret: true, error: e?.message || "network error" });
+    }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || "rpc health error" });
+  }
+});
 
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {
@@ -2642,6 +2692,10 @@ async function ensureMarketDir() {
 
 async function readMarketItems() {
   try {
+    if (typeof db.getMarketItems === "function") {
+      return await db.getMarketItems(5000);
+    }
+
     await ensureMarketDir();
     if (!fs.existsSync(MARKET_DB_PATH)) return [];
     const raw = fs.readFileSync(MARKET_DB_PATH, "utf8");
@@ -2664,6 +2718,17 @@ function withMarketLock(fn) {
 
 async function writeMarketItems(items) {
   try {
+    if (typeof db.clearMarketItems === "function" && typeof db.addMarketItem === "function") {
+      await db.clearMarketItems();
+      const arr = Array.isArray(items) ? items : [];
+      for (const it of arr) {
+        if (!it || typeof it !== "object") continue;
+        if (!it.id) continue;
+        await db.addMarketItem(it);
+      }
+      return true;
+    }
+
     await ensureMarketDir();
     const tmp = `${MARKET_DB_PATH}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(items, null, 2), "utf8");
@@ -2881,24 +2946,41 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
     const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
 
     const result = await withMarketLock(async () => {
-      const items = await readMarketItems();
-      const idx = items.findIndex(x => String(x?.id) === itemId);
-      if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
+      let it = null;
+      let items = null;
+      let idx = -1;
 
-      const it = items[idx];
+      if (typeof db.takeMarketItemById === "function") {
+        it = await db.takeMarketItemById(itemId);
+        if (!it) return { ok: false, code: "ALREADY_SOLD" };
+      } else {
+        items = await readMarketItems();
+        idx = items.findIndex(x => String(x?.id) === itemId);
+        if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
+        it = items[idx];
+      }
+
       const priceTon = Number(it?.priceTon || 0);
       const rate = await getTonUsdRate();
       const tonUsd = rate?.tonUsd;
       const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
-      if (!Number.isFinite(price) || price <= 0) return { ok: false, code: "BAD_PRICE" };
+      if (!Number.isFinite(price) || price <= 0) {
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
+        return { ok: false, code: "BAD_PRICE" };
+      }
 
       // charge
       let newBalance = null;
       try {
         newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
       } catch (e) {
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
         return { ok: false, code: "INSUFFICIENT_BALANCE", error: e?.message || "Insufficient balance" };
       }
 
@@ -2922,12 +3004,17 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
       const addRes = await inventoryAdd(userId, [invItem], `buy_${itemId}`);
       if (!addRes?.items) {
         try { await db.updateBalance(userId, cur, +price, "market_buy_refund", `Refund market buy: ${it?.name || "Gift"}`, { marketItemId: itemId }); } catch {}
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
         return { ok: false, code: "INV_ADD_FAILED" };
       }
 
       // remove from market + mark sold
-      items.splice(idx, 1);
-      await writeMarketItems(items);
+      if (typeof db.takeMarketItemById !== "function" && items && idx >= 0) {
+        items.splice(idx, 1);
+        await writeMarketItems(items);
+      }
       if (it?.sourceKey) await markMarketSold(it.sourceKey);
 
       return { ok: true, itemId, newBalance, inventory: addRes.items };

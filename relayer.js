@@ -873,7 +873,16 @@ function normalizeToFields(body) {
 
 async function resolveInputPeer(client, { toUsername, toId }) {
   if (toUsername) {
-    return await client.getInputEntity(toUsername);
+    try {
+      return await client.getInputEntity(toUsername);
+    } catch (e) {
+      try {
+        const r = await client.invoke(new Api.contacts.ResolveUsername({ username: String(toUsername).replace(/^@/, "") }));
+        const users = Array.isArray(r?.users) ? r.users : [];
+        if (users.length) return await client.getInputEntity(users[0]);
+      } catch {}
+      throw e;
+    }
   }
   if (toId) {
     // NOTE: may fail if relayer doesn't know access_hash for that user.
@@ -997,6 +1006,9 @@ function startRpcServer(client) {
 
   app.listen(RPC_PORT, () => {
     console.log(`[Relayer][RPC] ✅ listening on :${RPC_PORT}`);
+    if (!SECRET) {
+      console.warn('[Relayer][RPC] ⚠️ RELAYER_SECRET/MARKET_SECRET is empty. Server calls will be rejected.');
+    }
   });
 }
 

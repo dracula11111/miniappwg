@@ -647,46 +647,27 @@ function openGiftDrawer(gift) {
 }
 
 async function loadGifts() {
-  // 1) server market (чтобы подарки появлялись автоматически)
+  // Market is server-authoritative: all devices must see the same list.
   const fromServer = await fetchMarketItemsFromServer();
-
-  // 2) localStorage fallback (старые подарки, добавленные локально)
-  const local = loadGiftsLocal();
-
-  // Если на сервере уже есть товары — не скрываем локальные,
-  // а МЕРДЖИМ списки (по id), чтобы при добавлении одного нового
-  // товара через админку у пользователя не "пропадали" остальные.
-  if (fromServer.length) {
-    const seen = new Set(fromServer.map(x => String(x?.id)));
-    const merged = fromServer.slice(0);
-    for (const it of local) {
-      const id = String(it?.id);
-      if (!id || seen.has(id)) continue;
-      merged.push(it);
-      seen.add(id);
-    }
-    return merged;
-  }
-
-  return local;
+  return Array.isArray(fromServer) ? fromServer : [];
 }
 
 function loadGiftsLocal() {
     const raw = safeStorageGet(STORAGE_KEY);
-    if (!raw) return DEFAULT_GIFTS.slice(0);
+    if (!raw) return [];
 
     try {
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return DEFAULT_GIFTS.slice(0);
+      if (!Array.isArray(parsed)) return [];
 
       const cleaned = parsed
         .map((g, idx) => normalizeGift(g, idx))
         .filter(Boolean)
         ;
 
-      return cleaned.length ? cleaned : DEFAULT_GIFTS.slice(0);
+      return cleaned;
     } catch {
-      return DEFAULT_GIFTS.slice(0);
+      return [];
     }
   }
 
