@@ -433,43 +433,62 @@ function closeGiftDrawer() {
 
 async function buyGift(gift) {
   if (!gift || !gift.id) return;
-  if (state.buying) return;
+  if (state.buying === true) return;
 
   state.buying = true;
+
   const name = safeText(gift?.name, 64) || 'Gift';
 
   try {
     toast(`⏳ Buying ${name}...`);
-    const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 20000 });
 
-    state.gifts = (Array.isArray(state.gifts) ? state.gifts : []).filter(x => String(x?.id) !== String(gift.id));
+    const j = await postJson('/api/market/items/buy', {
+      id: gift.id,
+      currency: state.currency
+    }, { timeoutMs: 20000 });
+
+    if (!j || !j.ok) {
+      throw new Error(j?.error || 'BUY_FAILED');
+    }
+
+    // удаляем из маркета
+    state.gifts = state.gifts.filter(
+      x => String(x?.id) !== String(gift.id)
+    );
 
     closeGiftDrawer();
     renderMarket();
 
-    try { window.dispatchEvent(new CustomEvent('wg:inventory:changed')); } catch {}
-    if (typeof j?.newBalance === 'number') {
-      try { window.dispatchEvent(new CustomEvent('wg:balance:update', { detail: { currency: state.currency, balance: j.newBalance } })); } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('wg:inventory:changed'));
+    } catch {}
+
+    if (typeof j.newBalance === 'number') {
+      try {
+        window.dispatchEvent(new CustomEvent('wg:balance:update', {
+          detail: {
+            currency: state.currency,
+            balance: j.newBalance
+          }
+        }));
+      } catch {}
     }
 
     toast(`✅ Purchased: ${name}`);
-  } catch (e) {
-    const payload = e?.payload || null;
-    const code = payload?.code || payload?.errorCode || '';
-    const msg = payload?.error || payload?.message || e?.message || 'Buy failed';
 
-    if (code === 'ALREADY_SOLD' || e?.status === 409) {
-      toast('⚠️ This gift was already sold. Refreshing…');
+  } catch (e) {
+    console.error('BUY ERROR', e);
+
+    const code = e?.payload?.code || '';
+
+    if (code === 'ALREADY_SOLD') {
+      toast('⚠️ Already sold');
       state.gifts = await loadGifts();
       renderMarket();
       return;
     }
-    if (code === 'INSUFFICIENT_BALANCE' || /insufficient/i.test(String(msg))) {
-      toast('❌ Not enough balance');
-      return;
-    }
 
-    toast(`❌ ${msg}`);
+    toast(`❌ Buy failed`);
   } finally {
     state.buying = false;
   }
