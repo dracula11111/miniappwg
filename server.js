@@ -1116,7 +1116,10 @@ let giftsCatalog = [
         "Bonded Ring",
         "Genie Lamp",
         "Jack-in-the-Box",
-        "Winter Wreath"
+        "Winter Wreath",
+        "Snoop Dogg",
+        "Neko Helmet",
+        "Pet Snake"
 ];
   
  // tracked gift collection names (strings)
