@@ -1750,11 +1750,16 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
       return res.status(402).json({ ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance for withdraw fee", support: "@wildgift_support" });
     }
 
-    const rpcUrl = String(process.env.RELAYER_RPC_URL || "").replace(/\/+$/, "");
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(
+      process.env.RELAYER_RPC_URL ||
+      process.env.RELAYER_SERVER ||
+      `http://127.0.0.1:${rpcPort}`
+    ).replace(/\/+$/, "");
     const secret = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
-    if (!rpcUrl || !secret) {
+    if (!secret) {
       try { await db.updateBalance(userId, cur, +fee, "withdraw_fee_refund", "Withdraw fee refund (server misconfig)", { instanceId: inst }); } catch {}
-      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer is not configured", support: "@wildgift_support" });
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer secret is not configured on server", support: "@wildgift_support" });
     }
 
     try {
@@ -1788,6 +1793,34 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
   }
 });
 
+
+
+// Debug: check relayer RPC config/reachability (without exposing secrets)
+app.get("/api/relayer/rpc-health", async (req, res) => {
+  try {
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(
+      process.env.RELAYER_RPC_URL ||
+      process.env.RELAYER_SERVER ||
+      `http://127.0.0.1:${rpcPort}`
+    ).replace(/\/+$/, "");
+    const hasSecret = !!String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "").trim();
+
+    if (!hasSecret) {
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", rpcUrl, hasSecret: false });
+    }
+
+    try {
+      const r = await fetch(`${rpcUrl}/rpc/health`, { method: "GET" });
+      const j = await r.json().catch(() => null);
+      return res.status(r.ok ? 200 : 502).json({ ok: !!(r.ok && j?.ok), rpcUrl, hasSecret: true, status: r.status, body: j || null });
+    } catch (e) {
+      return res.status(502).json({ ok: false, code: "RELAYER_UNREACHABLE", rpcUrl, hasSecret: true, error: e?.message || "network error" });
+    }
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || "rpc health error" });
+  }
+});
 
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {

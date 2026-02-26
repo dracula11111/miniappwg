@@ -1006,6 +1006,9 @@ function startRpcServer(client) {
 
   app.listen(RPC_PORT, () => {
     console.log(`[Relayer][RPC] ✅ listening on :${RPC_PORT}`);
+    if (!SECRET) {
+      console.warn('[Relayer][RPC] ⚠️ RELAYER_SECRET/MARKET_SECRET is empty. Server calls will be rejected.');
+    }
   });
 }
 
