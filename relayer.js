@@ -873,7 +873,16 @@ function normalizeToFields(body) {
 
 async function resolveInputPeer(client, { toUsername, toId }) {
   if (toUsername) {
-    return await client.getInputEntity(toUsername);
+    try {
+      return await client.getInputEntity(toUsername);
+    } catch (e) {
+      try {
+        const r = await client.invoke(new Api.contacts.ResolveUsername({ username: String(toUsername).replace(/^@/, "") }));
+        const users = Array.isArray(r?.users) ? r.users : [];
+        if (users.length) return await client.getInputEntity(users[0]);
+      } catch {}
+      throw e;
+    }
   }
   if (toId) {
     // NOTE: may fail if relayer doesn't know access_hash for that user.

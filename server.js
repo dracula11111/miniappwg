@@ -2642,6 +2642,10 @@ async function ensureMarketDir() {
 
 async function readMarketItems() {
   try {
+    if (typeof db.getMarketItems === "function") {
+      return await db.getMarketItems(5000);
+    }
+
     await ensureMarketDir();
     if (!fs.existsSync(MARKET_DB_PATH)) return [];
     const raw = fs.readFileSync(MARKET_DB_PATH, "utf8");
@@ -2664,6 +2668,17 @@ function withMarketLock(fn) {
 
 async function writeMarketItems(items) {
   try {
+    if (typeof db.clearMarketItems === "function" && typeof db.addMarketItem === "function") {
+      await db.clearMarketItems();
+      const arr = Array.isArray(items) ? items : [];
+      for (const it of arr) {
+        if (!it || typeof it !== "object") continue;
+        if (!it.id) continue;
+        await db.addMarketItem(it);
+      }
+      return true;
+    }
+
     await ensureMarketDir();
     const tmp = `${MARKET_DB_PATH}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(items, null, 2), "utf8");
@@ -2881,24 +2896,41 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
     const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
 
     const result = await withMarketLock(async () => {
-      const items = await readMarketItems();
-      const idx = items.findIndex(x => String(x?.id) === itemId);
-      if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
+      let it = null;
+      let items = null;
+      let idx = -1;
 
-      const it = items[idx];
+      if (typeof db.takeMarketItemById === "function") {
+        it = await db.takeMarketItemById(itemId);
+        if (!it) return { ok: false, code: "ALREADY_SOLD" };
+      } else {
+        items = await readMarketItems();
+        idx = items.findIndex(x => String(x?.id) === itemId);
+        if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
+        it = items[idx];
+      }
+
       const priceTon = Number(it?.priceTon || 0);
       const rate = await getTonUsdRate();
       const tonUsd = rate?.tonUsd;
       const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
-      if (!Number.isFinite(price) || price <= 0) return { ok: false, code: "BAD_PRICE" };
+      if (!Number.isFinite(price) || price <= 0) {
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
+        return { ok: false, code: "BAD_PRICE" };
+      }
 
       // charge
       let newBalance = null;
       try {
         newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
       } catch (e) {
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
         return { ok: false, code: "INSUFFICIENT_BALANCE", error: e?.message || "Insufficient balance" };
       }
 
@@ -2922,12 +2954,17 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
       const addRes = await inventoryAdd(userId, [invItem], `buy_${itemId}`);
       if (!addRes?.items) {
         try { await db.updateBalance(userId, cur, +price, "market_buy_refund", `Refund market buy: ${it?.name || "Gift"}`, { marketItemId: itemId }); } catch {}
+        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+          try { await db.addMarketItem(it); } catch {}
+        }
         return { ok: false, code: "INV_ADD_FAILED" };
       }
 
       // remove from market + mark sold
-      items.splice(idx, 1);
-      await writeMarketItems(items);
+      if (typeof db.takeMarketItemById !== "function" && items && idx >= 0) {
+        items.splice(idx, 1);
+        await writeMarketItems(items);
+      }
       if (it?.sourceKey) await markMarketSold(it.sourceKey);
 
       return { ok: true, itemId, newBalance, inventory: addRes.items };
