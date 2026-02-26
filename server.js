@@ -2787,6 +2787,32 @@ function fragmentMediumPreviewUrlFromSlug(slug) {
   return `https://nft.fragment.com/gift/${base}.medium.jpg`;
 }
 
+function resolveMarketItemPriceTon(item, tonUsd = null) {
+  const direct = Number(item?.priceTon ?? item?.price_ton ?? item?.price ?? null);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const name = normalizeGiftName(item?.name || item?.displayName || "");
+  if (!name) return null;
+
+  const q = String(name).toLowerCase();
+  let cached = giftsPrices.get(name) || null;
+  if (!cached && giftsPrices?.size) {
+    for (const [nm, val] of giftsPrices.entries()) {
+      if (String(nm).toLowerCase() === q) {
+        cached = val;
+        break;
+      }
+    }
+  }
+
+  const cachedTon = Number(cached?.priceTon ?? cached?.price_ton ?? cached?.price ?? null);
+  if (Number.isFinite(cachedTon) && cachedTon > 0) return cachedTon;
+
+  const rel = getRelayerPriceEntry(name);
+  const relTon = computeRelayerPriceTon(rel, tonUsd);
+  return (Number.isFinite(relTon) && relTon > 0) ? relTon : null;
+}
+
 
 // List (new)
 app.get("/api/market/items/list", async (req, res) => {
@@ -2797,9 +2823,13 @@ app.get("/api/market/items/list", async (req, res) => {
 
     const outItems = items.map((it) => {
       if (!it || typeof it !== "object") return it;
-      const priceTon = (it.priceTon == null ? null : Number(it.priceTon));
+      const priceTon = resolveMarketItemPriceTon(it, tonUsd);
       const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
-      return { ...it, priceStars };
+      return {
+        ...it,
+        priceTon: Number.isFinite(priceTon) && priceTon > 0 ? priceTon : null,
+        priceStars
+      };
     });
 
     return res.json({
@@ -2832,9 +2862,13 @@ app.get("/api/market/items", async (req, res) => {
     const slice = items.slice(0, limit);
     const outItems = slice.map((it) => {
       if (!it || typeof it !== "object") return it;
-      const priceTon = (it.priceTon == null ? null : Number(it.priceTon));
+      const priceTon = resolveMarketItemPriceTon(it, tonUsd);
       const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
-      return { ...it, priceStars };
+      return {
+        ...it,
+        priceTon: Number.isFinite(priceTon) && priceTon > 0 ? priceTon : null,
+        priceStars
+      };
     });
 
     return res.json({
@@ -2960,9 +2994,9 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
         it = items[idx];
       }
 
-      const priceTon = Number(it?.priceTon || 0);
       const rate = await getTonUsdRate();
       const tonUsd = rate?.tonUsd;
+      const priceTon = resolveMarketItemPriceTon(it, tonUsd);
       const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
