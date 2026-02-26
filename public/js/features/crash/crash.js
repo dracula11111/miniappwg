@@ -874,7 +874,12 @@ function showToast(text, opts = {}) {
 
 
         if (state.phase === 'betting' || state.phase === 'wait') {
-          statusHTML = `<span class="crash-player__status">Waiting</span>`;
+          const betAmt = typeof player.amount === 'number' && player.amount > 0
+            ? player.amount.toFixed(player.currency === 'stars' ? 0 : 2)
+            : null;
+          statusHTML = betAmt
+            ? `<div class="crash-amount__top"><img class="crash-ico" src="${icon}" alt="" /><span>${betAmt}</span></div>`
+            : `<span class="crash-player__status">Waiting</span>`;
         } else if (isRunPhase(state.phase)) {
           if (player.claimed) {
             const payout = (player.amount * player.claimMult).toFixed(player.currency === 'stars' ? 0 : 2);
@@ -1109,12 +1114,15 @@ function showToast(text, opts = {}) {
     function setBuyMode(mode) {
       if (!buyBtn) return;
 
+      const bar = document.querySelector('.crash-controls__bar');
+
       buyBtn.disabled = state.actionLock || mode === "locked" || mode === "lost" || mode === "claimed";
       buyBtn.classList.remove("is-claim", "is-disabled", "is-lost");
 
       if (mode === "claim") {
         buyBtn.textContent = "Claim";
         buyBtn.classList.add("is-claim");
+        if (bar) { bar.classList.remove("is-bet-placed"); bar.classList.add("is-running"); }
         return;
       }
 
@@ -1122,6 +1130,7 @@ function showToast(text, opts = {}) {
         buyBtn.textContent = "Lost";
         buyBtn.classList.add("is-lost");
         buyBtn.disabled = true;
+        if (bar) { bar.classList.remove("is-bet-placed", "is-running"); }
         return;
       }
 
@@ -1129,6 +1138,7 @@ function showToast(text, opts = {}) {
         buyBtn.textContent = "Claimed";
         buyBtn.classList.add("is-disabled");
         buyBtn.disabled = true;
+        if (bar) { bar.classList.remove("is-bet-placed", "is-running"); }
         return;
       }
 
@@ -1136,10 +1146,19 @@ function showToast(text, opts = {}) {
         buyBtn.textContent = "…";
         buyBtn.classList.add("is-disabled");
         buyBtn.disabled = true;
+        if (bar) { bar.classList.remove("is-bet-placed", "is-running"); }
         return;
       }
 
+      // mode === "buy"
       buyBtn.textContent = "Place Bet";
+
+      // если ставка уже сделана — схлопываем панель
+      if (state.myBet && state.phase === 'betting') {
+        if (bar) { bar.classList.add("is-bet-placed"); bar.classList.remove("is-running"); }
+      } else {
+        if (bar) { bar.classList.remove("is-bet-placed", "is-running"); }
+      }
     }
 
     async function placeBet() {

@@ -1350,7 +1350,7 @@
 }
 
 .crash-controls{
-  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px))!important;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
   will-change: transform;
@@ -1830,4 +1830,129 @@ filter: blur(2px);
     0 6px 24px rgba(168,237,234,0.7),
     0 0 35px rgba(168,237,234,0.5),
     inset 0 1px 0 rgba(255,255,255,0.35);
+}
+
+/* ====================================
+   CONTROLS BAR — BET PLACED STATE
+   Скрываем лишнее, оставляем Claim
+   ==================================== */
+
+/* Плавный переход для всей панели */
+.crash-controls__bar {
+  transition: padding 0.35s ease;
+}
+
+/* Элементы которые прячем */
+.crash-controls__bar .crash-amountRow,
+.crash-controls__bar .crash-plus,
+.crash-controls__bar .crash-helpRow {
+  transition:
+    opacity 0.3s ease,
+    max-height 0.35s ease,
+    margin 0.35s ease,
+    transform 0.3s ease;
+  max-height: 80px;
+  overflow: hidden;
+}
+
+/* === Ставка сделана, идёт обратный отсчёт === */
+.crash-controls__bar.is-bet-placed .crash-amountRow,
+.crash-controls__bar.is-bet-placed .crash-helpRow {
+  opacity: 0;
+  max-height: 0;
+  margin: 0 !important;
+  pointer-events: none;
+  transform: translateY(-6px);
+}
+
+/* Кнопка + тоже прячем */
+.crash-controls__bar.is-bet-placed .crash-actions {
+  margin-bottom: 0 !important;
+}
+
+.crash-controls__bar.is-bet-placed .crash-plus {
+  opacity: 0;
+  max-height: 0;
+  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  overflow: hidden;
+  transition:
+    opacity 0.3s ease,
+    width 0.35s ease,
+    min-width 0.35s ease,
+    padding 0.35s ease;
+}
+
+/* Place Bet → растягивается на всю ширину, тусклый */
+.crash-controls__bar.is-bet-placed .crash-buy {
+  opacity: 0.45;
+  filter: grayscale(0.4) brightness(0.8);
+  pointer-events: none;
+  cursor: default;
+  transition:
+    opacity 0.3s ease,
+    filter 0.3s ease,
+    transform 0.3s ease;
+}
+
+/* Убираем gap у actions когда + скрыт */
+.crash-controls__bar.is-bet-placed .crash-actions {
+  gap: 0 !important;
+}
+
+
+/* === Раунд идёт — Claim яркий, один во всей панели === */
+.crash-controls__bar.is-running .crash-amountRow,
+.crash-controls__bar.is-running .crash-helpRow {
+  opacity: 0;
+  max-height: 0;
+  margin: 0 !important;
+  pointer-events: none;
+  transform: translateY(-6px);
+}
+
+.crash-controls__bar.is-running .crash-plus {
+  opacity: 0;
+  max-height: 0;
+  pointer-events: none;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  overflow: hidden;
+}
+
+.crash-controls__bar.is-running .crash-actions {
+  margin-bottom: 0 !important;
+  gap: 0 !important;
+}
+
+/* Claim — полная ширина, яркий, пульсирует */
+.crash-controls__bar.is-running .crash-buy.is-claim {
+  opacity: 1 !important;
+  filter: none !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  animation: claimPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes claimPulse {
+  0%, 100% {
+    box-shadow:
+      0 12px 32px rgba(0,255,136,0.4),
+      0 0 30px rgba(0,255,136,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  50% {
+    box-shadow:
+      0 16px 48px rgba(0,255,136,0.65),
+      0 0 50px rgba(0,255,136,0.45),
+      inset 0 1px 0 rgba(255,255,255,0.3);
+    transform: translateY(-1px);
+  }
 }
