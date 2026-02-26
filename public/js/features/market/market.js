@@ -1,18 +1,6 @@
 (() => {
   'use strict';
 
-
-const tg = window.Telegram?.WebApp;
-
-function getInitData() {
-  return window.Telegram?.WebApp?.initData || "";
-}
-
-async function tgFetch(url, options = {}) {
-  const headers = { ...(options.headers || {}), "x-telegram-init-data": getInitData() };
-  return fetch(url, { ...options, headers });
-}
-
   // =========================
   // Config
   // =========================
@@ -402,60 +390,6 @@ function ensureGiftDrawer() {
   giftDrawerBuyBtn = buyBtn;
 }
 
-
-async function buyOpenGift() {
-  if (!state.openGift) return;
-  const gift = state.openGift;
-  const id = String(gift?.id || "").trim();
-  if (!id) return;
-
-  const currency = getCurrency();
-  const name = safeText(gift?.name, 64) || 'Gift';
-
-  try {
-    if (giftDrawerBuyBtn) {
-      giftDrawerBuyBtn.disabled = true;
-      giftDrawerBuyBtn.classList.add('is-loading');
-    }
-
-    const r = await tgFetch('/api/market/items/buy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, currency })
-    });
-    const j = await r.json().catch(() => null);
-
-    if (!r.ok || !j?.ok) {
-      const code = j?.code || '';
-      if (code === 'NO_FUNDS' || r.status === 402) {
-        toast('❌ Not enough balance');
-      } else if (code === 'NOT_FOUND' || r.status === 404) {
-        toast('❌ Gift already sold');
-      } else {
-        toast('❌ Buy failed');
-      }
-      return;
-    }
-
-    state.gifts = (state.gifts || []).filter(x => String(x?.id) !== id);
-    renderMarket();
-    closeGiftDrawer();
-
-    try { window.dispatchEvent(new CustomEvent('wg:inventory:changed')); } catch {}
-    try { window.dispatchEvent(new CustomEvent('balance:update')); } catch {}
-
-    toast(`✅ Purchased: ${name}`);
-  } catch (e) {
-    console.warn('[Market] buy error', e);
-    toast('❌ Network error');
-  } finally {
-    if (giftDrawerBuyBtn) {
-      giftDrawerBuyBtn.disabled = false;
-      giftDrawerBuyBtn.classList.remove('is-loading');
-    }
-  }
-}
-
 function getStarsPerTon() {
   // 1) WildTimeRates (shared rate module)
   try {
@@ -490,6 +424,57 @@ function formatBuyPriceForGift(gift) {
   return { num: formatPrice(v), icon: currencyIconPath('ton') };
 }
 
+
+function closeGiftDrawer() {
+  if (!giftDrawerOverlayEl) return;
+  giftDrawerOverlayEl.classList.remove('is-open');
+  setTimeout(() => { try { giftDrawerOverlayEl.style.display = 'none'; } catch {} }, 250);
+}
+
+async function buyGift(gift) {
+  if (!gift || !gift.id) return;
+  if (state.buying) return;
+
+  state.buying = true;
+  const name = safeText(gift?.name, 64) || 'Gift';
+
+  try {
+    toast(`⏳ Buying ${name}...`);
+    const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 20000 });
+
+    state.gifts = (Array.isArray(state.gifts) ? state.gifts : []).filter(x => String(x?.id) !== String(gift.id));
+
+    closeGiftDrawer();
+    renderMarket();
+
+    try { window.dispatchEvent(new CustomEvent('wg:inventory:changed')); } catch {}
+    if (typeof j?.newBalance === 'number') {
+      try { window.dispatchEvent(new CustomEvent('wg:balance:update', { detail: { currency: state.currency, balance: j.newBalance } })); } catch {}
+    }
+
+    toast(`✅ Purchased: ${name}`);
+  } catch (e) {
+    const payload = e?.payload || null;
+    const code = payload?.code || payload?.errorCode || '';
+    const msg = payload?.error || payload?.message || e?.message || 'Buy failed';
+
+    if (code === 'ALREADY_SOLD' || e?.status === 409) {
+      toast('⚠️ This gift was already sold. Refreshing…');
+      state.gifts = await loadGifts();
+      renderMarket();
+      return;
+    }
+    if (code === 'INSUFFICIENT_BALANCE' || /insufficient/i.test(String(msg))) {
+      toast('❌ Not enough balance');
+      return;
+    }
+
+    toast(`❌ ${msg}`);
+  } finally {
+    state.buying = false;
+  }
+}
+
 function refreshGiftDrawerPrice() {
   if (!giftDrawerOverlayEl || giftDrawerOverlayEl.style.display !== 'block') return;
   if (!giftDrawerEl) return;
@@ -501,9 +486,11 @@ function refreshGiftDrawerPrice() {
   if (iconEl) iconEl.setAttribute('src', bp.icon);
   if (numEl) numEl.textContent = bp.num;
 
-  // update buy button
+  // update buy button (keep same handler, but update label/price in UI)
   if (giftDrawerBuyBtn) {
-    giftDrawerBuyBtn.onclick = async () => { await buyOpenGift(); };
+    giftDrawerBuyBtn.onclick = async () => {
+      if (state.openGift) await buyGift(state.openGift);
+    };
   }
 }
 
@@ -554,7 +541,9 @@ function openGiftDrawer(gift) {
   if (numEl) numEl.textContent = bp.num;
 
   // click buy
-  giftDrawerBuyBtn.onclick = async () => { await buyOpenGift(); };
+  giftDrawerBuyBtn.onclick = async () => {
+    await buyGift(gift);
+  };
 
   giftDrawerOverlayEl.style.display = 'block';
   // next tick for animation
@@ -660,10 +649,26 @@ function openGiftDrawer(gift) {
 async function loadGifts() {
   // 1) server market (чтобы подарки появлялись автоматически)
   const fromServer = await fetchMarketItemsFromServer();
-  if (fromServer.length) return fromServer;
 
-  // 2) localStorage fallback
-  return loadGiftsLocal();
+  // 2) localStorage fallback (старые подарки, добавленные локально)
+  const local = loadGiftsLocal();
+
+  // Если на сервере уже есть товары — не скрываем локальные,
+  // а МЕРДЖИМ списки (по id), чтобы при добавлении одного нового
+  // товара через админку у пользователя не "пропадали" остальные.
+  if (fromServer.length) {
+    const seen = new Set(fromServer.map(x => String(x?.id)));
+    const merged = fromServer.slice(0);
+    for (const it of local) {
+      const id = String(it?.id);
+      if (!id || seen.has(id)) continue;
+      merged.push(it);
+      seen.add(id);
+    }
+    return merged;
+  }
+
+  return local;
 }
 
 function loadGiftsLocal() {
@@ -814,7 +819,10 @@ function resolvePriceForCurrency(gift, currency) {
     // Preferred: server-side unified endpoint (Portals -> Tonnel fallback)
     try {
       const data = await fetchJson(`/api/gifts/price?name=${encodeURIComponent(q)}`, { timeoutMs: 12000 });
-      const p = toFiniteNumber(data?.priceTon ?? data?.price_ton ?? data?.price);
+      const p = toFiniteNumber(
+        data?.item?.priceTon ?? data?.item?.price_ton ?? data?.item?.price ??
+        data?.priceTon ?? data?.price_ton ?? data?.price
+      );
       if (Number.isFinite(p) && p > 0) return p;
     } catch {
       // ignore
@@ -884,15 +892,16 @@ function resolvePriceForCurrency(gift, currency) {
     const p = await fetchPriceSmart(name);
     if (Number.isFinite(p) && p > 0) newGift.priceTon = p;
 
-    const list = loadGiftsLocal();
-    list.unshift(newGift);
+    const listLocal = loadGiftsLocal();
 
-    // Keep exactly 6
-    state.gifts = list;
+    // Merge with current state (which may include server items)
+    const base = (Array.isArray(state.gifts) && state.gifts.length) ? state.gifts.slice() : listLocal.slice();
+    const merged = [newGift, ...base.filter(x => String(x?.id) !== String(newGift.id))];
+
+    state.gifts = merged;
     saveGifts(state.gifts);
-
     renderMarket();
-  };
+};
 
   window.marketResetGifts = function marketResetGifts() {
     try {
@@ -1010,6 +1019,44 @@ function safeImg(v, maxUrl = 4096) {
       if (timer) clearTimeout(timer);
     }
   }
+
+  
+
+function getTgInitData() {
+  try { return window.Telegram?.WebApp?.initData || ''; } catch { return ''; }
+}
+
+async function postJson(url, body, { timeoutMs = 12000 } = {}) {
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+
+  try {
+    const initData = getTgInitData();
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal: ctrl ? ctrl.signal : undefined,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': initData
+      },
+      body: JSON.stringify(body || {})
+    });
+
+    const j = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = (j && (j.error || j.message)) ? (j.error || j.message) : `HTTP ${res.status}`;
+      const e = new Error(err);
+      e.status = res.status;
+      e.payload = j;
+      throw e;
+    }
+    return j;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
   function pickImageFile() {
     return new Promise((resolve) => {

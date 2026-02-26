@@ -1715,13 +1715,16 @@ app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
 app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
-    const { currency, instanceId, toUserId } = req.body || {};
+    const { currency, instanceId } = req.body || {};
+
+    // recipient: take from Telegram profile (username preferred), fallback to telegram_id
+    const toUsername = String(req.tg.user.username || "").trim();
+    const toId = String(req.tg.user.id);
+    const to = toUsername ? toUsername : toId;
 
     const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
     const inst = String(instanceId || "").trim();
-    const to = String(toUserId || "").trim();
     if (!inst) return res.status(400).json({ ok: false, error: "instanceId required" });
-    if (!to) return res.status(400).json({ ok: false, error: "toUserId required" });
 
     const FEE_TON = 0.2;
     const FEE_STARS = 25;
@@ -1739,10 +1742,12 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
 
     const fee = (cur === "stars") ? FEE_STARS : FEE_TON;
 
+    let newBalance = null;
+
     try {
-      await db.updateBalance(userId, cur, -fee, "withdraw_fee", `Withdraw fee`, { instanceId: inst });
+      newBalance = await db.updateBalance(userId, cur, -fee, "withdraw_fee", `Withdraw fee`, { instanceId: inst });
     } catch (e) {
-      return res.status(402).json({ ok: false, code: "INSUFFICIENT_FUNDS", error: "Insufficient balance for withdraw fee", support: "@wildgift_support" });
+      return res.status(402).json({ ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance for withdraw fee", support: "@wildgift_support" });
     }
 
     const rpcUrl = String(process.env.RELAYER_RPC_URL || "").replace(/\/+$/, "");
@@ -1756,7 +1761,7 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
       const r = await fetch(`${rpcUrl}/rpc/transfer-stargift`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
-        body: JSON.stringify({ toUserId: to, msgId: String(msgId) })
+        body: JSON.stringify({ toUserId: to, toUsername, toId, msgId: String(msgId) })
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) {
@@ -1776,7 +1781,7 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
     }
 
     const left = await inventoryGet(userId);
-    return res.json({ ok: true, items: left, nfts: left });
+    return res.json({ ok: true, newBalance, items: left, nfts: left });
   } catch (e) {
     console.error("[Withdraw] error:", e);
     return res.status(500).json({ ok: false, error: "withdraw error", support: "@wildgift_support" });
@@ -2878,7 +2883,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
     const result = await withMarketLock(async () => {
       const items = await readMarketItems();
       const idx = items.findIndex(x => String(x?.id) === itemId);
-      if (idx < 0) return { ok: false, code: "NOT_FOUND" };
+      if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
 
       const it = items[idx];
       const priceTon = Number(it?.priceTon || 0);
@@ -2894,7 +2899,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
       try {
         newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
       } catch (e) {
-        return { ok: false, code: "NO_FUNDS", error: e?.message || "Insufficient balance" };
+        return { ok: false, code: "INSUFFICIENT_BALANCE", error: e?.message || "Insufficient balance" };
       }
 
       // build inventory item
@@ -2930,7 +2935,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
 
     if (!result.ok) {
       const code = result.code || "ERROR";
-      const status = (code === "NOT_FOUND") ? 404 : (code === "NO_FUNDS" ? 402 : 400);
+      const status = (code === "ALREADY_SOLD") ? 409 : (code === "INSUFFICIENT_BALANCE" ? 402 : 400);
       return res.status(status).json({ ok: false, code, error: result.error || code });
     }
 

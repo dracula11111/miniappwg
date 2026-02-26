@@ -269,13 +269,21 @@
   }
 
   function itemIconPath(item) {
-    const icon = item?.icon || item?.image || item?.img;
-    if (!icon) return '/icons/unknown.png';
+  const raw = item?.icon || item?.previewUrl || item?.image || item?.img || '';
+  const icon = String(raw || '').trim();
+  if (!icon) return '/icons/unknown.png';
 
-    const t = itemType(item);
-    if (t === 'nft') return `/images/gifts/nfts/${icon}`;
-    return `/images/gifts/${icon}`;
-  }
+  // absolute / data urls are already final
+  if (icon.startsWith('data:')) return icon;
+  if (icon.startsWith('http://') || icon.startsWith('https://')) return icon;
+  if (icon.startsWith('/')) return icon;
+
+  // legacy local filenames
+  const t = itemType(item);
+  if (t === 'nft') return `/images/gifts/nfts/${icon}`;
+  return `/images/gifts/${icon}`;
+}
+
 
 
   const TON_FOR_50_STARS = 0.4332;
@@ -671,16 +679,287 @@
     haptic('medium');
   }
 
+
+// ====== WITHDRAW FLOW (send gift from relayer to THIS Telegram user) ======
+const WITHDRAW_FEE_TON = 0.2;
+const WITHDRAW_FEE_STARS = 25;
+const SUPPORT_USERNAME = 'wildgift_support';
+
+function fragmentMediumPreviewUrlFromSlug(slug) {
+  const s = String(slug ?? '').trim();
+  if (!s) return '';
+  const base = s.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+  if (!base) return '';
+  return `https://nft.fragment.com/gift/${base}.medium.jpg`;
+}
+
+function getWithdrawFeeText(currency) {
+  return currency === 'stars'
+    ? `Withdrawal fee: ${WITHDRAW_FEE_STARS} Stars`
+    : `Withdrawal fee: ${WITHDRAW_FEE_TON} TON`;
+}
+
+function getWithdrawRecipientText() {
+  const u = getTelegramUser();
+  const uname = u?.username ? `@${u.username}` : null;
+  const id = u?.id ? String(u.id) : '';
+  return uname ? `Recipient: ${uname}` : (id ? `Recipient: ${id}` : '');
+}
+
+function openSupportChat() {
+  const url = `https://t.me/${SUPPORT_USERNAME}`;
+  try {
+    if (tg?.openTelegramLink) return tg.openTelegramLink(url);
+    if (tg?.openLink) return tg.openLink(url);
+  } catch {}
+  try { window.open(url, '_blank'); } catch {}
+}
+
+let withdrawModalEl = null;
+let withdrawErrEl = null;
+let withdrawCtx = { instanceId: null };
+
+function ensureWithdrawModal() {
+  if (withdrawModalEl) return withdrawModalEl;
+
+  const el = document.createElement('div');
+  el.id = 'wgWithdrawModal';
+  el.style.cssText = [
+    'position:fixed',
+    'inset:0',
+    'display:none',
+    'align-items:center',
+    'justify-content:center',
+    'padding:20px',
+    'background:rgba(0,0,0,0.55)',
+    'z-index:99999'
+  ].join(';');
+
+  el.innerHTML = `
+    <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+      <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-weight:700;font-size:16px;">Withdraw</div>
+        <button type="button" data-close="1" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;">✕</button>
+      </div>
+
+      <div style="padding:16px;">
+        <div id="wgWithdrawFee" style="font-size:13px;opacity:0.9;margin-bottom:14px;"></div>
+
+        <div style="display:flex;gap:14px;align-items:center;">
+          <img id="wgWithdrawImg" src="" alt="" style="width:92px;height:92px;border-radius:16px;object-fit:cover;background:#1d1d1d;flex:0 0 auto;">
+          <div style="min-width:0;">
+            <div id="wgWithdrawName" style="font-weight:700;font-size:16px;line-height:1.25;word-break:break-word;"></div>
+            <div id="wgWithdrawNum" style="margin-top:6px;font-size:13px;opacity:0.85;"></div>
+          </div>
+        </div>
+
+        <div id="wgWithdrawTo" style="margin-top:12px;font-size:13px;opacity:0.8;"></div>
+
+        <button id="wgWithdrawContinue" type="button"
+          style="margin-top:16px;width:100%;height:50px;border-radius:14px;border:0;background:#fff;color:#000;font-weight:800;font-size:16px;cursor:pointer;">
+          Continue
+        </button>
+      </div>
+    </div>
+  `;
+
+  el.addEventListener('click', (e) => {
+    if (e.target === el) closeWithdrawModal();
+    const closeBtn = e.target.closest?.('[data-close="1"]');
+    if (closeBtn) closeWithdrawModal();
+  });
+
+  document.body.appendChild(el);
+  withdrawModalEl = el;
+  return el;
+}
+
+function ensureWithdrawErrorModal() {
+  if (withdrawErrEl) return withdrawErrEl;
+
+  const el = document.createElement('div');
+  el.id = 'wgWithdrawErrorModal';
+  el.style.cssText = [
+    'position:fixed',
+    'inset:0',
+    'display:none',
+    'align-items:center',
+    'justify-content:center',
+    'padding:20px',
+    'background:rgba(0,0,0,0.55)',
+    'z-index:100000'
+  ].join(';');
+
+  el.innerHTML = `
+    <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+      <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-weight:700;font-size:16px;">Withdraw</div>
+        <button type="button" data-close="1" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;">✕</button>
+      </div>
+
+      <div style="padding:16px;">
+        <div id="wgWithdrawErrText" style="font-size:14px;line-height:1.35;white-space:pre-line;"></div>
+
+        <button id="wgWithdrawSupport" type="button"
+          style="margin-top:14px;width:100%;height:46px;border-radius:14px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;font-weight:800;font-size:15px;cursor:pointer;">
+          Contact support @${SUPPORT_USERNAME}
+        </button>
+      </div>
+    </div>
+  `;
+
+  el.addEventListener('click', (e) => {
+    if (e.target === el) closeWithdrawErrorModal();
+    const closeBtn = e.target.closest?.('[data-close="1"]');
+    if (closeBtn) closeWithdrawErrorModal();
+  });
+
+  el.querySelector('#wgWithdrawSupport')?.addEventListener('click', () => openSupportChat());
+
+  document.body.appendChild(el);
+  withdrawErrEl = el;
+  return el;
+}
+
+function closeWithdrawModal() {
+  if (!withdrawModalEl) return;
+  withdrawModalEl.style.display = 'none';
+}
+
+function closeWithdrawErrorModal() {
+  if (!withdrawErrEl) return;
+  withdrawErrEl.style.display = 'none';
+}
+
+function showWithdrawErrorPanel(text) {
+  const el = ensureWithdrawErrorModal();
+  const t = el.querySelector('#wgWithdrawErrText');
+  if (t) t.textContent = String(text || 'Failed to withdraw gift.');
+  el.style.display = 'flex';
+}
+
+function openWithdrawModal(item) {
+  const el = ensureWithdrawModal();
+  const currency = getCurrency();
+
+  const feeEl = el.querySelector('#wgWithdrawFee');
+  if (feeEl) feeEl.textContent = getWithdrawFeeText(currency);
+
+  const imgEl = el.querySelector('#wgWithdrawImg');
+  const nameEl = el.querySelector('#wgWithdrawName');
+  const numEl = el.querySelector('#wgWithdrawNum');
+  const toEl = el.querySelector('#wgWithdrawTo');
+
+  const slug = item?.tg?.slug || item?.tg?.giftSlug || '';
+  const preview = fragmentMediumPreviewUrlFromSlug(slug);
+  const src = preview || itemIconPath(item);
+
+  if (imgEl) imgEl.setAttribute('src', src);
+  if (nameEl) nameEl.textContent = itemDisplayName(item);
+
+  const n = item?.tg?.num || item?.number || item?.tg?.number || '';
+  if (numEl) numEl.textContent = n ? `#${n}` : '';
+
+  if (toEl) toEl.textContent = getWithdrawRecipientText();
+
+  withdrawCtx.instanceId = String(item?.instanceId || '');
+  el.style.display = 'flex';
+
+  const btn = el.querySelector('#wgWithdrawContinue');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Continue';
+    btn.onclick = async () => {
+      await withdrawContinue();
+    };
+  }
+}
+
+async function withdrawContinue() {
+  const instanceId = String(withdrawCtx.instanceId || '');
+  if (!instanceId) {
+    showWithdrawErrorPanel('Failed to withdraw: instanceId not found.');
+    return;
+  }
+
+  const currency = getCurrency();
+  const u = getTelegramUser();
+  const userId = u?.id ? String(u.id) : '';
+
+  const modal = ensureWithdrawModal();
+  const btn = modal.querySelector('#wgWithdrawContinue');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+  }
+
+  try {
+    const r = await tgFetch('/api/inventory/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currency, instanceId })
+    });
+
+    const j = await r.json().catch(() => null);
+
+    if (!r.ok || !j?.ok) {
+      const code = j?.code || j?.errorCode || '';
+      closeWithdrawModal();
+
+      if (code === 'RELAYER_STARS_LOW') {
+        showWithdrawErrorPanel('Failed to withdraw gift: relayer has not enough Stars for transfer.\nContact support @' + SUPPORT_USERNAME);
+        return;
+      }
+      if (code === 'NO_STOCK') {
+        showWithdrawErrorPanel('This gift is not available in stock (relayer cannot find it).\nContact support @' + SUPPORT_USERNAME);
+        return;
+      }
+      if (code === 'INSUFFICIENT_BALANCE') {
+        showToast('Not enough balance to pay withdraw fee.');
+        return;
+      }
+
+      showWithdrawErrorPanel((j?.error || 'Failed to withdraw gift.') + `\nContact support @${SUPPORT_USERNAME}`);
+      return;
+    }
+
+    // Success: update local inventory + balance and refresh
+    const left = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : []);
+    if (userId) writeLocalInventory(userId, left);
+
+    if (typeof j.newBalance === 'number') {
+      setBalance(currency, j.newBalance);
+    }
+
+    closeWithdrawModal();
+    await loadInventory();
+    setupPromocode();
+    haptic('success');
+  } catch (e) {
+    closeWithdrawModal();
+    showWithdrawErrorPanel('Failed to withdraw gift (network).\nContact support @' + SUPPORT_USERNAME);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Continue';
+    }
+  }
+}
+
   function onInventoryClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;
   
     const action = target.getAttribute('data-action');
     const key = target.getAttribute('data-key');
-    if (!key) return;    if (action === 'withdraw') {
+    if (!key) return;
+  
+    if (action === 'withdraw') {
       const found = findInventoryItemByKey(key);
-      if (found?.item) openWithdrawPanel(found.item);
-      haptic('light');
+      if (found?.item) {
+        openWithdrawModal(found.item);
+        haptic('light');
+      }
       return;
     }
   
@@ -723,8 +1002,10 @@
   
       if (action === 'withdraw') {
         const found = findInventoryItemByKey(key);
-        if (found?.item) openWithdrawPanel(found.item);
-        haptic('light');
+        if (found?.item) {
+          openWithdrawModal(found.item);
+          haptic('light');
+        }
         return;
       }
   
@@ -746,175 +1027,6 @@
   function getEmptyTextEl() {
     return inventoryPanel?.querySelector('.profile-invpanel__text') || null;
   }
-
-
-
-// ====== WITHDRAW PANEL ======
-let withdrawOverlay = null;
-
-function ensureWithdrawOverlay() {
-  if (withdrawOverlay) return withdrawOverlay;
-
-  const el = document.createElement('div');
-  el.id = 'wgWithdrawOverlay';
-  el.style.cssText = [
-    'position:fixed',
-    'inset:0',
-    'display:none',
-    'z-index:9999',
-    'background:rgba(0,0,0,.55)',
-    'backdrop-filter: blur(6px)'
-  ].join(';');
-
-  el.innerHTML = `
-    <div class="wg-withdraw" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,420px);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.35);">
-      <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.08)">
-        <div style="font-weight:700">Withdraw</div>
-        <button type="button" data-wg-close="1" style="border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer">✕</button>
-      </div>
-
-      <div style="padding:14px 16px">
-        <div data-wg-fee style="font-size:13px;opacity:.75;margin-bottom:10px">За вывод подарка берется …</div>
-
-        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
-          <div style="width:92px;height:92px;border-radius:16px;background:rgba(0,0,0,.06);overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center">
-            <img data-wg-img src="" alt="" style="width:100%;height:100%;object-fit:cover" />
-          </div>
-          <div style="min-width:0">
-            <div data-wg-title style="font-weight:800;font-size:16px;line-height:1.15;word-break:break-word">Gift</div>
-            <div data-wg-num style="margin-top:6px;font-size:13px;opacity:.7">#—</div>
-          </div>
-        </div>
-
-        <label style="display:block;font-size:12px;opacity:.7;margin-bottom:6px">Receiver (game id or @username)</label>
-        <input data-wg-to type="text" placeholder="@username or 123456" style="width:100%;padding:12px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.12);outline:none" />
-
-        <div style="height:12px"></div>
-
-        <button data-wg-continue type="button" style="width:100%;padding:12px 14px;border-radius:14px;border:0;background:#000;color:#fff;font-weight:800;cursor:pointer">Continue</button>
-      </div>
-    </div>
-  `;
-
-  el.addEventListener('click', (e) => {
-    const close = e.target?.closest?.('[data-wg-close="1"]');
-    if (close || e.target === el) closeWithdrawOverlay();
-  });
-
-  document.body.appendChild(el);
-  withdrawOverlay = el;
-  return withdrawOverlay;
-}
-
-function closeWithdrawOverlay() {
-  if (!withdrawOverlay) return;
-  withdrawOverlay.style.display = 'none';
-}
-
-function openSupportChat(username = '@wildgift_support') {
-  const u = String(username || '').trim();
-  const handle = u.startsWith('@') ? u.slice(1) : u;
-  try {
-    if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/${handle}`);
-    else window.open(`https://t.me/${handle}`, '_blank');
-  } catch {
-    try { window.open(`https://t.me/${handle}`, '_blank'); } catch {}
-  }
-}
-
-function showWithdrawErrorPanel(message, support = '@wildgift_support') {
-  const el = ensureWithdrawOverlay();
-  const box = el.querySelector('.wg-withdraw');
-  if (!box) return;
-
-  box.innerHTML = `
-    <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.08)">
-      <div style="font-weight:800">Withdraw</div>
-      <button type="button" data-wg-close="1" style="border:0;background:transparent;font-size:18px;line-height:1;cursor:pointer">✕</button>
-    </div>
-    <div style="padding:16px">
-      <div style="font-weight:800;margin-bottom:8px">Не удалось вывести подарок</div>
-      <div style="opacity:.8;margin-bottom:12px">${escapeHtml(message || '')}</div>
-      <button type="button" data-wg-support="1" style="width:100%;padding:12px 14px;border-radius:14px;border:0;background:#000;color:#fff;font-weight:800;cursor:pointer">Контактируйте саппорт ${escapeHtml(support)}</button>
-    </div>
-  `;
-
-  box.querySelector('[data-wg-support="1"]')?.addEventListener('click', () => openSupportChat(support));
-
-  el.style.display = 'block';
-}
-
-async function openWithdrawPanel(item) {
-  const el = ensureWithdrawOverlay();
-
-  const currency = getCurrency();
-  const feeText = currency === 'stars' ? 'За вывод подарка берется 25 ⭐' : 'За вывод подарка берется 0.2 TON';
-
-  const title = itemDisplayName(item);
-  const num = String(item?.number || item?.tg?.num || item?.tg?.number || '').trim();
-  const img = itemIconPath(item);  const feeEl = el.querySelector('[data-wg-fee]');
-  if (feeEl) feeEl.textContent = feeText;
-  const titleEl = el.querySelector('[data-wg-title]');
-  if (titleEl) titleEl.textContent = title;
-  const numEl = el.querySelector('[data-wg-num]');
-  if (numEl) numEl.textContent = num ? `#${num}` : '#—';
-
-  const imgEl = el.querySelector('[data-wg-img]');
-  if (imgEl) imgEl.setAttribute('src', img);
-
-  const toInput = el.querySelector('[data-wg-to]');
-  if (toInput) toInput.value = '';
-
-  const btn = el.querySelector('[data-wg-continue]');
-  if (btn) {
-    btn.disabled = false;
-    btn.textContent = 'Continue';
-
-    btn.onclick = async () => {
-      const to = String(toInput?.value || '').trim();
-      if (!to) {
-        showToast('Enter receiver');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Processing...';
-
-      try {
-        const r = await tgFetch('/api/inventory/withdraw', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ currency, instanceId: String(item?.instanceId || ''), toUserId: to })
-        });
-        const j = await r.json().catch(() => null);
-
-        if (!r.ok || !j?.ok) {
-          const code = j?.code || '';
-          if (code === 'RELAYER_STARS_LOW') {
-            showWithdrawErrorPanel('На релеере недостаточно ⭐ для вывода.', j?.support || '@wildgift_support');
-          } else if (code === 'NO_STOCK') {
-            showWithdrawErrorPanel('Подарка нет в стоке (или релеер его не видит).', j?.support || '@wildgift_support');
-          } else {
-            showWithdrawErrorPanel(j?.error || 'Ошибка вывода.', j?.support || '@wildgift_support');
-          }
-          return;
-        }
-
-        closeWithdrawOverlay();
-        await loadInventory();
-        haptic('success');
-        showToast('✅ Withdraw requested');
-      } catch (e) {
-        showWithdrawErrorPanel('Сетевая ошибка. Попробуйте позже.', '@wildgift_support');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Continue';
-      }
-    };
-  }
-
-  el.style.display = 'block';
-}
 
   // ====== MODAL (view NFT) ======
   function ensureModal() {

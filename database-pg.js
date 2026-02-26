@@ -624,6 +624,33 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
 }
 
 
+
+export async function deleteInventoryItems(telegramId, instanceIds) {
+  const id = BigInt(telegramId);
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  if (!ids.length) return { deleted: 0 };
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const del = await client.query(
+      `DELETE FROM inventory_items
+       WHERE telegram_id = $1 AND instance_id = ANY($2::text[])`,
+      [id, ids]
+    );
+
+    await client.query("COMMIT");
+    return { deleted: del.rowCount || 0 };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+
 // ============================
 // PROMOCODES (hashed + anti-dup)
 // ============================
