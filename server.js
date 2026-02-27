@@ -2997,10 +2997,18 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
         it = items[idx];
       }
 
-      const rate = await getTonUsdRate();
-      const tonUsd = rate?.tonUsd;
+      // Buy should be instant: TON purchases must not block on external rate fetch.
+      // We use cached tonUsd when available and only fetch a fresh rate for Stars purchases.
+      let tonUsd = Number.isFinite(Number(tonUsdCache?.tonUsd)) ? Number(tonUsdCache.tonUsd) : null;
+      if (cur === "stars" && (!Number.isFinite(tonUsd) || tonUsd <= 0)) {
+        const rate = await getTonUsdRate();
+        tonUsd = Number.isFinite(Number(rate?.tonUsd)) ? Number(rate.tonUsd) : null;
+      }
+
       const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      const priceStars = (Number.isFinite(tonUsd) && tonUsd > 0 && Number.isFinite(priceTon) && priceTon > 0)
+        ? tonToStars(priceTon, tonUsd)
+        : null;
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
       if (!Number.isFinite(price) || price <= 0) {

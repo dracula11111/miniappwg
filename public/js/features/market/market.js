@@ -460,16 +460,24 @@ function toast(message) {
   console.info('[market]', text);
 }
 
+function setBuyButtonLoading(loading) {
+  if (!giftDrawerBuyBtn) return;
+  giftDrawerBuyBtn.disabled = !!loading;
+  giftDrawerBuyBtn.style.opacity = loading ? '0.75' : '';
+  giftDrawerBuyBtn.style.pointerEvents = loading ? 'none' : '';
+}
+
 async function buyGift(gift) {
   if (!gift || !gift.id) return;
   if (state.buying) return;
 
   state.buying = true;
+  setBuyButtonLoading(true);
   const name = safeText(gift?.name, 64) || 'Gift';
 
   try {
     toast(`⏳ Buying ${name}...`);
-    const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 20000 });
+    const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 15000 });
 
     state.gifts = (Array.isArray(state.gifts) ? state.gifts : []).filter(x => String(x?.id) !== String(gift.id));
 
@@ -507,10 +515,15 @@ async function buyGift(gift) {
       toast('❌ Not enough balance');
       return;
     }
+    if (e?.code === 'REQUEST_TIMEOUT') {
+      toast('❌ Buy timeout. Please try again.');
+      return;
+    }
 
     toast(`❌ ${msg}`);
   } finally {
     state.buying = false;
+    setBuyButtonLoading(false);
   }
 }
 
@@ -1048,11 +1061,20 @@ function getTgInitData() {
 
 async function postJson(url, body, { timeoutMs = 12000 } = {}) {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+  let timeoutHandle = null;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      try { if (ctrl) ctrl.abort(); } catch {}
+      const e = new Error('Request timeout');
+      e.code = 'REQUEST_TIMEOUT';
+      reject(e);
+    }, Math.max(1000, Number(timeoutMs) || 12000));
+  });
 
   try {
     const initData = getTgInitData();
-    const res = await fetch(url, {
+    const fetchPromise = fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
       signal: ctrl ? ctrl.signal : undefined,
@@ -1064,6 +1086,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
       body: JSON.stringify(body || {})
     });
 
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       const err = (j && (j.error || j.message)) ? (j.error || j.message) : `HTTP ${res.status}`;
@@ -1074,7 +1097,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
     }
     return j;
   } finally {
-    if (timer) clearTimeout(timer);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 
