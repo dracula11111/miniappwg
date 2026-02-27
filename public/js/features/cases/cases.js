@@ -27,8 +27,8 @@
       price: { ton: 0.10, stars: 20 },
       items: [
 
-        { id: 'gift1', icon: 'gift1.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift2', icon: 'gift2.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.02, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
         { id: 'gift3', icon: 'gift3.png', price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
         { id: 'gift4', icon: 'gift4.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
         { id: 'gift5', icon: 'gift5.png', price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
@@ -38,7 +38,7 @@
         { id: 'gift9', icon: 'gift9.png', price: { ton: 0.23, stars: 25 }, rarity: 'common' },
         { id: 'gift10', icon: 'gift10.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
         { id: 'gift11', icon: 'gift11.png', price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift12', icon: 'stars.webp', giftChance: 0.35, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
       ]
 
 
@@ -367,6 +367,43 @@ function pickWeightedNft(nfts) {
   return nfts[nfts.length - 1] || null;
 }
 
+const DEFAULT_GIFT_CHANCE_BY_RARITY = {
+  legendary: 0.03,
+  epic: 0.08,
+  rare: 0.18,
+  common: 0.71
+};
+
+function getGiftWeight(gift) {
+  const explicit = Number(gift?.giftChance ?? gift?.chance);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const rarity = String(gift?.rarity || 'common').toLowerCase();
+  const byRarity = Number(DEFAULT_GIFT_CHANCE_BY_RARITY[rarity]);
+  if (Number.isFinite(byRarity) && byRarity > 0) return byRarity;
+
+  return 1;
+}
+
+function pickWeightedGift(gifts) {
+  if (!Array.isArray(gifts) || !gifts.length) return null;
+
+  let totalWeight = 0;
+  for (const gift of gifts) {
+    totalWeight += getGiftWeight(gift);
+  }
+
+  if (!(totalWeight > 0)) return pickRandom(gifts);
+
+  let roll = Math.random() * totalWeight;
+  for (const gift of gifts) {
+    roll -= getGiftWeight(gift);
+    if (roll <= 0) return gift;
+  }
+
+  return gifts[gifts.length - 1] || null;
+}
+
 function getNftWinChance(demoMode, currency) {
   if (demoMode) return NFT_DROP_RATES.demo;
   return (currency === 'ton') ? NFT_DROP_RATES.ton : NFT_DROP_RATES.stars;
@@ -377,7 +414,7 @@ function pickWinningItem(caseData, demoMode, currency) {
   if (!pools.items.length) return null;
 
   // Если NFT в кейсе нет — выбираем как обычно
-  if (!pools.nfts.length) return pickRandom(pools.items);
+  if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
 
   const chance = getNftWinChance(demoMode, currency);
   const roll = Math.random();
@@ -386,18 +423,18 @@ function pickWinningItem(caseData, demoMode, currency) {
     return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
   }
   // не NFT: выбираем из подарков
-  return pickRandom(pools.gifts) || pickRandom(pools.items);
+  return pickWeightedGift(pools.gifts) || pickRandom(pools.gifts) || pickRandom(pools.items);
 }
 
 function pickStripItem(caseData, demoMode) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
 
-  if (!pools.nfts.length) return pickRandom(pools.items);
+  if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
 
   const chance = demoMode ? STRIP_NFT_CHANCE.demo : STRIP_NFT_CHANCE.paid;
   if (Math.random() < chance) return pickRandom(pools.nfts) || pickRandom(pools.items);
-  return pickRandom(pools.gifts) || pickRandom(pools.items);
+  return pickWeightedGift(pools.gifts) || pickRandom(pools.gifts) || pickRandom(pools.items);
 }
 
 
