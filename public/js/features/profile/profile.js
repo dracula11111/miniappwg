@@ -604,6 +604,7 @@
   // ====== INVENTORY PANEL ======
   const selection = new Set();
   let lastInventory = [];
+  let isRelayerAdmin = false;
   function removeLegacyNftShelf() {
     // Удаляем верхнюю бессмысленную панель "NFT", если она есть (в т.ч. из старых кешей)
     document.querySelectorAll('#profileNftShelf, .profile-nft-shelf, .profile-nft-card, .profile-nft')
@@ -958,6 +959,41 @@ async function withdrawContinue() {
   }
 }
 
+  async function returnToMarket(key) {
+    const found = findInventoryItemByKey(key);
+    if (!found?.item) return;
+
+    const instanceId = String(found.item?.instanceId || '');
+    if (!instanceId) {
+      showToast('Return error: instanceId not found');
+      return;
+    }
+
+    try {
+      const r = await tgFetch('/api/admin/inventory/return-to-market', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ instanceId })
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        showToast(j?.error || `Return failed (${r.status})`);
+        return;
+      }
+
+      const userId = getTelegramUser().id;
+      const items = Array.isArray(j.items) ? j.items : (Array.isArray(j.nfts) ? j.nfts : []);
+      writeLocalInventory(userId, items);
+      await loadInventory();
+      setupPromocode();
+      haptic('success');
+    } catch (e) {
+      showToast('Return failed (network)');
+    }
+  }
+
   function onInventoryClick(e) {
     const target = e.target.closest('[data-action]');
     if (!target) return;
@@ -977,6 +1013,11 @@ async function withdrawContinue() {
   
     if (action === 'sell') {
       sellOne(key);
+      return;
+    }
+
+    if (action === 'return-market') {
+      returnToMarket(key);
       return;
     }
   
@@ -1023,6 +1064,11 @@ async function withdrawContinue() {
   
       if (action === 'sell') {
         await sellOne(key);
+        return;
+      }
+
+      if (action === 'return-market') {
+        await returnToMarket(key);
         return;
       }
       
@@ -1079,6 +1125,10 @@ async function withdrawContinue() {
   function isMarketGiftItem(item) {
     if (!item || typeof item !== 'object') return false;
     return !!item.fromMarket || !!item.marketId;
+  }
+
+  function canReturnToMarket(item) {
+    return isMarketGiftItem(item) && isRelayerAdmin;
   }
 
   function showModal(item, allItems) {
@@ -1196,6 +1246,7 @@ async function withdrawContinue() {
       const key = itemKey(it, idx);
       const val = itemValue(it, currency);
       const marketOnlyWithdraw = isMarketGiftItem(it);
+      const returnMarket = canReturnToMarket(it);
       const sellBtnHtml = marketOnlyWithdraw ? '' : `
           <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
                   data-action="sell" data-key="${key}">
@@ -1204,6 +1255,12 @@ async function withdrawContinue() {
             <img class="inv-btn__icon" src="${icon}" alt="">
           </button>
       `;
+      const returnBtnHtml = returnMarket ? `
+          <button class="inv-btn inv-btn--withdraw" type="button"
+                  data-action="return-market" data-key="${key}">
+            Вернуть на рынок
+          </button>
+      ` : '';
   
       return `
         <div class="inv-card" data-key="${key}">
@@ -1214,6 +1271,7 @@ async function withdrawContinue() {
           <div class="inv-card__name">${itemDisplayName(it)}</div>
 
           ${sellBtnHtml}
+          ${returnBtnHtml}
   
           <button class="inv-btn inv-btn--withdraw" type="button"
                   data-action="withdraw" data-key="${key}">
@@ -1326,6 +1384,7 @@ async function withdrawContinue() {
       if (r.ok) {
         const j = await r.json().catch(() => null);
         if (j && j.ok === true && Array.isArray(j.items)) {
+          isRelayerAdmin = !!j.isAdmin;
           writeLocalInventory(userId, j.items);
           renderInventory(j.items);
           return;
@@ -1333,6 +1392,7 @@ async function withdrawContinue() {
       }
     } catch {}
 
+    isRelayerAdmin = false;
     const local = readLocalInventory(userId);
     renderInventory(local);
   }
