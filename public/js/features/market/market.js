@@ -431,6 +431,35 @@ function closeGiftDrawer() {
   setTimeout(() => { try { giftDrawerOverlayEl.style.display = 'none'; } catch {} }, 250);
 }
 
+function toast(message) {
+  const text = safeText(message, 300) || '';
+  if (!text) return;
+
+  try {
+    if (typeof window.showToast === 'function') {
+      window.showToast(text);
+      return;
+    }
+  } catch {}
+
+  try {
+    if (typeof window.notify === 'function') {
+      window.notify(text);
+      return;
+    }
+  } catch {}
+
+  try {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.showAlert) {
+      tg.showAlert(text);
+      return;
+    }
+  } catch {}
+
+  console.info('[market]', text);
+}
+
 async function buyGift(gift) {
   if (!gift || !gift.id) return;
   if (state.buying) return;
