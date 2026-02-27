@@ -219,10 +219,6 @@ if (!IS_TEST) {
 // Select DB
 const db = IS_TEST ? dbMem : dbReal;
 
-if (typeof db.ensurePromoSeed === "function") {
-  await db.ensurePromoSeed();
-}
-
 
 const app = express();
 const httpServer = createServer(app);
@@ -2458,39 +2454,6 @@ app.post("/api/stars/webhook", async (req, res) => {
   } catch (error) {
     console.error('[Stars Webhook] Error processing webhook:', error);
     res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
-  try {
-    const userId = req.tg?.user?.id;
-    const code = String(req.body?.code || "").trim();
-
-    if (!code) {
-      return res.status(400).json({ ok: false, errorCode: "PROMO_EMPTY", error: "promo code required" });
-    }
-
-    if (typeof db.redeemPromocode !== "function") {
-      return res.status(503).json({ ok: false, errorCode: "PROMO_DB_NOT_READY", error: "promocode system unavailable" });
-    }
-
-    const result = await db.redeemPromocode(userId, code);
-    if (!result?.ok) {
-      const errorCode = result?.errorCode || "PROMO_INVALID";
-      const status = errorCode === "PROMO_INVALID" ? 404 : 400;
-      return res.status(status).json({ ok: false, errorCode, error: result?.error || "failed to redeem" });
-    }
-
-    return res.json({
-      ok: true,
-      added: Number(result.added || 0),
-      addedTon: Number(result.addedTon || 0),
-      newBalance: Number(result.newBalance || 0),
-      newTonBalance: Number(result.newTonBalance || 0)
-    });
-  } catch (e) {
-    console.error("[PROMO] redeem error:", e?.message || e);
-    return res.status(500).json({ ok: false, errorCode: "PROMO_REDEEM_FAILED", error: "internal error" });
   }
 });
 
