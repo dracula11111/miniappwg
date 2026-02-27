@@ -1373,5 +1373,18 @@ window.addEventListener('currency:changed', () => {
 });
 
 
-  window.addEventListener('inventory:update', () => loadInventory());
+  window.addEventListener('inventory:update', (ev) => {
+    const detail = ev?.detail || null;
+    const mode = detail?.mode || 'reload';
+    const items = Array.isArray(detail?.items) ? detail.items : null;
+    const userId = getTelegramUser().id;
+
+    if (mode === 'replace' && items) {
+      writeLocalInventory(userId, items);
+      renderInventory(items);
+      return;
+    }
+
+    loadInventory();
+  });
 })();
