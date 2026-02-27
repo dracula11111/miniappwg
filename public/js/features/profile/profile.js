@@ -116,7 +116,9 @@
       }
 
       const added = Number(j.added || 0);
+      const addedTon = Number(j.addedTon || 0);
       const newBal = (typeof j.newBalance === 'number') ? j.newBalance : Number(j.newBalance || 0);
+      const newTonBal = (typeof j.newTonBalance === 'number') ? j.newTonBalance : Number(j.newTonBalance || 0);
 
       if (Number.isFinite(newBal)) {
         setBalance('stars', newBal);
@@ -124,10 +126,19 @@
         addBalance('stars', added);
       }
 
+      if (Number.isFinite(newTonBal)) {
+        setBalance('ton', newTonBal);
+      } else if (Number.isFinite(addedTon) && addedTon > 0) {
+        addBalance('ton', addedTon);
+      }
+
       promoInput.value = '';
       updatePromoBtnState();
 
-      showPromoToast('✅ Promocode applied', added ? `+${added} ⭐` : '');
+      const rewards = [];
+      if (addedTon > 0) rewards.push(`+${addedTon} TON`);
+      if (added > 0) rewards.push(`+${added} ⭐`);
+      showPromoToast('✅ Promocode applied', rewards.join(' • '));
       haptic('success');
 
     } catch (e) {
