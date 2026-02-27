@@ -1075,6 +1075,12 @@ async function withdrawContinue() {
 
   let modalItemKey = null;
 
+
+  function isMarketGiftItem(item) {
+    if (!item || typeof item !== 'object') return false;
+    return !!item.fromMarket || !!item.marketId;
+  }
+
   function showModal(item, allItems) {
     const modal = ensureModal();
     if (!modal) return;
@@ -1090,15 +1096,21 @@ async function withdrawContinue() {
 
     const sellBtn = modal.querySelector('#profileModalSell');
     const sellAmt = modal.querySelector('#profileModalSellAmount');
+    const marketOnlyWithdraw = isMarketGiftItem(item);
     if (sellAmt) sellAmt.textContent = `${val} ${currencyIcon(currency)}`;
 
     if (sellBtn) {
-      sellBtn.onclick = async () => {
-        if (!modalItemKey) return;
-        await sellOne(modalItemKey);
-        hideModal();
-      };
-      
+      if (marketOnlyWithdraw) {
+        sellBtn.style.display = 'none';
+        sellBtn.onclick = null;
+      } else {
+        sellBtn.style.display = '';
+        sellBtn.onclick = async () => {
+          if (!modalItemKey) return;
+          await sellOne(modalItemKey);
+          hideModal();
+        };
+      }
     }
 
     modal.hidden = false;
@@ -1183,6 +1195,15 @@ async function withdrawContinue() {
     grid.innerHTML = arr.map((it, idx) => {
       const key = itemKey(it, idx);
       const val = itemValue(it, currency);
+      const marketOnlyWithdraw = isMarketGiftItem(it);
+      const sellBtnHtml = marketOnlyWithdraw ? '' : `
+          <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
+                  data-action="sell" data-key="${key}">
+            <span class="inv-btn__label">Sell</span>
+            <span class="inv-btn__amount">${val}</span>
+            <img class="inv-btn__icon" src="${icon}" alt="">
+          </button>
+      `;
   
       return `
         <div class="inv-card" data-key="${key}">
@@ -1192,13 +1213,7 @@ async function withdrawContinue() {
   
           <div class="inv-card__name">${itemDisplayName(it)}</div>
 
-  
-          <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
-                  data-action="sell" data-key="${key}">
-            <span class="inv-btn__label">Sell</span>
-            <span class="inv-btn__amount">${val}</span>
-            <img class="inv-btn__icon" src="${icon}" alt="">
-          </button>
+          ${sellBtnHtml}
   
           <button class="inv-btn inv-btn--withdraw" type="button"
                   data-action="withdraw" data-key="${key}">
