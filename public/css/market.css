@@ -637,7 +637,7 @@ background: rgba(96, 165, 250, 0.5);
 
 .market-gift-overlay{
   position: fixed;
-  inset: 0;
+  inset: calc(58px + env(safe-area-inset-top)) 0 0 0;
   z-index: 10000;
   background: rgba(0,0,0,0.60);
   backdrop-filter: blur(4px);
