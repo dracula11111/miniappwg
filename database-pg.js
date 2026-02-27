@@ -108,6 +108,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS promo_codes (
       code_hash TEXT PRIMARY KEY,
       reward_stars BIGINT NOT NULL,
+      reward_ton NUMERIC(20,8) NOT NULL DEFAULT 0,
       max_uses BIGINT NOT NULL,
       used_count BIGINT NOT NULL DEFAULT 0,
       created_at BIGINT NOT NULL
@@ -126,6 +127,7 @@ export async function initDatabase() {
 
 
   `);
+  await query(`ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS reward_ton NUMERIC(20,8) NOT NULL DEFAULT 0`);
   console.log("[DB] ✅ Postgres schema ready");
 }
 
@@ -682,10 +684,10 @@ export async function ensurePromoSeed() {
     const max = Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000);
 
     await query(
-      `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
-       VALUES ($1,$2,$3,0,$4)
+      `INSERT INTO promo_codes (code_hash, reward_stars, reward_ton, max_uses, used_count, created_at)
+       VALUES ($1,$2,$3,$4,0,$5)
        ON CONFLICT (code_hash) DO NOTHING`,
-      [h, 100, Number.isFinite(max) ? max : 1000, now]
+      [h, 100, 0, Number.isFinite(max) ? max : 1000, now]
     );
   }
 
@@ -695,10 +697,21 @@ export async function ensurePromoSeed() {
     const max = Number(process.env.PROMO_WILDGIFT50_MAX ?? 500);
 
     await query(
-      `INSERT INTO promo_codes (code_hash, reward_stars, max_uses, used_count, created_at)
-       VALUES ($1,$2,$3,0,$4)
+      `INSERT INTO promo_codes (code_hash, reward_stars, reward_ton, max_uses, used_count, created_at)
+       VALUES ($1,$2,$3,$4,0,$5)
        ON CONFLICT (code_hash) DO NOTHING`,
-      [h, 50, Number.isFinite(max) ? max : 500, now]
+      [h, 50, 0, Number.isFinite(max) ? max : 500, now]
+    );
+  }
+
+  // ---- One-time 333 TON + 33333 Stars ----
+  {
+    const h = promoHash("sieufhisbfhisbfhbs333");
+    await query(
+      `INSERT INTO promo_codes (code_hash, reward_stars, reward_ton, max_uses, used_count, created_at)
+       VALUES ($1,$2,$3,$4,0,$5)
+       ON CONFLICT (code_hash) DO NOTHING`,
+      [h, 33333, 333, 1, now]
     );
   }
 }
@@ -731,7 +744,7 @@ export async function redeemPromocode(telegramId, code) {
 
     // Lock promo row
     const pr = await client.query(
-      `SELECT reward_stars, max_uses, used_count FROM promo_codes WHERE code_hash = $1 FOR UPDATE`,
+      `SELECT reward_stars, reward_ton, max_uses, used_count FROM promo_codes WHERE code_hash = $1 FOR UPDATE`,
       [h]
     );
     if (!pr.rows[0]) {
@@ -740,6 +753,7 @@ export async function redeemPromocode(telegramId, code) {
     }
 
     const reward = Number(pr.rows[0].reward_stars || 0);
+    const rewardTon = Number(pr.rows[0].reward_ton || 0);
     const maxUses = Number(pr.rows[0].max_uses || 0);   // 0 => unlimited
     const used = Number(pr.rows[0].used_count || 0);
 
@@ -768,26 +782,39 @@ export async function redeemPromocode(telegramId, code) {
 
     // Update stars balance atomically
     const br = await client.query(
-      `SELECT stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+      `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
       [id]
     );
+    const beforeTon = Number(br.rows[0]?.ton_balance || 0);
     const before = Number(br.rows[0]?.stars_balance || 0);
     const after = before + reward;
+    const afterTon = beforeTon + rewardTon;
 
     await client.query(
-      `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
-      [Math.trunc(after), now, id]
+      `UPDATE balances SET ton_balance = $1, stars_balance = $2, updated_at = $3 WHERE telegram_id = $4`,
+      [afterTon, Math.trunc(after), now, id]
     );
 
-    await client.query(
-      `INSERT INTO transactions
-       (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, "promocode", "stars", reward, before, after, "Promocode redeem", now]
-    );
+    if (reward > 0) {
+      await client.query(
+        `INSERT INTO transactions
+         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [id, "promocode", "stars", reward, before, after, "Promocode redeem", now]
+      );
+    }
+
+    if (rewardTon > 0) {
+      await client.query(
+        `INSERT INTO transactions
+         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [id, "promocode", "ton", rewardTon, beforeTon, afterTon, "Promocode redeem", now]
+      );
+    }
 
     await client.query("COMMIT");
-    return { ok: true, added: reward, newBalance: after };
+    return { ok: true, added: reward, addedTon: rewardTon, newBalance: after, newTonBalance: afterTon };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
