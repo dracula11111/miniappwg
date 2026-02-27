@@ -469,6 +469,135 @@ function setBuyButtonLoading(loading) {
   giftDrawerBuyBtn.style.pointerEvents = loading ? 'none' : '';
 }
 
+function getLiveBalance(currency) {
+  const cur = currency === 'stars' ? 'stars' : 'ton';
+  const v = Number(window.WildTimeCurrency?.balance?.[cur]);
+  return Number.isFinite(v) ? v : null;
+}
+
+function setLiveBalance(currency, value) {
+  const cur = currency === 'stars' ? 'stars' : 'ton';
+  if (!Number.isFinite(value)) return;
+
+  try { window.WildTimeCurrency?.setBalance?.(cur, value); } catch {}
+
+  try {
+    const detail = cur === 'stars' ? { stars: value } : { ton: value };
+    window.dispatchEvent(new CustomEvent('balance:update', { detail }));
+  } catch {}
+}
+
+function getLocalInventorySnapshot() {
+  const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  if (!userId) return { userId: null, items: null };
+
+  try {
+    const raw = localStorage.getItem(`WT_INV_${userId}`);
+    const items = JSON.parse(raw || '[]');
+    return { userId, items: Array.isArray(items) ? items : [] };
+  } catch {
+    return { userId, items: [] };
+  }
+}
+
+function buildOptimisticInventoryItem(gift) {
+  const priceTon = resolvePriceTon(gift);
+  const priceStars = resolvePriceForCurrency(gift, 'stars');
+  const nowMs = Date.now();
+
+  return {
+    type: 'nft',
+    id: String(gift?.tg?.slug || gift?.id || `gift_${nowMs}`),
+    name: gift?.name || 'Gift',
+    displayName: gift?.name || 'Gift',
+    icon: gift?.previewUrl || gift?.image || '/images/gifts/stars.webp',
+    instanceId: `optimistic_${String(gift?.id || 'gift')}_${nowMs}`,
+    acquiredAt: nowMs,
+    price: {
+      ton: Number.isFinite(priceTon) ? priceTon : null,
+      stars: Number.isFinite(priceStars) ? Math.max(1, Math.floor(priceStars)) : null
+    },
+    fromMarket: true,
+    marketId: String(gift?.id || ''),
+    optimistic: true,
+    tg: gift?.tg || null
+  };
+}
+
+function applyOptimisticPurchase(gift) {
+  const snapshot = {
+    giftsBefore: Array.isArray(state.gifts) ? state.gifts.slice() : [],
+    balanceBefore: getLiveBalance(state.currency),
+    currency: state.currency,
+    inventoryBefore: null,
+    userId: null
+  };
+
+  // 1) Market UI — remove instantly
+  state.gifts = snapshot.giftsBefore.filter(x => String(x?.id) !== String(gift?.id));
+  closeGiftDrawer();
+  renderMarket();
+
+  // 2) Balance UI — deduct instantly
+  const price = resolvePriceForCurrency(gift, state.currency);
+  if (Number.isFinite(snapshot.balanceBefore) && Number.isFinite(price) && price > 0) {
+    const next = snapshot.currency === 'stars'
+      ? Math.max(0, Math.floor(snapshot.balanceBefore - price))
+      : Math.max(0, Number((snapshot.balanceBefore - price).toFixed(6)));
+    setLiveBalance(snapshot.currency, next);
+  }
+
+  // 3) Inventory UI — append optimistic item instantly
+  const inv = getLocalInventorySnapshot();
+  snapshot.inventoryBefore = Array.isArray(inv.items) ? inv.items.slice() : null;
+  snapshot.userId = inv.userId;
+
+  if (inv.userId && Array.isArray(inv.items)) {
+    const optimisticItem = buildOptimisticInventoryItem(gift);
+    const nextItems = [optimisticItem, ...inv.items];
+    try { localStorage.setItem(`WT_INV_${inv.userId}`, JSON.stringify(nextItems)); } catch {}
+
+    try {
+      window.dispatchEvent(new CustomEvent('inventory:update', {
+        detail: {
+          source: 'market-buy-optimistic',
+          mode: 'replace',
+          items: nextItems,
+          purchased: gift || null
+        }
+      }));
+    } catch {}
+  }
+
+  return snapshot;
+}
+
+function rollbackOptimisticPurchase(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+
+  if (Array.isArray(snapshot.giftsBefore)) {
+    state.gifts = snapshot.giftsBefore;
+    renderMarket();
+  }
+
+  if (Number.isFinite(snapshot.balanceBefore)) {
+    setLiveBalance(snapshot.currency, snapshot.balanceBefore);
+  }
+
+  if (snapshot.userId && Array.isArray(snapshot.inventoryBefore)) {
+    try { localStorage.setItem(`WT_INV_${snapshot.userId}`, JSON.stringify(snapshot.inventoryBefore)); } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent('inventory:update', {
+        detail: {
+          source: 'market-buy-rollback',
+          mode: 'replace',
+          items: snapshot.inventoryBefore
+        }
+      }));
+    } catch {}
+  }
+}
+
 function emitLivePurchaseEvents({ response, gift, currency }) {
   const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
   const inventoryItems = Array.isArray(response?.inventory) ? response.inventory : null;
@@ -524,15 +653,10 @@ async function buyGift(gift) {
   state.buying = true;
   setBuyButtonLoading(true);
   const name = safeText(gift?.name, 64) || 'Gift';
+  const optimistic = applyOptimisticPurchase(gift);
 
   try {
-    toast(`⏳ Buying ${name}...`);
     const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 15000 });
-
-    state.gifts = (Array.isArray(state.gifts) ? state.gifts : []).filter(x => String(x?.id) !== String(gift.id));
-
-    closeGiftDrawer();
-    renderMarket();
 
     emitLivePurchaseEvents({ response: j, gift, currency: state.currency });
 
@@ -549,15 +673,18 @@ async function buyGift(gift) {
       return;
     }
     if (code === 'INSUFFICIENT_BALANCE' || /insufficient/i.test(String(msg))) {
+      rollbackOptimisticPurchase(optimistic);
       toast('❌ Not enough balance');
       return;
     }
     if (e?.code === 'REQUEST_TIMEOUT') {
+      rollbackOptimisticPurchase(optimistic);
       toast('❌ Buy timeout. Please try again.');
       reconcileLiveState();
       return;
     }
 
+    rollbackOptimisticPurchase(optimistic);
     toast(`❌ ${msg}`);
     reconcileLiveState();
   } finally {
