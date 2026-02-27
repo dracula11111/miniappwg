@@ -210,6 +210,9 @@
   }
 
   function showToast(msg) {
+    if (typeof window.showToast === 'function') {
+      try { window.showToast(msg); return; } catch {}
+    }
     if (tg?.showPopup) { 
       try { tg.showPopup({ message: msg }); return; } catch {} 
     }

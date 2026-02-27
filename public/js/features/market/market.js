@@ -677,6 +677,12 @@ async function buyGift(gift) {
       toast('❌ Not enough balance');
       return;
     }
+    if (code === 'BAD_PRICE') {
+      rollbackOptimisticPurchase(optimistic);
+      toast('⚠️ Цена подарка сейчас недоступна. Обновите маркет и попробуйте снова.');
+      reconcileLiveState();
+      return;
+    }
     if (e?.code === 'REQUEST_TIMEOUT') {
       rollbackOptimisticPurchase(optimistic);
       toast('❌ Buy timeout. Please try again.');

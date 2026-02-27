@@ -2068,6 +2068,9 @@ function setBtnLoading(btn, loading) {
 }
 
 function showToast(msg) {
+  if (typeof window.showToast === 'function') {
+    try { window.showToast(msg); return; } catch (_) {}
+  }
   const tg = window.Telegram?.WebApp;
   if (tg?.showToast) { try { tg.showToast({ message: msg }); return; } catch (_) {} }
   if (tg?.showAlert) { try { tg.showAlert(msg); return; } catch (_) {} }
