@@ -661,13 +661,10 @@ body.market-gift-overlay-open .topbar__left{
   transition: opacity .2s ease;
 }
 
+/* Держим топбар и пилюлю баланса поверх оверлея */
 body.market-gift-overlay-open .topbar{
-  z-index: auto;
-}
-
-body.market-gift-overlay-open .topbar .balance{
-  position: static;
-  z-index: auto;
+  z-index: 10001;
+  position: relative;
 }
 
 .market-gift-drawer{

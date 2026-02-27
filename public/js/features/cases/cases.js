@@ -27,18 +27,18 @@
       price: { ton: 0.10, stars: 20 },
       items: [
 
-        { id: 'gift1', icon: 'gift1.png', giftChance: 0.02, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift2', icon: 'gift2.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift3', icon: 'gift3.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
-        { id: 'gift4', icon: 'gift4.png', giftChance: 0.08, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift5', icon: 'gift5.png', giftChance: 0.08, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift6', icon: 'gift6.png', giftChance: 0.08, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
-        { id: 'gift7', icon: 'gift7.png', giftChance: 0.18, price: { ton: 0.46, stars: 50 }, rarity: 'rare' },
-        { id: 'gift8', icon: 'gift8.png', giftChance: 0.18, price: { ton: 0.23, stars: 25 }, rarity: 'rare' },
-        { id: 'gift9', icon: 'gift9.png', giftChance: 0.71, price: { ton: 0.23, stars: 25 }, rarity: 'common' },
-        { id: 'gift10', icon: 'gift10.png', giftChance: 0.71, price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift11', icon: 'gift11.png', giftChance: 0.71, price: { ton: 0.14, stars: 15 }, rarity: 'common' },
-        { id: 'gift12', icon: 'stars.webp', giftChance: 0.35, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+        { id: 'gift1',  icon: 'gift1.png',  giftChance: 0.01, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2',  icon: 'gift2.png',  giftChance: 0.01, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift3',  icon: 'gift3.png',  giftChance: 0.01, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift4',  icon: 'gift4.png',  giftChance: 0.03, price: { ton: 0.46, stars: 50  }, rarity: 'epic'      },
+        { id: 'gift5',  icon: 'gift5.png',  giftChance: 0.03, price: { ton: 0.46, stars: 50  }, rarity: 'epic'      },
+        { id: 'gift6',  icon: 'gift6.png',  giftChance: 0.03, price: { ton: 0.46, stars: 50  }, rarity: 'epic'      },
+        { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.06, price: { ton: 0.46, stars: 50  }, rarity: 'rare'      },
+        { id: 'gift8',  icon: 'gift8.png',  giftChance: 0.08, price: { ton: 0.23, stars: 25  }, rarity: 'rare'      },
+        { id: 'gift9',  icon: 'gift9.png',  giftChance: 0.50, price: { ton: 0.23, stars: 25  }, rarity: 'common'    },
+        { id: 'gift10', icon: 'gift10.png', giftChance: 1.50, price: { ton: 0.14, stars: 15  }, rarity: 'common'    },
+        { id: 'gift11', icon: 'gift11.png', giftChance: 2.00, price: { ton: 0.14, stars: 15  }, rarity: 'common'    },
+        { id: 'gift12', icon: 'stars.webp', giftChance: 8.00, price: { ton: 0.015, stars: 5  }, rarity: 'common'    },
       ]
 
 
