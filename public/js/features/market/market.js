@@ -901,7 +901,9 @@ function loadGiftsLocal() {
   function normalizeGift(g, idx) {
     if (!g || typeof g !== 'object') return null;
 
-    const id = safeText(g.id, 64) || `g${idx + 1}`;
+    // Keep full server item id (up to backend limit) so buy requests don't send truncated ids.
+    // This is important for admin test flows where gifts can be relisted multiple times.
+    const id = safeText(g.id, 128) || `g${idx + 1}`;
     const name = safeText(g.name, 64) || `Gift ${idx + 1}`;
     const number = safeText(g.number, 32) || '';
 
