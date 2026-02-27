@@ -655,19 +655,19 @@ background: rgba(96, 165, 250, 0.5);
 
 body.market-gift-overlay-open .logo-header,
 body.market-gift-overlay-open .topbar__left{
-  opacity: 0;
-  visibility: hidden;
+  opacity: 0.32;
+  visibility: visible;
   pointer-events: none;
+  transition: opacity .2s ease;
 }
 
 body.market-gift-overlay-open .topbar{
-  position: relative;
-  z-index: 10001;
+  z-index: auto;
 }
 
 body.market-gift-overlay-open .topbar .balance{
-  position: relative;
-  z-index: 1;
+  position: static;
+  z-index: auto;
 }
 
 .market-gift-drawer{
