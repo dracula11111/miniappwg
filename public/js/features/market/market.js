@@ -364,6 +364,7 @@ function ensureGiftDrawer() {
 
   function close() {
     overlay.classList.remove('is-open');
+    try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
     // allow animation
     setTimeout(() => {
       overlay.style.display = 'none';
@@ -428,6 +429,7 @@ function formatBuyPriceForGift(gift) {
 function closeGiftDrawer() {
   if (!giftDrawerOverlayEl) return;
   giftDrawerOverlayEl.classList.remove('is-open');
+  try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
   setTimeout(() => { try { giftDrawerOverlayEl.style.display = 'none'; } catch {} }, 250);
 }
 
@@ -598,6 +600,7 @@ function openGiftDrawer(gift) {
   };
 
   giftDrawerOverlayEl.style.display = 'block';
+  try { document.body.classList.add('market-gift-overlay-open'); } catch {}
   // next tick for animation
   requestAnimationFrame(() => giftDrawerOverlayEl.classList.add('is-open'));
 }

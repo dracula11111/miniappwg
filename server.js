@@ -2669,6 +2669,18 @@ async function isMarketSold(sourceKey) {
   return set.has(k);
 }
 
+async function unmarkMarketSold(sourceKey) {
+  const k = String(sourceKey || "").trim();
+  if (!k) return false;
+  return await withMarketLock(async () => {
+    const set = await readMarketSoldSet();
+    if (!set.has(k)) return false;
+    set.delete(k);
+    await writeMarketSoldSet(set);
+    return true;
+  });
+}
+
 function getBearerToken(req) {
   const h = String(req.headers?.authorization || "");
   if (!h) return "";
@@ -2899,11 +2911,12 @@ app.post("/api/market/items/add", async (req, res) => {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
     const item = req.body?.item;
     if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
-    // Hard-skip sold items (prevents re-adding after purchase)
+    // If this sourceKey was marked as sold earlier, this is an explicit relist attempt.
+    // Remove sold flag so gift cannot be silently dropped/lost on market return.
+    let relisted = false;
     if (item?.sourceKey && await isMarketSold(item.sourceKey)) {
-      return res.json({ ok: true, skipped: true, reason: "already_sold" });
+      relisted = await unmarkMarketSold(item.sourceKey);
     }
-
 
     const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
     const name = safeMarketString(item.name, 120) || "Gift";
@@ -2950,7 +2963,7 @@ app.post("/api/market/items/add", async (req, res) => {
       return out;
     });
     
-    return res.json({ ok: true, item: saved });
+    return res.json({ ok: true, item: saved, relisted });
     
   } catch (e) {
     console.error("[MarketStore] add error:", e);
