@@ -964,13 +964,8 @@ async function withdrawContinue() {
     if (!found?.item) return;
 
     const instanceId = String(found.item?.instanceId || '');
-    const adminKey = getAdminKey();
     if (!instanceId) {
       showToast('Return error: instanceId not found');
-      return;
-    }
-    if (!adminKey) {
-      showToast('Admin key required (localStorage.ADMIN_KEY)');
       return;
     }
 
@@ -979,8 +974,6 @@ async function withdrawContinue() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-          'Content-Type': 'application/json',
-          'x-admin-key': adminKey
         },
         body: JSON.stringify({ instanceId })
       });
@@ -1136,12 +1129,6 @@ async function withdrawContinue() {
 
   function canReturnToMarket(item) {
     return isMarketGiftItem(item) && isRelayerAdmin;
-  function getAdminKey() {
-    return String(localStorage.getItem('ADMIN_KEY') || '').trim();
-  }
-
-  function canReturnToMarket(item) {
-    return isMarketGiftItem(item) && !!getAdminKey();
   }
 
   function showModal(item, allItems) {

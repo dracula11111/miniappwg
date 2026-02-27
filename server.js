@@ -1904,13 +1904,6 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
     const userId = String(req.tg?.user?.id || "");
     if (!isRelayerAdminUserId(userId)) return res.status(403).json({ ok: false, error: "forbidden" });
 
-    const adminKey = String(process.env.ADMIN_KEY || "");
-    if (!adminKey) return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
-
-    const hdr = String(req.headers["x-admin-key"] || "");
-    if (hdr !== adminKey) return res.status(403).json({ ok: false, error: "forbidden" });
-
-    const userId = String(req.tg?.user?.id || "");
     const instanceId = String(req.body?.instanceId || "").trim();
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
     if (!instanceId) return res.status(400).json({ ok: false, error: "instanceId required" });
