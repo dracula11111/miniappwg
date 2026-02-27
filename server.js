@@ -1184,6 +1184,23 @@ function computeRelayerPriceTon(entry, tonUsd) {
   return null;
 }
 
+function computeRelayerPriceStars(entry, tonUsd) {
+  if (!entry) return null;
+
+  const pStars = Number(entry.priceStars);
+  if (Number.isFinite(pStars) && pStars > 0) return Math.max(1, Math.round(pStars));
+
+  const pTon = Number(entry.priceTon);
+  if (Number.isFinite(pTon) && pTon > 0) {
+    const usd = Number(tonUsd);
+    if (Number.isFinite(usd) && usd > 0) {
+      return tonToStars(pTon, usd);
+    }
+  }
+
+  return null;
+}
+
 // ==============================
 // GiftAsset aggregated gift prices (optional)
 // ==============================
@@ -2898,6 +2915,26 @@ function resolveMarketItemPriceTon(item, tonUsd = null) {
   return (Number.isFinite(relTon) && relTon > 0) ? relTon : null;
 }
 
+function resolveMarketItemPriceStars(item, tonUsd = null) {
+  const direct = Number(item?.priceStars ?? item?.price_stars ?? item?.price?.stars ?? null);
+  if (Number.isFinite(direct) && direct > 0) return Math.max(1, Math.round(direct));
+
+  const priceTon = resolveMarketItemPriceTon(item, tonUsd);
+  if (Number.isFinite(priceTon) && priceTon > 0) {
+    const usd = Number(tonUsd);
+    if (Number.isFinite(usd) && usd > 0) {
+      return tonToStars(priceTon, usd);
+    }
+  }
+
+  const name = normalizeGiftName(item?.name || item?.displayName || "");
+  if (!name) return null;
+
+  const rel = getRelayerPriceEntry(name);
+  const relStars = computeRelayerPriceStars(rel, tonUsd);
+  return (Number.isFinite(relStars) && relStars > 0) ? relStars : null;
+}
+
 
 // List (new)
 app.get("/api/market/items/list", async (req, res) => {
@@ -3089,9 +3126,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
       }
 
       const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = (Number.isFinite(tonUsd) && tonUsd > 0 && Number.isFinite(priceTon) && priceTon > 0)
-        ? tonToStars(priceTon, tonUsd)
-        : null;
+      const priceStars = resolveMarketItemPriceStars(it, tonUsd);
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
       if (!Number.isFinite(price) || price <= 0) {
