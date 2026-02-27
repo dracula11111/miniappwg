@@ -2316,21 +2316,25 @@ body:has(.page-active#casesPage)::before{
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
   
-  /* Скрываем topbar полностью (убираем блюр панель) */
+  /* Оставляем при открытом кейсе только balance-pill в topbar */
   body.case-sheet-open .topbar {
-    opacity: 0;
     pointer-events: none;
   }
-  
-  /* Скрываем остальные элементы topbar */
-  body.case-sheet-open .topbar__left {
+
+  body.case-sheet-open .topbar > :not(.balance) {
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
   }
-  
+
   body.case-sheet-open .logo-header {
     opacity: 0;
     pointer-events: none;
+  }
+
+  /* Разрешаем клик только по балансу */
+  body.case-sheet-open .balance {
+    pointer-events: auto;
   }
   
   
