@@ -41,6 +41,52 @@
   WT.utils = { crc16Xmodem, rawToFriendly, ensureFriendly, shortAddr };
   WT.bus   = new EventTarget();
 
+  // ===== Global liquid-glass notifications =====
+  const TOAST_HOST_ID = 'wt-toast-host';
+  let toastTimer = null;
+
+  function ensureToastHost() {
+    let host = document.getElementById(TOAST_HOST_ID);
+    if (host) return host;
+
+    host = document.createElement('div');
+    host.id = TOAST_HOST_ID;
+    host.setAttribute('aria-live', 'polite');
+    host.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function showLiquidToast(message, opts = {}) {
+    const text = String(message ?? '').trim();
+    if (!text) return;
+
+    const ttl = Number.isFinite(Number(opts.ttl)) ? Math.max(1000, Number(opts.ttl)) : 2600;
+    const host = ensureToastHost();
+
+    host.textContent = text;
+    host.classList.remove('is-out');
+    host.classList.add('is-in');
+
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      host.classList.remove('is-in');
+      host.classList.add('is-out');
+    }, ttl);
+
+    return true;
+  }
+
+  window.showToast = showLiquidToast;
+  window.notify = (message, opts) => showLiquidToast(message, opts);
+
+  const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
+  window.alert = (message) => {
+    const shown = showLiquidToast(message);
+    if (!shown && nativeAlert) nativeAlert(message);
+  };
+
+
   // ===== Games hub =====
   const GAMES_PAGE_ID = "gamesPage";
 
