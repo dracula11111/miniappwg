@@ -1578,6 +1578,19 @@ async function refreshGiftsAll() {
 }
 
 
+function getRelayerAdminIds() {
+  return String(process.env.RELAYER_ADMIN_IDS || process.env.MARKET_ADMIN_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function isRelayerAdminUserId(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid) return false;
+  return getRelayerAdminIds().includes(uid);
+}
+
 // ====== INVENTORY (Postgres) ======
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.
@@ -1622,7 +1635,8 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     const items = await inventoryGet(userId);
-    return res.json({ ok: true, items, nfts: items });
+    const isAdmin = isRelayerAdminUserId(userId);
+    return res.json({ ok: true, items, nfts: items, isAdmin });
   } catch (e) {
     console.error("[Inventory] get error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
@@ -1887,6 +1901,9 @@ app.post("/api/admin/inventory/add", async (req, res) => {
 // Admin: return market-bought gift from inventory back to market.
 app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (req, res) => {
   try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!isRelayerAdminUserId(userId)) return res.status(403).json({ ok: false, error: "forbidden" });
+
     const adminKey = String(process.env.ADMIN_KEY || "");
     if (!adminKey) return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
 

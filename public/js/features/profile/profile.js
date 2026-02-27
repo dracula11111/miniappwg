@@ -604,6 +604,7 @@
   // ====== INVENTORY PANEL ======
   const selection = new Set();
   let lastInventory = [];
+  let isRelayerAdmin = false;
   function removeLegacyNftShelf() {
     // Удаляем верхнюю бессмысленную панель "NFT", если она есть (в т.ч. из старых кешей)
     document.querySelectorAll('#profileNftShelf, .profile-nft-shelf, .profile-nft-card, .profile-nft')
@@ -977,6 +978,7 @@ async function withdrawContinue() {
       const r = await tgFetch('/api/admin/inventory/return-to-market', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json'
           'Content-Type': 'application/json',
           'x-admin-key': adminKey
         },
@@ -1132,6 +1134,8 @@ async function withdrawContinue() {
     return !!item.fromMarket || !!item.marketId;
   }
 
+  function canReturnToMarket(item) {
+    return isMarketGiftItem(item) && isRelayerAdmin;
   function getAdminKey() {
     return String(localStorage.getItem('ADMIN_KEY') || '').trim();
   }
@@ -1393,6 +1397,7 @@ async function withdrawContinue() {
       if (r.ok) {
         const j = await r.json().catch(() => null);
         if (j && j.ok === true && Array.isArray(j.items)) {
+          isRelayerAdmin = !!j.isAdmin;
           writeLocalInventory(userId, j.items);
           renderInventory(j.items);
           return;
@@ -1400,6 +1405,7 @@ async function withdrawContinue() {
       }
     } catch {}
 
+    isRelayerAdmin = false;
     const local = readLocalInventory(userId);
     renderInventory(local);
   }
