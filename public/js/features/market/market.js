@@ -476,9 +476,19 @@ async function buyGift(gift) {
     closeGiftDrawer();
     renderMarket();
 
-    try { window.dispatchEvent(new CustomEvent('wg:inventory:changed')); } catch {}
+    try {
+      // Profile inventory listens this event and reloads items immediately.
+      window.dispatchEvent(new CustomEvent('inventory:update'));
+    } catch {}
     if (typeof j?.newBalance === 'number') {
-      try { window.dispatchEvent(new CustomEvent('wg:balance:update', { detail: { currency: state.currency, balance: j.newBalance } })); } catch {}
+      try {
+        const cur = state.currency === 'stars' ? 'stars' : 'ton';
+        const detail = cur === 'stars'
+          ? { stars: j.newBalance }
+          : { ton: j.newBalance };
+        // Global balance widgets listen this event and update without page refresh.
+        window.dispatchEvent(new CustomEvent('balance:update', { detail }));
+      } catch {}
     }
 
     toast(`✅ Purchased: ${name}`);
