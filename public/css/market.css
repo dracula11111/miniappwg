@@ -653,6 +653,11 @@ background: rgba(96, 165, 250, 0.5);
   pointer-events: auto;
 }
 
+body.market-gift-overlay-open .topbar{
+  position: relative;
+  z-index: 10001;
+}
+
 .market-gift-drawer{
   position: absolute;
   left: 0;

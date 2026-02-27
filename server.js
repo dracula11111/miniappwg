@@ -2669,6 +2669,18 @@ async function isMarketSold(sourceKey) {
   return set.has(k);
 }
 
+async function unmarkMarketSold(sourceKey) {
+  const k = String(sourceKey || "").trim();
+  if (!k) return false;
+  return await withMarketLock(async () => {
+    const set = await readMarketSoldSet();
+    if (!set.has(k)) return false;
+    set.delete(k);
+    await writeMarketSoldSet(set);
+    return true;
+  });
+}
+
 function getBearerToken(req) {
   const h = String(req.headers?.authorization || "");
   if (!h) return "";
@@ -2899,11 +2911,12 @@ app.post("/api/market/items/add", async (req, res) => {
     if (!isRelayerSecretOk(req)) return res.status(403).json({ ok: false, error: "forbidden" });
     const item = req.body?.item;
     if (!item || typeof item !== "object") return res.status(400).json({ ok: false, error: "item required" });
-    // Hard-skip sold items (prevents re-adding after purchase)
+    // If this sourceKey was marked as sold earlier, this is an explicit relist attempt.
+    // Remove sold flag so gift cannot be silently dropped/lost on market return.
+    let relisted = false;
     if (item?.sourceKey && await isMarketSold(item.sourceKey)) {
-      return res.json({ ok: true, skipped: true, reason: "already_sold" });
+      relisted = await unmarkMarketSold(item.sourceKey);
     }
-
 
     const id = safeMarketString(item.id, 96) || `m_${Date.now()}`;
     const name = safeMarketString(item.name, 120) || "Gift";
@@ -2950,7 +2963,7 @@ app.post("/api/market/items/add", async (req, res) => {
       return out;
     });
     
-    return res.json({ ok: true, item: saved });
+    return res.json({ ok: true, item: saved, relisted });
     
   } catch (e) {
     console.error("[MarketStore] add error:", e);
@@ -2997,10 +3010,18 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
         it = items[idx];
       }
 
-      const rate = await getTonUsdRate();
-      const tonUsd = rate?.tonUsd;
+      // Buy should be instant: TON purchases must not block on external rate fetch.
+      // We use cached tonUsd when available and only fetch a fresh rate for Stars purchases.
+      let tonUsd = Number.isFinite(Number(tonUsdCache?.tonUsd)) ? Number(tonUsdCache.tonUsd) : null;
+      if (cur === "stars" && (!Number.isFinite(tonUsd) || tonUsd <= 0)) {
+        const rate = await getTonUsdRate();
+        tonUsd = Number.isFinite(Number(rate?.tonUsd)) ? Number(rate.tonUsd) : null;
+      }
+
       const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      const priceStars = (Number.isFinite(tonUsd) && tonUsd > 0 && Number.isFinite(priceTon) && priceTon > 0)
+        ? tonToStars(priceTon, tonUsd)
+        : null;
 
       const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
       if (!Number.isFinite(price) || price <= 0) {
