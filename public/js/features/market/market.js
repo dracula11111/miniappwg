@@ -433,6 +433,54 @@ function closeGiftDrawer() {
   setTimeout(() => { try { giftDrawerOverlayEl.style.display = 'none'; } catch {} }, 250);
 }
 
+function getProfileNavTargetRect() {
+  const target = document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-avatar')
+    || document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-icon')
+    || document.querySelector('#navProfileAvatar')
+    || document.querySelector('.bottom-nav .nav-item[data-target="profilePage"]');
+  return target?.getBoundingClientRect?.() || null;
+}
+
+async function animateGiftToProfile() {
+  if (!giftDrawerOverlayEl || !giftDrawerEl) return;
+
+  const sourceImg = giftDrawerEl.querySelector('.market-gift-hero__img');
+  const sourceRect = sourceImg?.getBoundingClientRect?.();
+  const targetRect = getProfileNavTargetRect();
+  if (!sourceRect || !targetRect) {
+    closeGiftDrawer();
+    return;
+  }
+
+  const clone = sourceImg.cloneNode(true);
+  clone.classList.add('market-fly-image');
+  clone.style.left = `${sourceRect.left}px`;
+  clone.style.top = `${sourceRect.top}px`;
+  clone.style.width = `${sourceRect.width}px`;
+  clone.style.height = `${sourceRect.height}px`;
+  document.body.appendChild(clone);
+
+  // 1) Close drawer and remove blur/dim first.
+  closeGiftDrawer();
+
+  // 2) Fly to profile icon and dissolve.
+  const toX = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
+  const toY = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
+  const scale = Math.max(0.16, Math.min(0.34, targetRect.width / Math.max(sourceRect.width, 1)));
+  clone.style.setProperty('--fly-x', `${toX}px`);
+  clone.style.setProperty('--fly-y', `${toY}px`);
+  clone.style.setProperty('--fly-scale', String(scale));
+
+  await new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      clone.classList.add('is-flying');
+      setTimeout(resolve, 720);
+    });
+  });
+
+  clone.remove();
+}
+
 function toast(message) {
   const text = safeText(message, 300) || '';
   if (!text) return;
@@ -524,7 +572,7 @@ function buildOptimisticInventoryItem(gift) {
   };
 }
 
-function applyOptimisticPurchase(gift) {
+async function applyOptimisticPurchase(gift) {
   const snapshot = {
     giftsBefore: Array.isArray(state.gifts) ? state.gifts.slice() : [],
     balanceBefore: getLiveBalance(state.currency),
@@ -535,7 +583,7 @@ function applyOptimisticPurchase(gift) {
 
   // 1) Market UI — remove instantly
   state.gifts = snapshot.giftsBefore.filter(x => String(x?.id) !== String(gift?.id));
-  closeGiftDrawer();
+  await animateGiftToProfile();
   renderMarket();
 
   // 2) Balance UI — deduct instantly
@@ -653,7 +701,7 @@ async function buyGift(gift) {
   state.buying = true;
   setBuyButtonLoading(true);
   const name = safeText(gift?.name, 64) || 'Gift';
-  const optimistic = applyOptimisticPurchase(gift);
+  const optimistic = await applyOptimisticPurchase(gift);
 
   try {
     const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 15000 });
