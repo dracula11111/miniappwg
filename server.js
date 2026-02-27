@@ -1578,6 +1578,19 @@ async function refreshGiftsAll() {
 }
 
 
+function getRelayerAdminIds() {
+  return String(process.env.RELAYER_ADMIN_IDS || process.env.MARKET_ADMIN_IDS || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function isRelayerAdminUserId(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid) return false;
+  return getRelayerAdminIds().includes(uid);
+}
+
 // ====== INVENTORY (Postgres) ======
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.
@@ -1622,7 +1635,8 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     const items = await inventoryGet(userId);
-    return res.json({ ok: true, items, nfts: items });
+    const isAdmin = isRelayerAdminUserId(userId);
+    return res.json({ ok: true, items, nfts: items, isAdmin });
   } catch (e) {
     console.error("[Inventory] get error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
@@ -1881,6 +1895,62 @@ app.post("/api/admin/inventory/add", async (req, res) => {
   } catch (e) {
     console.error("[Admin Inventory] add error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
+  }
+});
+
+// Admin: return market-bought gift from inventory back to market.
+app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!isRelayerAdminUserId(userId)) return res.status(403).json({ ok: false, error: "forbidden" });
+
+    const instanceId = String(req.body?.instanceId || "").trim();
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    if (!instanceId) return res.status(400).json({ ok: false, error: "instanceId required" });
+
+    const items = await inventoryGet(userId);
+    const item = (Array.isArray(items) ? items : []).find((x) => String(x?.instanceId || "") === instanceId);
+    if (!item) return res.status(404).json({ ok: false, error: "item not found" });
+
+    if (!(item?.fromMarket || item?.marketId)) {
+      return res.status(400).json({ ok: false, error: "only market items can be returned" });
+    }
+
+    const now = Date.now();
+    const baseMarketId = safeMarketString(item?.marketId, 96) || safeMarketString(item?.id, 96) || "gift";
+    const marketItem = {
+      id: `ret_${baseMarketId}_${now}`,
+      name: safeMarketString(item?.displayName || item?.name, 120) || "Gift",
+      number: safeMarketString(item?.tg?.num || item?.number || item?.tg?.number, 32) || "",
+      image: safeMarketImagePath(item?.icon || item?.image || item?.previewUrl),
+      previewUrl: safeMarketPreviewRef(item?.previewUrl || item?.icon || item?.image) || fragmentMediumPreviewUrlFromSlug(item?.tg?.slug),
+      priceTon: Number.isFinite(Number(item?.price?.ton)) ? Number(item.price.ton) : null,
+      priceStars: Number.isFinite(Number(item?.price?.stars)) ? Number(item.price.stars) : null,
+      createdAt: now,
+      source: "admin_inventory_return",
+      tg: item?.tg || null
+    };
+
+    await withMarketLock(async () => {
+      const marketItems = await readMarketItems();
+      marketItems.unshift(marketItem);
+      const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+      if (marketItems.length > MAX) marketItems.length = MAX;
+      const ok = await writeMarketItems(marketItems);
+      if (!ok) throw new Error("market write failed");
+    });
+
+    if (typeof db.deleteInventoryItems === "function") {
+      await db.deleteInventoryItems(userId, [instanceId]);
+    } else if (typeof db.sellInventoryItems === "function") {
+      await db.sellInventoryItems(userId, [instanceId], "ton");
+    }
+
+    const left = await inventoryGet(userId);
+    return res.json({ ok: true, item: marketItem, items: left, nfts: left });
+  } catch (e) {
+    console.error("[Admin Inventory] return-to-market error:", e);
+    return res.status(500).json({ ok: false, error: "return to market error" });
   }
 });
 

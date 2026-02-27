@@ -840,7 +840,7 @@ process.on("SIGTERM", async () => {
 // RPC (server -> relayer): withdraw
 // ================================
 
-const RPC_PORT = Number(process.env.RELAYER_RPC_PORT || 3300);
+const RPC_PORT = Number(process.env.PORT || process.env.RELAYER_RPC_PORT || 3300);
 
 function rpcAuthOk(req) {
   const secret = String(SECRET || "");
