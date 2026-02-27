@@ -469,6 +469,54 @@ function setBuyButtonLoading(loading) {
   giftDrawerBuyBtn.style.pointerEvents = loading ? 'none' : '';
 }
 
+function emitLivePurchaseEvents({ response, gift, currency }) {
+  const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const inventoryItems = Array.isArray(response?.inventory) ? response.inventory : null;
+
+  if (userId && inventoryItems) {
+    try { localStorage.setItem(`WT_INV_${userId}`, JSON.stringify(inventoryItems)); } catch {}
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent('inventory:update', {
+      detail: {
+        source: 'market-buy',
+        mode: inventoryItems ? 'replace' : 'reload',
+        items: inventoryItems,
+        purchased: gift || null
+      }
+    }));
+  } catch {}
+
+  if (typeof response?.newBalance === 'number') {
+    try {
+      const cur = currency === 'stars' ? 'stars' : 'ton';
+      const detail = cur === 'stars'
+        ? { stars: response.newBalance }
+        : { ton: response.newBalance };
+      window.dispatchEvent(new CustomEvent('balance:update', { detail }));
+    } catch {}
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent('market:update', {
+      detail: { source: 'market-buy', soldId: String(gift?.id || '') }
+    }));
+  } catch {}
+}
+
+async function reconcileLiveState() {
+  try {
+    state.gifts = await loadGifts();
+    renderMarket();
+  } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent('inventory:update', {
+      detail: { source: 'market-reconcile', mode: 'reload' }
+    }));
+  } catch {}
+}
+
 async function buyGift(gift) {
   if (!gift || !gift.id) return;
   if (state.buying) return;
@@ -486,20 +534,7 @@ async function buyGift(gift) {
     closeGiftDrawer();
     renderMarket();
 
-    try {
-      // Profile inventory listens this event and reloads items immediately.
-      window.dispatchEvent(new CustomEvent('inventory:update'));
-    } catch {}
-    if (typeof j?.newBalance === 'number') {
-      try {
-        const cur = state.currency === 'stars' ? 'stars' : 'ton';
-        const detail = cur === 'stars'
-          ? { stars: j.newBalance }
-          : { ton: j.newBalance };
-        // Global balance widgets listen this event and update without page refresh.
-        window.dispatchEvent(new CustomEvent('balance:update', { detail }));
-      } catch {}
-    }
+    emitLivePurchaseEvents({ response: j, gift, currency: state.currency });
 
     toast(`✅ Purchased: ${name}`);
   } catch (e) {
@@ -519,10 +554,12 @@ async function buyGift(gift) {
     }
     if (e?.code === 'REQUEST_TIMEOUT') {
       toast('❌ Buy timeout. Please try again.');
+      reconcileLiveState();
       return;
     }
 
     toast(`❌ ${msg}`);
+    reconcileLiveState();
   } finally {
     state.buying = false;
     setBuyButtonLoading(false);
