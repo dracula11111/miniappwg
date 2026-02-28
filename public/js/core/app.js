@@ -1,10 +1,22 @@
 // public/js/app.js
 (() => {
   // Telegram bootstrap
+  const tg = window.Telegram?.WebApp;
   try {
-    const tg = window.Telegram?.WebApp;
     tg?.ready?.();
     tg?.expand?.();
+  } catch {}
+
+  // Disable Telegram haptics globally while keeping existing calls safe.
+  try {
+    if (tg) {
+      const noop = () => {};
+      const haptic = tg.HapticFeedback || {};
+      haptic.impactOccurred = noop;
+      haptic.notificationOccurred = noop;
+      haptic.selectionChanged = noop;
+      tg.HapticFeedback = haptic;
+    }
   } catch {}
 
   // Простые утилы
@@ -93,6 +105,8 @@
 
   // ===== Games hub =====
   const GAMES_PAGE_ID = "gamesPage";
+  const PAGE_HISTORY_KEY = "__wtPage";
+  const GAMES_CHILD_PAGES = new Set(["wheelPage", "crashPage", "casesPage"]);
 
   // какие страницы считаем "внутри Games" (в навбаре подсвечиваем Games)
   const NAV_ALIAS = {
@@ -101,6 +115,28 @@
     wheelPage: GAMES_PAGE_ID
   };
   const navKeyForPage = (id) => NAV_ALIAS[id] || id;
+  const getActivePageId = () => document.querySelector(".page.page-active")?.id || null;
+  const readHistoryPage = (state = window.history?.state) => {
+    const id = state?.[PAGE_HISTORY_KEY];
+    return (typeof id === "string" && id) ? id : null;
+  };
+
+  function writeHistoryPage(id, { replace = false } = {}) {
+    if (!id || !window.history) return;
+
+    const baseState = (window.history.state && typeof window.history.state === "object")
+      ? window.history.state
+      : {};
+    const nextState = { ...baseState, [PAGE_HISTORY_KEY]: id };
+
+    try {
+      if (replace && typeof window.history.replaceState === "function") {
+        window.history.replaceState(nextState, "", window.location.href);
+      } else if (!replace && typeof window.history.pushState === "function") {
+        window.history.pushState(nextState, "", window.location.href);
+      }
+    } catch {}
+  }
 
 
   function ensureGamesPage() {
@@ -159,10 +195,29 @@
   }
 
   // Навигация между страницами
-  function activatePage(id){
-    document.querySelectorAll(".page").forEach(p=>p.classList.remove("page-active"));
+  function activatePage(id, options = {}){
+    const { fromHistory = false } = options;
     const pg = document.getElementById(id);
-    if(pg) pg.classList.add("page-active");
+    if (!pg) {
+      console.warn(`[WT] Page not found: ${id}`);
+      return;
+    }
+
+    const currentId = getActivePageId();
+
+    if (
+      !fromHistory &&
+      id === GAMES_PAGE_ID &&
+      GAMES_CHILD_PAGES.has(currentId) &&
+      readHistoryPage() === currentId &&
+      typeof window.history?.back === "function"
+    ) {
+      window.history.back();
+      return;
+    }
+
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("page-active"));
+    pg.classList.add("page-active");
 
     // выставляем класс страницы на body (для page-specific CSS)
     // пример: wheelPage -> body.page-wheel
@@ -186,12 +241,39 @@
     document.querySelectorAll(".bottom-nav .nav-item").forEach(i=>i.classList.remove("active"));
     document.querySelector(`.bottom-nav .nav-item[data-target="${navKey}"]`)?.classList.add("active");
 
+    if (!fromHistory) {
+      const shouldPush = GAMES_CHILD_PAGES.has(id);
+      const currentHistoryPage = readHistoryPage();
+
+      if (shouldPush) {
+        if (currentHistoryPage !== id) {
+          writeHistoryPage(id, { replace: false });
+        }
+      } else if (currentHistoryPage !== id || currentId == null) {
+        writeHistoryPage(id, { replace: true });
+      }
+    }
+
     WT.bus.dispatchEvent(new CustomEvent("page:change", { detail:{ id } }));
   }
 
   // Экспортируем навигацию (чтобы другие модули могли дергать при необходимости)
   WT.activatePage = activatePage;
   WT.navigate = activatePage;
+
+  window.addEventListener("popstate", (event) => {
+    const targetId = readHistoryPage(event.state);
+    if (targetId && document.getElementById(targetId)) {
+      activatePage(targetId, { fromHistory: true });
+      return;
+    }
+
+    const currentId = getActivePageId();
+    if (GAMES_CHILD_PAGES.has(currentId) && document.getElementById(GAMES_PAGE_ID)) {
+      activatePage(GAMES_PAGE_ID, { fromHistory: true });
+      writeHistoryPage(GAMES_PAGE_ID, { replace: true });
+    }
+  });
 
   // Делегируем клики по нижней навигации (так работает и для динамически добавленных пунктов)
   const bottomNav = document.querySelector(".bottom-nav");

@@ -188,6 +188,12 @@
     if (userAvatarBtn) {
       userAvatarBtn.addEventListener('click', () => {
         console.log('[Settings] Avatar clicked, navigating to profile');
+
+        if (window.WT?.activatePage) {
+          window.WT.activatePage('profilePage');
+          haptic('light');
+          return;
+        }
         
         const profilePage = document.getElementById('profilePage');
         if (profilePage) {
