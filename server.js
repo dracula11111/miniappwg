@@ -1682,7 +1682,13 @@ async function refreshGiftsAll() {
 
 
 function getRelayerAdminIds() {
-  return String(process.env.RELAYER_ADMIN_IDS || process.env.MARKET_ADMIN_IDS || "")
+  return String(
+    process.env.RELAYER_ADMIN_IDS ||
+    process.env.RELAYER_ADMIN_ID ||
+    process.env.MARKET_ADMIN_IDS ||
+    process.env.MARKET_ADMIN_ID ||
+    ""
+  )
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);

@@ -41,7 +41,13 @@ const API_HASH = String(process.env.RELAYER_API_HASH || process.env.TG_API_HASH 
 const SESSION_STR = String(process.env.RELAYER_SESSION || "");
 const SERVER = String(process.env.RELAYER_SERVER || "http://localhost:3000").replace(/\/+$/, "");
 const SECRET = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
-const ADMIN_IDS = String(process.env.RELAYER_ADMIN_IDS || process.env.MARKET_ADMIN_IDS || "")
+const ADMIN_IDS = String(
+  process.env.RELAYER_ADMIN_IDS ||
+  process.env.RELAYER_ADMIN_ID ||
+  process.env.MARKET_ADMIN_IDS ||
+  process.env.MARKET_ADMIN_ID ||
+  ""
+)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
@@ -245,10 +251,20 @@ async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
 function peerUserId(peer) {
   if (!peer) return null;
   // GramJS peers can be PeerUser / PeerChannel / PeerChat
-  if (peer.userId != null) return String(peer.userId);
-  if (peer instanceof Api.PeerUser && peer.userId != null) return String(peer.userId);
-  // sometimes message.fromId is InputPeerUser-like
-  if (peer?.value != null) return String(peer.value);
+  const direct =
+    peer.userId ??
+    peer.user_id ??
+    peer?.user?.id ??
+    peer?.peer?.userId ??
+    peer?.peer?.user_id;
+  if (direct != null) return String(direct);
+
+  // Some GramJS wrappers expose only "value" on user-like peers.
+  const className = String(peer?.className || peer?.constructor?.name || "");
+  if (peer instanceof Api.PeerUser && peer?.value != null) return String(peer.value);
+  if (peer?.value != null && /^(PeerUser|InputPeerUser|InputUser)$/.test(className)) {
+    return String(peer.value);
+  }
   return null;
 }
 function peerKey(peer) {
@@ -844,7 +860,28 @@ process.on("SIGTERM", async () => {
 // RPC (server -> relayer): withdraw
 // ================================
 
-const RPC_PORT = Number(process.env.PORT || process.env.RELAYER_RPC_PORT || 3300);
+function explicitPortFromUrl(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    if (!u.port) return null;
+    const n = Number(u.port);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+const RPC_PORT = (() => {
+  const n = Number(
+    process.env.RELAYER_RPC_PORT ||
+    explicitPortFromUrl(process.env.RELAYER_RPC_URL) ||
+    process.env.PORT ||
+    3300
+  );
+  return Number.isFinite(n) && n > 0 ? n : 3300;
+})();
 
 function rpcAuthOk(req) {
   const secret = String(SECRET || "");
