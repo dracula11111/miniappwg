@@ -1,0 +1,140 @@
+{
+  "updatedAt": 1772315812874,
+  "catalogUpdatedAt": 1772315794496,
+  "prices": [
+    {
+      "name": "Stellar Rocket",
+      "priceTon": 4.79,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Instant Ramen",
+      "priceTon": 4.59,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Ice Cream",
+      "priceTon": 4.48,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Berry Box",
+      "priceTon": 8.75,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Lol Pop",
+      "priceTon": 4.88,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Cookie Heart",
+      "priceTon": 5.28,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Mousse Cake",
+      "priceTon": 4.7,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Electric Skull",
+      "priceTon": 33.98,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Vintage Cigar",
+      "priceTon": 34.5,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Voodoo Doll",
+      "priceTon": 32.12,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Flying Broom",
+      "priceTon": 14.09,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Hex Pot",
+      "priceTon": 6.49,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Mighty Arm",
+      "priceTon": 182.4,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Scared Cat",
+      "priceTon": 160,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Bonded Ring",
+      "priceTon": 61.57,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Genie Lamp",
+      "priceTon": 52.4,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Jack-in-the-Box",
+      "priceTon": 4.7,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Winter Wreath",
+      "priceTon": 4.57,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Snoop Dogg",
+      "priceTon": 5.08,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Neko Helmet",
+      "priceTon": 41.98,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Pet Snake",
+      "priceTon": 4.61,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    },
+    {
+      "name": "Xmas Stocking",
+      "priceTon": 4.38,
+      "updatedAt": 1772315812874,
+      "source": "portal-market.com"
+    }
+  ],
+  "relayerUpdatedAt": 0,
+  "relayerPrices": []
+}

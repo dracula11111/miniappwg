@@ -1179,10 +1179,18 @@ app.post("/api/cases/history", (req, res) => {
 // ==============================
 // GIFT PRICES CACHE (in-memory)
 // ==============================
-// NOTE: Per-process cache. Resets on server restart.
-const GIFT_REFRESH_MS = Math.max(60_000, Number(process.env.GIFT_REFRESH_MS || (5 * 60 * 1000)) || (5 * 60 * 1000)); // 5 minutes
+// NOTE: In-memory cache with disk snapshot restore to survive restarts when possible.
+const GIFT_REFRESH_MS = Math.max(60_000, Number(process.env.GIFT_REFRESH_MS || (24 * 60 * 60 * 1000)) || (24 * 60 * 60 * 1000)); // 1 day
 const GIFT_CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000; // every 6 hours (catalog changes not that often)
 const GIFT_REQUEST_TIMEOUT_MS = 15_000;
+const GIFT_SOURCE_BLOCK_COOLDOWN_MS = Math.max(5 * 60 * 1000, Number(process.env.GIFT_SOURCE_BLOCK_COOLDOWN_MS || (24 * 60 * 60 * 1000)) || (24 * 60 * 60 * 1000));
+const GIFT_SOURCE_RATE_LIMIT_COOLDOWN_MS = Math.max(60_000, Number(process.env.GIFT_SOURCE_RATE_LIMIT_COOLDOWN_MS || (6 * 60 * 60 * 1000)) || (6 * 60 * 60 * 1000));
+const GIFT_SOURCE_TRANSIENT_COOLDOWN_MS = Math.max(60_000, Number(process.env.GIFT_SOURCE_TRANSIENT_COOLDOWN_MS || (60 * 60 * 1000)) || (60 * 60 * 1000));
+const GIFTS_PRICE_CACHE_PATH =
+  process.env.GIFTS_PRICE_CACHE_PATH ||
+  (process.env.NODE_ENV === "production"
+    ? "/opt/render/project/data/gifts-prices-cache.json"
+    : path.join(__dirname, "data", "gifts-prices-cache.json"));
 
 let giftsCatalog = [
   "Stellar Rocket",
@@ -1226,6 +1234,8 @@ const GIFT_RELAYER_STALE_MS = Math.max(
 // key: lowercased gift name
 let giftsRelayerPrices = new Map(); // key -> { priceTon?, priceStars?, updatedAt, source }
 let giftsRelayerLastPush = 0;
+let giftsSourceCooldowns = new Map(); // source -> { until, reason }
+let getGemsSnapshotCache = { updatedAt: 0, html: "", error: "" };
 
 // small helper
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1241,6 +1251,139 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = GIFT_REQUEST_TIMEOUT
   }
 }
 
+function ensureGiftsPriceCacheDir() {
+  try {
+    const dir = path.dirname(GIFTS_PRICE_CACHE_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.warn("[gifts] cache dir ensure failed:", e?.message || e);
+  }
+}
+
+function persistGiftsPriceState() {
+  try {
+    ensureGiftsPriceCacheDir();
+    const payload = {
+      updatedAt: giftsLastUpdate || 0,
+      catalogUpdatedAt: giftsCatalogLastUpdate || 0,
+      prices: Array.from(giftsPrices.entries()).map(([name, value]) => ({ name, ...value })),
+      relayerUpdatedAt: giftsRelayerLastPush || 0,
+      relayerPrices: Array.from(giftsRelayerPrices.entries()).map(([name, value]) => ({ name, ...value }))
+    };
+    const tmp = `${GIFTS_PRICE_CACHE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), "utf8");
+    fs.renameSync(tmp, GIFTS_PRICE_CACHE_PATH);
+    return true;
+  } catch (e) {
+    console.warn("[gifts] cache write failed:", e?.message || e);
+    return false;
+  }
+}
+
+function restoreGiftsPriceState() {
+  try {
+    ensureGiftsPriceCacheDir();
+    if (!fs.existsSync(GIFTS_PRICE_CACHE_PATH)) return false;
+
+    const raw = fs.readFileSync(GIFTS_PRICE_CACHE_PATH, "utf8");
+    const data = JSON.parse(raw || "{}");
+    const priceItems = Array.isArray(data?.prices) ? data.prices : [];
+    const relayerItems = Array.isArray(data?.relayerPrices) ? data.relayerPrices : [];
+
+    for (const it of priceItems) {
+      const name = normalizeGiftName(it?.name || "");
+      const priceTon = Number(it?.priceTon ?? it?.price_ton ?? it?.price ?? null);
+      const updatedAt = Number(it?.updatedAt || data?.updatedAt || 0);
+      const source = String(it?.source || "cache").slice(0, 64);
+      if (!name || !Number.isFinite(priceTon) || priceTon <= 0) continue;
+      giftsPrices.set(name, { priceTon, updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0, source });
+    }
+
+    for (const it of relayerItems) {
+      const key = giftKey(it?.name || "");
+      const priceTon = Number(it?.priceTon ?? it?.price_ton ?? null);
+      const priceStars = Number(it?.priceStars ?? it?.price_stars ?? null);
+      const updatedAt = Number(it?.updatedAt || data?.relayerUpdatedAt || 0);
+      const source = String(it?.source || "cache").slice(0, 64);
+      const hasTon = Number.isFinite(priceTon) && priceTon > 0;
+      const hasStars = Number.isFinite(priceStars) && priceStars > 0;
+      if (!key || (!hasTon && !hasStars)) continue;
+      giftsRelayerPrices.set(key, {
+        priceTon: hasTon ? priceTon : null,
+        priceStars: hasStars ? priceStars : null,
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
+        source
+      });
+    }
+
+    const restoredUpdatedAt = Number(data?.updatedAt || 0);
+    const restoredCatalogUpdatedAt = Number(data?.catalogUpdatedAt || 0);
+    const restoredRelayerUpdatedAt = Number(data?.relayerUpdatedAt || 0);
+
+    if (Number.isFinite(restoredUpdatedAt) && restoredUpdatedAt > 0) giftsLastUpdate = restoredUpdatedAt;
+    if (Number.isFinite(restoredCatalogUpdatedAt) && restoredCatalogUpdatedAt > 0) giftsCatalogLastUpdate = restoredCatalogUpdatedAt;
+    if (Number.isFinite(restoredRelayerUpdatedAt) && restoredRelayerUpdatedAt > 0) giftsRelayerLastPush = restoredRelayerUpdatedAt;
+
+    if (giftsPrices.size || giftsRelayerPrices.size) {
+      console.log(`[gifts] cache restored: direct=${giftsPrices.size} relayer=${giftsRelayerPrices.size}`);
+    }
+
+    return true;
+  } catch (e) {
+    console.warn("[gifts] cache restore failed:", e?.message || e);
+    return false;
+  }
+}
+
+function getGiftSourceCooldown(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return null;
+  const cur = giftsSourceCooldowns.get(key);
+  if (!cur) return null;
+  if (Number(cur.until || 0) <= Date.now()) {
+    giftsSourceCooldowns.delete(key);
+    return null;
+  }
+  return cur;
+}
+
+function clearGiftSourceCooldown(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return;
+  giftsSourceCooldowns.delete(key);
+}
+
+function classifyGiftSourceCooldown(kindOrStatus) {
+  const raw = String(kindOrStatus || "").trim().toLowerCase();
+  const status = Number(kindOrStatus);
+
+  if (raw === "auth" || status === 401 || status === 403) {
+    return { kind: "auth", ms: GIFT_SOURCE_BLOCK_COOLDOWN_MS };
+  }
+  if (raw === "rate_limit" || status === 429) {
+    return { kind: "rate_limit", ms: GIFT_SOURCE_RATE_LIMIT_COOLDOWN_MS };
+  }
+  return { kind: "transient", ms: GIFT_SOURCE_TRANSIENT_COOLDOWN_MS };
+}
+
+function blockGiftSource(name, reason, kindOrStatus = "") {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return null;
+
+  const cooldown = classifyGiftSourceCooldown(kindOrStatus);
+  giftsSourceCooldowns.set(key, {
+    until: Date.now() + cooldown.ms,
+    reason: String(reason || cooldown.kind).slice(0, 180)
+  });
+  return cooldown;
+}
+
+function createGiftSourceError(message, extras = {}) {
+  const err = new Error(String(message || "gift source error"));
+  Object.assign(err, extras);
+  return err;
+}
+
 function normalizeGiftName(s) {
   return String(s || "").trim();
 }
@@ -1249,6 +1392,85 @@ function normalizeGiftName(s) {
 function giftKey(name) {
   return String(name || "").trim().toLowerCase();
 }
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getGiftNameVariants(name) {
+  const base = normalizeGiftName(name);
+  const out = new Set();
+  if (base) out.add(base);
+  if (base && !base.endsWith("s")) out.add(`${base}s`);
+  return Array.from(out);
+}
+
+async function fetchGetGemsSnapshot(baseHeaders, force = false) {
+  const now = Date.now();
+  if (!force && getGemsSnapshotCache.html && (now - getGemsSnapshotCache.updatedAt) < GIFT_REFRESH_MS) {
+    return getGemsSnapshotCache.html;
+  }
+
+  let res = null;
+  try {
+    res = await fetchWithTimeout(
+      "https://getgems.io/",
+      { headers: { ...baseHeaders, referer: "https://getgems.io/", origin: "https://getgems.io" } }
+    );
+  } catch (e) {
+    throw createGiftSourceError(`Getgems fetch failed: ${e?.message || e}`, {
+      blockSource: true,
+      cooldownKind: "transient"
+    });
+  }
+
+  if (!res.ok) {
+    let body = "";
+    try { body = (await res.text()).slice(0, 180); } catch {}
+    throw createGiftSourceError(
+      `Getgems status ${res.status}${body ? `: ${body}` : ""}`,
+      { status: res.status, blockSource: true, cooldownKind: res.status }
+    );
+  }
+
+  const html = await res.text();
+  if (!html || html.length < 256) {
+    throw createGiftSourceError("Getgems returned an empty page", {
+      blockSource: true,
+      cooldownKind: "transient"
+    });
+  }
+
+  getGemsSnapshotCache = { updatedAt: now, html, error: "" };
+  return html;
+}
+
+function parseGetGemsPriceFromHtml(html, giftName) {
+  const text = String(html || "");
+  if (!text) return null;
+
+  const field = String.raw`(?:floorPrice|floor_price|floor)`;
+  const number = String.raw`"?([0-9]+(?:[.,][0-9]+)?)"?`;
+
+  for (const variant of getGiftNameVariants(giftName)) {
+    const escaped = escapeRegExp(variant);
+    const patterns = [
+      new RegExp(`"(?:name|title|collectionName)"\\s*:\\s*"${escaped}"[\\s\\S]{0,320}?"${field}"\\s*:\\s*${number}`, "i"),
+      new RegExp(`"${field}"\\s*:\\s*${number}[\\s\\S]{0,320}"(?:name|title|collectionName)"\\s*:\\s*"${escaped}"`, "i")
+    ];
+
+    for (const rx of patterns) {
+      const m = text.match(rx);
+      const raw = m?.[1] ?? null;
+      const price = Number(String(raw || "").replace(",", "."));
+      if (Number.isFinite(price) && price > 0) return price;
+    }
+  }
+
+  return null;
+}
+
+restoreGiftsPriceState();
 
 function getRelayerPriceEntry(name) {
   return giftsRelayerPrices.get(giftKey(name)) || null;
@@ -1323,6 +1545,7 @@ async function fetchGiftAssetPriceList(force = false) {
     // try to read a small body snippet for debugging (don’t blow logs)
     let body = "";
     try { body = (await res.text()).slice(0, 250); } catch {}
+    blockGiftSource("giftasset", `GiftAsset status ${res.status}`, res.status);
     throw new Error(`GiftAsset status ${res.status}${body ? `: ${body}` : ""}`);
   }
   const j = await res.json();
@@ -1368,7 +1591,11 @@ async function refreshGiftsPricesFromGiftAsset() {
     updated++;
   }
 
-  giftsLastUpdate = now;
+  if (updated > 0) {
+    giftsLastUpdate = now;
+    clearGiftSourceCooldown("giftasset");
+    persistGiftsPriceState();
+  }
   return updated;
 }
 
@@ -1506,7 +1733,7 @@ async function refreshGiftsCatalogStatic() {
 // (B) Цены: Portals collections endpoint (без auth) — берём floor_price по поиску.
 // Источник: пример использования /api/collections?search=...&limit=10 -> collections[0].floor_price
 // Фоллбэк: если портал недоступен, используем market.tonnel.network
-async function refreshGiftsPricesFromPortals() {
+async function refreshGiftsPricesFromPortalsLegacy() {
   if (!giftsCatalog.length) {
     await refreshGiftsCatalogStatic();
   }
@@ -1644,6 +1871,202 @@ if (!priceFound) {
   return updatedCount;
 }
 
+function pickGiftPriceFromCollectionPayload(giftName, data) {
+  const cols = Array.isArray(data?.collections) ? data.collections
+            : Array.isArray(data?.items) ? data.items
+            : [];
+  if (!cols.length) return null;
+
+  const variants = new Set(getGiftNameVariants(giftName).map((x) => x.toLowerCase()));
+  let best = cols[0];
+
+  for (const c of cols) {
+    const nm = normalizeGiftName(c?.name || c?.title || c?.gift || "").toLowerCase();
+    if (nm && variants.has(nm)) {
+      best = c;
+      break;
+    }
+  }
+
+  const floorRaw = (best && (best.floor_price ?? best.floorPrice ?? best.floor)) ?? null;
+  const price = Number(floorRaw);
+  return (Number.isFinite(price) && price > 0) ? price : null;
+}
+
+async function fetchGiftPriceFromJsonSource(source, giftName) {
+  const url = `${source.baseUrl}${encodeURIComponent(giftName)}&limit=10`;
+  let res = null;
+  try {
+    res = await fetchWithTimeout(url, { headers: source.headers });
+  } catch (e) {
+    throw createGiftSourceError(`${source.name} fetch failed: ${e?.message || e}`, {
+      blockSource: true,
+      cooldownKind: "transient"
+    });
+  }
+  if (!res.ok) {
+    throw createGiftSourceError(`${source.name} returned status ${res.status} for ${giftName}`, {
+      status: res.status,
+      blockSource: [401, 403, 429].includes(res.status),
+      cooldownKind: res.status
+    });
+  }
+
+  const ct = String(res.headers?.get?.("content-type") || "");
+  if (ct.includes("text/html")) {
+    throw createGiftSourceError(`${source.name} returned HTML (likely blocked)`, {
+      blockSource: true,
+      cooldownKind: "auth"
+    });
+  }
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw createGiftSourceError(`${source.name} returned invalid JSON`, {
+      blockSource: true,
+      cooldownKind: "transient"
+    });
+  }
+  return pickGiftPriceFromCollectionPayload(giftName, data);
+}
+
+async function fetchGiftPriceFromGetGems(baseHeaders, giftName) {
+  const html = await fetchGetGemsSnapshot(baseHeaders);
+  return parseGetGemsPriceFromHtml(html, giftName);
+}
+
+async function refreshGiftsPricesFromPortals() {
+  if (!giftsCatalog.length) {
+    await refreshGiftsCatalogStatic();
+  }
+
+  const now = Date.now();
+  let updatedCount = 0;
+
+  const baseHeaders = {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9,ru;q=0.8",
+    "cache-control": "no-cache",
+    "pragma": "no-cache"
+  };
+
+  const disableTonnel = String(process.env.DISABLE_TONNEL_PRICES || "").trim() === "1";
+  const skippedOnce = new Set();
+  const disabledThisRun = new Set();
+
+  const sources = [
+    {
+      name: "portal-market.com",
+      fetchPrice: (giftName) => fetchGiftPriceFromJsonSource({
+        name: "portal-market.com",
+        baseUrl: "https://portal-market.com/api/collections?search=",
+        headers: { ...baseHeaders, referer: "https://portal-market.com/", origin: "https://portal-market.com" }
+      }, giftName)
+    },
+    ...(disableTonnel ? [] : [{
+      name: "market.tonnel.network",
+      fetchPrice: (giftName) => fetchGiftPriceFromJsonSource({
+        name: "market.tonnel.network",
+        baseUrl: "https://market.tonnel.network/api/collections?search=",
+        headers: { ...baseHeaders, referer: "https://market.tonnel.network/", origin: "https://market.tonnel.network" }
+      }, giftName)
+    }]),
+    {
+      name: "getgems.io",
+      fetchPrice: (giftName) => fetchGiftPriceFromGetGems(baseHeaders, giftName)
+    }
+  ];
+
+  const activeSources = sources.filter((source) => {
+    const cooldown = getGiftSourceCooldown(source.name);
+    if (!cooldown) return true;
+    if (!skippedOnce.has(source.name)) {
+      skippedOnce.add(source.name);
+      console.warn(`[gifts] ${source.name} skipped (cooldown active: ${cooldown.reason})`);
+    }
+    return false;
+  });
+
+  for (const giftName of giftsCatalog) {
+    const q = normalizeGiftName(giftName);
+    if (!q) continue;
+
+    let priceFound = false;
+
+    for (const source of activeSources) {
+      if (priceFound) break;
+      if (disabledThisRun.has(source.name)) continue;
+
+      try {
+        const price = await source.fetchPrice(q);
+        if (!Number.isFinite(price) || price <= 0) continue;
+
+        giftsPrices.set(giftName, {
+          priceTon: price,
+          updatedAt: now,
+          source: source.name
+        });
+        updatedCount++;
+        priceFound = true;
+        clearGiftSourceCooldown(source.name);
+        if (!IS_PROD) console.log(`[gifts] Updated ${giftName} from ${source.name}: ${price} TON`);
+      } catch (e) {
+        const reason = String(e?.message || e || "source error");
+        if (e?.blockSource) {
+          blockGiftSource(source.name, reason, e?.cooldownKind || e?.status || "");
+          disabledThisRun.add(source.name);
+          console.warn(`[gifts] ${reason}`);
+          continue;
+        }
+        console.warn(`[gifts] ${source.name} fetch failed for ${q} - ${reason}`);
+      }
+    }
+
+    if (!priceFound && GIFT_RELAYER_FALLBACK) {
+      const rel = getRelayerPriceEntry(giftName);
+      const relUpdatedAt = Number(rel?.updatedAt || 0);
+      const fresh = rel && relUpdatedAt > 0 && (now - relUpdatedAt) <= GIFT_RELAYER_STALE_MS;
+
+      if (fresh) {
+        let tonUsd = null;
+        if ((!Number.isFinite(Number(rel?.priceTon)) || Number(rel?.priceTon) <= 0) && Number.isFinite(Number(rel?.priceStars))) {
+          try {
+            const rate = await getTonUsdRate();
+            tonUsd = rate?.tonUsd || null;
+          } catch {}
+        }
+
+        const relTon = computeRelayerPriceTon(rel, tonUsd);
+        if (Number.isFinite(relTon) && relTon > 0) {
+          giftsPrices.set(giftName, {
+            priceTon: relTon,
+            updatedAt: now,
+            source: String(rel.source || "relayer")
+          });
+          updatedCount++;
+          priceFound = true;
+          if (!IS_PROD) console.log(`[gifts] Updated ${giftName} from relayer fallback: ${relTon} TON`);
+        }
+      }
+    }
+
+    if (!priceFound) {
+      console.warn(`[gifts] No direct price for ${giftName}; keeping previous cached value if present.`);
+    }
+
+    await sleep(120 + Math.floor(Math.random() * 120));
+  }
+
+  if (updatedCount > 0) {
+    giftsLastUpdate = now;
+    persistGiftsPriceState();
+  }
+  return updatedCount;
+}
+
 async function refreshGiftsAll() {
   // каталог — реже (но у нас он статический, это просто "sanity" + метка времени)
   if (!giftsCatalogLastUpdate || Date.now() - giftsCatalogLastUpdate > GIFT_CATALOG_REFRESH_MS) {
@@ -1660,12 +2083,17 @@ async function refreshGiftsAll() {
   let usedProvider = "";
 
   if (GIFT_PRICE_PROVIDER !== "direct") {
-    try {
-      updated = await refreshGiftsPricesFromGiftAsset();
-      usedProvider = updated > 0 ? "giftasset" : "";
-      console.log(`[gifts] GiftAsset price list updated: ${updated} records (tracked=${giftsCatalog.length})`);
-    } catch (e) {
-      console.warn('[gifts] GiftAsset refresh failed:', e?.message || e);
+    const cooldown = getGiftSourceCooldown("giftasset");
+    if (cooldown) {
+      console.warn(`[gifts] GiftAsset skipped (cooldown active: ${cooldown.reason})`);
+    } else {
+      try {
+        updated = await refreshGiftsPricesFromGiftAsset();
+        usedProvider = updated > 0 ? "giftasset" : "";
+        console.log(`[gifts] GiftAsset price list updated: ${updated} records (tracked=${giftsCatalog.length})`);
+      } catch (e) {
+        console.warn('[gifts] GiftAsset refresh failed:', e?.message || e);
+      }
     }
   }
 
@@ -1680,7 +2108,11 @@ async function refreshGiftsAll() {
   }
 
   if (!updated || updated <= 0) {
+    if (giftsPrices.size > 0) {
+      console.log(`[gifts] No fresh prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Reusing ${giftsPrices.size} cached records.`);
+    } else {
     console.warn(`[gifts] ⚠️ No prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Keeping old cache.`);
+    }
   } else {
     giftsLastUpdate = Date.now();
   }
@@ -3715,6 +4147,7 @@ app.post("/api/gifts/prices/push", requireRelayer, async (req, res) => {
     }
 
     giftsRelayerLastPush = now;
+    if (accepted > 0) persistGiftsPriceState();
 
     return res.json({ ok: true, accepted, relayerUpdatedAt: giftsRelayerLastPush });
   } catch (e) {
