@@ -32,6 +32,8 @@ function createMemoryDb() {
   const users = new Map();    // telegram_id(string) -> user
   const balances = new Map(); // telegram_id(string) -> { ton_balance, stars_balance, updated_at }
   const txs = new Map();      // telegram_id(string) -> tx[]
+  const promoCodes = new Map(); // code(lower) -> { reward_stars, reward_ton, max_uses, used_count }
+  const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
   let txId = 1;
   let betId = 1;
 
@@ -67,6 +69,10 @@ function createMemoryDb() {
     const list = txs.get(k) || [];
     list.unshift(t);
     txs.set(k, list);
+  }
+
+  function normPromo(code) {
+    return String(code || "").trim().toLowerCase();
   }
 
   return {
@@ -157,6 +163,80 @@ function createMemoryDb() {
         total_wagered,
         total_bets
       };
+    },
+    async ensurePromoSeed() {
+      const defaults = [
+        { code: "WildGiftPromo100", reward_stars: 100, reward_ton: 0, max_uses: Number(process.env.PROMO_WILDGIFT100_MAX ?? 1000) },
+        { code: "WildGiftPromo50", reward_stars: 50, reward_ton: 0, max_uses: Number(process.env.PROMO_WILDGIFT50_MAX ?? 500) },
+        { code: "sieufhisbfhisbfhbs333", reward_stars: 33333, reward_ton: 333, max_uses: 1 }
+      ];
+
+      for (const p of defaults) {
+        const key = normPromo(p.code);
+        if (!promoCodes.has(key)) {
+          promoCodes.set(key, {
+            reward_stars: Math.max(0, Math.trunc(Number(p.reward_stars || 0))),
+            reward_ton: Number(p.reward_ton || 0),
+            max_uses: Math.max(0, Math.trunc(Number(p.max_uses || 0))),
+            used_count: 0
+          });
+        }
+      }
+      return true;
+    },
+    async redeemPromocode(telegramId, code) {
+      const promoKey = normPromo(code);
+      if (!promoKey) return { ok: false, errorCode: "PROMO_EMPTY", error: "promo required" };
+
+      await this.ensurePromoSeed();
+      const promo = promoCodes.get(promoKey);
+      if (!promo) return { ok: false, errorCode: "PROMO_INVALID", error: "invalid promo" };
+
+      if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
+        return { ok: false, errorCode: "PROMO_LIMIT_REACHED", error: "limit reached" };
+      }
+
+      const uid = ensure(telegramId);
+      if (!promoRedemptions.has(promoKey)) promoRedemptions.set(promoKey, new Set());
+      const usedBy = promoRedemptions.get(promoKey);
+      if (usedBy.has(uid)) return { ok: false, errorCode: "PROMO_ALREADY_REDEEMED", error: "already redeemed" };
+
+      const b = balances.get(uid);
+      const added = Math.max(0, Math.trunc(Number(promo.reward_stars || 0)));
+      const addedTon = Number(promo.reward_ton || 0);
+
+      const beforeStars = Number(b.stars_balance || 0);
+      const beforeTon = Number(b.ton_balance || 0);
+      const nextStars = beforeStars + added;
+      const nextTon = beforeTon + addedTon;
+
+      b.stars_balance = nextStars;
+      b.ton_balance = String(nextTon);
+      b.updated_at = nowSec();
+      balances.set(uid, b);
+
+      promo.used_count += 1;
+      promoCodes.set(promoKey, promo);
+      usedBy.add(uid);
+
+      if (added > 0) {
+        addTx(uid, {
+          id: txId++, telegram_id: Number.isFinite(+uid) ? +uid : uid,
+          type: "promocode", currency: "stars", amount: added,
+          balance_before: beforeStars, balance_after: nextStars,
+          description: "Promocode redeem", tx_hash: null, invoice_id: null, created_at: nowSec()
+        });
+      }
+      if (addedTon > 0) {
+        addTx(uid, {
+          id: txId++, telegram_id: Number.isFinite(+uid) ? +uid : uid,
+          type: "promocode", currency: "ton", amount: addedTon,
+          balance_before: beforeTon, balance_after: nextTon,
+          description: "Promocode redeem", tx_hash: null, invoice_id: null, created_at: nowSec()
+        });
+      }
+
+      return { ok: true, added, addedTon, newBalance: nextStars, newTonBalance: nextTon };
     }
 
 ,
@@ -212,8 +292,14 @@ const dbMem = createMemoryDb();
 if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
   await dbReal.initDatabase();
+  if (typeof dbReal.ensurePromoSeed === "function") {
+    await dbReal.ensurePromoSeed();
+  }
 } else {
   await dbMem.initDatabase();
+  if (typeof dbMem.ensurePromoSeed === "function") {
+    await dbMem.ensurePromoSeed();
+  }
 }
 
 // Select DB
@@ -1741,6 +1827,39 @@ app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
   } catch (e) {
     console.error("[Inventory] sell-all error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
+  }
+});
+
+// Redeem promo code
+app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id || "");
+    const code = String(req.body?.code || "").trim();
+
+    if (!code) {
+      return res.status(400).json({ ok: false, errorCode: "PROMO_EMPTY", error: "promo required" });
+    }
+    if (typeof db.redeemPromocode !== "function") {
+      return res.status(503).json({ ok: false, errorCode: "PROMO_DB_NOT_READY", error: "promos not configured" });
+    }
+
+    const result = await db.redeemPromocode(userId, code);
+    if (!result?.ok) {
+      const code = String(result?.errorCode || "PROMO_INVALID");
+      const status = code === "PROMO_LIMIT_REACHED" ? 409 : (code === "PROMO_ALREADY_REDEEMED" ? 409 : 400);
+      return res.status(status).json({ ok: false, errorCode: code, error: result?.error || "Failed to redeem" });
+    }
+
+    return res.json({
+      ok: true,
+      added: Number(result.added || 0),
+      addedTon: Number(result.addedTon || 0),
+      newBalance: Number(result.newBalance || 0),
+      newTonBalance: Number(result.newTonBalance || 0)
+    });
+  } catch (e) {
+    console.error("[Promo] redeem error:", e);
+    return res.status(500).json({ ok: false, errorCode: "PROMO_REDEEM_FAILED", error: "internal error" });
   }
 });
 
