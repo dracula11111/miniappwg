@@ -463,18 +463,27 @@ async function animateGiftToProfile() {
   // 1) Close drawer and remove blur/dim first.
   closeGiftDrawer();
 
-  // 2) Fly to profile icon and dissolve.
+  // 2) Fly to profile icon with a smooth arc and soft dissolve.
   const toX = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
   const toY = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
-  const scale = Math.max(0.16, Math.min(0.34, targetRect.width / Math.max(sourceRect.width, 1)));
+  const scale = Math.max(0.14, Math.min(0.34, targetRect.width / Math.max(sourceRect.width, 1)));
+  const distance = Math.hypot(toX, toY);
+  const arc = Math.max(48, Math.min(150, distance * 0.23));
+  const spin = toX >= 0 ? 14 : -14;
+
   clone.style.setProperty('--fly-x', `${toX}px`);
   clone.style.setProperty('--fly-y', `${toY}px`);
+  clone.style.setProperty('--fly-arc', `${arc}px`);
   clone.style.setProperty('--fly-scale', String(scale));
+  clone.style.setProperty('--fly-rotate', `${spin}deg`);
+
+  const durationMs = Math.max(760, Math.min(1080, 700 + distance * 0.24));
+  clone.style.setProperty('--fly-duration', `${Math.round(durationMs)}ms`);
 
   await new Promise((resolve) => {
     requestAnimationFrame(() => {
       clone.classList.add('is-flying');
-      setTimeout(resolve, 720);
+      setTimeout(resolve, durationMs + 60);
     });
   });
 
@@ -487,7 +496,7 @@ function toast(message) {
 
   try {
     if (typeof window.showToast === 'function') {
-      window.showToast(text);
+      window.showToast(text, { variant: 'market' });
       return;
     }
   } catch {}

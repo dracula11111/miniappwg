@@ -63,6 +63,10 @@
 
     const ttl = Number.isFinite(Number(opts.ttl)) ? Math.max(1000, Number(opts.ttl)) : 2600;
     const host = ensureToastHost();
+    const variant = String(opts.variant || '').trim();
+
+    host.classList.remove('wt-toast--market');
+    if (variant === 'market') host.classList.add('wt-toast--market');
 
     host.textContent = text;
     host.classList.remove('is-out');

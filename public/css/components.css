@@ -842,6 +842,11 @@
   transition: opacity 0.2s ease, transform 0.24s ease;
 }
 
+
+#wt-toast-host.wt-toast--market {
+  top: calc(env(safe-area-inset-top, 0px) + 96px);
+}
+
 #wt-toast-host.is-in {
   opacity: 1;
   transform: translate3d(-50%, 0, 0);
@@ -850,4 +855,10 @@
 #wt-toast-host.is-out {
   opacity: 0;
   transform: translate3d(-50%, -12px, 0);
+}
+
+@media (max-width: 520px) {
+  #wt-toast-host.wt-toast--market {
+    top: calc(env(safe-area-inset-top, 0px) + 88px);
+  }
 }

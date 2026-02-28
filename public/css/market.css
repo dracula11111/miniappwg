@@ -698,17 +698,56 @@ body.market-gift-overlay-open .topbar{
   pointer-events: none;
   transform-origin: center center;
   will-change: transform, opacity, filter;
-  box-shadow: 0 18px 44px rgba(0,0,0,.45);
-  transition:
-    transform .72s cubic-bezier(.2,.78,.18,1),
-    opacity .72s ease,
-    filter .72s ease;
+  box-shadow:
+    0 18px 44px rgba(0,0,0,.45),
+    0 0 0 rgba(106, 208, 255, 0);
+  opacity: 1;
 }
 
 .market-fly-image.is-flying{
-  transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0) scale(var(--fly-scale, .2));
-  opacity: 0;
-  filter: blur(2px) saturate(0.9);
+  animation: marketGiftFly var(--fly-duration, 860ms) cubic-bezier(.2,.82,.16,1) forwards;
+}
+
+@keyframes marketGiftFly {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: blur(0) saturate(1.08) brightness(1);
+    box-shadow:
+      0 18px 44px rgba(0,0,0,.45),
+      0 0 0 rgba(106, 208, 255, 0);
+  }
+  25% {
+    transform: translate3d(calc(var(--fly-x, 0) * .28), calc(var(--fly-y, 0) * .28 - var(--fly-arc, 72px)), 0)
+      scale(0.9) rotate(calc(var(--fly-rotate, 12deg) * 0.25));
+    opacity: 1;
+    filter: blur(.2px) saturate(1.12) brightness(1.05);
+    box-shadow:
+      0 24px 48px rgba(0,0,0,.42),
+      0 0 24px rgba(106, 208, 255, .22);
+  }
+  65% {
+    transform: translate3d(calc(var(--fly-x, 0) * .78), calc(var(--fly-y, 0) * .78 - var(--fly-arc, 72px) * .2), 0)
+      scale(calc(var(--fly-scale, .2) + .2)) rotate(calc(var(--fly-rotate, 12deg) * 0.85));
+    opacity: .92;
+    filter: blur(.8px) saturate(1.08) brightness(1.04);
+  }
+  100% {
+    transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0)
+      scale(var(--fly-scale, .2)) rotate(var(--fly-rotate, 12deg));
+    opacity: 0;
+    filter: blur(2.4px) saturate(0.92) brightness(0.96);
+    box-shadow:
+      0 8px 22px rgba(0,0,0,.3),
+      0 0 26px rgba(106, 208, 255, .08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-fly-image.is-flying {
+    animation-duration: 280ms;
+    animation-timing-function: ease-out;
+  }
 }
 
 .market-gift-close{
