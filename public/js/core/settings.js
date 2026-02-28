@@ -61,6 +61,23 @@
         tg.HapticFeedback.impactOccurred(type);
       }
     }
+
+    function openSupportLink() {
+      const url = 'https://t.me/wildgift_support';
+      closeSheet();
+
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(url);
+        return;
+      }
+
+      if (tg?.openLink) {
+        tg.openLink(url);
+        return;
+      }
+
+      window.open(url, '_blank', 'noopener');
+    }
   
     // ====== OPEN/CLOSE ======
   
@@ -268,18 +285,12 @@
       if (item.id === 'languageSwitcher') return;
       
       item.addEventListener('click', () => {
-        const label = item.querySelector('.settings-item__label')?.textContent;
-        
         haptic('light');
         
-        if (label === 'Support') {
+        if (item.id === 'supportItem') {
           console.log('[Settings] Support clicked');
-          if (tg?.showAlert) {
-            tg.showAlert('Support feature coming soon!');
-          } else {
-            alert('Support feature coming soon!');
-          }
-        } else if (label === 'About') {
+          openSupportLink();
+        } else if (item.id === 'aboutItem') {
           console.log('[Settings] About clicked');
           if (tg?.showAlert) {
             tg.showAlert('WildGift v1.0.0\n\nA Telegram mini app for fun gaming!');

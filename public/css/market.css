@@ -688,7 +688,32 @@ body.market-gift-overlay-open .topbar{
   transform: translateY(0);
 }
 
-.market-fly-image{
+/* ── Gift fly animation ─────────────────────────────────────── */
+@keyframes market-fly-pop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); filter: brightness(1.25) saturate(1.4); }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes market-fly-glow-ring {
+  0%   { opacity: .9; transform: scale(1); }
+  100% { opacity: 0;  transform: scale(2.4); }
+}
+
+@keyframes market-sparkle-out {
+  0%   { opacity: 1; transform: translate(0,0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--sx,0), var(--sy,0)) scale(0); }
+}
+
+@keyframes market-nav-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,220,90,.0); transform: scale(1); }
+  30%  { box-shadow: 0 0 0 8px rgba(255,220,90,.55); transform: scale(1.22); }
+  60%  { box-shadow: 0 0 0 14px rgba(255,220,90,.18); transform: scale(1.08); }
+  100% { box-shadow: 0 0 0 0 rgba(255,220,90,.0);  transform: scale(1); }
+}
+
+.market-fly-image {
   position: fixed;
   z-index: 10020;
   margin: 0;
@@ -698,56 +723,48 @@ body.market-gift-overlay-open .topbar{
   pointer-events: none;
   transform-origin: center center;
   will-change: transform, opacity, filter;
-  box-shadow:
-    0 18px 44px rgba(0,0,0,.45),
-    0 0 0 rgba(106, 208, 255, 0);
-  opacity: 1;
+  box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 0 0 0 rgba(255,220,80,0);
+  /* pop before flying */
+  animation: market-fly-pop .32s cubic-bezier(.34,1.56,.64,1) forwards;
 }
 
-.market-fly-image.is-flying{
-  animation: marketGiftFly var(--fly-duration, 860ms) cubic-bezier(.2,.82,.16,1) forwards;
+.market-fly-image.is-flying {
+  animation: none;
+  transition:
+    transform .70s cubic-bezier(.18,.82,.16,1.02),
+    opacity   .68s cubic-bezier(.4,0,.6,1),
+    filter    .68s ease,
+    box-shadow .68s ease;
+  transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0) scale(var(--fly-scale, .2));
+  opacity: 0;
+  filter: blur(3px) brightness(1.5) saturate(0.7);
+  box-shadow: 0 0 32px 8px rgba(255,220,80,.3);
 }
 
-@keyframes marketGiftFly {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
-    opacity: 1;
-    filter: blur(0) saturate(1.08) brightness(1);
-    box-shadow:
-      0 18px 44px rgba(0,0,0,.45),
-      0 0 0 rgba(106, 208, 255, 0);
-  }
-  25% {
-    transform: translate3d(calc(var(--fly-x, 0) * .28), calc(var(--fly-y, 0) * .28 - var(--fly-arc, 72px)), 0)
-      scale(0.9) rotate(calc(var(--fly-rotate, 12deg) * 0.25));
-    opacity: 1;
-    filter: blur(.2px) saturate(1.12) brightness(1.05);
-    box-shadow:
-      0 24px 48px rgba(0,0,0,.42),
-      0 0 24px rgba(106, 208, 255, .22);
-  }
-  65% {
-    transform: translate3d(calc(var(--fly-x, 0) * .78), calc(var(--fly-y, 0) * .78 - var(--fly-arc, 72px) * .2), 0)
-      scale(calc(var(--fly-scale, .2) + .2)) rotate(calc(var(--fly-rotate, 12deg) * 0.85));
-    opacity: .92;
-    filter: blur(.8px) saturate(1.08) brightness(1.04);
-  }
-  100% {
-    transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0)
-      scale(var(--fly-scale, .2)) rotate(var(--fly-rotate, 12deg));
-    opacity: 0;
-    filter: blur(2.4px) saturate(0.92) brightness(0.96);
-    box-shadow:
-      0 8px 22px rgba(0,0,0,.3),
-      0 0 26px rgba(106, 208, 255, .08);
-  }
+/* Glow ring that expands from start position */
+.market-fly-glow {
+  position: fixed;
+  z-index: 10019;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,220,80,.7) 0%, rgba(255,160,40,.0) 70%);
+  pointer-events: none;
+  animation: market-fly-glow-ring .5s cubic-bezier(.2,.8,.4,1) forwards;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .market-fly-image.is-flying {
-    animation-duration: 280ms;
-    animation-timing-function: ease-out;
-  }
+/* Individual sparkle dots */
+.market-fly-spark {
+  position: fixed;
+  z-index: 10021;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: market-sparkle-out .6s cubic-bezier(.2,.8,.4,1) forwards;
+}
+
+/* Nav profile icon — landing pulse */
+.market-nav-land-pulse {
+  animation: market-nav-pulse .55s cubic-bezier(.34,1.56,.64,1) forwards !important;
 }
 
 .market-gift-close{

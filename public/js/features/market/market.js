@@ -452,42 +452,95 @@ async function animateGiftToProfile() {
     return;
   }
 
+  // ── clone gift image ──────────────────────────────────────────
   const clone = sourceImg.cloneNode(true);
   clone.classList.add('market-fly-image');
-  clone.style.left = `${sourceRect.left}px`;
-  clone.style.top = `${sourceRect.top}px`;
-  clone.style.width = `${sourceRect.width}px`;
-  clone.style.height = `${sourceRect.height}px`;
+  clone.style.cssText += `
+    left: ${sourceRect.left}px;
+    top:  ${sourceRect.top}px;
+    width:  ${sourceRect.width}px;
+    height: ${sourceRect.height}px;
+  `;
   document.body.appendChild(clone);
 
-  // 1) Close drawer and remove blur/dim first.
+  // ── glow ring at source center ────────────────────────────────
+  const cx = sourceRect.left + sourceRect.width  / 2;
+  const cy = sourceRect.top  + sourceRect.height / 2;
+  const glowSize = sourceRect.width * 1.1;
+  const glow = document.createElement('div');
+  glow.className = 'market-fly-glow';
+  glow.style.cssText = `
+    left:   ${cx - glowSize / 2}px;
+    top:    ${cy - glowSize / 2}px;
+    width:  ${glowSize}px;
+    height: ${glowSize}px;
+  `;
+  document.body.appendChild(glow);
+
+  // ── sparkle particles ─────────────────────────────────────────
+  const SPARK_COLORS = ['#FFE066','#FFB300','#FF8C00','#FFF5C0','#FFFACD'];
+  const SPARK_COUNT  = 10;
+  const sparks = [];
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const angle  = (Math.PI * 2 * i / SPARK_COUNT) + (Math.random() - .5) * .6;
+    const dist   = 55 + Math.random() * 65;
+    const spark  = document.createElement('div');
+    spark.className = 'market-fly-spark';
+    const sz = 5 + Math.random() * 7;
+    spark.style.cssText = `
+      left:   ${cx - sz / 2}px;
+      top:    ${cy - sz / 2}px;
+      width:  ${sz}px;
+      height: ${sz}px;
+      background: ${SPARK_COLORS[i % SPARK_COLORS.length]};
+      --sx: ${Math.cos(angle) * dist}px;
+      --sy: ${Math.sin(angle) * dist}px;
+      animation-duration: ${0.45 + Math.random() * 0.25}s;
+      animation-delay:    ${Math.random() * 0.08}s;
+    `;
+    document.body.appendChild(spark);
+    sparks.push(spark);
+  }
+
+  // ── close drawer ──────────────────────────────────────────────
   closeGiftDrawer();
 
-  // 2) Fly to profile icon with a smooth arc and soft dissolve.
-  const toX = targetRect.left + targetRect.width / 2 - (sourceRect.left + sourceRect.width / 2);
-  const toY = targetRect.top + targetRect.height / 2 - (sourceRect.top + sourceRect.height / 2);
-  const scale = Math.max(0.14, Math.min(0.34, targetRect.width / Math.max(sourceRect.width, 1)));
-  const distance = Math.hypot(toX, toY);
-  const arc = Math.max(48, Math.min(150, distance * 0.23));
-  const spin = toX >= 0 ? 14 : -14;
+  // ── wait for pop animation to finish (320 ms) ─────────────────
+  await new Promise(r => setTimeout(r, 320));
 
-  clone.style.setProperty('--fly-x', `${toX}px`);
-  clone.style.setProperty('--fly-y', `${toY}px`);
-  clone.style.setProperty('--fly-arc', `${arc}px`);
+  // ── fly to profile icon ───────────────────────────────────────
+  const toX  = targetRect.left + targetRect.width  / 2 - (sourceRect.left + sourceRect.width  / 2);
+  const toY  = targetRect.top  + targetRect.height / 2 - (sourceRect.top  + sourceRect.height / 2);
+  const scale = Math.max(0.14, Math.min(0.30, targetRect.width / Math.max(sourceRect.width, 1)));
+  clone.style.setProperty('--fly-x',     `${toX}px`);
+  clone.style.setProperty('--fly-y',     `${toY}px`);
   clone.style.setProperty('--fly-scale', String(scale));
-  clone.style.setProperty('--fly-rotate', `${spin}deg`);
 
-  const durationMs = Math.max(760, Math.min(1080, 700 + distance * 0.24));
-  clone.style.setProperty('--fly-duration', `${Math.round(durationMs)}ms`);
-
-  await new Promise((resolve) => {
+  await new Promise(resolve => {
     requestAnimationFrame(() => {
       clone.classList.add('is-flying');
-      setTimeout(resolve, durationMs + 60);
+      setTimeout(resolve, 700);
     });
   });
 
+  // ── landing pulse on nav profile icon ────────────────────────
+  const navTarget =
+    document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-avatar') ||
+    document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-icon')   ||
+    document.querySelector('#navProfileAvatar')                                              ||
+    document.querySelector('.bottom-nav .nav-item[data-target="profilePage"]');
+
+  if (navTarget) {
+    navTarget.classList.add('market-nav-land-pulse');
+    navTarget.addEventListener('animationend', () => {
+      navTarget.classList.remove('market-nav-land-pulse');
+    }, { once: true });
+  }
+
+  // ── cleanup ───────────────────────────────────────────────────
   clone.remove();
+  glow.remove();
+  sparks.forEach(s => s.remove());
 }
 
 function toast(message) {
@@ -496,7 +549,7 @@ function toast(message) {
 
   try {
     if (typeof window.showToast === 'function') {
-      window.showToast(text, { variant: 'market' });
+      window.showToast(text);
       return;
     }
   } catch {}
