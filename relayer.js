@@ -560,6 +560,7 @@ async function run({ mode = "run" } = {}) {
 
 
   const processed = new Set();
+  const processing = new Set();
 
   async function handleGiftMessage(msg, origin = "RAW", { notify = true } = {}) {
     if (!msg || msg.id == null) return;
@@ -567,146 +568,146 @@ async function run({ mode = "run" } = {}) {
     const msgId = String(msg.id);
     const eventKey = `tg_${peerK}_${msgId}`;
     const key = `${peerK}:${msgId}`;
-    if (processed.has(key)) return;
-    processed.add(key);
-
-    const action = msg.action || null;
-    if (!action) return;
-
-    const isStarGift =
-      (action instanceof Api.MessageActionStarGift) ||
-      (action instanceof Api.MessageActionStarGiftUnique);
-
-    const isOtherGift =
-      (action instanceof Api.MessageActionGiftPremium) ||
-      (action instanceof Api.MessageActionGiftStars);
-
-    if (!isStarGift && !isOtherGift) return;
-
-    const fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId);
-    if (!fromId) {
-      console.log(`[Relayer] ⚠️ gift without fromId (skipped). msgId=${msg.id} origin=${origin}`);
-      return;
-    }
-
-    const gift = action.gift || null;
-    const title = String(gift?.title || gift?.name || "Gift");
-    const slug = String(gift?.slug || "").trim();
-    const num = gift?.num ?? gift?.number ?? null;
-    const giftId = gift?.id ?? gift?.giftId ?? null;
-
-
-const fragmentPreviewUrl = fragmentMediumPreviewUrlFromSlug(slug);
-const preferFragmentPreview = Boolean(fragmentPreviewUrl);
-
-    const assets = extractGiftAssets(gift);
-    const modelDoc = assets.modelDoc;
-    const patternDoc = assets.patternDoc;
-
-    let modelDataUrl = "";
-    let patternDataUrl = "";
-
-    if (!preferFragmentPreview && INLINE_IMAGES) {
-      modelDataUrl = await downloadDocAsDataUrl(client, modelDoc);
-      if (patternDoc) patternDataUrl = await downloadDocAsDataUrl(client, patternDoc, { forceThumb: true });
-    }
-
-    // Model image: inline (preferred) OR saved to disk (DEV ONLY)
-    let imageUrl = preferFragmentPreview ? '' : modelDataUrl;
-
-    if (!preferFragmentPreview && !imageUrl && modelDoc) {
-      // download to local /public... (DEV ONLY)
-      try {
-        const mime = String(modelDoc.mimeType || "");
-        const base = safeFileBase(slug || title);
-        const suffix = `${String(num ?? "") || "x"}_${String(msg.id)}_${crypto.randomBytes(3).toString("hex")}`;
-
-        let ext = ".webp";
-        let dlOpts = { outputFile: "" };
-
-        // animated sticker/video -> download thumbnail as jpg
-        if (mime.includes("tgsticker") || mime.includes("application/x-tgsticker") || mime.includes("video") || mime.includes("webm")) {
-          ext = ".jpg";
-          dlOpts = { outputFile: "", thumb: 0 };
-        } else if (mime.includes("png")) ext = ".png";
-        else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
-        else if (mime.includes("webp")) ext = ".webp";
-
-        const fileName = `${base}_${suffix}${ext}`;
-        const outPath = path.join(IMG_DIR, fileName);
-        dlOpts.outputFile = outPath;
-
-        // first try (thumb if configured), then fallback full
-        let ok = false;
-        try {
-          await client.downloadMedia(modelDoc, dlOpts);
-          ok = fs.existsSync(outPath);
-        } catch {}
-        if (!ok) {
-          await client.downloadMedia(modelDoc, { outputFile: outPath });
-          ok = fs.existsSync(outPath);
-        }
-
-        if (ok) imageUrl = `/images/gifts/marketnfts/${fileName}`;
-      } catch (e) {
-        console.log("[Relayer] download error:", e?.message || e);
-      }
-    }
-
-    const numberText = num != null ? formatNum(num) : "";
-
-    const tgPayload = {
-      kind: isStarGift ? "star_gift" : "gift",
-      giftId: giftId != null ? String(giftId) : null,
-      slug: slug || null,
-      num: num != null ? Number(num) : null,
-
-      // Collectible parts
-      collectible: !!assets.backdrop,
-      model: {
-        name: assets.modelName || null,
-        image: modelDataUrl || imageUrl || ""
-      },
-      pattern: patternDoc ? {
-        name: assets.patternName || null,
-        image: patternDataUrl || ""
-      } : null,
-      backdrop: assets.backdrop || null,
-      peerKey: peerK,
-      messageId: msgId,
-      eventKey
-    };
-
-    const instanceId = `tg_gift_${eventKey}`;
-
-    const inventoryItem = {
-      type: "nft",
-      id: `nft_${slug || giftId || "gift"}_${peerK}_${msgId}`,
-      name: title,
-      displayName: title,
-      icon: fragmentPreviewUrl || (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
-      instanceId,
-      acquiredAt: Date.now(),
-      price: { ton: null, stars: null },
-      tg: tgPayload
-    };
-
-    const marketItem = {
-      id: `m_${slug || giftId || "gift"}_${String(num ?? "n")}_${peerK}_${msgId}`,
-      sourceKey: eventKey,
-      name: title,
-      number: numberText,
-      image: (preferFragmentPreview ? "" : (imageUrl || "")),
-      previewUrl: fragmentPreviewUrl || "",
-      priceTon: null,
-      createdAt: Date.now(),
-      tg: tgPayload
-    };
-
-    const claimId = `claim_${eventKey}`;
-
+    if (processed.has(key) || processing.has(key)) return;
+    processing.add(key);
 
     try {
+      const action = msg.action || null;
+      if (!action) return;
+
+      const isStarGift =
+        (action instanceof Api.MessageActionStarGift) ||
+        (action instanceof Api.MessageActionStarGiftUnique);
+
+      const isOtherGift =
+        (action instanceof Api.MessageActionGiftPremium) ||
+        (action instanceof Api.MessageActionGiftStars);
+
+      if (!isStarGift && !isOtherGift) return;
+
+      const fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId);
+      if (!fromId) {
+        console.log(`[Relayer] ⚠️ gift without fromId (skipped). msgId=${msg.id} origin=${origin}`);
+        return;
+      }
+
+      const gift = action.gift || null;
+      const title = String(gift?.title || gift?.name || "Gift");
+      const slug = String(gift?.slug || "").trim();
+      const num = gift?.num ?? gift?.number ?? null;
+      const giftId = gift?.id ?? gift?.giftId ?? null;
+
+
+      const fragmentPreviewUrl = fragmentMediumPreviewUrlFromSlug(slug);
+      const preferFragmentPreview = Boolean(fragmentPreviewUrl);
+
+      const assets = extractGiftAssets(gift);
+      const modelDoc = assets.modelDoc;
+      const patternDoc = assets.patternDoc;
+
+      let modelDataUrl = "";
+      let patternDataUrl = "";
+
+      if (!preferFragmentPreview && INLINE_IMAGES) {
+        modelDataUrl = await downloadDocAsDataUrl(client, modelDoc);
+        if (patternDoc) patternDataUrl = await downloadDocAsDataUrl(client, patternDoc, { forceThumb: true });
+      }
+
+      // Model image: inline (preferred) OR saved to disk (DEV ONLY)
+      let imageUrl = preferFragmentPreview ? '' : modelDataUrl;
+
+      if (!preferFragmentPreview && !imageUrl && modelDoc) {
+        // download to local /public... (DEV ONLY)
+        try {
+          const mime = String(modelDoc.mimeType || "");
+          const base = safeFileBase(slug || title);
+          const suffix = `${String(num ?? "") || "x"}_${String(msg.id)}_${crypto.randomBytes(3).toString("hex")}`;
+
+          let ext = ".webp";
+          let dlOpts = { outputFile: "" };
+
+          // animated sticker/video -> download thumbnail as jpg
+          if (mime.includes("tgsticker") || mime.includes("application/x-tgsticker") || mime.includes("video") || mime.includes("webm")) {
+            ext = ".jpg";
+            dlOpts = { outputFile: "", thumb: 0 };
+          } else if (mime.includes("png")) ext = ".png";
+          else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
+          else if (mime.includes("webp")) ext = ".webp";
+
+          const fileName = `${base}_${suffix}${ext}`;
+          const outPath = path.join(IMG_DIR, fileName);
+          dlOpts.outputFile = outPath;
+
+          // first try (thumb if configured), then fallback full
+          let ok = false;
+          try {
+            await client.downloadMedia(modelDoc, dlOpts);
+            ok = fs.existsSync(outPath);
+          } catch {}
+          if (!ok) {
+            await client.downloadMedia(modelDoc, { outputFile: outPath });
+            ok = fs.existsSync(outPath);
+          }
+
+          if (ok) imageUrl = `/images/gifts/marketnfts/${fileName}`;
+        } catch (e) {
+          console.log("[Relayer] download error:", e?.message || e);
+        }
+      }
+
+      const numberText = num != null ? formatNum(num) : "";
+
+      const tgPayload = {
+        kind: isStarGift ? "star_gift" : "gift",
+        giftId: giftId != null ? String(giftId) : null,
+        slug: slug || null,
+        num: num != null ? Number(num) : null,
+
+        // Collectible parts
+        collectible: !!assets.backdrop,
+        model: {
+          name: assets.modelName || null,
+          image: modelDataUrl || imageUrl || ""
+        },
+        pattern: patternDoc ? {
+          name: assets.patternName || null,
+          image: patternDataUrl || ""
+        } : null,
+        backdrop: assets.backdrop || null,
+        peerKey: peerK,
+        messageId: msgId,
+        eventKey
+      };
+
+      const instanceId = `tg_gift_${eventKey}`;
+
+      const inventoryItem = {
+        type: "nft",
+        id: `nft_${slug || giftId || "gift"}_${peerK}_${msgId}`,
+        name: title,
+        displayName: title,
+        icon: fragmentPreviewUrl || (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
+        instanceId,
+        acquiredAt: Date.now(),
+        price: { ton: null, stars: null },
+        tg: tgPayload
+      };
+
+      const marketItem = {
+        id: `m_${slug || giftId || "gift"}_${String(num ?? "n")}_${peerK}_${msgId}`,
+        sourceKey: eventKey,
+        name: title,
+        number: numberText,
+        image: (preferFragmentPreview ? "" : (imageUrl || "")),
+        previewUrl: fragmentPreviewUrl || "",
+        priceTon: null,
+        createdAt: Date.now(),
+        tg: tgPayload
+      };
+
+      const claimId = `claim_${eventKey}`;
+
+
       let r;
       if (isAdmin(fromId)) {
         r = await addToMarket({ item: marketItem });
@@ -729,8 +730,11 @@ const preferFragmentPreview = Boolean(fragmentPreviewUrl);
           await client.sendMessage(fromId, { message: `✅ Gift added to your inventory: ${title}${numberText ? ` #${numberText}` : ""}` });
         }
       }
+      processed.add(key);
     } catch (e) {
       console.log("[Relayer] ❌ handler error:", e?.message || e);
+    } finally {
+      processing.delete(key);
     }
   }
 
