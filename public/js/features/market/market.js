@@ -5,6 +5,7 @@
   // Config
   // =========================
   const STORAGE_KEY = 'wg_market_gifts_v1';
+  const MARKET_AUTO_REFRESH_MS = 5 * 60 * 1000;
 
   const ICONS = {
     sticker: '/icons/market.webp',
@@ -23,8 +24,8 @@
     '#a54b46'
   ];
 
-  // Telegram Stars conversion (fallback). You can override via localStorage key 'starsPerTon'.
-  const STARS_PER_TON_DEFAULT = 115;
+  // Telegram Stars conversion (fallback charged rate). You can override via localStorage key 'starsPerTon'.
+  const STARS_PER_TON_DEFAULT = 115 * 1.25;
 
   const PLACEHOLDER_IMG = svgDataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
@@ -69,6 +70,8 @@
     openGift: null
   };
 
+  let marketRefreshTimer = null;
+
 // expose for other modules (filter panel, debugging)
 try { window.WGMarketState = state; } catch {}
 try { window.state = state; } catch {}
@@ -110,6 +113,7 @@ try { window.state = state; } catch {}
     await hydrateMissingPricesFromPortals(state.gifts);
 
     renderMarket();
+    startMarketAutoRefresh();
   }
 
   // =========================
@@ -418,7 +422,7 @@ function formatBuyPriceForGift(gift) {
 
   if (currency === 'stars') {
     // v is already Stars (integer expected)
-    return { num: String(Math.max(1, Math.floor(v + 1e-9))), icon: currencyIconPath('stars') };
+    return { num: String(Math.max(1, Math.round(v))), icon: currencyIconPath('stars') };
   }
 
   // TON
@@ -543,20 +547,20 @@ async function animateGiftToProfile() {
   sparks.forEach(s => s.remove());
 }
 
-function toast(message) {
+function toast(message, opts = {}) {
   const text = safeText(message, 300) || '';
   if (!text) return;
 
   try {
     if (typeof window.showToast === 'function') {
-      window.showToast(text);
+      window.showToast(text, opts);
       return;
     }
   } catch {}
 
   try {
     if (typeof window.notify === 'function') {
-      window.notify(text);
+      window.notify(text, opts);
       return;
     }
   } catch {}
@@ -625,7 +629,7 @@ function buildOptimisticInventoryItem(gift) {
     acquiredAt: nowMs,
     price: {
       ton: Number.isFinite(priceTon) ? priceTon : null,
-      stars: Number.isFinite(priceStars) ? Math.max(1, Math.floor(priceStars)) : null
+      stars: Number.isFinite(priceStars) ? Math.max(1, Math.round(priceStars)) : null
     },
     fromMarket: true,
     marketId: String(gift?.id || ''),
@@ -977,8 +981,31 @@ function openGiftDrawer(gift) {
     if (!Array.isArray(items) || !items.length) return [];
     return items.map((it, idx) => normalizeGift(it, idx)).filter(Boolean);
   } catch {
-    return [];
+    return null;
   }
+}
+
+function startMarketAutoRefresh() {
+  if (marketRefreshTimer) return;
+  marketRefreshTimer = setInterval(() => {
+    syncMarketSnapshot().catch(() => {});
+  }, MARKET_AUTO_REFRESH_MS);
+}
+
+async function syncMarketSnapshot() {
+  if (state.buying) return;
+
+  try {
+    const nextGifts = await fetchMarketItemsFromServer();
+    if (Array.isArray(nextGifts)) state.gifts = nextGifts;
+  } catch {}
+
+  try {
+    state.pricesMap = await fetchGiftsPricesCache();
+  } catch {}
+
+  renderMarket();
+  refreshGiftDrawerPrice();
 }
 
 async function loadGifts() {
@@ -1080,7 +1107,7 @@ function resolvePriceForCurrency(gift, currency) {
   // Fallback: compute Stars from TON using cached starsPerTon
   const t = resolvePriceTon(gift);
   if (Number.isFinite(t) && t > 0) {
-    const stars = Math.max(1, Math.floor(t * getStarsPerTon() + 1e-9));
+    const stars = Math.max(1, Math.ceil((t * getStarsPerTon()) - 1e-9));
     return stars;
   }
 
@@ -1689,7 +1716,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
 
     // Stars from TON with cached starsPerTon (shared with market.js)
     const spt = getStarsPerTonSafe();
-    return Math.max(1, Math.floor(floorTon * spt + 1e-9));
+    return Math.max(1, Math.ceil((floorTon * spt) - 1e-9));
   }
 
   function getStarsPerTonSafe() {
@@ -1706,7 +1733,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
     const w = Number(window.STARS_PER_TON);
     if (Number.isFinite(w) && w > 0) return w;
 
-    return 115;
+    return STARS_PER_TON_DEFAULT;
   }
 
   function toFiniteNumber(v) {

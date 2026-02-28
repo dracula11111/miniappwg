@@ -1180,7 +1180,7 @@ app.post("/api/cases/history", (req, res) => {
 // GIFT PRICES CACHE (in-memory)
 // ==============================
 // NOTE: Per-process cache. Resets on server restart.
-const GIFT_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+const GIFT_REFRESH_MS = Math.max(60_000, Number(process.env.GIFT_REFRESH_MS || (5 * 60 * 1000)) || (5 * 60 * 1000)); // 5 minutes
 const GIFT_CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000; // every 6 hours (catalog changes not that often)
 const GIFT_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -1279,10 +1279,8 @@ function computeRelayerPriceStars(entry, tonUsd) {
 
   const pTon = Number(entry.priceTon);
   if (Number.isFinite(pTon) && pTon > 0) {
-    const usd = Number(tonUsd);
-    if (Number.isFinite(usd) && usd > 0) {
-      return tonToStars(pTon, usd);
-    }
+    const converted = tonToStars(pTon, tonUsd);
+    if (Number.isFinite(converted) && converted > 0) return converted;
   }
 
   return null;
@@ -1381,6 +1379,8 @@ async function refreshGiftsPricesFromGiftAsset() {
 // Used to show "fair" Stars prices in the mini-app based on TON market price.
 // 1 Star ~= $0.013 (Telegram official for in-app purchases). You can override via env.
 const STARS_USD = Number(process.env.STARS_USD || process.env.STARS_USD_PRICE || process.env.STAR_USD || 0.013);
+const STARS_MARKUP_MULTIPLIER = Math.max(1, Number(process.env.STARS_MARKUP_MULTIPLIER || 1.25) || 1.25);
+const STARS_PER_TON_FALLBACK = Math.max(1, Number(process.env.STARS_PER_TON_FALLBACK || 115) || 115);
 const TON_USD_REFRESH_MS = 24 * 60 * 60 * 1000; // 24h
 const TON_USD_TIMEOUT_MS = 12_000;
 
@@ -1447,15 +1447,12 @@ async function getTonUsdRate() {
 
 function tonToStars(tonAmount, tonUsd = tonUsdCache.tonUsd) {
   const ton = Number(tonAmount);
-  const usd = Number(tonUsd);
   if (!Number.isFinite(ton) || ton <= 0) return null;
-  if (!Number.isFinite(usd) || usd <= 0) return null;
-  if (!Number.isFinite(STARS_USD) || STARS_USD <= 0) return null;
 
-  const stars = (ton * usd) / STARS_USD;
+  const spt = starsPerTon(tonUsd);
+  if (!Number.isFinite(spt) || spt <= 0) return null;
 
-  // Intentionally round DOWN to avoid "overpriced" Stars labels.
-  return Math.max(1, Math.floor(stars + 1e-9));
+  return Math.max(1, Math.ceil((ton * spt) - 1e-9));
 }
 
 
@@ -1473,9 +1470,17 @@ function starsToTon(starsAmount, tonUsd = tonUsdCache.tonUsd) {
 
 function starsPerTon(tonUsd = tonUsdCache.tonUsd) {
   const usd = Number(tonUsd);
-  if (!Number.isFinite(usd) || usd <= 0) return null;
-  if (!Number.isFinite(STARS_USD) || STARS_USD <= 0) return null;
-  return usd / STARS_USD;
+  let base = null;
+
+  if (Number.isFinite(usd) && usd > 0 && Number.isFinite(STARS_USD) && STARS_USD > 0) {
+    base = usd / STARS_USD;
+  } else {
+    const fallback = Number(STARS_PER_TON_FALLBACK);
+    if (Number.isFinite(fallback) && fallback > 0) base = fallback;
+  }
+
+  if (!Number.isFinite(base) || base <= 0) return null;
+  return base * STARS_MARKUP_MULTIPLIER;
 }
 
 // Scheduler: refresh TON/USD once a day with jitter.
@@ -3047,10 +3052,8 @@ function resolveMarketItemPriceStars(item, tonUsd = null) {
 
   const priceTon = resolveMarketItemPriceTon(item, tonUsd);
   if (Number.isFinite(priceTon) && priceTon > 0) {
-    const usd = Number(tonUsd);
-    if (Number.isFinite(usd) && usd > 0) {
-      return tonToStars(priceTon, usd);
-    }
+    const converted = tonToStars(priceTon, tonUsd);
+    if (Number.isFinite(converted) && converted > 0) return converted;
   }
 
   const name = normalizeGiftName(item?.name || item?.displayName || "");
@@ -3072,7 +3075,7 @@ app.get("/api/market/items/list", async (req, res) => {
     const outItems = items.map((it) => {
       if (!it || typeof it !== "object") return it;
       const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      const priceStars = resolveMarketItemPriceStars(it, tonUsd);
       return {
         ...it,
         priceTon: Number.isFinite(priceTon) && priceTon > 0 ? priceTon : null,
@@ -3111,7 +3114,7 @@ app.get("/api/market/items", async (req, res) => {
     const outItems = slice.map((it) => {
       if (!it || typeof it !== "object") return it;
       const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = (tonUsd && Number.isFinite(priceTon) && priceTon > 0) ? tonToStars(priceTon, tonUsd) : null;
+      const priceStars = resolveMarketItemPriceStars(it, tonUsd);
       return {
         ...it,
         priceTon: Number.isFinite(priceTon) && priceTon > 0 ? priceTon : null,
@@ -3577,15 +3580,17 @@ app.get("/api/rates/ton-stars", async (req, res) => {
 
     const rate = await getTonUsdRate();
     const tonUsd = rate?.tonUsd;
+    const chargedStarsPerTon = starsPerTon(tonUsd);
+    const hasRate = Number.isFinite(chargedStarsPerTon) && chargedStarsPerTon > 0;
 
     return res.json({
-      ok: !!tonUsd,
+      ok: hasRate,
       tonUsd: tonUsd || null,
       starsUsd: STARS_USD,
-      starsPerTon: starsPerTon(tonUsd),
+      starsPerTon: hasRate ? chargedStarsPerTon : null,
       updatedAt: rate?.updatedAt || 0,
       source: rate?.source || "",
-      error: tonUsd ? null : (rate?.error || "rate unavailable")
+      error: hasRate ? null : (rate?.error || "rate unavailable")
     });
   } catch (e) {
     console.error("[rates] endpoint error:", e);
@@ -3615,7 +3620,7 @@ app.get("/api/gifts/price", async (req, res) => {
 
   return res.json({
     ok: true,
-    item: { name: foundName, ...p, priceStars: tonUsd ? tonToStars(p.priceTon, tonUsd) : null },
+    item: { name: foundName, ...p, priceStars: tonToStars(p.priceTon, tonUsd) },
     rate: {
       tonUsd: tonUsd || null,
       starsUsd: STARS_USD,
@@ -3640,7 +3645,7 @@ app.get("/api/gifts/prices", async (req, res) => {
   for (const name of giftsCatalog) {
     const p = giftsPrices.get(name);
     if (!p) continue;
-    list.push({ name, ...p, priceStars: tonUsd ? tonToStars(p.priceTon, tonUsd) : null });
+    list.push({ name, ...p, priceStars: tonToStars(p.priceTon, tonUsd) });
   }
 
   return res.json({

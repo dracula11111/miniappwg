@@ -108,7 +108,8 @@
   const WT_RATE_KEY = 'WT_RATE_TON_STARS_V1';
   const WT_RATE_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
   const STARS_USD_FALLBACK = 0.013;
-  const STARS_PER_TON_FALLBACK = 115; // legacy-ish fallback (used only if no cache & no server)
+  const STARS_MARKUP_MULTIPLIER = 1.25;
+  const STARS_PER_TON_FALLBACK = 115 * STARS_MARKUP_MULTIPLIER; // fallback charged rate (used only if no cache & no server)
 
   const __wtRateState = (() => {
     const s = { starsPerTon: STARS_PER_TON_FALLBACK, tonUsd: null, starsUsd: STARS_USD_FALLBACK, fetchedAt: 0, source: 'fallback', error: null };
@@ -182,8 +183,7 @@
   function tonToStars(ton) {
     const v = Number(ton);
     if (!Number.isFinite(v) || v <= 0) return 0;
-    // floor => "not overpriced"
-    return Math.max(0, Math.floor(v * getStarsPerTon() + 1e-9));
+    return Math.max(0, Math.ceil((v * getStarsPerTon()) - 1e-9));
   }
 
   function starsToTon(stars) {

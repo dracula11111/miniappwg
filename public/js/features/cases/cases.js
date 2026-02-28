@@ -503,14 +503,13 @@ function __getStarsPerTonSafe() {
   } catch {}
 
   // final fallback
-  return 115;
+  return 115 * 1.25;
 }
 
 function tonToStars(ton) {
   const v = Number(ton);
   if (!Number.isFinite(v) || v <= 0) return 0;
-  // floor => "not overpriced"
-  return Math.max(0, Math.floor(v * __getStarsPerTonSafe() + 1e-9));
+  return Math.max(0, Math.ceil((v * __getStarsPerTonSafe()) - 1e-9));
 }
 
 function starsToTon(stars) {

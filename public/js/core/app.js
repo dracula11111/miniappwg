@@ -69,6 +69,37 @@
     return host;
   }
 
+  function detectToastTone(text) {
+    const msg = String(text || '').trim().toLowerCase();
+    if (!msg) return '';
+
+    if (
+      msg.includes('❌') ||
+      /(^|\s)(error|failed|timeout|insufficient|unavailable)(\s|$)/i.test(msg) ||
+      /(ошибк|не удалось|недостаточно|недоступ|устарел|таймаут)/i.test(msg)
+    ) {
+      return 'error';
+    }
+
+    if (
+      msg.includes('⚠') ||
+      /(^|\s)(warning|refreshing|retry)(\s|$)/i.test(msg) ||
+      /(вниман|обнов|повторите)/i.test(msg)
+    ) {
+      return 'warning';
+    }
+
+    if (
+      msg.includes('✅') ||
+      /(^|\s)(success|successful|purchased|sold|saved|applied|credited|claimed)(\s|$)/i.test(msg) ||
+      /(успеш|куплен|куплено|сохранен|сохранено|сохранены|применен|применено|начислен|начислено|продан|продано)/i.test(msg)
+    ) {
+      return 'success';
+    }
+
+    return '';
+  }
+
   function showLiquidToast(message, opts = {}) {
     const text = String(message ?? '').trim();
     if (!text) return;
@@ -76,9 +107,13 @@
     const ttl = Number.isFinite(Number(opts.ttl)) ? Math.max(1000, Number(opts.ttl)) : 2600;
     const host = ensureToastHost();
     const variant = String(opts.variant || '').trim();
+    const tokens = variant ? variant.split(/\s+/).filter(Boolean) : [];
+    const tone = ['success', 'error', 'warning'].find((token) => tokens.includes(token)) || detectToastTone(text);
 
     host.classList.remove('wt-toast--market');
-    if (variant === 'market') host.classList.add('wt-toast--market');
+    host.classList.remove('wt-toast--success', 'wt-toast--error', 'wt-toast--warning');
+    if (tokens.includes('market')) host.classList.add('wt-toast--market');
+    if (tone) host.classList.add(`wt-toast--${tone}`);
 
     host.textContent = text;
     host.classList.remove('is-out');
