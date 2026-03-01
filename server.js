@@ -1181,6 +1181,7 @@ app.post("/api/cases/history", (req, res) => {
 // ==============================
 // NOTE: In-memory cache with disk snapshot restore to survive restarts when possible.
 const GIFT_REFRESH_MS = Math.max(60_000, Number(process.env.GIFT_REFRESH_MS || (24 * 60 * 60 * 1000)) || (24 * 60 * 60 * 1000)); // 1 day
+const GIFT_BOOTSTRAP_RETRY_MS = Math.max(60_000, Math.min(GIFT_REFRESH_MS, Number(process.env.GIFT_BOOTSTRAP_RETRY_MS || (5 * 60 * 1000)) || (5 * 60 * 1000)));
 const GIFT_CATALOG_REFRESH_MS = 6 * 60 * 60 * 1000; // every 6 hours (catalog changes not that often)
 const GIFT_REQUEST_TIMEOUT_MS = 15_000;
 const GIFT_SOURCE_BLOCK_COOLDOWN_MS = Math.max(5 * 60 * 1000, Number(process.env.GIFT_SOURCE_BLOCK_COOLDOWN_MS || (24 * 60 * 60 * 1000)) || (24 * 60 * 60 * 1000));
@@ -1220,6 +1221,7 @@ let giftsCatalog = [
  // tracked gift collection names (strings)
 let giftsPrices = new Map(); // name -> { priceTon, updatedAt, source }
 let giftsLastUpdate = 0;
+let giftsLastAttemptAt = 0;
 let giftsCatalogLastUpdate = 0;
 
 // Relayer fallback cache (optional)
@@ -1609,14 +1611,17 @@ const STARS_USD = Number(process.env.STARS_USD || process.env.STARS_USD_PRICE ||
 const STARS_MARKUP_MULTIPLIER = Math.max(1, Number(process.env.STARS_MARKUP_MULTIPLIER || 1.25) || 1.25);
 const STARS_PER_TON_FALLBACK = Math.max(1, Number(process.env.STARS_PER_TON_FALLBACK || 115) || 115);
 const TON_USD_REFRESH_MS = 24 * 60 * 60 * 1000; // 24h
+const TON_USD_ERROR_RETRY_MS = Math.max(60_000, Math.min(TON_USD_REFRESH_MS, Number(process.env.TON_USD_ERROR_RETRY_MS || (30 * 60 * 1000)) || (30 * 60 * 1000)));
 const TON_USD_TIMEOUT_MS = 12_000;
 
 let tonUsdCache = {
   tonUsd: null,      // number
   updatedAt: 0,      // ms
+  lastAttemptAt: 0,  // ms
   source: "",        // string
   error: ""          // string
 };
+let tonUsdRefreshPromise = null;
 
 function clampFinite(n) {
   const v = Number(n);
@@ -1648,11 +1653,24 @@ async function refreshTonUsdRate(force = false) {
     return tonUsdCache;
   }
 
+  // After a failed or stale refresh attempt, avoid hammering CoinGecko on every request.
+  if (!force && tonUsdCache.lastAttemptAt && (now - tonUsdCache.lastAttemptAt) < TON_USD_ERROR_RETRY_MS) {
+    return tonUsdCache;
+  }
+
+  if (tonUsdRefreshPromise) {
+    await tonUsdRefreshPromise;
+    return tonUsdCache;
+  }
+
+  tonUsdRefreshPromise = fetchTonUsdFromCoinGecko();
+
   try {
-    const r = await fetchTonUsdFromCoinGecko();
+    const r = await tonUsdRefreshPromise;
     tonUsdCache = {
       tonUsd: r.tonUsd,
       updatedAt: now,
+      lastAttemptAt: now,
       source: r.source,
       error: ""
     };
@@ -1660,9 +1678,12 @@ async function refreshTonUsdRate(force = false) {
   } catch (e) {
     tonUsdCache = {
       ...tonUsdCache,
+      lastAttemptAt: now,
       error: String(e?.message || e)
     };
     console.warn("[rates] ⚠️ TON/USD update failed:", tonUsdCache.error);
+  } finally {
+    tonUsdRefreshPromise = null;
   }
 
   return tonUsdCache;
@@ -2068,6 +2089,7 @@ async function refreshGiftsPricesFromPortals() {
 }
 
 async function refreshGiftsAll() {
+  giftsLastAttemptAt = Date.now();
   // каталог — реже (но у нас он статический, это просто "sanity" + метка времени)
   if (!giftsCatalogLastUpdate || Date.now() - giftsCatalogLastUpdate > GIFT_CATALOG_REFRESH_MS) {
     try {
@@ -4219,7 +4241,10 @@ app.get('/api/gifts/portals-search', async (req, res) => {
 
   // Ensure we have at least one refresh attempt (non-blocking for the request).
   // If cache is empty (fresh server start), try GiftAsset first, then direct.
-  if (!giftsLastUpdate || giftsPrices.size === 0) {
+  const shouldBootstrapRefresh =
+    !giftsLastAttemptAt ||
+    (giftsPrices.size === 0 && (Date.now() - giftsLastAttemptAt) >= GIFT_BOOTSTRAP_RETRY_MS);
+  if (shouldBootstrapRefresh) {
     try { await refreshGiftsAll(); } catch {}
   }
 
