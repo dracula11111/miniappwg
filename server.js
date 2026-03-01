@@ -313,6 +313,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000; // port
+const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 
 
 
@@ -4286,10 +4287,11 @@ app.use((err, req, res, next) => {
 // ====== START ======
 await priceManager.init();
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, HOST, () => {
   console.log(`
 ╔═══════════════════════════════════════╗
 ║   🎮 WildGift Server Running          ║
+║   Host: ${HOST}                          ║
 ║   Port: ${PORT}                           ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}      ║
 ║   🎲 Crash WebSocket: /ws/crash       ║

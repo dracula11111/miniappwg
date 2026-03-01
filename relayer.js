@@ -882,6 +882,7 @@ const RPC_PORT = (() => {
   );
   return Number.isFinite(n) && n > 0 ? n : 3300;
 })();
+const RPC_HOST = String(process.env.RELAYER_RPC_HOST || "127.0.0.1").trim() || "127.0.0.1";
 
 function rpcAuthOk(req) {
   const secret = String(SECRET || "");
@@ -1045,8 +1046,8 @@ function startRpcServer(client) {
     }
   });
 
-  app.listen(RPC_PORT, () => {
-    console.log(`[Relayer][RPC] ✅ listening on :${RPC_PORT}`);
+  app.listen(RPC_PORT, RPC_HOST, () => {
+    console.log(`[Relayer][RPC] ✅ listening on ${RPC_HOST}:${RPC_PORT}`);
     if (!SECRET) {
       console.warn('[Relayer][RPC] ⚠️ RELAYER_SECRET/MARKET_SECRET is empty. Server calls will be rejected.');
     }
