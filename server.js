@@ -10,6 +10,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { createServer } from 'http';
+import { priceManager } from "./services/price-manager.js";
 
 // We import Postgres DB module dynamically AFTER dotenv has loaded.
 // This fixes the common issue when database-pg.js reads process.env during module initialization.
@@ -4052,6 +4053,44 @@ app.get("/api/rates/ton-stars", async (req, res) => {
   }
 });
 
+function resolveManagedGiftPricing(priceEntry, tonUsd) {
+  if (!priceEntry) {
+    return { priceTon: null, priceStars: null };
+  }
+
+  const rawPrice = Number(priceEntry.price);
+  if (!Number.isFinite(rawPrice) || rawPrice <= 0) {
+    return { priceTon: null, priceStars: null };
+  }
+
+  const currency = String(priceEntry.currency || "").toUpperCase();
+  if (currency === "STARS") {
+    return {
+      priceTon: Number.isFinite(Number(tonUsd)) && Number(tonUsd) > 0 ? starsToTon(rawPrice, tonUsd) : null,
+      priceStars: Math.max(1, Math.round(rawPrice)),
+    };
+  }
+
+  return {
+    priceTon: rawPrice,
+    priceStars: tonToStars(rawPrice, tonUsd),
+  };
+}
+
+function buildManagedGiftResponse(name, priceEntry, tonUsd) {
+  const resolved = resolveManagedGiftPricing(priceEntry, tonUsd);
+  return {
+    name,
+    priceTon: resolved.priceTon,
+    priceStars: resolved.priceStars,
+    updatedAt: Number(priceEntry?.ts || 0),
+    source: String(priceEntry?.source || ""),
+    currency: String(priceEntry?.currency || "").toUpperCase() || null,
+    key: priceEntry?.key || null,
+    stale: !!priceEntry?.stale,
+  };
+}
+
 
 // GET price for a single gift (by name)
 app.get("/api/gifts/price", async (req, res) => {
@@ -4063,7 +4102,7 @@ app.get("/api/gifts/price", async (req, res) => {
 
   // Resolve name from catalog case-insensitively
   const foundName = giftsCatalog.find(n => String(n).toLowerCase() === String(q).toLowerCase()) || q;
-  const p = giftsPrices.get(foundName);
+  const p = priceManager.getPrice(foundName);
 
   if (!p) {
     return res.status(404).json({ ok: false, error: "gift not found (or price not cached yet)", name: foundName });
@@ -4074,7 +4113,7 @@ app.get("/api/gifts/price", async (req, res) => {
 
   return res.json({
     ok: true,
-    item: { name: foundName, ...p, priceStars: tonToStars(p.priceTon, tonUsd) },
+    item: buildManagedGiftResponse(foundName, p, tonUsd),
     rate: {
       tonUsd: tonUsd || null,
       starsUsd: STARS_USD,
@@ -4092,19 +4131,21 @@ app.get("/api/gifts/prices", async (req, res) => {
   // dev-friendly CORS (helps if you open UI on another port like 5500)
   res.setHeader("Access-Control-Allow-Origin", "*");
 
+  const snapshot = priceManager.getSnapshot();
   const rate = await getTonUsdRate();
   const tonUsd = rate?.tonUsd;
 
   const list = [];
   for (const name of giftsCatalog) {
-    const p = giftsPrices.get(name);
+    const p = priceManager.getPrice(name);
     if (!p) continue;
-    list.push({ name, ...p, priceStars: tonToStars(p.priceTon, tonUsd) });
+    list.push(buildManagedGiftResponse(name, p, tonUsd));
   }
 
   return res.json({
     ok: true,
-    updatedAt: giftsLastUpdate,
+    updatedAt: snapshot.updatedAt,
+    stale: snapshot.stale,
     catalogUpdatedAt: giftsCatalogLastUpdate,
     count: list.length,
     items: list,
@@ -4117,6 +4158,46 @@ app.get("/api/gifts/prices", async (req, res) => {
       error: tonUsd ? null : (rate?.error || "rate unavailable")
     }
   });
+});
+
+app.get("/api/prices", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  const snapshot = priceManager.getSnapshot();
+  return res.json({
+    ok: true,
+    updatedAt: snapshot.updatedAt,
+    stale: snapshot.stale,
+    refreshing: snapshot.refreshing,
+    count: Object.keys(snapshot.prices).length,
+    providerStats: snapshot.providerStats,
+    prices: snapshot.prices,
+  });
+});
+
+app.get("/api/prices/:key", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  const key = String(req.params?.key || "").trim();
+  const price = priceManager.getPrice(key);
+  if (!price) {
+    return res.status(404).json({ ok: false, error: "price not found", key });
+  }
+  return res.json({ ok: true, key: price.key, ...price });
+});
+
+app.post("/api/prices/refresh", requireAdminKey, async (req, res) => {
+  try {
+    const result = await priceManager.refresh({ force: true, reason: "admin" });
+    return res.json({ ok: true, ...result });
+  } catch (e) {
+    const snapshot = priceManager.getSnapshot();
+    return res.status(200).json({
+      ok: false,
+      error: e?.message || "refresh failed",
+      updatedAt: snapshot.updatedAt,
+      stale: snapshot.stale,
+      count: Object.keys(snapshot.prices).length,
+    });
+  }
 });
 
 // GET catalog only
@@ -4203,6 +4284,8 @@ app.use((err, req, res, next) => {
 
 
 // ====== START ======
+await priceManager.init();
+
 httpServer.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════╗
@@ -4223,6 +4306,11 @@ httpServer.listen(PORT, () => {
 
 // ====== GIFT PRICES SCHEDULER ======
 (function startGiftScheduler() {
+  const legacyEnabled = /^(1|true|yes)$/i.test(String(process.env.LEGACY_GIFT_PRICE_SCHEDULER || ""));
+  if (!legacyEnabled) {
+    console.log("[gifts] legacy price scheduler disabled; using priceManager.");
+    return;
+  }
   // стартуем не мгновенно, а в пределах 5–25 секунд (чтобы меньше совпадать с другими)
   const firstDelay = 5000 + Math.floor(Math.random() * 20000);
 
@@ -4238,14 +4326,12 @@ app.get('/api/gifts/portals-search', async (req, res) => {
   if (!qRaw) return res.status(400).json({ ok: false, error: 'q required' });
 
   const needle = qRaw.toLowerCase();
+  const snapshot = priceManager.getSnapshot();
+  const rate = await getTonUsdRate();
+  const tonUsd = rate?.tonUsd;
 
-  // Ensure we have at least one refresh attempt (non-blocking for the request).
-  // If cache is empty (fresh server start), try GiftAsset first, then direct.
-  const shouldBootstrapRefresh =
-    !giftsLastAttemptAt ||
-    (giftsPrices.size === 0 && (Date.now() - giftsLastAttemptAt) >= GIFT_BOOTSTRAP_RETRY_MS);
-  if (shouldBootstrapRefresh) {
-    try { await refreshGiftsAll(); } catch {}
+  if (!snapshot.updatedAt || Object.keys(snapshot.prices || {}).length === 0) {
+    priceManager.refresh({ force: false, reason: "portals-search" }).catch(() => {});
   }
 
   // Local search over tracked catalog + cached prices (so we don't depend on upstream WAF on every request)
@@ -4253,13 +4339,14 @@ app.get('/api/gifts/portals-search', async (req, res) => {
     .filter(name => String(name).toLowerCase().includes(needle))
     .slice(0, 10)
     .map(name => {
-      const p = giftsPrices.get(name);
+      const p = priceManager.getPrice(name);
+      const resolved = resolveManagedGiftPricing(p, tonUsd);
       return {
         name,
         short_name: name,
-        floor_price: p?.priceTon ?? null,
+        floor_price: resolved.priceTon,
         source: p?.source ?? null,
-        updatedAt: p?.updatedAt ?? null
+        updatedAt: Number(p?.ts || 0) || null
       };
     });
 
@@ -4333,6 +4420,25 @@ function requireTelegramUser(req, res, next) {
   if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
 
   req.tg = { user, initData, params: check.params };
+  return next();
+}
+
+function requireAdminKey(req, res, next) {
+  const adminKey = String(process.env.ADMIN_KEY || "").trim();
+  if (!adminKey) {
+    return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
+  }
+
+  const headerKey = String(req.headers["x-admin-key"] || "").trim();
+  const authHeader = String(req.headers.authorization || "");
+  const bearerKey = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (headerKey !== adminKey && bearerKey !== adminKey) {
+    return res.status(403).json({ ok: false, error: "forbidden" });
+  }
+
   return next();
 }
 
