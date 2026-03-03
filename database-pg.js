@@ -22,6 +22,17 @@ async function query(text, params) {
   }
 }
 
+async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
+  const id = typeof telegramId === "bigint" ? telegramId : BigInt(telegramId);
+  await client.query(
+    `UPDATE users
+     SET ton_balance = $1,
+         stars_balance = $2
+     WHERE telegram_id = $3`,
+    [Number(tonBalance || 0), Math.trunc(Number(starsBalance || 0)), id]
+  );
+}
+
 export async function initDatabase() {
   console.log("[DB] 🚀 Initializing Postgres schema...");
   await query(`
@@ -32,6 +43,9 @@ export async function initDatabase() {
       last_name TEXT,
       language_code TEXT,
       is_premium BOOLEAN DEFAULT FALSE,
+      ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0,
+      stars_balance BIGINT NOT NULL DEFAULT 0,
+      ban SMALLINT NOT NULL DEFAULT 0,
       created_at BIGINT NOT NULL,
       last_seen BIGINT NOT NULL
     );
@@ -122,12 +136,18 @@ export async function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(telegram_id);
-
-
-
-
   `);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban SMALLINT NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS reward_ton NUMERIC(20,8) NOT NULL DEFAULT 0`);
+  await query(`
+    UPDATE users AS u
+    SET ton_balance = COALESCE(b.ton_balance, 0),
+        stars_balance = COALESCE(b.stars_balance, 0)
+    FROM balances AS b
+    WHERE b.telegram_id = u.telegram_id
+  `);
   console.log("[DB] ✅ Postgres schema ready");
 }
 
@@ -216,9 +236,9 @@ export async function getUserById(telegramId) {
   const r = await query(
     `
     SELECT u.telegram_id, u.username, u.first_name, u.last_name, u.language_code,
-           u.is_premium, u.created_at, u.last_seen,
-           COALESCE(b.ton_balance, 0) AS ton_balance,
-           COALESCE(b.stars_balance, 0) AS stars_balance
+           u.is_premium, u.ban, u.created_at, u.last_seen,
+           COALESCE(u.ton_balance, b.ton_balance, 0) AS ton_balance,
+           COALESCE(u.stars_balance, b.stars_balance, 0) AS stars_balance
     FROM users u
     LEFT JOIN balances b ON b.telegram_id = u.telegram_id
     WHERE u.telegram_id = $1
@@ -303,17 +323,24 @@ export async function updateBalance(telegramId, currency, amount, type, descript
 
     if (after < 0) throw new Error("Insufficient balance");
 
+    let nextTon = ton;
+    let nextStars = Math.trunc(stars);
+
     if (cur === "ton") {
+      nextTon = after;
       await client.query(
         `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
         [after, now, id]
       );
     } else {
+      nextStars = Math.trunc(after);
       await client.query(
         `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
-        [Math.trunc(after), now, id]
+        [nextStars, now, id]
       );
     }
+
+    await syncUserBalanceSnapshot(client, id, nextTon, nextStars);
 
     await client.query(
       `
@@ -600,11 +627,13 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
           `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
           [after, now, id]
         );
+        await syncUserBalanceSnapshot(client, id, after, stars);
       } else {
         await client.query(
           `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
           [Math.trunc(after), now, id]
         );
+        await syncUserBalanceSnapshot(client, id, ton, Math.trunc(after));
       }
 
       // Record transaction
@@ -794,6 +823,7 @@ export async function redeemPromocode(telegramId, code) {
       `UPDATE balances SET ton_balance = $1, stars_balance = $2, updated_at = $3 WHERE telegram_id = $4`,
       [afterTon, Math.trunc(after), now, id]
     );
+    await syncUserBalanceSnapshot(client, id, afterTon, Math.trunc(after));
 
     if (reward > 0) {
       await client.query(

@@ -55,6 +55,9 @@ function createMemoryDb() {
         last_name: "",
         language_code: null,
         is_premium: false,
+        ton_balance: "0",
+        stars_balance: 0,
+        ban: 0,
         created_at: nowSec(),
         last_seen: nowSec(),
       });
@@ -63,7 +66,19 @@ function createMemoryDb() {
       balances.set(k, { ton_balance: "0", stars_balance: 0, updated_at: nowSec() });
     }
     if (!txs.has(k)) txs.set(k, []);
+    syncUserBalanceSnapshot(k);
     return k;
+  }
+
+  function syncUserBalanceSnapshot(k) {
+    const u = users.get(k);
+    const b = balances.get(k);
+    if (!u || !b) return;
+    users.set(k, {
+      ...u,
+      ton_balance: b.ton_balance,
+      stars_balance: b.stars_balance
+    });
   }
 
   function addTx(k, t) {
@@ -90,6 +105,7 @@ function createMemoryDb() {
         last_name: userData?.last_name ?? u.last_name,
         language_code: userData?.language_code ?? u.language_code,
         is_premium: !!userData?.is_premium,
+        ban: Number(userData?.ban) === 1 ? 1 : (u?.ban === 1 ? 1 : 0),
         last_seen: nowSec(),
       });
       return true;
@@ -120,6 +136,7 @@ function createMemoryDb() {
 
       b.updated_at = nowSec();
       balances.set(k, b);
+      syncUserBalanceSnapshot(k);
 
       addTx(k, {
         id: txId++,
@@ -215,6 +232,7 @@ function createMemoryDb() {
       b.ton_balance = String(nextTon);
       b.updated_at = nowSec();
       balances.set(uid, b);
+      syncUserBalanceSnapshot(uid);
 
       promo.used_count += 1;
       promoCodes.set(promoKey, promo);
@@ -3075,9 +3093,10 @@ app.get("/api/user/profile", async (req, res) => {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
-        isPremium: user.is_premium === 1,
+        isPremium: user.is_premium === true || user.is_premium === 1,
         tonBalance: user.ton_balance || 0,
         starsBalance: user.stars_balance || 0,
+        ban: Number(user.ban) === 1 ? 1 : 0,
         createdAt: user.created_at,
         lastSeen: user.last_seen
       }
@@ -4513,20 +4532,36 @@ function getInitDataFromReq(req) {
   );
 }
 
-function requireTelegramUser(req, res, next) {
-  const initData = getInitDataFromReq(req);
-  if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
-  if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+async function requireTelegramUser(req, res, next) {
+  try {
+    const initData = getInitDataFromReq(req);
+    if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
+    if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
 
-  const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
-  if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
+    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+    if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
 
-  let user = null;
-  try { user = JSON.parse(check.params.user || "null"); } catch {}
-  if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+    let user = null;
+    try { user = JSON.parse(check.params.user || "null"); } catch {}
+    if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
 
-  req.tg = { user, initData, params: check.params };
-  return next();
+    const dbUser = await db.getUserById(user.id).catch(() => null);
+    if (Number(dbUser?.ban) === 1) {
+      return res.status(403).json({
+        ok: false,
+        code: "ACCOUNT_BANNED",
+        error: "Account is banned",
+        support: "@wildgift_support"
+      });
+    }
+
+    req.tg = { user, initData, params: check.params };
+    req.dbUser = dbUser || null;
+    return next();
+  } catch (error) {
+    console.error("[Auth] Failed to validate Telegram user:", error);
+    return res.status(500).json({ ok: false, error: "Failed to validate user" });
+  }
 }
 
 function requireAdminKey(req, res, next) {

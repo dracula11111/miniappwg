@@ -232,9 +232,19 @@
     console.log('[Switch] ✅ Currency system initialized. Current:', currentCurrency);
   }
 
-  function onDOMReady() {
+  async function onDOMReady() {
     console.log('[Switch] 🔄 DOM ready, setting up UI...');
     
+    try {
+      const isBanned = await window.WTBanGuard?.ensureChecked?.();
+      if (isBanned || window.WTBanGuard?.isBanned?.()) {
+        console.warn('[Switch] Account is banned, skipping currency UI init');
+        return;
+      }
+    } catch (error) {
+      console.warn('[Switch] Failed to read ban guard state:', error);
+    }
+
     initUI();
     attachEventListeners();
     watchProfilePageActive();

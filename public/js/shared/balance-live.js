@@ -20,6 +20,16 @@
     return;
   }
 
+  try {
+    const isBanned = await window.WTBanGuard?.ensureChecked?.();
+    if (isBanned || window.WTBanGuard?.isBanned?.()) {
+      console.warn('[Balance Live] Account is banned, skipping live balance sync');
+      return;
+    }
+  } catch (error) {
+    console.warn('[Balance Live] Failed to read ban guard state:', error);
+  }
+
   let eventSource = null;
   let reconnectTimeout = null;
   let reconnectAttempts = 0;
