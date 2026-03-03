@@ -340,6 +340,48 @@ class PriceManager {
     return this.getSnapshot();
   }
 
+  async seed(entries = [], { updatedAt = Date.now(), sourceName = "legacy-cache", overwrite = false } = {}) {
+    const normalizedEntries = Array.isArray(entries)
+      ? entries.map((candidate) => normalizeProviderEntry(sourceName, candidate)).filter(Boolean)
+      : [];
+
+    if (!normalizedEntries.length) {
+      return { added: 0, total: Object.keys(this.state.prices).length };
+    }
+
+    const nextPrices = { ...this.state.prices };
+    const nextAliases = { ...this.state.aliases };
+    let added = 0;
+
+    for (const item of normalizedEntries) {
+      const hasExisting = !!nextPrices[item.key];
+      if (hasExisting && !overwrite) continue;
+
+      nextPrices[item.key] = { ...item.entry };
+      for (const alias of item.aliases) {
+        nextAliases[alias] = item.key;
+      }
+      this.attachKnownAliases(nextAliases, item.key, item.entry);
+      added += hasExisting ? 0 : 1;
+    }
+
+    if (!added && !overwrite) {
+      return { added: 0, total: Object.keys(this.state.prices).length };
+    }
+
+    this.state.prices = nextPrices;
+    this.state.aliases = nextAliases;
+    const nextUpdatedAt = toFiniteNumber(updatedAt);
+    this.state.updatedAt = Math.max(
+      Number(this.state.updatedAt || 0),
+      Math.max(0, Math.round(Number.isFinite(nextUpdatedAt) ? nextUpdatedAt : Date.now())),
+    );
+    await this.saveSnapshot();
+
+    console.log(`[prices] seed source=${sourceName} added=${added} total=${Object.keys(this.state.prices).length}`);
+    return { added, total: Object.keys(this.state.prices).length };
+  }
+
   stop() {
     if (this.timer) {
       clearTimeout(this.timer);

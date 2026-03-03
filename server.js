@@ -1517,7 +1517,7 @@ function computeRelayerPriceStars(entry, tonUsd) {
 // ==============================
 // Why: many marketplaces (portals/tonnel) often return 403 / require Telegram authData or block server-side fetches.
 // GiftAsset provides an aggregated price list (collection floors) across providers in one request.
-const GIFT_PRICE_PROVIDER = String(process.env.GIFT_PRICE_PROVIDER || "auto").toLowerCase(); // auto | giftasset | direct
+const GIFT_PRICE_PROVIDER = String(process.env.GIFT_PRICE_PROVIDER || "direct").toLowerCase(); // auto | giftasset | direct
 const GIFTASSET_BASE = String(process.env.GIFTASSET_BASE || "https://giftasset.pro").replace(/\/+$/, "");
 const GIFTASSET_TIMEOUT_MS = Math.max(3000, Math.min(60000, Number(process.env.GIFTASSET_TIMEOUT_MS || 15000) || 15000));
 // Some deployments may require a key; docs mention contacting for a test key. If you have one, set GIFTASSET_API_KEY.
@@ -1781,9 +1781,9 @@ async function refreshGiftsPricesFromPortalsLegacy() {
 
     const sources = [
       {
-        name: "portal-market.com",
-        url: `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`,
-        headers: { ...baseHeaders, "referer": "https://portal-market.com/", "origin": "https://portal-market.com" }
+        name: "portals.tg",
+        url: `https://portals.tg/api/collections?search=${encodeURIComponent(q)}&limit=10`,
+        headers: { ...baseHeaders, "referer": "https://portals.tg/", "origin": "https://portals.tg" }
       },
       ...(disableTonnel ? [] : [{
         name: "market.tonnel.network",
@@ -1982,11 +1982,11 @@ async function refreshGiftsPricesFromPortals() {
 
   const sources = [
     {
-      name: "portal-market.com",
+      name: "portals.tg",
       fetchPrice: (giftName) => fetchGiftPriceFromJsonSource({
-        name: "portal-market.com",
-        baseUrl: "https://portal-market.com/api/collections?search=",
-        headers: { ...baseHeaders, referer: "https://portal-market.com/", origin: "https://portal-market.com" }
+        name: "portals.tg",
+        baseUrl: "https://portals.tg/api/collections?search=",
+        headers: { ...baseHeaders, referer: "https://portals.tg/", origin: "https://portals.tg" }
       }, giftName)
     },
     ...(disableTonnel ? [] : [{
@@ -2002,6 +2002,9 @@ async function refreshGiftsPricesFromPortals() {
       fetchPrice: (giftName) => fetchGiftPriceFromGetGems(baseHeaders, giftName)
     }
   ];
+
+  // Fragment's /gifts landing page is public, but collection pages commonly return 403
+  // to server-side requests, so it is not reliable enough here as an automated price source.
 
   const activeSources = sources.filter((source) => {
     const cooldown = getGiftSourceCooldown(source.name);
@@ -4092,6 +4095,73 @@ function buildManagedGiftResponse(name, priceEntry, tonUsd) {
   };
 }
 
+function getLegacySeedEntries() {
+  const entries = [];
+
+  for (const [name, value] of giftsPrices.entries()) {
+    const priceTon = Number(value?.priceTon ?? value?.price_ton ?? value?.price ?? null);
+    const updatedAt = Number(value?.updatedAt || giftsLastUpdate || 0);
+    if (!name || !Number.isFinite(priceTon) || priceTon <= 0) continue;
+
+    entries.push({
+      key: name,
+      name,
+      aliases: [name],
+      price: priceTon,
+      currency: "TON",
+      source: String(value?.source || "legacy-cache"),
+      ts: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+    });
+  }
+
+  for (const [key, value] of giftsRelayerPrices.entries()) {
+    const priceTon = Number(value?.priceTon ?? value?.price_ton ?? null);
+    const priceStars = Number(value?.priceStars ?? value?.price_stars ?? null);
+    const updatedAt = Number(value?.updatedAt || giftsRelayerLastPush || 0);
+    const hasTon = Number.isFinite(priceTon) && priceTon > 0;
+    const hasStars = Number.isFinite(priceStars) && priceStars > 0;
+    if (!key || (!hasTon && !hasStars)) continue;
+
+    entries.push({
+      key,
+      name: key,
+      aliases: [key],
+      price: hasTon ? priceTon : priceStars,
+      currency: hasTon ? "TON" : "STARS",
+      source: String(value?.source || "legacy-relayer"),
+      ts: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+    });
+  }
+
+  return entries;
+}
+
+function getLegacySeedUpdatedAt(entries = []) {
+  let updatedAt = 0;
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const ts = Number(entry?.ts || 0);
+    if (Number.isFinite(ts) && ts > updatedAt) updatedAt = ts;
+  }
+  return updatedAt;
+}
+
+async function syncLegacyGiftCacheToPriceManager({ overwrite = true, sourceName = "legacy-cache" } = {}) {
+  const entries = getLegacySeedEntries();
+  if (!entries.length) {
+    return { added: 0, total: 0, updatedAt: 0 };
+  }
+
+  return await priceManager.seed(entries, {
+    updatedAt: Math.max(
+      Number(giftsLastUpdate || 0),
+      Number(giftsRelayerLastPush || 0),
+      getLegacySeedUpdatedAt(entries),
+    ),
+    sourceName,
+    overwrite,
+  });
+}
+
 
 // GET price for a single gift (by name)
 app.get("/api/gifts/price", async (req, res) => {
@@ -4286,6 +4356,14 @@ app.use((err, req, res, next) => {
 
 // ====== START ======
 await priceManager.init();
+try {
+  await syncLegacyGiftCacheToPriceManager({
+    overwrite: false,
+    sourceName: "legacy-cache",
+  });
+} catch (e) {
+  console.warn("[prices] legacy seed failed:", e?.message || e);
+}
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`
@@ -4308,17 +4386,43 @@ httpServer.listen(PORT, HOST, () => {
 
 // ====== GIFT PRICES SCHEDULER ======
 (function startGiftScheduler() {
-  const legacyEnabled = /^(1|true|yes)$/i.test(String(process.env.LEGACY_GIFT_PRICE_SCHEDULER || ""));
-  if (!legacyEnabled) {
-    console.log("[gifts] legacy price scheduler disabled; using priceManager.");
+  const schedulerDisabled = /^(1|true|yes)$/i.test(String(process.env.DISABLE_OPEN_GIFT_PRICE_SCHEDULER || ""));
+  if (schedulerDisabled) {
+    console.log("[gifts] open-source gift scheduler disabled by DISABLE_OPEN_GIFT_PRICE_SCHEDULER.");
     return;
   }
-  // стартуем не мгновенно, а в пределах 5–25 секунд (чтобы меньше совпадать с другими)
-  const firstDelay = 5000 + Math.floor(Math.random() * 20000);
 
-  setTimeout(async () => {
-    await refreshGiftsAll();
-    setInterval(refreshGiftsAll, GIFT_REFRESH_MS);
+  let running = false;
+
+  const runSync = async (reason) => {
+    if (running) return;
+    running = true;
+    try {
+      await refreshGiftsAll();
+      await syncLegacyGiftCacheToPriceManager({
+        overwrite: true,
+        sourceName: `legacy-${reason}`,
+      });
+    } catch (e) {
+      console.warn(`[gifts] ${reason} sync failed:`, e?.message || e);
+    } finally {
+      running = false;
+    }
+  };
+
+  // стартуем вскоре после запуска, но не синхронно с поднятием сервера
+  const firstDelay = 1000 + Math.floor(Math.random() * 4000);
+
+  setTimeout(() => {
+    runSync("startup").catch((e) => {
+      console.warn("[gifts] startup sync failed:", e?.message || e);
+    });
+
+    setInterval(() => {
+      runSync("scheduled").catch((e) => {
+        console.warn("[gifts] scheduled sync failed:", e?.message || e);
+      });
+    }, GIFT_REFRESH_MS);
   }, firstDelay);
 })();
 
