@@ -26,7 +26,7 @@
         inset: 0;
         z-index: 2147483647;
         display: flex;
-        align-items: flex-end;
+        align-items: center;
         justify-content: center;
         padding: 32px 18px 42px;
         box-sizing: border-box;
