@@ -3499,7 +3499,7 @@ function fragmentMediumPreviewUrlFromSlug(slug) {
 }
 
 function resolveMarketItemPriceTon(item, tonUsd = null) {
-  const direct = Number(item?.priceTon ?? item?.price_ton ?? item?.price ?? null);
+  const direct = Number(item?.priceTon ?? item?.price_ton ?? item?.price?.ton ?? item?.price ?? null);
   if (Number.isFinite(direct) && direct > 0) return direct;
 
   const name = normalizeGiftName(item?.name || item?.displayName || "");
@@ -3742,6 +3742,21 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
         }
         return { ok: false, code: "BAD_PRICE" };
       }
+
+      // explicit guard before attempting debit to keep error semantics predictable
+      // across db backends and avoid progressing purchase flow with stale/invalid funds.
+      try {
+        const bal = await db.getUserBalance(userId);
+        const available = cur === "stars"
+          ? Number(bal?.stars_balance ?? 0)
+          : Number(bal?.ton_balance ?? 0);
+        if (!Number.isFinite(available) || available < price) {
+          if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
+            try { await db.addMarketItem(it); } catch {}
+          }
+          return { ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance" };
+        }
+      } catch {}
 
       // charge
       let newBalance = null;
