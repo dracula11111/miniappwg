@@ -2222,6 +2222,76 @@ async function inventorySell(userId, instanceIds, currency) {
   return { ok: true, currency: cur, sold: 0, amount: 0, newBalance: null, items: await inventoryGet(userId), nfts: await inventoryGet(userId) };
 }
 
+function normalizeInventoryLookupValue(v, max = 256) {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+function buildInventoryLookup(body = {}) {
+  return {
+    instanceId: normalizeInventoryLookupValue(body?.instanceId, 256),
+    marketId: normalizeInventoryLookupValue(body?.marketId, 256),
+    itemId: normalizeInventoryLookupValue(body?.itemId ?? body?.id, 256),
+    tgMessageId: normalizeInventoryLookupValue(body?.tgMessageId ?? body?.messageId ?? body?.msgId, 128)
+  };
+}
+
+function sameInventoryLookupValue(a, b) {
+  const left = normalizeInventoryLookupValue(a, 256);
+  const right = normalizeInventoryLookupValue(b, 256);
+  return !!left && !!right && left === right;
+}
+
+function findInventoryItemForAction(items, lookup = {}) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return null;
+
+  const findBy = (pred) => list.find(pred) || null;
+
+  if (lookup.instanceId) {
+    const byInstance = findBy((x) => sameInventoryLookupValue(x?.instanceId, lookup.instanceId));
+    if (byInstance) return byInstance;
+  }
+
+  if (lookup.marketId) {
+    const byMarket = findBy((x) => sameInventoryLookupValue(x?.marketId, lookup.marketId));
+    if (byMarket) return byMarket;
+  }
+
+  if (lookup.itemId) {
+    const byItemId = findBy((x) =>
+      sameInventoryLookupValue(x?.id, lookup.itemId) ||
+      sameInventoryLookupValue(x?.baseId, lookup.itemId)
+    );
+    if (byItemId) return byItemId;
+  }
+
+  if (lookup.tgMessageId) {
+    const byMsgId = findBy((x) =>
+      sameInventoryLookupValue(x?.tg?.messageId, lookup.tgMessageId) ||
+      sameInventoryLookupValue(x?.tg?.msgId, lookup.tgMessageId)
+    );
+    if (byMsgId) return byMsgId;
+  }
+
+  // market.js can briefly keep optimistic ids in local cache: optimistic_<marketId>_<ts>
+  if (lookup.instanceId.startsWith("optimistic_")) {
+    const m = lookup.instanceId.match(/^optimistic_(.+)_\d+$/);
+    const optimisticMarketId = normalizeInventoryLookupValue(m?.[1] || "", 256);
+    if (optimisticMarketId) {
+      const byOptimisticMarket = findBy((x) =>
+        sameInventoryLookupValue(x?.marketId, optimisticMarketId) ||
+        sameInventoryLookupValue(x?.id, optimisticMarketId) ||
+        sameInventoryLookupValue(x?.baseId, optimisticMarketId)
+      );
+      if (byOptimisticMarket) return byOptimisticMarket;
+    }
+  }
+
+  return null;
+}
+
 // GET inventory (NFTs) for a user
 app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
@@ -2357,7 +2427,8 @@ app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
 app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
-    const { currency, instanceId } = req.body || {};
+    const { currency } = req.body || {};
+    const lookup = buildInventoryLookup(req.body || {});
 
     // recipient: take from Telegram profile (username preferred), fallback to telegram_id
     const toUsername = String(req.tg.user.username || "").trim();
@@ -2365,15 +2436,20 @@ app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
     const to = toUsername ? toUsername : toId;
 
     const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
-    const inst = String(instanceId || "").trim();
-    if (!inst) return res.status(400).json({ ok: false, error: "instanceId required" });
+    if (!lookup.instanceId && !lookup.marketId && !lookup.itemId && !lookup.tgMessageId) {
+      return res.status(400).json({ ok: false, error: "instanceId required" });
+    }
 
     const FEE_TON = 0.2;
     const FEE_STARS = 25;
 
     const items = await inventoryGet(userId);
-    const item = items.find(x => String(x?.instanceId || "") === inst) || null;
+    const item = findInventoryItemForAction(items, lookup);
     if (!item) {
+      return res.status(404).json({ ok: false, code: "NO_STOCK", error: "Item not found in inventory", support: "@wildgift_support" });
+    }
+    const inst = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
+    if (!inst) {
       return res.status(404).json({ ok: false, code: "NO_STOCK", error: "Item not found in inventory", support: "@wildgift_support" });
     }
 
@@ -2529,13 +2605,17 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
     const userId = String(req.tg?.user?.id || "");
     if (!isRelayerAdminUserId(userId)) return res.status(403).json({ ok: false, error: "forbidden" });
 
-    const instanceId = String(req.body?.instanceId || "").trim();
+    const lookup = buildInventoryLookup(req.body || {});
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
-    if (!instanceId) return res.status(400).json({ ok: false, error: "instanceId required" });
+    if (!lookup.instanceId && !lookup.marketId && !lookup.itemId && !lookup.tgMessageId) {
+      return res.status(400).json({ ok: false, error: "instanceId required" });
+    }
 
     const items = await inventoryGet(userId);
-    const item = (Array.isArray(items) ? items : []).find((x) => String(x?.instanceId || "") === instanceId);
+    const item = findInventoryItemForAction(items, lookup);
     if (!item) return res.status(404).json({ ok: false, error: "item not found" });
+    const instanceId = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
+    if (!instanceId) return res.status(404).json({ ok: false, error: "item not found" });
 
     if (!(item?.fromMarket || item?.marketId)) {
       return res.status(400).json({ ok: false, error: "only market items can be returned" });

@@ -732,7 +732,7 @@ function openSupportChat() {
 
 let withdrawModalEl = null;
 let withdrawErrEl = null;
-let withdrawCtx = { instanceId: null };
+let withdrawCtx = { instanceId: null, marketId: null, itemId: null, tgMessageId: null };
 
 function ensureWithdrawModal() {
   if (withdrawModalEl) return withdrawModalEl;
@@ -878,6 +878,9 @@ function openWithdrawModal(item) {
   if (toEl) toEl.textContent = getWithdrawRecipientText();
 
   withdrawCtx.instanceId = String(item?.instanceId || '');
+  withdrawCtx.marketId = String(item?.marketId || '');
+  withdrawCtx.itemId = String(item?.id || item?.baseId || '');
+  withdrawCtx.tgMessageId = String(item?.tg?.messageId || item?.tg?.msgId || '');
   el.style.display = 'flex';
 
   const btn = el.querySelector('#wgWithdrawContinue');
@@ -892,8 +895,11 @@ function openWithdrawModal(item) {
 
 async function withdrawContinue() {
   const instanceId = String(withdrawCtx.instanceId || '');
-  if (!instanceId) {
-    showWithdrawErrorPanel('Failed to withdraw: instanceId not found.');
+  const marketId = String(withdrawCtx.marketId || '');
+  const itemId = String(withdrawCtx.itemId || '');
+  const tgMessageId = String(withdrawCtx.tgMessageId || '');
+  if (!instanceId && !marketId && !itemId && !tgMessageId) {
+    showWithdrawErrorPanel('Failed to withdraw: item id not found.');
     return;
   }
 
@@ -912,7 +918,7 @@ async function withdrawContinue() {
     const r = await tgFetch('/api/inventory/withdraw', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currency, instanceId })
+      body: JSON.stringify({ currency, instanceId, marketId, itemId, tgMessageId })
     });
 
     const j = await r.json().catch(() => null);
@@ -978,8 +984,11 @@ async function withdrawContinue() {
     if (!found?.item) return;
 
     const instanceId = String(found.item?.instanceId || '');
-    if (!instanceId) {
-      showToast('Return error: instanceId not found');
+    const marketId = String(found.item?.marketId || '');
+    const itemId = String(found.item?.id || found.item?.baseId || '');
+    const tgMessageId = String(found.item?.tg?.messageId || found.item?.tg?.msgId || '');
+    if (!instanceId && !marketId && !itemId && !tgMessageId) {
+      showToast('Return error: item id not found');
       return;
     }
 
@@ -989,7 +998,7 @@ async function withdrawContinue() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ instanceId })
+        body: JSON.stringify({ instanceId, marketId, itemId, tgMessageId })
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) {

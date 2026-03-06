@@ -1348,7 +1348,11 @@ function safeImg(v, maxUrl = 4096) {
 
   async function fetchJson(url, { timeoutMs = 8000 } = {}) {
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+    let didTimeout = false;
+    const timer = ctrl ? setTimeout(() => {
+      didTimeout = true;
+      try { ctrl.abort('timeout'); } catch {}
+    }, timeoutMs) : null;
 
     try {
       const res = await fetch(url, {
@@ -1360,6 +1364,13 @@ function safeImg(v, maxUrl = 4096) {
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
+    } catch (e) {
+      if (didTimeout || e?.name === 'AbortError') {
+        const err = new Error('Request timeout');
+        err.code = 'REQUEST_TIMEOUT';
+        throw err;
+      }
+      throw e;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -1373,20 +1384,15 @@ function getTgInitData() {
 
 async function postJson(url, body, { timeoutMs = 12000 } = {}) {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  let timeoutHandle = null;
-
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutHandle = setTimeout(() => {
-      try { if (ctrl) ctrl.abort(); } catch {}
-      const e = new Error('Request timeout');
-      e.code = 'REQUEST_TIMEOUT';
-      reject(e);
-    }, Math.max(1000, Number(timeoutMs) || 12000));
-  });
+  let didTimeout = false;
+  const timeoutHandle = setTimeout(() => {
+    didTimeout = true;
+    try { if (ctrl) ctrl.abort('timeout'); } catch {}
+  }, Math.max(1000, Number(timeoutMs) || 12000));
 
   try {
     const initData = getTgInitData();
-    const fetchPromise = fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
       signal: ctrl ? ctrl.signal : undefined,
@@ -1398,7 +1404,6 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
       body: JSON.stringify(body || {})
     });
 
-    const res = await Promise.race([fetchPromise, timeoutPromise]);
     const j = await res.json().catch(() => null);
     if (!res.ok) {
       const err = (j && (j.error || j.message)) ? (j.error || j.message) : `HTTP ${res.status}`;
@@ -1408,8 +1413,15 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
       throw e;
     }
     return j;
+  } catch (e) {
+    if (didTimeout || e?.name === 'AbortError') {
+      const err = new Error('Request timeout');
+      err.code = 'REQUEST_TIMEOUT';
+      throw err;
+    }
+    throw e;
   } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
+    clearTimeout(timeoutHandle);
   }
 }
 
