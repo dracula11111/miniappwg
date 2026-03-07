@@ -52,6 +52,52 @@ const ADMIN_IDS = String(
   .map((s) => s.trim())
   .filter(Boolean);
 
+function normalizeTelegramId(value) {
+  if (value == null) return "";
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return "";
+    if (/^-?\d+$/.test(s)) return s;
+    const m = s.match(/-?\d+/);
+    return m ? m[0] : "";
+  }
+
+  try {
+    const direct =
+      value?.userId ??
+      value?.user_id ??
+      value?.channelId ??
+      value?.channel_id ??
+      value?.chatId ??
+      value?.chat_id ??
+      value?.peer?.userId ??
+      value?.peer?.user_id ??
+      value?.peer?.channelId ??
+      value?.peer?.channel_id ??
+      value?.peer?.chatId ??
+      value?.peer?.chat_id ??
+      value?.value;
+
+    if (direct != null) {
+      const normalized = normalizeTelegramId(direct);
+      if (normalized) return normalized;
+    }
+  } catch {}
+
+  try {
+    const s = String(value).trim();
+    if (!s) return "";
+    const m = s.match(/-?\d+/);
+    return m ? m[0] : "";
+  } catch {
+    return "";
+  }
+}
+
+const ADMIN_ID_SET = new Set(ADMIN_IDS.map(normalizeTelegramId).filter(Boolean));
+
 const DEBUG = /^(1|true|yes)$/i.test(String(process.env.RELAYER_DEBUG || ""));
 // По умолчанию 1: отправляем картинку/паттерн прямо в JSON (data:image/...)
 // Если поставить 0 — релайер будет сохранять файлы локально (подходит только когда релайер и сервер на одной машине)
@@ -105,7 +151,8 @@ function ensureDir(p) {
 }
 
 function isAdmin(userId) {
-  return ADMIN_IDS.includes(String(userId));
+  const normalized = normalizeTelegramId(userId);
+  return !!normalized && ADMIN_ID_SET.has(normalized);
 }
 
 function formatNum(n) {
@@ -249,7 +296,7 @@ async function downloadDocAsDataUrl(client, doc, { forceThumb = false } = {}) {
 
 
 function peerUserId(peer) {
-  if (!peer) return null;
+  if (peer == null) return null;
   // GramJS peers can be PeerUser / PeerChannel / PeerChat
   const direct =
     peer.userId ??
@@ -257,15 +304,24 @@ function peerUserId(peer) {
     peer?.user?.id ??
     peer?.peer?.userId ??
     peer?.peer?.user_id;
-  if (direct != null) return String(direct);
+  if (direct != null) {
+    const normalized = normalizeTelegramId(direct);
+    if (normalized) return normalized;
+  }
 
   // Some GramJS wrappers expose only "value" on user-like peers.
   const className = String(peer?.className || peer?.constructor?.name || "");
-  if (peer instanceof Api.PeerUser && peer?.value != null) return String(peer.value);
-  if (peer?.value != null && /^(PeerUser|InputPeerUser|InputUser)$/.test(className)) {
-    return String(peer.value);
+  if (peer instanceof Api.PeerUser && peer?.value != null) {
+    const normalized = normalizeTelegramId(peer.value);
+    if (normalized) return normalized;
   }
-  return null;
+  if (peer?.value != null && /^(PeerUser|InputPeerUser|InputUser)$/.test(className)) {
+    const normalized = normalizeTelegramId(peer.value);
+    if (normalized) return normalized;
+  }
+
+  const fallback = normalizeTelegramId(peer);
+  return fallback || null;
 }
 function peerKey(peer) {
   if (!peer) return "p0";
@@ -288,7 +344,20 @@ function peerKey(peer) {
 
 function actionFromId(action) {
   // For gifts actions Telegram puts sender in action.fromId (Peer)
-  return peerUserId(action?.fromId) || null;
+  return peerUserId(action?.fromId || action?.from_id) || null;
+}
+
+function resolveMessageFromId(msg, action = null) {
+  return (
+    actionFromId(action || msg?.action) ||
+    peerUserId(msg?.fromId) ||
+    peerUserId(msg?.from_id) ||
+    peerUserId(msg?.senderId) ||
+    peerUserId(msg?.sender_id) ||
+    peerUserId(msg?.peerId) ||
+    peerUserId(msg?.peer_id) ||
+    null
+  );
 }
 
 async function promptLine(question) {
@@ -571,6 +640,9 @@ async function run({ mode = "run" } = {}) {
   console.log("[Relayer] SERVER:", SERVER);
   console.log("[Relayer] IMG_DIR:", IMG_DIR);
   console.log("[Relayer] ADMIN_IDS:", ADMIN_IDS.join(", ") || "(empty)");
+  console.log("[Relayer] ADMIN_IDS(normalized):", Array.from(ADMIN_ID_SET).join(", ") || "(empty)");
+  if (!ADMIN_ID_SET.size) console.log("[Relayer] ⚠️ ADMIN_IDS is empty: all gifts will go to inventory.");
+  if (!SECRET) console.log("[Relayer] ⚠️ RELAYER_SECRET is empty: server can reject /api/market and /api/inventory calls.");
 
   const pricesLoop = (mode === "sync") ? { stop: () => {} } : startPricesLoop(client);
 
@@ -601,10 +673,14 @@ async function run({ mode = "run" } = {}) {
 
       if (!isStarGift && !isOtherGift) return;
 
-      const fromId = actionFromId(action) || peerUserId(msg.fromId) || peerUserId(msg.peerId);
+      const fromId = resolveMessageFromId(msg, action);
       if (!fromId) {
         console.log(`[Relayer] ⚠️ gift without fromId (skipped). msgId=${msg.id} origin=${origin}`);
         return;
+      }
+      const fromIsAdmin = isAdmin(fromId);
+      if (DEBUG) {
+        console.log(`[Relayer] gift sender resolved: fromId=${fromId} admin=${fromIsAdmin} origin=${origin} msgId=${msg.id}`);
       }
 
       const gift = action.gift || null;
@@ -725,7 +801,7 @@ async function run({ mode = "run" } = {}) {
 
 
       let r;
-      if (isAdmin(fromId)) {
+      if (fromIsAdmin) {
         r = await addToMarket({ item: marketItem });
         if (!r.ok) {
           console.log("[Relayer] ❌ market add failed:", r.status, r.text);
@@ -812,7 +888,7 @@ async function run({ mode = "run" } = {}) {
     if (!msg) return;
 
     if (DEBUG) {
-      const from = peerUserId(msg.fromId) || peerUserId(msg.peerId) || "—";
+      const from = resolveMessageFromId(msg) || "—";
       const a = msg.action ? (msg.action.className || msg.action.constructor?.name) : null;
       const text = String(msg.message || "").slice(0, 120);
       console.log(`[Relayer][RAW] id=${msg.id} from=${from} action=${a} text="${text}"`);
@@ -827,7 +903,7 @@ async function run({ mode = "run" } = {}) {
     if (!msg) return;
 
     if (DEBUG) {
-      const from = peerUserId(msg.fromId) || peerUserId(msg.peerId) || "—";
+      const from = resolveMessageFromId(msg) || "—";
       const a = msg.action ? (msg.action.className || msg.action.constructor?.name) : null;
       const text = String(msg.message || "").slice(0, 120);
       console.log(`[Relayer][MSG] id=${msg.id} from=${from} action=${a} text="${text}"`);
