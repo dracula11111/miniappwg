@@ -109,15 +109,19 @@ const ENABLE_PRICES = !/^(0|false|no)$/i.test(String(process.env.RELAYER_ENABLE_
 const PRICES_INTERVAL_MS = Math.max(60_000, Math.min(60 * 60 * 1000, Number(process.env.RELAYER_PRICES_INTERVAL_MS || 10 * 60 * 1000) || (10 * 60 * 1000)));
 // When calling payments.getResaleStarGifts, how many listings to request (we only need floor -> 1 is enough).
 const PRICES_RESALE_LIMIT = Math.max(1, Math.min(10, Number(process.env.RELAYER_PRICES_RESALE_LIMIT || 1) || 1));
-// On startup, backfill recent dialogs so missed gifts while relayer was offline are recovered.
-const BACKFILL_ON_START = !/^(0|false|no)$/i.test(String(process.env.RELAYER_BACKFILL_ON_START || "1"));
+// Historical BOOT backfill is disabled by default to avoid replaying old transfers on each restart.
+const BACKFILL_ON_START = !/^(0|false|no)$/i.test(String(process.env.RELAYER_BACKFILL_ON_START || "0"));
 const BACKFILL_DIALOGS = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_DIALOGS || process.env.RELAYER_SYNC_DIALOGS || 60) || 60));
 const BACKFILL_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_LIMIT || process.env.RELAYER_SYNC_LIMIT || 50) || 50));
 // Some accounts receive gifts only in Saved Gifts updates (without normal message events).
 const SAVED_GIFTS_WATCH = !/^(0|false|no)$/i.test(String(process.env.RELAYER_SAVED_GIFTS_WATCH || "1"));
+// On startup, only prime seen saved-gifts keys by default (no import/replay).
+const SAVED_GIFTS_IMPORT_BOOT = /^(1|true|yes)$/i.test(String(process.env.RELAYER_SAVED_GIFTS_IMPORT_BOOT || "0"));
 const SAVED_GIFTS_POLL_MS = Math.max(5_000, Math.min(10 * 60 * 1000, Number(process.env.RELAYER_SAVED_GIFTS_POLL_MS || 30_000) || 30_000));
 const SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_SAVED_GIFTS_PAGE_LIMIT || 100) || 100));
 const SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(20, Number(process.env.RELAYER_SAVED_GIFTS_MAX_PAGES || 5) || 5));
+// Optional one-shot cleanup flag for polluted market state.
+const CLEAR_MARKET_ON_START = /^(1|true|yes)$/i.test(String(process.env.RELAYER_CLEAR_MARKET_ON_START || "0"));
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -767,6 +771,12 @@ async function addToMarket({ item }) {
   return await postJson(url, { item }, headers);
 }
 
+async function clearMarketItemsRemote() {
+  const url = `${SERVER}/api/market/items/clear`;
+  const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
+  return await postJson(url, {}, headers);
+}
+
 async function run({ mode = "run" } = {}) {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
   if (!INLINE_IMAGES) ensureDir(IMG_DIR);
@@ -784,6 +794,19 @@ async function run({ mode = "run" } = {}) {
   console.log("[Relayer] ADMIN_IDS(normalized):", Array.from(ADMIN_ID_SET).join(", ") || "(empty)");
   if (!ADMIN_ID_SET.size) console.log("[Relayer] ⚠️ ADMIN_IDS is empty: all gifts will go to inventory.");
   if (!SECRET) console.log("[Relayer] ⚠️ RELAYER_SECRET is empty: server can reject /api/market and /api/inventory calls.");
+
+  if (CLEAR_MARKET_ON_START) {
+    try {
+      const clearRes = await clearMarketItemsRemote();
+      if (clearRes.ok) {
+        console.log("[Relayer][BOOT] [OK] Market cleared (RELAYER_CLEAR_MARKET_ON_START=1)");
+      } else {
+        console.log("[Relayer][BOOT] [ERR] market clear failed:", clearRes.status, clearRes.text);
+      }
+    } catch (e) {
+      console.log("[Relayer][BOOT] [ERR] market clear exception:", e?.message || e);
+    }
+  }
 
   const pricesLoop = (mode === "sync") ? { stop: () => {} } : startPricesLoop(client);
 
@@ -1049,7 +1072,7 @@ async function run({ mode = "run" } = {}) {
     };
   }
 
-  async function processSavedGiftsSnapshot(origin = "SAVED", { notify = false } = {}) {
+  async function processSavedGiftsSnapshot(origin = "SAVED", { notify = false, process = true } = {}) {
     if (!SAVED_GIFTS_WATCH) return { fetched: 0, handled: 0 };
 
     let fetched = 0;
@@ -1080,6 +1103,8 @@ async function run({ mode = "run" } = {}) {
         if (seenSavedGiftKeys.has(stableKey)) continue;
         seenSavedGiftKeys.add(stableKey);
 
+        if (!process) continue;
+
         const synthetic = savedGiftToSyntheticMessage(g, fetched);
         const before = processed.size;
         await handleGiftMessage(synthetic, origin, { notify });
@@ -1091,8 +1116,8 @@ async function run({ mode = "run" } = {}) {
       offset = nextOffset;
     }
 
-    if (DEBUG || handled > 0) {
-      console.log(`[Relayer][${origin}] saved gifts fetched=${fetched} handled=${handled} seen=${seenSavedGiftKeys.size}`);
+    if (DEBUG || handled > 0 || !process) {
+      console.log(`[Relayer][${origin}] saved gifts fetched=${fetched} handled=${handled} seen=${seenSavedGiftKeys.size} mode=${process ? "process" : "prime"}`);
     }
     return { fetched, handled };
   }
@@ -1149,7 +1174,7 @@ async function run({ mode = "run" } = {}) {
     const dialogsLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_DIALOGS) || 60));
     const perDialogLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_LIMIT) || 50));
     await scanRecentDialogsForGiftActions({ dialogsLimit, perDialogLimit, origin: "SYNC", notify: false });
-    await processSavedGiftsSnapshot("SYNC_SAVED", { notify: false });
+    await processSavedGiftsSnapshot("SYNC_SAVED", { notify: false, process: true });
     try { await client.disconnect(); } catch {}
     return;
   }
@@ -1169,7 +1194,10 @@ async function run({ mode = "run" } = {}) {
 
   if (SAVED_GIFTS_WATCH) {
     try {
-      await processSavedGiftsSnapshot("SAVED_BOOT", { notify: false });
+      await processSavedGiftsSnapshot("SAVED_BOOT", { notify: false, process: SAVED_GIFTS_IMPORT_BOOT });
+      if (!SAVED_GIFTS_IMPORT_BOOT) {
+        console.log("[Relayer][SAVED_BOOT] historical import disabled; primed seen keys only");
+      }
     } catch (e) {
       console.log("[Relayer][SAVED_BOOT] ❌ saved gifts bootstrap failed:", e?.message || e);
     }

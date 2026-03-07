@@ -693,6 +693,70 @@ export async function deleteInventoryItems(telegramId, instanceIds) {
   }
 }
 
+export async function deleteInventoryItemByLookup(telegramId, lookup = {}) {
+  const id = BigInt(telegramId);
+  const normalize = (v, max = 256) => {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    return s.length > max ? s.slice(0, max) : s;
+  };
+
+  const instanceId = normalize(lookup?.instanceId, 256);
+  const marketId = normalize(lookup?.marketId, 256);
+  const itemId = normalize(lookup?.itemId ?? lookup?.id, 256);
+  const tgMessageId = normalize(lookup?.tgMessageId ?? lookup?.messageId ?? lookup?.msgId, 128);
+  if (!instanceId && !marketId && !itemId && !tgMessageId) return { deleted: 0 };
+
+  const client = await pool.connect();
+  const deleteByExpr = async (expr, value) => {
+    if (!value) return 0;
+    const del = await client.query(
+      `WITH candidate AS (
+         SELECT id
+         FROM inventory_items
+         WHERE telegram_id = $1 AND ${expr} = $2
+         ORDER BY id DESC
+         LIMIT 1
+       )
+       DELETE FROM inventory_items AS i
+       USING candidate AS c
+       WHERE i.id = c.id
+       RETURNING i.id`,
+      [id, value]
+    );
+    return Number(del.rowCount || 0);
+  };
+
+  try {
+    await client.query("BEGIN");
+
+    let deleted = 0;
+    if (instanceId) {
+      const del = await client.query(
+        `DELETE FROM inventory_items
+         WHERE telegram_id = $1 AND instance_id = $2
+         RETURNING id`,
+        [id, instanceId]
+      );
+      deleted = Number(del.rowCount || 0);
+    }
+
+    if (!deleted) deleted = await deleteByExpr(`item_json->>'marketId'`, marketId);
+    if (!deleted) deleted = await deleteByExpr(`item_json->>'id'`, itemId);
+    if (!deleted) deleted = await deleteByExpr(`item_json->>'baseId'`, itemId);
+    if (!deleted) deleted = await deleteByExpr(`item_json #>> '{tg,messageId}'`, tgMessageId);
+    if (!deleted) deleted = await deleteByExpr(`item_json #>> '{tg,msgId}'`, tgMessageId);
+
+    await client.query("COMMIT");
+    return { deleted };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 
 // ============================
 // PROMOCODES (hashed + anti-dup)

@@ -298,9 +298,47 @@ async deleteInventoryItems(telegramId, instanceIds) {
   const u = users.get(k);
   if (!u.__inv) u.__inv = [];
   const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
+  const before = u.__inv.length;
   u.__inv = u.__inv.filter(it => !ids.includes(String(it?.instanceId || '')));
   users.set(k, u);
-  return true;
+  return { deleted: Math.max(0, before - u.__inv.length) };
+},
+async deleteInventoryItemByLookup(telegramId, lookup = {}) {
+  const k = ensure(telegramId);
+  const u = users.get(k);
+  if (!u.__inv) u.__inv = [];
+  const list = u.__inv;
+  const norm = (v, max = 256) => {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    return s.length > max ? s.slice(0, max) : s;
+  };
+  const same = (a, b, max = 256) => {
+    const left = norm(a, max);
+    const right = norm(b, max);
+    return !!left && !!right && left === right;
+  };
+
+  const instanceId = norm(lookup?.instanceId, 256);
+  const marketId = norm(lookup?.marketId, 256);
+  const itemId = norm(lookup?.itemId ?? lookup?.id, 256);
+  const tgMessageId = norm(lookup?.tgMessageId ?? lookup?.messageId ?? lookup?.msgId, 128);
+
+  let idx = -1;
+  if (instanceId) idx = list.findIndex((x) => same(x?.instanceId, instanceId));
+  if (idx < 0 && marketId) idx = list.findIndex((x) => same(x?.marketId, marketId));
+  if (idx < 0 && itemId) idx = list.findIndex((x) => same(x?.id, itemId) || same(x?.baseId, itemId));
+  if (idx < 0 && tgMessageId) {
+    idx = list.findIndex((x) =>
+      same(x?.tg?.messageId, tgMessageId, 128) ||
+      same(x?.tg?.msgId, tgMessageId, 128)
+    );
+  }
+  if (idx < 0) return { deleted: 0 };
+
+  list.splice(idx, 1);
+  users.set(k, u);
+  return { deleted: 1 };
 }
   };
 }
@@ -2599,7 +2637,7 @@ app.post("/api/admin/inventory/add", async (req, res) => {
   }
 });
 
-// Admin: return market-bought gift from inventory back to market.
+// Admin: return gift from inventory back to market.
 app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg?.user?.id || "");
@@ -2608,21 +2646,30 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
     const lookup = buildInventoryLookup(req.body || {});
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
     if (!lookup.instanceId && !lookup.marketId && !lookup.itemId && !lookup.tgMessageId) {
-      return res.status(400).json({ ok: false, error: "instanceId required" });
+      return res.status(400).json({ ok: false, error: "item identifier required" });
     }
 
     const items = await inventoryGet(userId);
     const item = findInventoryItemForAction(items, lookup);
     if (!item) return res.status(404).json({ ok: false, error: "item not found" });
     const instanceId = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
-    if (!instanceId) return res.status(404).json({ ok: false, error: "item not found" });
-
-    if (!(item?.fromMarket || item?.marketId)) {
-      return res.status(400).json({ ok: false, error: "only market items can be returned" });
-    }
+    const deletionLookup = {
+      instanceId,
+      marketId: normalizeInventoryLookupValue(lookup.marketId || item?.marketId, 256),
+      itemId: normalizeInventoryLookupValue(lookup.itemId || item?.id || item?.baseId, 256),
+      tgMessageId: normalizeInventoryLookupValue(
+        lookup.tgMessageId || item?.tg?.messageId || item?.tg?.msgId,
+        128
+      )
+    };
 
     const now = Date.now();
-    const baseMarketId = safeMarketString(item?.marketId, 96) || safeMarketString(item?.id, 96) || "gift";
+    const baseMarketId =
+      safeMarketString(item?.marketId, 96) ||
+      safeMarketString(item?.id, 96) ||
+      safeMarketString(item?.baseId, 96) ||
+      safeMarketString(instanceId, 96) ||
+      "gift";
     const marketItem = {
       id: `ret_${baseMarketId}_${now}`,
       name: safeMarketString(item?.displayName || item?.name, 120) || "Gift",
@@ -2636,6 +2683,7 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
       tg: item?.tg || null
     };
 
+    let marketAdded = false;
     await withMarketLock(async () => {
       const marketItems = await readMarketItems();
       marketItems.unshift(marketItem);
@@ -2643,12 +2691,42 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
       if (marketItems.length > MAX) marketItems.length = MAX;
       const ok = await writeMarketItems(marketItems);
       if (!ok) throw new Error("market write failed");
+      marketAdded = true;
     });
 
-    if (typeof db.deleteInventoryItems === "function") {
-      await db.deleteInventoryItems(userId, [instanceId]);
-    } else if (typeof db.sellInventoryItems === "function") {
-      await db.sellInventoryItems(userId, [instanceId], "ton");
+    const toCount = (v) => {
+      const n = Number(v);
+      if (Number.isFinite(n)) return n;
+      return v === true ? 1 : 0;
+    };
+
+    let deleted = 0;
+    if (instanceId && typeof db.deleteInventoryItems === "function") {
+      const delRes = await db.deleteInventoryItems(userId, [instanceId]);
+      deleted = toCount(delRes?.deleted ?? delRes?.rowCount ?? delRes?.sold ?? delRes);
+    }
+    if (!deleted && typeof db.deleteInventoryItemByLookup === "function") {
+      const delRes = await db.deleteInventoryItemByLookup(userId, deletionLookup);
+      deleted = toCount(delRes?.deleted ?? delRes?.rowCount ?? delRes?.sold ?? delRes);
+    }
+    if (!deleted && instanceId && typeof db.sellInventoryItems === "function") {
+      const sellRes = await db.sellInventoryItems(userId, [instanceId], "ton");
+      deleted = toCount(sellRes?.sold ?? sellRes?.deleted ?? sellRes);
+    }
+
+    if (!deleted) {
+      if (marketAdded) {
+        try {
+          await withMarketLock(async () => {
+            const marketItems = await readMarketItems();
+            const filtered = marketItems.filter((x) => String(x?.id || "") !== String(marketItem.id));
+            if (filtered.length !== marketItems.length) await writeMarketItems(filtered);
+          });
+        } catch (rollbackErr) {
+          console.error("[Admin Inventory] return-to-market rollback failed:", rollbackErr);
+        }
+      }
+      return res.status(409).json({ ok: false, error: "failed to remove gift from inventory" });
     }
 
     const left = await inventoryGet(userId);

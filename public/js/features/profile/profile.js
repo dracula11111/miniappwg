@@ -1151,7 +1151,7 @@ async function withdrawContinue() {
   }
 
   function canReturnToMarket(item) {
-    return isMarketGiftItem(item) && isRelayerAdmin;
+    return !!item && isRelayerAdmin;
   }
 
   function showModal(item, allItems) {
