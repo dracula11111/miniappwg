@@ -109,6 +109,10 @@ const ENABLE_PRICES = !/^(0|false|no)$/i.test(String(process.env.RELAYER_ENABLE_
 const PRICES_INTERVAL_MS = Math.max(60_000, Math.min(60 * 60 * 1000, Number(process.env.RELAYER_PRICES_INTERVAL_MS || 10 * 60 * 1000) || (10 * 60 * 1000)));
 // When calling payments.getResaleStarGifts, how many listings to request (we only need floor -> 1 is enough).
 const PRICES_RESALE_LIMIT = Math.max(1, Math.min(10, Number(process.env.RELAYER_PRICES_RESALE_LIMIT || 1) || 1));
+// On startup, backfill recent dialogs so missed gifts while relayer was offline are recovered.
+const BACKFILL_ON_START = !/^(0|false|no)$/i.test(String(process.env.RELAYER_BACKFILL_ON_START || "1"));
+const BACKFILL_DIALOGS = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_DIALOGS || process.env.RELAYER_SYNC_DIALOGS || 60) || 60));
+const BACKFILL_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_LIMIT || process.env.RELAYER_SYNC_LIMIT || 50) || 50));
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -358,6 +362,43 @@ function resolveMessageFromId(msg, action = null) {
     peerUserId(msg?.peer_id) ||
     null
   );
+}
+
+function actionClassName(action) {
+  return String(action?.className || action?.constructor?.name || "");
+}
+
+function extractGiftFromAction(action) {
+  if (!action || typeof action !== "object") return null;
+  return (
+    action?.gift ||
+    action?.starGift ||
+    action?.star_gift ||
+    action?.uniqueGift ||
+    action?.savedGift ||
+    action?.giftInfo ||
+    null
+  );
+}
+
+function isGiftLikeAction(action) {
+  if (!action || typeof action !== "object") return false;
+  if (
+    action instanceof Api.MessageActionStarGift ||
+    action instanceof Api.MessageActionStarGiftUnique ||
+    action instanceof Api.MessageActionGiftPremium ||
+    action instanceof Api.MessageActionGiftStars
+  ) return true;
+
+  if (extractGiftFromAction(action)) return true;
+  const cls = actionClassName(action).toLowerCase();
+  return cls.includes("gift");
+}
+
+function shortErrorText(raw, max = 160) {
+  const t = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!t) return "request failed";
+  return t.length > max ? `${t.slice(0, max)}...` : t;
 }
 
 async function promptLine(question) {
@@ -663,15 +704,13 @@ async function run({ mode = "run" } = {}) {
       const action = msg.action || null;
       if (!action) return;
 
-      const isStarGift =
-        (action instanceof Api.MessageActionStarGift) ||
-        (action instanceof Api.MessageActionStarGiftUnique);
-
-      const isOtherGift =
-        (action instanceof Api.MessageActionGiftPremium) ||
-        (action instanceof Api.MessageActionGiftStars);
-
-      if (!isStarGift && !isOtherGift) return;
+      if (!isGiftLikeAction(action)) {
+        if (DEBUG) {
+          const actionCls = actionClassName(action) || "(unknown)";
+          console.log(`[Relayer] skip non-gift action: ${actionCls} msgId=${msg.id} origin=${origin}`);
+        }
+        return;
+      }
 
       const fromId = resolveMessageFromId(msg, action);
       if (!fromId) {
@@ -683,7 +722,18 @@ async function run({ mode = "run" } = {}) {
         console.log(`[Relayer] gift sender resolved: fromId=${fromId} admin=${fromIsAdmin} origin=${origin} msgId=${msg.id}`);
       }
 
-      const gift = action.gift || null;
+      const gift = extractGiftFromAction(action);
+      if (!gift || typeof gift !== "object") {
+        const actionCls = actionClassName(action) || "(unknown)";
+        if (DEBUG) {
+          const keys = Object.keys(action || {}).slice(0, 20).join(", ");
+          console.log(`[Relayer] gift-like action without payload: ${actionCls} msgId=${msg.id} keys=[${keys}]`);
+        }
+        return;
+      }
+
+      const actionCls = actionClassName(action).toLowerCase();
+      const isStarGift = actionCls.includes("stargift") || actionCls.includes("star");
       const title = String(gift?.title || gift?.name || "Gift");
       const slug = String(gift?.slug || "").trim();
       const num = gift?.num ?? gift?.number ?? null;
@@ -805,6 +855,12 @@ async function run({ mode = "run" } = {}) {
         r = await addToMarket({ item: marketItem });
         if (!r.ok) {
           console.log("[Relayer] ❌ market add failed:", r.status, r.text);
+          if (notify) {
+            try {
+              const reason = shortErrorText(r?.json?.error || r?.text || `HTTP ${r?.status || 0}`);
+              await client.sendMessage(fromId, { message: `❌ Market add failed: ${reason}` });
+            } catch {}
+          }
           return;
         }
         console.log(`[Relayer] ✅ Market +1: ${title} #${numberText || "—"} (from ${fromId})`);
@@ -815,6 +871,12 @@ async function run({ mode = "run" } = {}) {
         r = await addToInventory({ userId: fromId, item: inventoryItem, claimId });
         if (!r.ok) {
           console.log("[Relayer] ❌ inventory add failed:", r.status, r.text);
+          if (notify) {
+            try {
+              const reason = shortErrorText(r?.json?.error || r?.text || `HTTP ${r?.status || 0}`);
+              await client.sendMessage(fromId, { message: `❌ Inventory add failed: ${reason}` });
+            } catch {}
+          }
           return;
         }
         console.log(`[Relayer] ✅ Inventory +1: ${title} (to ${fromId})`);
@@ -830,21 +892,25 @@ async function run({ mode = "run" } = {}) {
     }
   }
 
-    // One-shot sync: scan recent dialogs/messages and (re)push gift actions to the server.
-  // Useful to восстановить маркет после бага — без новых переводов (всё идемпотентно по id/claimId).
-  if (mode === "sync") {
-    const dialogsLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_DIALOGS) || 60));
-    const perDialogLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_LIMIT) || 50));
+  async function scanRecentDialogsForGiftActions({
+    dialogsLimit = 60,
+    perDialogLimit = 50,
+    origin = "SYNC",
+    notify = false
+  } = {}) {
+    const dl = Math.max(1, Math.min(200, Number(dialogsLimit) || 60));
+    const ml = Math.max(1, Math.min(200, Number(perDialogLimit) || 50));
+    console.log(`[Relayer][${origin}] 🔎 Scanning dialogs=${dl}, perDialogMessages=${ml}...`);
 
-    console.log(`[Relayer][SYNC] 🔎 Scanning dialogs=${dialogsLimit}, perDialogMessages=${perDialogLimit}...`);
     let scanned = 0;
-    let gifts = 0;
+    let actions = 0;
+    let handled = 0;
 
     let dialogs = [];
     try {
-      dialogs = await client.getDialogs({ limit: dialogsLimit });
+      dialogs = await client.getDialogs({ limit: dl });
     } catch (e) {
-      console.log("[Relayer][SYNC] ❌ getDialogs failed:", e?.message || e);
+      console.log(`[Relayer][${origin}] ❌ getDialogs failed:`, e?.message || e);
       dialogs = [];
     }
 
@@ -852,26 +918,47 @@ async function run({ mode = "run" } = {}) {
       const entity = d?.entity || d;
       let msgs = [];
       try {
-        msgs = await client.getMessages(entity, { limit: perDialogLimit });
+        msgs = await client.getMessages(entity, { limit: ml });
       } catch {
         continue;
       }
       if (!Array.isArray(msgs) || !msgs.length) continue;
 
       scanned += msgs.length;
-
-      // process from старых к новым, чтобы лог был понятнее
       for (const m of msgs.slice().reverse()) {
-        if (m?.action) {
-          gifts++;
-          await handleGiftMessage(m, "SYNC", { notify: false });
-        }
+        if (!m?.action) continue;
+        actions++;
+        const before = processed.size;
+        await handleGiftMessage(m, origin, { notify });
+        if (processed.size > before) handled++;
       }
     }
 
-    console.log(`[Relayer][SYNC] ✅ Done. scanned=${scanned}, gifts=${gifts}`);
+    console.log(`[Relayer][${origin}] ✅ Done. scanned=${scanned}, actions=${actions}, handled=${handled}`);
+    return { scanned, actions, handled };
+  }
+
+  // One-shot sync: scan recent dialogs/messages and (re)push gift actions to the server.
+  // Useful to restore market state without requiring new transfers.
+  if (mode === "sync") {
+    const dialogsLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_DIALOGS) || 60));
+    const perDialogLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_LIMIT) || 50));
+    await scanRecentDialogsForGiftActions({ dialogsLimit, perDialogLimit, origin: "SYNC", notify: false });
     try { await client.disconnect(); } catch {}
     return;
+  }
+
+  if (BACKFILL_ON_START) {
+    try {
+      await scanRecentDialogsForGiftActions({
+        dialogsLimit: BACKFILL_DIALOGS,
+        perDialogLimit: BACKFILL_LIMIT,
+        origin: "BOOT",
+        notify: false
+      });
+    } catch (e) {
+      console.log("[Relayer][BOOT] ❌ backfill failed:", e?.message || e);
+    }
   }
 
 // 1) RAW updates (гifts часто приходят именно так)
