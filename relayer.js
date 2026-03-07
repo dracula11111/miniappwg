@@ -118,6 +118,14 @@ const SAVED_GIFTS_WATCH = !/^(0|false|no)$/i.test(String(process.env.RELAYER_SAV
 // On startup, only prime seen saved-gifts keys by default (no import/replay).
 const SAVED_GIFTS_IMPORT_BOOT = /^(1|true|yes)$/i.test(String(process.env.RELAYER_SAVED_GIFTS_IMPORT_BOOT || "0"));
 const SAVED_GIFTS_POLL_MS = Math.max(5_000, Math.min(10 * 60 * 1000, Number(process.env.RELAYER_SAVED_GIFTS_POLL_MS || 30_000) || 30_000));
+const SAVED_GIFTS_ERROR_BACKOFF_MAX_MS = Math.max(
+  SAVED_GIFTS_POLL_MS,
+  Math.min(60 * 60 * 1000, Number(process.env.RELAYER_SAVED_GIFTS_ERROR_BACKOFF_MAX_MS || 15 * 60 * 1000) || 15 * 60 * 1000)
+);
+const SAVED_GIFTS_AUTH_DUP_PAUSE_MS = Math.max(
+  60_000,
+  Math.min(6 * 60 * 60 * 1000, Number(process.env.RELAYER_SAVED_GIFTS_AUTH_DUP_PAUSE_MS || 20 * 60 * 1000) || 20 * 60 * 1000)
+);
 const SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_SAVED_GIFTS_PAGE_LIMIT || 100) || 100));
 const SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(20, Number(process.env.RELAYER_SAVED_GIFTS_MAX_PAGES || 5) || 5));
 // Optional one-shot cleanup flag for polluted market state.
@@ -1078,6 +1086,10 @@ async function run({ mode = "run" } = {}) {
     let fetched = 0;
     let handled = 0;
     let offset = "";
+    let failed = false;
+    let authDuplicated = false;
+    let lastError = "";
+    const currentKeys = new Set();
 
     for (let page = 0; page < SAVED_GIFTS_MAX_PAGES; page++) {
       let res = null;
@@ -1088,7 +1100,10 @@ async function run({ mode = "run" } = {}) {
           limit: SAVED_GIFTS_PAGE_LIMIT
         }));
       } catch (e) {
-        console.log(`[Relayer][${origin}] ❌ getSavedStarGifts failed:`, e?.message || e);
+        failed = true;
+        lastError = String(e?.message || e || "");
+        authDuplicated = /AUTH_KEY_DUPLICATED/i.test(lastError);
+        console.log(`[Relayer][${origin}] ❌ getSavedStarGifts failed:`, lastError || e);
         break;
       }
 
@@ -1100,6 +1115,7 @@ async function run({ mode = "run" } = {}) {
         fetched++;
 
         const stableKey = savedGiftStableKey(g, fetched);
+        currentKeys.add(stableKey);
         if (seenSavedGiftKeys.has(stableKey)) continue;
         seenSavedGiftKeys.add(stableKey);
 
@@ -1116,10 +1132,23 @@ async function run({ mode = "run" } = {}) {
       offset = nextOffset;
     }
 
-    if (DEBUG || handled > 0 || !process) {
-      console.log(`[Relayer][${origin}] saved gifts fetched=${fetched} handled=${handled} seen=${seenSavedGiftKeys.size} mode=${process ? "process" : "prime"}`);
+    if (DEBUG || handled > 0 || !process || failed) {
+      const statusTail = failed
+        ? ` status=error${authDuplicated ? " auth_dup=1" : ""}`
+        : "";
+      console.log(
+        `[Relayer][${origin}] saved gifts fetched=${fetched} current=${currentKeys.size} handled=${handled} seenKeysTotal=${seenSavedGiftKeys.size} mode=${process ? "process" : "prime"}${statusTail}`
+      );
     }
-    return { fetched, handled };
+    return {
+      fetched,
+      current: currentKeys.size,
+      handled,
+      failed,
+      authDuplicated,
+      error: lastError,
+      seenTotal: seenSavedGiftKeys.size
+    };
   }
 
   async function scanRecentDialogsForGiftActions({
@@ -1204,13 +1233,76 @@ async function run({ mode = "run" } = {}) {
   }
 
   let savedGiftsTimer = null;
+  let savedPollStopped = false;
+  let savedPollInFlight = false;
+  let savedPollFailures = 0;
+  let savedPollPauseUntil = 0;
+
+  function clearSavedGiftsTimer() {
+    if (!savedGiftsTimer) return;
+    try { clearTimeout(savedGiftsTimer); } catch {}
+    savedGiftsTimer = null;
+  }
+
+  function scheduleSavedGiftsPoll(delayMs) {
+    if (!SAVED_GIFTS_WATCH || savedPollStopped) return;
+    clearSavedGiftsTimer();
+    const d = Math.max(1_000, Number(delayMs) || SAVED_GIFTS_POLL_MS);
+    savedGiftsTimer = setTimeout(() => {
+      runSavedGiftsPoll("SAVED_POLL").catch((e) => {
+        console.log("[Relayer][SAVED_POLL] ❌ poll scheduler error:", e?.message || e);
+      });
+    }, d);
+  }
+
+  async function runSavedGiftsPoll(origin = "SAVED_POLL") {
+    if (!SAVED_GIFTS_WATCH || savedPollStopped) return;
+    if (savedPollInFlight) return;
+
+    const now = Date.now();
+    if (savedPollPauseUntil > now) {
+      scheduleSavedGiftsPoll(savedPollPauseUntil - now);
+      return;
+    }
+
+    savedPollInFlight = true;
+    try {
+      const snap = await processSavedGiftsSnapshot(origin, { notify: false });
+
+      if (snap?.authDuplicated) {
+        savedPollFailures = Math.max(savedPollFailures + 1, 1);
+        savedPollPauseUntil = Date.now() + SAVED_GIFTS_AUTH_DUP_PAUSE_MS;
+        const waitSec = Math.max(1, Math.round(SAVED_GIFTS_AUTH_DUP_PAUSE_MS / 1000));
+        console.log(`[Relayer][SAVED_POLL] ⚠️ AUTH_KEY_DUPLICATED: polling paused for ${waitSec}s`);
+        scheduleSavedGiftsPoll(SAVED_GIFTS_AUTH_DUP_PAUSE_MS);
+        return;
+      }
+
+      if (snap?.failed) {
+        savedPollFailures = Math.max(savedPollFailures + 1, 1);
+        const exp = Math.min(6, savedPollFailures - 1);
+        const delay = Math.min(SAVED_GIFTS_ERROR_BACKOFF_MAX_MS, SAVED_GIFTS_POLL_MS * Math.pow(2, Math.max(0, exp)));
+        scheduleSavedGiftsPoll(delay);
+        return;
+      }
+
+      savedPollFailures = 0;
+      savedPollPauseUntil = 0;
+      scheduleSavedGiftsPoll(SAVED_GIFTS_POLL_MS);
+    } catch (e) {
+      savedPollFailures = Math.max(savedPollFailures + 1, 1);
+      const exp = Math.min(6, savedPollFailures - 1);
+      const delay = Math.min(SAVED_GIFTS_ERROR_BACKOFF_MAX_MS, SAVED_GIFTS_POLL_MS * Math.pow(2, Math.max(0, exp)));
+      console.log("[Relayer][SAVED_POLL] ❌ poll error:", e?.message || e);
+      scheduleSavedGiftsPoll(delay);
+    } finally {
+      savedPollInFlight = false;
+    }
+  }
+
   if (SAVED_GIFTS_WATCH) {
     console.log(`[Relayer][SAVED] 👀 watching saved gifts (poll=${Math.round(SAVED_GIFTS_POLL_MS / 1000)}s, pageLimit=${SAVED_GIFTS_PAGE_LIMIT}, pages=${SAVED_GIFTS_MAX_PAGES})`);
-    savedGiftsTimer = setInterval(() => {
-      processSavedGiftsSnapshot("SAVED_POLL", { notify: false }).catch((e) => {
-        console.log("[Relayer][SAVED_POLL] ❌ poll error:", e?.message || e);
-      });
-    }, SAVED_GIFTS_POLL_MS);
+    scheduleSavedGiftsPoll(SAVED_GIFTS_POLL_MS);
   }
 
 // 1) RAW updates (гifts часто приходят именно так)
@@ -1219,7 +1311,7 @@ async function run({ mode = "run" } = {}) {
 
     if (SAVED_GIFTS_WATCH && update instanceof Api.UpdateSavedGifs) {
       if (DEBUG) console.log("[Relayer][RAW] UpdateSavedGifs received");
-      await processSavedGiftsSnapshot("SAVED_UPDATE", { notify: false });
+      await runSavedGiftsPoll("SAVED_UPDATE");
       return;
     }
 
@@ -1270,7 +1362,8 @@ async function run({ mode = "run" } = {}) {
 process.on("SIGINT", async () => {
   console.log("[Relayer] SIGINT -> disconnect");
   try { pricesLoop?.stop?.(); } catch {}
-  try { if (savedGiftsTimer) clearInterval(savedGiftsTimer); } catch {}
+  savedPollStopped = true;
+  clearSavedGiftsTimer();
   try { await client.disconnect(); } catch {}
   process.exit(0);
 });
@@ -1278,7 +1371,8 @@ process.on("SIGINT", async () => {
 process.on("SIGTERM", async () => {
   console.log("[Relayer] SIGTERM -> disconnect");
   try { pricesLoop?.stop?.(); } catch {}
-  try { if (savedGiftsTimer) clearInterval(savedGiftsTimer); } catch {}
+  savedPollStopped = true;
+  clearSavedGiftsTimer();
   try { await client.disconnect(); } catch {}
   process.exit(0);
 });

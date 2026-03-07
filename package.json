@@ -8,6 +8,8 @@
       "dev:server": "node --watch server.js",
       "dev:client": "vite",
 
+      "heroku-build": "echo skip-heroku-build",
+      "heroku-postbuild": "echo skip-heroku-postbuild",
       "build": "vite build",
       "preview": "vite preview"
     
