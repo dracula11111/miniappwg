@@ -432,11 +432,25 @@ class Bonus5050 {
     this._setGlobalBackHandler();
     this._lockScroll();
     const ui = this._render();
-    // 50/50 winner side
-    const pickGood = Math.random() < 0.5;
+    const forced = this.options?.outcome || null;
+    const forcedGoodX = Number(forced?.goodX);
+    const forcedBadX = Number(forced?.badX);
+    const forcedPickGood = (typeof forced?.pickGood === 'boolean') ? forced.pickGood : null;
+    const forcedMultiplier = Number(forced?.multiplier);
 
-    const goodX = this.GOOD_XS[Math.floor(Math.random() * this.GOOD_XS.length)];
-    const badX  = this.BAD_XS[Math.floor(Math.random() * this.BAD_XS.length)];
+    const goodX = Number.isFinite(forcedGoodX)
+      ? forcedGoodX
+      : this.GOOD_XS[Math.floor(Math.random() * this.GOOD_XS.length)];
+    const badX = Number.isFinite(forcedBadX)
+      ? forcedBadX
+      : this.BAD_XS[Math.floor(Math.random() * this.BAD_XS.length)];
+
+    let pickGood = (forcedPickGood !== null) ? forcedPickGood : (Math.random() < 0.5);
+    if (Number.isFinite(forcedMultiplier)) {
+      if (forcedMultiplier === goodX) pickGood = true;
+      else if (forcedMultiplier === badX) pickGood = false;
+    }
+
     const chosenX = pickGood ? goodX : badX;
 
     // chosen glow (optional)

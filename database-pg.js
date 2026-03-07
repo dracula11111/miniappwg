@@ -22,6 +22,20 @@ async function query(text, params) {
   }
 }
 
+function normalizeOptionalText(value, max = 256) {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  return raw.length > max ? raw.slice(0, max) : raw;
+}
+
+function normalizeUsername(value) {
+  const base = normalizeOptionalText(value, 64);
+  if (!base) return null;
+  const cleaned = base.replace(/^@+/, "");
+  return cleaned || null;
+}
+
 async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
   const id = typeof telegramId === "bigint" ? telegramId : BigInt(telegramId);
   await client.query(
@@ -52,6 +66,7 @@ export async function initDatabase() {
 
     CREATE TABLE IF NOT EXISTS balances (
       telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       ton_balance NUMERIC(20,8) DEFAULT 0,
       stars_balance BIGINT DEFAULT 0,
       updated_at BIGINT NOT NULL
@@ -60,6 +75,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS transactions (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       type TEXT NOT NULL,
       currency TEXT NOT NULL CHECK (currency IN ('ton','stars')),
       amount NUMERIC(20,8) NOT NULL,
@@ -77,6 +93,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS bets (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       round_id TEXT NOT NULL,
       bet_data JSONB NOT NULL,
       total_amount NUMERIC(20,8) NOT NULL,
@@ -96,6 +113,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS inventory_claims (
       claim_id TEXT PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       created_at BIGINT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_inventory_claims_user ON inventory_claims(telegram_id);
@@ -103,6 +121,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS inventory_items (
       id BIGSERIAL PRIMARY KEY,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       instance_id TEXT UNIQUE,
       item_json JSONB NOT NULL,
       created_at BIGINT NOT NULL
@@ -131,6 +150,7 @@ export async function initDatabase() {
     CREATE TABLE IF NOT EXISTS promo_redemptions (
       code_hash TEXT NOT NULL REFERENCES promo_codes(code_hash) ON DELETE CASCADE,
       telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
       redeemed_at BIGINT NOT NULL,
       PRIMARY KEY (code_hash, telegram_id)
     );
@@ -140,6 +160,12 @@ export async function initDatabase() {
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban SMALLINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE balances ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE bets ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE inventory_claims ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE promo_redemptions ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
   await query(`ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS reward_ton NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`
     UPDATE users AS u
@@ -147,6 +173,48 @@ export async function initDatabase() {
         stars_balance = COALESCE(b.stars_balance, 0)
     FROM balances AS b
     WHERE b.telegram_id = u.telegram_id
+  `);
+  await query(`
+    UPDATE balances AS b
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE b.telegram_id = u.telegram_id
+      AND (b.telegram_username IS NULL OR b.telegram_username = '')
+  `);
+  await query(`
+    UPDATE transactions AS t
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE t.telegram_id = u.telegram_id
+      AND (t.telegram_username IS NULL OR t.telegram_username = '')
+  `);
+  await query(`
+    UPDATE bets AS b
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE b.telegram_id = u.telegram_id
+      AND (b.telegram_username IS NULL OR b.telegram_username = '')
+  `);
+  await query(`
+    UPDATE inventory_claims AS c
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE c.telegram_id = u.telegram_id
+      AND (c.telegram_username IS NULL OR c.telegram_username = '')
+  `);
+  await query(`
+    UPDATE inventory_items AS i
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE i.telegram_id = u.telegram_id
+      AND (i.telegram_username IS NULL OR i.telegram_username = '')
+  `);
+  await query(`
+    UPDATE promo_redemptions AS r
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE r.telegram_id = u.telegram_id
+      AND (r.telegram_username IS NULL OR r.telegram_username = '')
   `);
   console.log("[DB] ✅ Postgres schema ready");
 }
@@ -193,26 +261,32 @@ export async function takeMarketItemById(id) {
 export async function saveUser(userData) {
   const now = Math.floor(Date.now() / 1000);
   const id = BigInt(userData.id);
+  const hasPremiumFlag = Object.prototype.hasOwnProperty.call(userData || {}, "is_premium");
+  const premium = hasPremiumFlag ? !!userData.is_premium : null;
+  const username = normalizeUsername(userData?.username);
+  const firstName = normalizeOptionalText(userData?.first_name, 128);
+  const lastName = normalizeOptionalText(userData?.last_name, 128);
+  const languageCode = normalizeOptionalText(userData?.language_code, 16);
 
   await query(
     `
     INSERT INTO users (telegram_id, username, first_name, last_name, language_code, is_premium, created_at, last_seen)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    VALUES ($1,$2,$3,$4,$5,COALESCE($6,false),$7,$8)
     ON CONFLICT (telegram_id) DO UPDATE SET
-      username = EXCLUDED.username,
-      first_name = EXCLUDED.first_name,
-      last_name = EXCLUDED.last_name,
-      language_code = EXCLUDED.language_code,
-      is_premium = EXCLUDED.is_premium,
-      last_seen = EXCLUDED.last_seen
+      username = COALESCE($2, users.username),
+      first_name = COALESCE($3, users.first_name),
+      last_name = COALESCE($4, users.last_name),
+      language_code = COALESCE($5, users.language_code),
+      is_premium = COALESCE($6, users.is_premium),
+      last_seen = $8
     `,
     [
       id,
-      userData.username || null,
-      userData.first_name || null,
-      userData.last_name || null,
-      userData.language_code || null,
-      !!userData.is_premium,
+      username,
+      firstName,
+      lastName,
+      languageCode,
+      premium,
       now,
       now
     ]
@@ -220,9 +294,10 @@ export async function saveUser(userData) {
 
   await query(
     `
-    INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-    VALUES ($1, 0, 0, $2)
-    ON CONFLICT (telegram_id) DO NOTHING
+    INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+    VALUES ($1, (SELECT username FROM users WHERE telegram_id = $1), 0, 0, $2)
+    ON CONFLICT (telegram_id) DO UPDATE SET
+      telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)
     `,
     [id, now]
   );
@@ -266,9 +341,10 @@ export async function getUserBalance(telegramId) {
   // 2) гарантируем, что balance существует
   await query(
     `
-    INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-    VALUES ($1,0,0,$2)
-    ON CONFLICT (telegram_id) DO NOTHING
+    INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+    VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+    ON CONFLICT (telegram_id) DO UPDATE SET
+      telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)
     `,
     [id, now]
   );
@@ -300,9 +376,10 @@ export async function updateBalance(telegramId, currency, amount, type, descript
       [id, now]
     );
     await client.query(
-      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-       VALUES ($1,0,0,$2)
-       ON CONFLICT (telegram_id) DO NOTHING`,
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
       [id, now]
     );
 
@@ -345,9 +422,9 @@ export async function updateBalance(telegramId, currency, amount, type, descript
     await client.query(
       `
       INSERT INTO transactions
-        (telegram_id, type, currency, amount, balance_before, balance_after, description, tx_hash, invoice_id, created_at)
+        (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, tx_hash, invoice_id, created_at)
       VALUES
-        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8,$9,$10)
       `,
       [
         id,
@@ -383,8 +460,8 @@ export async function createBet(telegramId, roundId, betData, totalAmount, curre
 
   const r = await query(
     `
-    INSERT INTO bets (telegram_id, round_id, bet_data, total_amount, currency, result, win_amount, multiplier, created_at)
-    VALUES ($1,$2,$3,$4,$5,'pending',0,0,$6)
+    INSERT INTO bets (telegram_id, telegram_username, round_id, bet_data, total_amount, currency, result, win_amount, multiplier, created_at)
+    VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,'pending',0,0,$6)
     RETURNING id
     `,
     [id, String(roundId), betData, Number(totalAmount || 0), cur, now]
@@ -434,7 +511,7 @@ export async function getTransactionHistory(telegramId, limit = 50) {
 
   const r = await query(
     `
-    SELECT id, telegram_id, type, currency, amount, balance_before, balance_after,
+    SELECT id, telegram_id, telegram_username, type, currency, amount, balance_before, balance_after,
            description, tx_hash, invoice_id, created_at
     FROM transactions
     WHERE telegram_id = $1
@@ -513,8 +590,8 @@ export async function addInventoryItems(telegramId, items, claimId = null) {
     // Claim idempotency (prevents double add on retries)
     if (claimId) {
       const cr = await client.query(
-        `INSERT INTO inventory_claims (claim_id, telegram_id, created_at)
-         VALUES ($1,$2,$3)
+        `INSERT INTO inventory_claims (claim_id, telegram_id, telegram_username, created_at)
+         VALUES ($1,$2,(SELECT username FROM users WHERE telegram_id = $2),$3)
          ON CONFLICT DO NOTHING
          RETURNING claim_id`,
         [String(claimId), id, nowSec]
@@ -537,8 +614,8 @@ export async function addInventoryItems(telegramId, items, claimId = null) {
       const enriched = { ...it, type: it?.type || "nft", instanceId, acquiredAt: it?.acquiredAt || nowMs };
 
       await client.query(
-        `INSERT INTO inventory_items (telegram_id, instance_id, item_json, created_at)
-         VALUES ($1,$2,$3,$4)
+        `INSERT INTO inventory_items (telegram_id, telegram_username, instance_id, item_json, created_at)
+         VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4)
          ON CONFLICT (instance_id) DO NOTHING`,
         [id, instanceId, enriched, nowSec]
       );
@@ -578,9 +655,10 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
       [id, now]
     );
     await client.query(
-      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-       VALUES ($1,0,0,$2)
-       ON CONFLICT (telegram_id) DO NOTHING`,
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
       [id, now]
     );
 
@@ -639,8 +717,8 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
       // Record transaction
       await client.query(
         `INSERT INTO transactions
-         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8)`,
         [
           id,
           "inventory_sell",
@@ -829,9 +907,10 @@ export async function redeemPromocode(telegramId, code) {
       [id, now]
     );
     await client.query(
-      `INSERT INTO balances (telegram_id, ton_balance, stars_balance, updated_at)
-       VALUES ($1,0,0,$2)
-       ON CONFLICT (telegram_id) DO NOTHING`,
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
       [id, now]
     );
 
@@ -858,8 +937,8 @@ export async function redeemPromocode(telegramId, code) {
     // Per-user anti-dup
     try {
       await client.query(
-        `INSERT INTO promo_redemptions (code_hash, telegram_id, redeemed_at)
-         VALUES ($1,$2,$3)`,
+        `INSERT INTO promo_redemptions (code_hash, telegram_id, telegram_username, redeemed_at)
+         VALUES ($1,$2,(SELECT username FROM users WHERE telegram_id = $2),$3)`,
         [h, id, now]
       );
     } catch {
@@ -892,8 +971,8 @@ export async function redeemPromocode(telegramId, code) {
     if (reward > 0) {
       await client.query(
         `INSERT INTO transactions
-         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8)`,
         [id, "promocode", "stars", reward, before, after, "Promocode redeem", now]
       );
     }
@@ -901,8 +980,8 @@ export async function redeemPromocode(telegramId, code) {
     if (rewardTon > 0) {
       await client.query(
         `INSERT INTO transactions
-         (telegram_id, type, currency, amount, balance_before, balance_after, description, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, created_at)
+         VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8)`,
         [id, "promocode", "ton", rewardTon, beforeTon, afterTon, "Promocode redeem", now]
       );
     }

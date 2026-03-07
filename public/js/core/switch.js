@@ -405,7 +405,9 @@
   // ================== ROUND LOCK (ACTIVE BET) ==================
   function isCurrencyChangeLocked() {
     try {
-      return !!(window.WheelGame && typeof window.WheelGame.hasBets === 'function' && window.WheelGame.hasBets());
+      const wheelLocked = !!(window.WheelGame && typeof window.WheelGame.hasBets === 'function' && window.WheelGame.hasBets());
+      const crashLocked = !!(window.CrashGame && typeof window.CrashGame.hasActiveBet === 'function' && window.CrashGame.hasActiveBet());
+      return wheelLocked || crashLocked;
     } catch (_) {
       return false;
     }

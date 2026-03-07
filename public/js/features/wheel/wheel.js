@@ -145,6 +145,7 @@ let wheelPrevPhase = null;
 let wheelPrevBonusId = null;
 let wheelBonusOverlayActive = false;  // 🔥 отслеживает открыт ли оверлей
 window.__bonusOverlayOpenedFor = null; // 🔥 ID бонуса для которого открыт оверлей
+window.__wheelPayoutMode = window.__wheelPayoutMode || 'client';
 
 
 function connectWheelWS() {
@@ -383,6 +384,7 @@ function applyWheelServerState(state) {
   const prevBonusId = wheelServerState?.bonus?.id;
 
   wheelServerState = state;
+  window.__wheelPayoutMode = state?.payoutMode || 'client';
 
   // classes for CSS
   document.body.classList.toggle('is-betting', state.phase === 'betting');
@@ -475,9 +477,10 @@ function applyWheelServerState(state) {
     startSpinFromServer(state.spin);
   }
 
-  // Settlement: pay ONLY once per round (after bonus is finished, if bonus)
+  // Settlement (legacy client mode only): pay once per round.
+  const isServerPayoutMode = state?.payoutMode === 'server';
   const resultType = normSeg(state.spin?.type);
-  if (state.phase === 'result' && resultType) {
+  if (!isServerPayoutMode && state.phase === 'result' && resultType) {
     const settleKey = `${state.roundId}:${resultType}:${currentCurrency}`;
     const isBonus = isWheelBonusType(resultType);
 
@@ -2036,143 +2039,6 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
 
 
 
-function getMultiplier(type) {
-  const multipliers = {
-    '1.1x': 1.1,
-    '1.5x': 1.5,
-    '5x': 5,
-    '11x': 11,
-    '50&50': 2,
-    'Loot Rush': 5,
-    'Wild Time': 10
-  };
-  return multipliers[type] || 1;
-}
-
-
-
-
-  
-function showWinNotification(winAmount) {
-  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
-  if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
-    console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
-    return;
-  }
-
-  // Fallback (если BonusManager не подключён)
-  if (!window.BonusManager) {
-    const wheelPage = document.getElementById('wheelPage');
-    const isWheelActive = wheelPage?.classList.contains('page-active');
-    if (!isWheelActive) {
-      console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
-      return;
-    }
-  }
-
-  const existing = document.getElementById('win-toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'win-toast';
-
-  const formattedAmount = currentCurrency === 'stars'
-    ? Math.round(winAmount)
-    : winAmount.toFixed(2);
-
-  const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
-
-  toast.innerHTML = `
-    <span>+${formattedAmount}</span>
-    <img src="${iconSrc}" style="width: 22px; height: 22px;" />
-  `;
-
-  (document.getElementById('wheelPage') || document.body).appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.animation = 'winSlideUp 0.4s ease forwards';
-    setTimeout(() => toast.remove(), 400);
-  }, 2500);
-}
-
-function showInsufficientBalanceNotification() {
-  const wheelPage = document.getElementById('wheelPage');
-  const isWheelActive = wheelPage?.classList.contains('page-active');
-  
-  if (!isWheelActive) {
-    console.log('[Wheel] ⚠️ Insufficient balance notification skipped - not on wheel page');
-    return;
-  }
-  
-  const existing = document.getElementById('insufficient-balance-toast');
-  if (existing) existing.remove();
-  
-  const toast = document.createElement('div');
-  toast.id = 'insufficient-balance-toast';
-  
-  // 🔥 FIXED: Lowered position for fullscreen mode
-  toast.style.cssText = `
-    position: fixed;
-    top: 120px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-80px);
-    z-index: 10000;
-    background: linear-gradient(135deg, rgba(127, 29, 29, 0.15), rgba(153, 27, 27, 0.1));
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(185, 28, 28, 0.2);
-    border-radius: 18px;
-    padding: 14px 24px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #ef4444;
-    animation: insufficientJellyIn 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-    pointer-events: none;
-  `;
-  toast.textContent = 'Insufficient balance';
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'insufficientJellyOut 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045) forwards';
-    setTimeout(() => toast.remove(), 500);
-  }, 2000);
-}
-
-
-
-// (removed duplicate showBonusNotification - superseded by clean version below)
-function showTestModeNotification() {
-  const existing = document.getElementById('test-mode-toast');
-  if (existing) return;
-  
-  const toast = document.createElement('div');
-  toast.id = 'test-mode-toast';
-  toast.style.cssText = `
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.1));
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 16px;
-    padding: 12px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #fbbf24;
-    animation: testModeSlideIn 0.5s ease forwards;
-    pointer-events: none;
-  `;
-  toast.textContent = '🧪 Test Mode: Unlimited Balance';
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.style.animation = 'testModeSlideIn 0.3s ease reverse forwards';
-    setTimeout(() => toast.remove(), 300);
-  }, 5000);
-}
 
 /* ===== Countdown ===== */
 let cInt = null;
@@ -2470,22 +2336,22 @@ function getBonusElapsedMs(bonus, now = Date.now()) {
 
 function getBonusRemainingMs(bonus, now = Date.now()) {
   if (!bonus) return null;
-  
-  // 🔥 Используем remainingMs с сервера если есть
-  if (Number.isFinite(bonus.remainingMs)) {
-    return Math.max(0, bonus.remainingMs);
-  }
-  
-  // Фолбэк: вычисляем сами
+
+  // Prefer absolute server timestamps to avoid frozen countdown when
+  // remainingMs is a stale snapshot.
   if (Number.isFinite(bonus.endsAt)) {
     return Math.max(0, bonus.endsAt - now);
   }
-  
+
   if (Number.isFinite(bonus.startedAt) && Number.isFinite(bonus.durationMs)) {
     const elapsed = now - bonus.startedAt;
     return Math.max(0, bonus.durationMs - elapsed);
   }
-  
+
+  if (Number.isFinite(bonus.remainingMs)) {
+    return Math.max(0, bonus.remainingMs);
+  }
+
   return null;
 }
 
@@ -2594,7 +2460,8 @@ function showWheelBonusBar(bonus) {
   const type = normSeg(bonus.type);
   const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
   if (icon) icon.src = iconSrc;
-  const remaining = formatBonusRemaining(getBonusRemainingMs(bonus));
+  const liveBonusNow = wheelServerState?.bonus || bonus;
+  const remaining = formatBonusRemaining(getBonusRemainingMs(liveBonusNow));
   if (sub) sub.textContent = remaining ? `Bonus: ${type} • ${remaining}` : `Bonus: ${type}`;
 
   // bind click once per bonus id
@@ -2625,7 +2492,8 @@ function showWheelBonusBar(bonus) {
       __wheelBonusBarTimer = null;
       return;
     }
-    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(bonus));
+    const liveBonus = wheelServerState?.bonus || bonus;
+    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(liveBonus));
     if (sub && nextRemaining) sub.textContent = `Bonus: ${type} • ${nextRemaining}`;
   }, 1000);
 }
@@ -2692,8 +2560,7 @@ function getMyBetAmountFromServer(players, seg) {
 async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const t = normSeg(type);
   
-  // 🔥 ИСПРАВЛЕНИЕ: используем remainingMs с сервера если есть
-  const remainingMs = bonusState?.remainingMs ?? getBonusRemainingMs(bonusState);
+  const remainingMs = getBonusRemainingMs(bonusState);
   const remainingSec = Number.isFinite(remainingMs) ? Math.max(1, Math.ceil(remainingMs / 1000)) : null;
   
   // 🔥 КРИТИЧНО: передаём hasBet для корректной работы бонусов
@@ -2702,7 +2569,8 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
     bonusId: bonusState?.id ?? null,
     hasBet,
     durationSec: (bonusState?.durationMs ? Math.ceil(bonusState.durationMs / 1000) : 12),
-    remainingSec: remainingSec || null
+    remainingSec: remainingSec || null,
+    outcome: bonusState?.outcome || null
   };
 
   // We don't force-lock UI here — server already pauses the round
@@ -3630,6 +3498,7 @@ function getMultiplier(type) {
       hasBet,
       durationSec,
       remainingSec: opts?.remainingSec || null,
+      outcome: opts?.outcome || null,
 
       onComplete: (result) => {
         console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);

@@ -763,6 +763,12 @@ const WHEEL_BONUS_TIME_BY_TYPE = {
   'Wild Time': 15000
 };
 const WHEEL_BONUS_FALLBACK_MS = 15000;
+const WHEEL_SEGMENT_MULTIPLIERS = Object.freeze({
+  '1.1x': 1.1,
+  '1.5x': 1.5,
+  '5x': 5,
+  '11x': 11
+});
 
 
 const WHEEL_ALLOWED = new Set(WHEEL_ORDER);
@@ -774,7 +780,9 @@ const wheelGame = {
   players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
   history: [],
   spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
-  bonus: null,               // { id,type,startedAt,durationMs,endsAt }
+  bonus: null,               // { id,type,startedAt,durationMs,endsAt,outcome }
+  settlement: null,          // { roundId,resultType,multiplier,winnersCount,paidTon,paidStars,bonusOutcome }
+  settlementPromise: null,
   phaseTimeout: null
 };
 
@@ -783,6 +791,183 @@ function normWheelSeg(seg) {
   const s = String(seg).trim();
   if (s === '50/50' || s === '50-50') return '50&50';
   return s;
+}
+
+function roundWheelAmount(amount, currency) {
+  const n = Number(amount || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (currency === 'stars') return Math.max(0, Math.round(n));
+  return Math.max(0, Math.round(n * 100) / 100);
+}
+
+function wheelPickBonusOutcome(type) {
+  const t = normWheelSeg(type);
+
+  if (t === '50&50') {
+    const goodPool = [5, 6, 7, 8, 9, 10, 12, 15];
+    const badPool = [1.5, 2, 3, 4];
+    const goodX = goodPool[Math.floor(Math.random() * goodPool.length)];
+    const badX = badPool[Math.floor(Math.random() * badPool.length)];
+    const pickGood = Math.random() < 0.5;
+    return {
+      type: t,
+      pickGood,
+      goodX,
+      badX,
+      multiplier: pickGood ? goodX : badX
+    };
+  }
+
+  if (t === 'Loot Rush') {
+    const pool = [];
+    const pushN = (v, n) => { for (let i = 0; i < n; i++) pool.push(v); };
+    pushN(1.1, 8);
+    pushN(1.5, 6);
+    pushN(2, 4);
+    pushN(4, 3);
+    pushN(8, 2);
+    pushN(25, 1);
+    const pickedIndex = Math.floor(Math.random() * pool.length);
+    const multiplier = Number(pool[pickedIndex] || 1.1);
+    return {
+      type: t,
+      pickedIndex,
+      multiplier
+    };
+  }
+
+  if (t === 'Wild Time') {
+    const pattern = [2, 6, 14, 6, 2, 6, 14, 22];
+    const sectors = pattern.concat(pattern, pattern); // 24
+    const off = 2;
+    const n = sectors.length;
+    const mod = (x, m) => ((x % m) + m) % m;
+    const valid = [];
+
+    for (let i = 0; i < n; i++) {
+      const left = sectors[mod(i - off, n)];
+      const center = sectors[i];
+      const right = sectors[mod(i + off, n)];
+      if (!(left === center && center === right)) valid.push(i);
+    }
+
+    const centerIdx = valid.length
+      ? valid[Math.floor(Math.random() * valid.length)]
+      : Math.floor(Math.random() * n);
+
+    const tri = {
+      left: sectors[mod(centerIdx - off, n)],
+      center: sectors[centerIdx],
+      right: sectors[mod(centerIdx + off, n)]
+    };
+
+    const choiceIndex = Math.floor(Math.random() * 3);
+    const triArr = [tri.left, tri.center, tri.right];
+
+    return {
+      type: t,
+      centerIdx,
+      choiceIndex,
+      tri,
+      multiplier: Number(triArr[choiceIndex] || tri.center)
+    };
+  }
+
+  return { type: t, multiplier: null };
+}
+
+function wheelGetResultType() {
+  return normWheelSeg(wheelGame.spin?.type || null);
+}
+
+function wheelResolveWinMultiplier(resultType) {
+  const t = normWheelSeg(resultType);
+  if (!t) return 0;
+
+  if (Object.prototype.hasOwnProperty.call(WHEEL_SEGMENT_MULTIPLIERS, t)) {
+    return Number(WHEEL_SEGMENT_MULTIPLIERS[t]);
+  }
+
+  if (WHEEL_BONUS_TYPES.has(t)) {
+    const m = Number(
+      wheelGame.bonus?.outcome?.multiplier ??
+      wheelGame.settlement?.bonusOutcome?.multiplier
+    );
+    if (Number.isFinite(m) && m > 0) return m;
+    const fallback = { '50&50': 2, 'Loot Rush': 5, 'Wild Time': 10 };
+    if (Number.isFinite(fallback[t]) && fallback[t] > 0) return fallback[t];
+  }
+
+  return 0;
+}
+
+async function wheelSettleRound(roundId = wheelGame.roundId) {
+  if (wheelGame.settlement && wheelGame.settlement.roundId === roundId) {
+    return wheelGame.settlement;
+  }
+  if (wheelGame.settlementPromise) {
+    return wheelGame.settlementPromise;
+  }
+
+  wheelGame.settlementPromise = (async () => {
+    const resultType = wheelGetResultType();
+    const multiplier = wheelResolveWinMultiplier(resultType);
+    const settlement = {
+      roundId,
+      resultType,
+      multiplier,
+      bonusOutcome: wheelGame.bonus?.outcome || null,
+      winnersCount: 0,
+      paidTon: 0,
+      paidStars: 0
+    };
+
+    if (!resultType || !Number.isFinite(multiplier) || multiplier <= 0) {
+      wheelGame.settlement = settlement;
+      return settlement;
+    }
+
+    for (const p of wheelGame.players.values()) {
+      const userId = String(p.userId || '').trim();
+      if (!userId) continue;
+
+      const currency = (String(p.currency || 'ton').toLowerCase() === 'stars') ? 'stars' : 'ton';
+      const betAmount = Number(p.segments.get(resultType) || 0);
+      if (!Number.isFinite(betAmount) || betAmount <= 0) continue;
+
+      const winAmount = roundWheelAmount(betAmount * multiplier, currency);
+      if (!Number.isFinite(winAmount) || winAmount <= 0) continue;
+
+      try {
+        await db.updateBalance(
+          userId,
+          currency,
+          winAmount,
+          'wheel_win',
+          `Wheel win (round ${roundId})`,
+          { roundId, result: resultType, multiplier }
+        );
+        broadcastBalanceUpdate(userId);
+
+        settlement.winnersCount += 1;
+        if (currency === 'stars') settlement.paidStars += winAmount;
+        else settlement.paidTon += winAmount;
+      } catch (err) {
+        console.error(`[Wheel] Failed to settle win for user ${userId} in round ${roundId}:`, err);
+      }
+    }
+
+    settlement.paidTon = roundWheelAmount(settlement.paidTon, 'ton');
+    settlement.paidStars = roundWheelAmount(settlement.paidStars, 'stars');
+    wheelGame.settlement = settlement;
+    return settlement;
+  })();
+
+  try {
+    return await wheelGame.settlementPromise;
+  } finally {
+    wheelGame.settlementPromise = null;
+  }
 }
 
 function buildWheelPlayersArray() {
@@ -818,22 +1003,26 @@ function buildWheelState(now = Date.now()) {
     ? Math.max(0, (wheelGame.phaseStart + WHEEL_BETTING_TIME) - now)
     : null;
 
-  // 🔥 КРИТИЧНО: всегда передаём актуальное состояние бонуса с учётом текущего времени
   let bonusData = null;
   if (wheelGame.bonus) {
     const elapsed = now - wheelGame.bonus.startedAt;
     const remaining = Math.max(0, wheelGame.bonus.endsAt - now);
-    
+
     bonusData = {
       id: wheelGame.bonus.id,
       type: wheelGame.bonus.type,
       startedAt: wheelGame.bonus.startedAt,
       durationMs: wheelGame.bonus.durationMs,
       endsAt: wheelGame.bonus.endsAt,
-      elapsedMs: elapsed,        // 🔥 ДОБАВЛЕНО: сколько прошло
-      remainingMs: remaining     // 🔥 ДОБАВЛЕНО: сколько осталось
+      elapsedMs: elapsed,
+      remainingMs: remaining,
+      outcome: wheelGame.bonus.outcome || null
     };
   }
+
+  const settlement = (wheelGame.settlement && wheelGame.settlement.roundId === wheelGame.roundId)
+    ? wheelGame.settlement
+    : null;
 
   return {
     type: 'wheelState',
@@ -844,12 +1033,20 @@ function buildWheelState(now = Date.now()) {
     phaseStart: wheelGame.phaseStart,
     roundId: wheelGame.roundId,
     spin: wheelGame.spin,
-    bonus: bonusData,  // 🔥 используем обогащённые данные
+    bonus: bonusData,
+    payoutMode: 'server',
+    settlement: settlement ? {
+      roundId: settlement.roundId,
+      resultType: settlement.resultType,
+      multiplier: settlement.multiplier,
+      winnersCount: settlement.winnersCount,
+      paidTon: settlement.paidTon,
+      paidStars: settlement.paidStars
+    } : null,
     players: buildWheelPlayersArray(),
     history: wheelGame.history.slice(0, 20)
   };
 }
-
 
 function broadcastWheelState() {
   const payload = JSON.stringify(buildWheelState());
@@ -871,6 +1068,8 @@ function wheelStartBetting() {
   wheelGame.roundId += 1;
   wheelGame.spin = null;
   wheelGame.bonus = null;
+  wheelGame.settlement = null;
+  wheelGame.settlementPromise = null;
   wheelGame.players.clear();
 
   broadcastWheelState();
@@ -915,7 +1114,6 @@ function wheelStartSpin() {
 function wheelSpinFinished() {
   wheelClearPhaseTimeout();
 
-  const now = Date.now();
   const resultType = wheelGame.spin?.type || null;
 
   // Update history once per spin
@@ -930,7 +1128,21 @@ function wheelSpinFinished() {
     return;
   }
 
-  // Normal result
+  // Normal result: settle balances first, then show result phase.
+  void wheelFinalizeRoundAndStartResult();
+}
+
+async function wheelFinalizeRoundAndStartResult() {
+  wheelClearPhaseTimeout();
+  const roundId = wheelGame.roundId;
+
+  try {
+    await wheelSettleRound(roundId);
+  } catch (err) {
+    console.error(`[Wheel] Settlement failed for round ${roundId}:`, err);
+  }
+
+  if (wheelGame.roundId !== roundId) return;
   wheelStartResultPhase();
 }
 
@@ -953,6 +1165,7 @@ function wheelStartBonus(type) {
 
   const now = Date.now();
   const durationMs = Number(WHEEL_BONUS_TIME_BY_TYPE[type]) || WHEEL_BONUS_FALLBACK_MS;
+  const outcome = wheelPickBonusOutcome(type);
 
   wheelGame.phase = 'bonus';
   wheelGame.phaseStart = now;
@@ -961,7 +1174,8 @@ function wheelStartBonus(type) {
     type,
     startedAt: now,
     durationMs,
-    endsAt: now + durationMs
+    endsAt: now + durationMs,
+    outcome
   };
 
   broadcastWheelState();
@@ -974,9 +1188,8 @@ function wheelStartBonus(type) {
 function wheelEndBonus() {
   wheelClearPhaseTimeout();
 
-  // After bonus: short result phase, then next round
-  wheelGame.bonus = null;
-  wheelStartResultPhase();
+  // After bonus: settle wins first, then show result, then next round.
+  void wheelFinalizeRoundAndStartResult();
 }
 
 // WS: Wheel connections
@@ -2359,6 +2572,19 @@ async function handleInventoryAdd(req, res) {
     if (req.isRelayer) {
       uid = String(bodyUserId || "");
       if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+      const username = safeShortText(req.body?.username || req.body?.userName || "", 64) || null;
+      const firstName = safeShortText(req.body?.first_name || req.body?.firstName || "", 64) || null;
+      const lastName = safeShortText(req.body?.last_name || req.body?.lastName || "", 64) || null;
+      try {
+        await db.saveUser({
+          id: uid,
+          username,
+          first_name: firstName,
+          last_name: lastName
+        });
+      } catch (saveErr) {
+        console.error("[Inventory] Failed to save relayer user profile:", saveErr);
+      }
     } else {
       uid = String(req.tg?.user?.id || "");
       if (!uid) return res.status(403).json({ ok: false, error: "No user in initData" });
@@ -2797,6 +3023,27 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     // 🔥 Mark as processed (same rule as dedupe)
+    if (!user) {
+      const fallbackUsername = safeShortText(req.body?.username || req.body?.tgUsername || "", 64) || null;
+      const fallbackFirstName = safeShortText(
+        req.body?.first_name || req.body?.firstName || req.body?.userName || req.body?.name || "",
+        64
+      ) || null;
+      const fallbackLastName = safeShortText(req.body?.last_name || req.body?.lastName || "", 64) || null;
+      if (fallbackUsername || fallbackFirstName || fallbackLastName) {
+        try {
+          await db.saveUser({
+            id: userId,
+            username: fallbackUsername,
+            first_name: fallbackFirstName,
+            last_name: fallbackLastName
+          });
+        } catch (fallbackErr) {
+          console.error("[Deposit] Failed to save fallback user profile:", fallbackErr);
+        }
+      }
+    }
+
     if (shouldDedupe) {
       markDepositProcessed(depositId);
     }
@@ -3322,6 +3569,7 @@ app.get("/api/user/transactions", async (req, res) => {
       ok: true,
       transactions: transactions.map(tx => ({
         id: tx.id,
+        telegramUsername: tx.telegram_username || null,
         type: tx.type,
         currency: tx.currency,
         amount: tx.amount,
@@ -4717,6 +4965,12 @@ async function requireTelegramUser(req, res, next) {
     let user = null;
     try { user = JSON.parse(check.params.user || "null"); } catch {}
     if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    try {
+      await db.saveUser(user);
+    } catch (saveErr) {
+      console.error("[Auth] Failed to save Telegram user profile:", saveErr);
+    }
 
     const dbUser = await db.getUserById(user.id).catch(() => null);
     if (Number(dbUser?.ban) === 1) {

@@ -41,6 +41,8 @@ class LootRush {
     this._spinning = false;
     this._spinTimer = null;
     this._rowBagSrcs = [[], [], [], [], []];
+    this._forcedPickIndex = null;
+    this._forcedMultiplier = null;
   }
 
   _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -400,29 +402,29 @@ class LootRush {
 
   _enableSelection() {
     this._selectEnabled = true;
-    
+
     this._tiles.forEach((tile, i) => {
       tile.classList.add('lr-selectable');
       tile.onclick = () => {
-        // 👀 Watch-only mode: no bet -> can't select (show red flash + toast)
+        // Watch-only mode: no bet -> cannot select.
         if (this.options.hasBet === false) {
           this._flashInsufficient(tile);
           return;
         }
+        // Server-fixed outcome: keep selection locked for everyone.
+        if (Number.isInteger(this._forcedPickIndex)) return;
         if (!this._selectEnabled) return;
         this._selectedIndex = i;
         this._applySelection();
       };
     });
 
-    this._selectedIndex = 0;
+    this._selectedIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
     this._applySelection();
-    
-    // 🔥 ПОКАЗАТЬ ТАЙМЕР после выбора сумки
+
     const timer = this.container.querySelector('#lrTimer');
     if (timer) {
       timer.classList.remove('lr-timer-hidden');
-      // Плавное появление
       setTimeout(() => timer.classList.add('lr-timer-visible'), 50);
     }
   }
@@ -504,11 +506,33 @@ class LootRush {
     const speedupFactor = this.options.durationSec / effectiveDuration;
     this.speedupFactor = speedupFactor;
 
+    const forcedOutcome = this.options?.outcome || null;
+    const forcedMultiplierNum = Number(forcedOutcome?.multiplier);
+    this._forcedMultiplier = Number.isFinite(forcedMultiplierNum) ? forcedMultiplierNum : null;
+
+    const forcedIndexRaw = Number(forcedOutcome?.pickedIndex);
+    this._forcedPickIndex = Number.isInteger(forcedIndexRaw) && forcedIndexRaw >= 0 && forcedIndexRaw < 24
+      ? forcedIndexRaw
+      : null;
+
     let chosenMult = 1.1;
 
     try {
       this._multipliers = this._buildMultipliersPool();
       this._shuffleArray(this._multipliers);
+
+      if (Number.isFinite(this._forcedMultiplier)) {
+        const targetIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
+        const srcIndex = this._multipliers.findIndex((v) => Number(v) === Number(this._forcedMultiplier));
+        if (srcIndex >= 0 && srcIndex !== targetIndex) {
+          const tmp = this._multipliers[targetIndex];
+          this._multipliers[targetIndex] = this._multipliers[srcIndex];
+          this._multipliers[srcIndex] = tmp;
+        } else if (srcIndex < 0) {
+          this._multipliers[targetIndex] = Number(this._forcedMultiplier);
+        }
+        this._forcedPickIndex = targetIndex;
+      }
 
       const bagSrcs = Array.from({ length: 24 }, (_, i) => this._getBagSrc(i));
       await this._preloadImages(bagSrcs);
@@ -532,14 +556,24 @@ class LootRush {
       if (ui.title) ui.title.classList.add('lr-show');
 
       // 🔥 Используем оставшееся время если оно передано (для случая когда пользователь зашел в середине бонуса)
-      const pickedIdx = await this._runCountdown(ui.timer, effectiveDuration);
+      let pickedIdx = await this._runCountdown(ui.timer, effectiveDuration);
+      if (Number.isInteger(this._forcedPickIndex)) {
+        pickedIdx = this._forcedPickIndex;
+        this._selectedIndex = pickedIdx;
+        this._applySelection();
+      }
+      if (Number.isFinite(this._forcedMultiplier) && Number.isInteger(pickedIdx)) {
+        this._multipliers[pickedIdx] = Number(this._forcedMultiplier);
+      }
       if (this._aborted) return;
 
       await this._revealSequence(pickedIdx);
       if (this._aborted) return;
 
 
-      chosenMult = this._multipliers[pickedIdx] || 1.1;
+      chosenMult = Number.isFinite(this._forcedMultiplier)
+        ? Number(this._forcedMultiplier)
+        : (this._multipliers[pickedIdx] || 1.1);
 
       await this._wait(Math.max(200, 800 / speedupFactor));  // Сокращено с 1500
 
@@ -557,6 +591,8 @@ class LootRush {
       this._running = false;
 
       this._clearGlobalBackHandler();
+      this._forcedPickIndex = null;
+      this._forcedMultiplier = null;
 
       if (this._aborted) {
         this.options.onComplete('cancelled', NaN);
@@ -630,6 +666,7 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
       durationSec: durationSec,
       remainingSec: remainingSec,
       hasBet,
+      outcome: opts?.outcome || null,
 
       bagFolder: '/images/lootrush/',
       bagPrefix: 'lootbag',
@@ -641,11 +678,12 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
       onComplete: (xStr, mult) => {
         console.log('[LootRush] ✅ Completed:', xStr, 'multiplier:', mult);
 
+        const serverPayoutMode = window.__wheelPayoutMode === 'server';
         const currency = window.currentCurrency || 'ton';
         const m = Number(mult);
         const bet = Number(betAmount) || 0;
 
-        if (bet > 0 && Number.isFinite(m)) {
+        if (!serverPayoutMode && bet > 0 && Number.isFinite(m)) {
           const rawWin = bet * m;
           const winAmount = (currency === 'stars') 
             ? Math.round(rawWin) 

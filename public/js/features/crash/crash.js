@@ -1842,6 +1842,17 @@ const yOf = (v) => {
       if (ws) ws.close();
     }
 
+    function hasActiveCrashBet() {
+      const myId = String(getUserId());
+      const me = (state.players || []).find(p => String(p?.userId) === myId) || state.myBet;
+      if (!me || me.claimed) return false;
+      return state.phase === 'betting' || isRunPhase(state.phase) || state.phase === 'crash' || state.phase === 'wait';
+    }
+
+    window.CrashGame = window.CrashGame || {};
+    window.CrashGame.hasActiveBet = hasActiveCrashBet;
+    window.CrashGame.getPhase = () => state.phase;
+
     return { start, stop };
   }
 

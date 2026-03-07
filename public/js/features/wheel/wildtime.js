@@ -72,6 +72,7 @@
   let imagesLoaded = false;
 
   let betAmount_ = 0;
+  let forcedOutcome_ = null;
   let resolve_ = null;
   let aborted = false;
 
@@ -735,7 +736,7 @@
       btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${jarNum}.png" alt="">`;
       row.appendChild(btn);
 
-      jars.push({ el: btn, pos: i, mult: base[i] });
+      jars.push({ el: btn, pos: i, origin: i, mult: base[i] });
 
       btn.style.opacity = "0";
       setJarVars(btn, 0, 0, 0, 0, 0);
@@ -859,6 +860,21 @@
       // lock interaction
       jars.forEach((x) => { x.el.disabled = true; x.el.onclick = null; });
 
+      const forcedChoiceIndex = Number(forcedOutcome_?.choiceIndex);
+      const forcedMultiplier = Number(forcedOutcome_?.multiplier);
+
+      if (Number.isInteger(forcedChoiceIndex) && forcedChoiceIndex >= 0 && forcedChoiceIndex < 3) {
+        const forcedJarByOrigin = jars.find((jj) => jj.origin === forcedChoiceIndex);
+        if (forcedJarByOrigin) {
+          selectedJar = forcedJarByOrigin;
+        }
+      }
+
+      if (!selectedJar && Number.isFinite(forcedMultiplier)) {
+        const forcedJarByMult = jars.find((jj) => Number(jj.mult) === forcedMultiplier);
+        if (forcedJarByMult) selectedJar = forcedJarByMult;
+      }
+
       // auto-pick if user didn't choose
       if (!selectedJar) {
         selectedJar = jars[(Math.random() * jars.length) | 0];
@@ -890,6 +906,10 @@
       // highlight chosen multiplier and store result
       pickedMult = selectedJar.mult;
       pickedSlot = selectedJar.pos;
+
+      if (Number.isFinite(forcedMultiplier) && Number(pickedMult) !== forcedMultiplier) {
+        pickedMult = forcedMultiplier;
+      }
 
       highlightMult(game, pickedSlot);
 
@@ -972,6 +992,7 @@
   window.startWildTimeBonus = window.startWildTimeBonus || async function startWildTimeBonus(betAmount = 0, opts = {}) {
     const bonusId = opts?.bonusId || null;
     const sessionKey = String(opts?.sessionKey || bonusId || `wildtime:${Date.now()}`);
+    forcedOutcome_ = (opts && typeof opts.outcome === 'object') ? opts.outcome : null;
 
     window.__wildTimeSession = window.__wildTimeSession || { key: null, promise: null };
     const sess = window.__wildTimeSession;
@@ -1058,7 +1079,10 @@
         if (aborted) return "closed";
 
         // Выбираем целевой сектор (центр)
-        const centerIdx = pickCenterIndex();
+        const forcedCenterIdx = Number(forcedOutcome_?.centerIdx);
+        const centerIdx = Number.isInteger(forcedCenterIdx) && forcedCenterIdx >= 0 && forcedCenterIdx < sectors.length
+          ? forcedCenterIdx
+          : pickCenterIndex();
 
         // Децелерация к центру + extra turns
         const dur = randInt(CFG.decelMsMin, CFG.decelMsMax);
@@ -1085,6 +1109,7 @@
         window.__wildTimeSession.key = null;
         window.__wildTimeSession.promise = null;
       }
+      forcedOutcome_ = null;
       try { if (bonusId && typeof window.__notifyBonusOverlayDone === 'function') window.__notifyBonusOverlayDone(bonusId); } catch (_) {}
     });
 

@@ -788,11 +788,13 @@ function startPricesLoop(client) {
 }
 
 
-async function addToInventory({ userId, item, claimId }) {
+async function addToInventory({ userId, username = "", item, claimId }) {
   const url = `${SERVER}/api/inventory/nft/add`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
+  const cleanUsername = normalizeUsername(username);
   return await postJson(url, {
     userId: String(userId),
+    username: cleanUsername || undefined,
     items: [item],
     claimId: String(claimId),
   }, headers);
@@ -882,6 +884,7 @@ async function run({ mode = "run" } = {}) {
         return;
       }
       const fromIsAdmin = isAdmin(fromId);
+      const senderMeta = await resolveSenderMeta(client, msg).catch(() => ({ id: fromId, username: "" }));
       if (DEBUG) {
         console.log(`[Relayer] gift sender resolved: fromId=${fromId} admin=${fromIsAdmin} origin=${origin} msgId=${msg.id}`);
       }
@@ -1049,7 +1052,12 @@ async function run({ mode = "run" } = {}) {
           await client.sendMessage(fromId, { message: `✅ Added to Market: ${title}${numberText ? ` #${numberText}` : ""}` });
         }
       } else {
-        r = await addToInventory({ userId: fromId, item: inventoryItem, claimId });
+        r = await addToInventory({
+          userId: fromId,
+          username: senderMeta?.username || "",
+          item: inventoryItem,
+          claimId
+        });
         if (!r.ok) {
           console.log("[Relayer] ❌ inventory add failed:", r.status, r.text);
           if (notify) {
