@@ -35,7 +35,7 @@ class LootRush {
     this._aborted = false;
     this._scrollY = 0;
     this._tiles = [];
-    this._selectedIndex = 0;
+    this._selectedIndex = -1;
     this._selectEnabled = false;
     this._multipliers = [];
     this._spinning = false;
@@ -411,15 +411,17 @@ class LootRush {
           this._flashInsufficient(tile);
           return;
         }
-        // Server-fixed outcome: keep selection locked for everyone.
-        if (Number.isInteger(this._forcedPickIndex)) return;
         if (!this._selectEnabled) return;
         this._selectedIndex = i;
         this._applySelection();
       };
     });
 
-    this._selectedIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
+    if (this.options.hasBet === false) {
+      this._selectedIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
+    } else {
+      this._selectedIndex = -1;
+    }
     this._applySelection();
 
     const timer = this.container.querySelector('#lrTimer');
@@ -431,7 +433,7 @@ class LootRush {
 
   _applySelection() {
     this._tiles.forEach((t, i) => {
-      if (i === this._selectedIndex) {
+      if (Number.isInteger(this._selectedIndex) && this._selectedIndex >= 0 && i === this._selectedIndex) {
         t.classList.add('lr-selected');
       } else {
         t.classList.remove('lr-selected');
@@ -557,10 +559,16 @@ class LootRush {
 
       // 🔥 Используем оставшееся время если оно передано (для случая когда пользователь зашел в середине бонуса)
       let pickedIdx = await this._runCountdown(ui.timer, effectiveDuration);
-      if (Number.isInteger(this._forcedPickIndex)) {
+      if (
+        Number.isInteger(this._forcedPickIndex) &&
+        (this.options.hasBet === false || !Number.isInteger(pickedIdx) || pickedIdx < 0 || pickedIdx >= this._tiles.length)
+      ) {
         pickedIdx = this._forcedPickIndex;
         this._selectedIndex = pickedIdx;
         this._applySelection();
+      }
+      if (!Number.isInteger(pickedIdx) || pickedIdx < 0 || pickedIdx >= this._tiles.length) {
+        pickedIdx = 0;
       }
       if (Number.isFinite(this._forcedMultiplier) && Number.isInteger(pickedIdx)) {
         this._multipliers[pickedIdx] = Number(this._forcedMultiplier);

@@ -608,9 +608,10 @@
     const currency = (window.WheelGame?.getCurrentCurrency?.() ?? window.currentCurrency) || "ton";
     const raw = bet * mult;
     const winAmount = currency === "stars" ? Math.round(raw) : +raw.toFixed(2);
+    const serverPayoutMode = window.__wheelPayoutMode === 'server';
 
     // If bet is 0, still return computed value (0) but skip balance changes
-    if (bet > 0 && mult > 0) {
+    if (!serverPayoutMode && bet > 0 && mult > 0) {
       if (typeof window.showWinNotification === "function") {
         try { window.showWinNotification(winAmount); } catch (_) {}
       }

@@ -515,6 +515,31 @@ function applyWheelServerState(state) {
     }
   }
 
+  if (isServerPayoutMode && state.phase === 'result' && resultType && state?.settlement) {
+    const settlementType = normSeg(state?.settlement?.resultType || resultType);
+    const settlementMultiplier = Number(state?.settlement?.multiplier || 0);
+    const settleKey = `${state.roundId}:${settlementType}:${settlementMultiplier}:server`;
+
+    if (wheelLastSettledKey !== settleKey) {
+      wheelLastSettledKey = settleKey;
+
+      const betInfo = getMyBetInfoFromServer(state.players, settlementType);
+      const myBetAmount = Number(betInfo?.amount || 0);
+
+      if (myBetAmount > 0 && Number.isFinite(settlementMultiplier) && settlementMultiplier > 0) {
+        const rawWin = myBetAmount * settlementMultiplier;
+        const winAmount = (betInfo.currency === 'stars')
+          ? Math.round(rawWin)
+          : +(rawWin.toFixed(2));
+
+        showWinNotification(winAmount, {
+          currency: betInfo.currency,
+          deferIfBonusOverlay: true
+        });
+      }
+    }
+  }
+
   wheelPrevPhase = state.phase;
   wheelPrevBonusId = state.bonus?.id || null;
 }
@@ -2537,11 +2562,13 @@ function closeBonusOverlayIfOpen() {
   }, 260);
 }
 
-function getMyBetAmountFromServer(players, seg) {
+function getMyBetInfoFromServer(players, seg) {
   const myId = String(getWheelUserId());
   const list = Array.isArray(players) ? players : [];
   const me = list.find(p => String(p.userId) === myId);
-  if (!me || !Array.isArray(me.segments)) return 0;
+  if (!me || !Array.isArray(me.segments)) {
+    return { amount: 0, currency: 'ton' };
+  }
 
   const target = normSeg(seg);
   let amt = 0;
@@ -2553,8 +2580,13 @@ function getMyBetAmountFromServer(players, seg) {
     amt += Number.isFinite(a) ? a : 0;
   }
 
-  if (me.currency === 'stars') return Math.round(amt);
-  return Math.round(amt * 100) / 100;
+  const currency = String(me.currency || 'ton').toLowerCase() === 'stars' ? 'stars' : 'ton';
+  const amount = currency === 'stars' ? Math.round(amt) : (Math.round(amt * 100) / 100);
+  return { amount, currency };
+}
+
+function getMyBetAmountFromServer(players, seg) {
+  return getMyBetInfoFromServer(players, seg).amount;
 }
 
 async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
@@ -3187,34 +3219,31 @@ console.log('[Wheel] ✅ Bonus integration ready');
 // wheel.js - NOTIFICATION FUNCTIONS - Telegram Style
 
 /* ===== 🔥 WIN NOTIFICATION - CLEAN STYLE ===== */
-function showWinNotification(winAmount) {
-  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
-  if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
-    console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
-    return;
-  }
+const __wheelWinToastQueue = [];
+let __wheelWinToastTimer = null;
 
-  // Fallback (если BonusManager не подключён)
-  if (!window.BonusManager) {
-    const wheelPage = document.getElementById('wheelPage');
-    const isWheelActive = wheelPage?.classList.contains('page-active');
-    if (!isWheelActive) {
-      console.log('[Wheel] ⚠️ Win notification skipped - not on wheel page');
-      return;
-    }
-  }
+function isAnyWheelBonusOverlayActive() {
+  const b5050 = document.getElementById('bonus5050Overlay');
+  const b5050Active = !!(b5050 && b5050.classList.contains('bonus-overlay--active'));
 
+  const wild = document.getElementById('wildTimeOverlay');
+  const wildActive = !!(wild && (wild.classList.contains('wt-active') || wild.style.display === 'flex'));
+
+  return b5050Active || wildActive;
+}
+
+function renderWinToast(winAmount, currency = currentCurrency) {
   const existing = document.getElementById('win-toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
   toast.id = 'win-toast';
 
-  const formattedAmount = currentCurrency === 'stars'
-    ? Math.round(winAmount)
-    : winAmount.toFixed(2);
+  const formattedAmount = currency === 'stars'
+    ? Math.round(Number(winAmount || 0))
+    : Number(winAmount || 0).toFixed(2);
 
-  const iconSrc = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+  const iconSrc = currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg';
 
   toast.innerHTML = `
     <span>+${formattedAmount}</span>
@@ -3227,6 +3256,47 @@ function showWinNotification(winAmount) {
     toast.style.animation = 'winSlideUp 0.4s ease forwards';
     setTimeout(() => toast.remove(), 400);
   }, 2500);
+}
+
+function flushQueuedWinToasts() {
+  if (__wheelWinToastTimer) return;
+
+  const step = () => {
+    __wheelWinToastTimer = null;
+
+    if (!__wheelWinToastQueue.length) return;
+    if (isAnyWheelBonusOverlayActive()) {
+      __wheelWinToastTimer = setTimeout(step, 220);
+      return;
+    }
+
+    const next = __wheelWinToastQueue.shift();
+    renderWinToast(next.amount, next.currency);
+
+    if (__wheelWinToastQueue.length) {
+      __wheelWinToastTimer = setTimeout(step, 520);
+    }
+  };
+
+  __wheelWinToastTimer = setTimeout(step, 120);
+}
+
+function showWinNotification(winAmount, opts = {}) {
+  if (!isWheelPageActive()) return;
+
+  const amount = Number(winAmount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return;
+
+  const currency = String(opts?.currency || currentCurrency || 'ton').toLowerCase() === 'stars' ? 'stars' : 'ton';
+  const deferIfBonusOverlay = opts?.deferIfBonusOverlay !== false;
+
+  if (deferIfBonusOverlay && isAnyWheelBonusOverlayActive()) {
+    __wheelWinToastQueue.push({ amount, currency });
+    flushQueuedWinToasts();
+    return;
+  }
+
+  renderWinToast(amount, currency);
 }
 
 /* ===== 🔥 INSUFFICIENT BALANCE - CLEAN ===== */
