@@ -53,6 +53,142 @@
   WT.utils = { crc16Xmodem, rawToFriendly, ensureFriendly, shortAddr };
   WT.bus   = new EventTarget();
 
+  // ===== Global image loading effect =====
+  const IMG_TRACK_ATTR = "data-wt-img-bound";
+  const IMG_LOADING_CLASS = "wt-img-loading";
+  const IMG_ERROR_CLASS = "wt-img-error";
+  const boundImgs = new WeakSet();
+  const pendingImgSync = new Map();
+  let imgSyncRaf = 0;
+  let imgObserver = null;
+
+  function imgHasSource(img) {
+    return Boolean(img.currentSrc || img.getAttribute("src") || img.getAttribute("srcset"));
+  }
+
+  function imgRadius(img) {
+    try {
+      const radius = window.getComputedStyle(img).borderRadius;
+      return radius || "12px";
+    } catch {
+      return "12px";
+    }
+  }
+
+  function markImgLoading(img) {
+    if (!imgHasSource(img)) {
+      img.classList.remove(IMG_LOADING_CLASS, IMG_ERROR_CLASS);
+      return;
+    }
+    img.style.setProperty("--wt-img-loader-radius", imgRadius(img));
+    img.classList.add(IMG_LOADING_CLASS);
+    img.classList.remove(IMG_ERROR_CLASS);
+  }
+
+  function markImgDone(img, hasError = false) {
+    img.classList.remove(IMG_LOADING_CLASS);
+    img.classList.toggle(IMG_ERROR_CLASS, !!hasError);
+  }
+
+  function syncImgState(img, { forceLoading = false } = {}) {
+    if (!(img instanceof HTMLImageElement)) return;
+    if (!imgHasSource(img)) {
+      img.classList.remove(IMG_LOADING_CLASS, IMG_ERROR_CLASS);
+      return;
+    }
+
+    if (forceLoading && !img.complete) {
+      markImgLoading(img);
+      return;
+    }
+
+    if (!img.complete) {
+      markImgLoading(img);
+      return;
+    }
+
+    if (img.naturalWidth > 0 || img.naturalHeight > 0) markImgDone(img, false);
+    else markImgDone(img, true);
+  }
+
+  function scheduleImgSync(img, forceLoading = false) {
+    if (!(img instanceof HTMLImageElement)) return;
+    const prev = pendingImgSync.get(img) || false;
+    pendingImgSync.set(img, prev || forceLoading);
+    if (imgSyncRaf) return;
+    imgSyncRaf = window.requestAnimationFrame(() => {
+      imgSyncRaf = 0;
+      pendingImgSync.forEach((forced, node) => {
+        syncImgState(node, { forceLoading: forced });
+      });
+      pendingImgSync.clear();
+    });
+  }
+
+  function bindImg(img) {
+    if (!(img instanceof HTMLImageElement)) return;
+    if (boundImgs.has(img)) {
+      scheduleImgSync(img, false);
+      return;
+    }
+
+    boundImgs.add(img);
+    img.setAttribute(IMG_TRACK_ATTR, "1");
+    img.addEventListener("load", () => markImgDone(img, false));
+    img.addEventListener("error", () => markImgDone(img, true));
+    scheduleImgSync(img, false);
+  }
+
+  function bindImgsInside(root) {
+    if (!root) return;
+    if (root instanceof HTMLImageElement) {
+      bindImg(root);
+      return;
+    }
+    if (typeof root.querySelectorAll === "function") {
+      root.querySelectorAll("img").forEach(bindImg);
+    }
+  }
+
+  function initGlobalImgLoader() {
+    const root = document.body;
+    if (!root) return;
+
+    bindImgsInside(root);
+    if (typeof MutationObserver !== "function") return;
+
+    if (imgObserver) imgObserver.disconnect();
+    imgObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "childList") {
+          mutation.addedNodes.forEach((node) => bindImgsInside(node));
+          continue;
+        }
+        if (mutation.type === "attributes" && mutation.target instanceof HTMLImageElement) {
+          bindImg(mutation.target);
+          scheduleImgSync(mutation.target, true);
+        }
+      }
+    });
+
+    imgObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["src", "srcset"]
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (imgObserver) imgObserver.disconnect();
+    }, { once: true });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initGlobalImgLoader, { once: true });
+  } else {
+    initGlobalImgLoader();
+  }
+
   // ===== Global liquid-glass notifications =====
   const TOAST_HOST_ID = 'wt-toast-host';
   let toastTimer = null;

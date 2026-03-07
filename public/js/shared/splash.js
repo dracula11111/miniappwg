@@ -25,6 +25,7 @@
   let isComplete = false;
   let startTime = performance.now();
   let animationFrame = null;
+  let loadComplete = document.readyState === 'complete';
 
   // ====== PROGRESS STAGES ======
   const stages = [
@@ -103,11 +104,13 @@
 
     const elapsed = performance.now() - startTime;
     const progress = calculateProgress(elapsed);
+    const minDurationReached = elapsed >= TOTAL_DURATION || progress >= 100;
+    const uiProgress = loadComplete ? progress : Math.min(progress, 98);
 
-    currentProgress = progress;
-    updateUI(progress);
+    currentProgress = uiProgress;
+    updateUI(uiProgress);
 
-    if (progress >= 100 || elapsed >= TOTAL_DURATION) {
+    if (minDurationReached && loadComplete) {
       completeSplash();
       return;
     }
@@ -150,14 +153,12 @@
   window.completeSplash = completeSplash;
 
   // ====== LOAD EVENT ======
-  let loadComplete = false;
-  
   window.addEventListener('load', () => {
     loadComplete = true;
     console.log('[SPLASH] Page loaded at', Math.round(performance.now() - startTime), 'ms');
     
     const elapsed = performance.now() - startTime;
-    if (elapsed >= TOTAL_DURATION) {
+    if (elapsed >= TOTAL_DURATION || currentProgress >= 98) {
       completeSplash();
     }
   });
@@ -168,7 +169,7 @@
       console.warn('[SPLASH] ⏱️ Safety timeout - force complete');
       completeSplash();
     }
-  }, 3000);
+  }, 15000);
 
   // ====== START ======
   console.log('[SPLASH] Starting animation (target: ' + TOTAL_DURATION + 'ms)');
