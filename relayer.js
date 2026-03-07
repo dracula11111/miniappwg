@@ -36,9 +36,9 @@ import { NewMessage } from "telegram/events/index.js";
 
 const CMD = (process.argv[2] || "run").toLowerCase();
 
-const API_ID = Number(process.env.RELAYER_API_ID || process.env.TG_API_ID || 0);
-const API_HASH = String(process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "");
-const SESSION_STR = String(process.env.RELAYER_SESSION || "");
+const API_ID = Number(process.env.RELAYER_API_ID_NF || process.env.RELAYER_API_ID || process.env.TG_API_ID || 0);
+const API_HASH = String(process.env.RELAYER_API_HASH_NF || process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "");
+const SESSION_STR = String(process.env.RELAYER_SESSION_NF || process.env.RELAYER_SESSION || "");
 const SERVER = String(process.env.RELAYER_SERVER || "http://localhost:3000").replace(/\/+$/, "");
 const SECRET = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
 const ADMIN_IDS = String(
@@ -97,6 +97,13 @@ function normalizeTelegramId(value) {
 }
 
 const ADMIN_ID_SET = new Set(ADMIN_IDS.map(normalizeTelegramId).filter(Boolean));
+
+function sessionFingerprint(value) {
+  const raw = String(value || "");
+  if (!raw) return "empty";
+  const hash = crypto.createHash("sha1").update(raw).digest("hex").slice(0, 10);
+  return `${hash}:${raw.length}`;
+}
 
 const DEBUG = /^(1|true|yes)$/i.test(String(process.env.RELAYER_DEBUG || ""));
 // По умолчанию 1: отправляем картинку/паттерн прямо в JSON (data:image/...)
@@ -788,6 +795,8 @@ async function clearMarketItemsRemote() {
 async function run({ mode = "run" } = {}) {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
   if (!INLINE_IMAGES) ensureDir(IMG_DIR);
+  console.log("[Relayer] SESSION_FINGERPRINT:", sessionFingerprint(SESSION_STR));
+  console.log("[Relayer] API_ID:", API_ID || "(empty)");
 
   const client = await makeClient(SESSION_STR);
   await client.connect();

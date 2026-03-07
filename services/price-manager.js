@@ -276,10 +276,16 @@ class PriceManager {
         enabled: () => {
           const explicit = optionalFlag(process.env.PRICE_SOURCE_TELEGRAM_RESALE);
           if (explicit === false) return false;
+          const hasRemoteRelayer = !!String(process.env.RELAYER_RPC_URL || "").trim();
+          // If RPC relayer is configured, avoid starting a second GramJS client
+          // with the same session unless explicitly forced by env.
+          if (explicit == null && hasRemoteRelayer) return false;
           const hasCreds =
-            !!String(process.env.RELAYER_SESSION || "").trim() &&
-            !!String(process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "").trim() &&
-            Number(process.env.RELAYER_API_ID || process.env.TG_API_ID || 0) > 0;
+            !!String(process.env.PRICE_TELEGRAM_SESSION || process.env.RELAYER_SESSION || "").trim() &&
+            !!String(
+              process.env.PRICE_TELEGRAM_API_HASH || process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "",
+            ).trim() &&
+            Number(process.env.PRICE_TELEGRAM_API_ID || process.env.RELAYER_API_ID || process.env.TG_API_ID || 0) > 0;
           if (!hasCreds) return false;
           return explicit == null ? true : explicit;
         },
@@ -858,9 +864,11 @@ class PriceManager {
   }
 
   async fetchTelegramResalePrices() {
-    const apiId = Number(process.env.RELAYER_API_ID || process.env.TG_API_ID || 0);
-    const apiHash = String(process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "").trim();
-    const session = String(process.env.RELAYER_SESSION || "").trim();
+    const apiId = Number(process.env.PRICE_TELEGRAM_API_ID || process.env.RELAYER_API_ID || process.env.TG_API_ID || 0);
+    const apiHash = String(
+      process.env.PRICE_TELEGRAM_API_HASH || process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "",
+    ).trim();
+    const session = String(process.env.PRICE_TELEGRAM_SESSION || process.env.RELAYER_SESSION || "").trim();
 
     if (!apiId || !apiHash || !session) {
       throw createHttpError("Telegram resale source is not configured", { status: 503 });
