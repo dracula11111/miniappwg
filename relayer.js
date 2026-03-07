@@ -113,6 +113,11 @@ const PRICES_RESALE_LIMIT = Math.max(1, Math.min(10, Number(process.env.RELAYER_
 const BACKFILL_ON_START = !/^(0|false|no)$/i.test(String(process.env.RELAYER_BACKFILL_ON_START || "1"));
 const BACKFILL_DIALOGS = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_DIALOGS || process.env.RELAYER_SYNC_DIALOGS || 60) || 60));
 const BACKFILL_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_BACKFILL_LIMIT || process.env.RELAYER_SYNC_LIMIT || 50) || 50));
+// Some accounts receive gifts only in Saved Gifts updates (without normal message events).
+const SAVED_GIFTS_WATCH = !/^(0|false|no)$/i.test(String(process.env.RELAYER_SAVED_GIFTS_WATCH || "1"));
+const SAVED_GIFTS_POLL_MS = Math.max(5_000, Math.min(10 * 60 * 1000, Number(process.env.RELAYER_SAVED_GIFTS_POLL_MS || 30_000) || 30_000));
+const SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_SAVED_GIFTS_PAGE_LIMIT || 100) || 100));
+const SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(20, Number(process.env.RELAYER_SAVED_GIFTS_MAX_PAGES || 5) || 5));
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
@@ -399,6 +404,35 @@ function shortErrorText(raw, max = 160) {
   const t = String(raw || "").replace(/\s+/g, " ").trim();
   if (!t) return "request failed";
   return t.length > max ? `${t.slice(0, max)}...` : t;
+}
+
+function giftClassName(gift) {
+  return String(gift?.className || gift?.constructor?.name || "");
+}
+
+function isNftGift(gift, action = null) {
+  if (!gift || typeof gift !== "object") return false;
+  if (gift instanceof Api.StarGiftUnique) return true;
+
+  const gCls = giftClassName(gift).toLowerCase();
+  if (gCls.includes("unique")) return true;
+  if (Array.isArray(gift?.attributes) && gift.attributes.length > 0) return true;
+  if (gift?.slug && gift?.num != null) return true;
+
+  const aCls = actionClassName(action).toLowerCase();
+  if (aCls.includes("stargiftunique")) return true;
+  return false;
+}
+
+function isPlainGiftAction(action) {
+  if (!action || typeof action !== "object") return false;
+  if (action instanceof Api.MessageActionGiftPremium || action instanceof Api.MessageActionGiftStars) return true;
+  const cls = actionClassName(action).toLowerCase();
+  return cls.includes("giftpremium") || cls.includes("giftstars");
+}
+
+function rejectPlainGiftText() {
+  return "❌ Принимаются только NFT подарки (Unique). Обычные подарки не принимаются.";
 }
 
 async function promptLine(question) {
@@ -690,6 +724,7 @@ async function run({ mode = "run" } = {}) {
 
   const processed = new Set();
   const processing = new Set();
+  const seenSavedGiftKeys = new Set();
 
   async function handleGiftMessage(msg, origin = "RAW", { notify = true } = {}) {
     if (!msg || msg.id == null) return;
@@ -722,6 +757,15 @@ async function run({ mode = "run" } = {}) {
         console.log(`[Relayer] gift sender resolved: fromId=${fromId} admin=${fromIsAdmin} origin=${origin} msgId=${msg.id}`);
       }
 
+      if (isPlainGiftAction(action)) {
+        console.log(`[Relayer] ⚠️ Plain gift rejected (non-NFT). from=${fromId} msgId=${msg.id} origin=${origin}`);
+        if (notify) {
+          try { await client.sendMessage(fromId, { message: rejectPlainGiftText() }); } catch {}
+        }
+        processed.add(key);
+        return;
+      }
+
       const gift = extractGiftFromAction(action);
       if (!gift || typeof gift !== "object") {
         const actionCls = actionClassName(action) || "(unknown)";
@@ -734,6 +778,14 @@ async function run({ mode = "run" } = {}) {
 
       const actionCls = actionClassName(action).toLowerCase();
       const isStarGift = actionCls.includes("stargift") || actionCls.includes("star");
+      if (!isNftGift(gift, action)) {
+        console.log(`[Relayer] ⚠️ Star gift rejected (non-NFT). from=${fromId} msgId=${msg.id} origin=${origin}`);
+        if (notify) {
+          try { await client.sendMessage(fromId, { message: rejectPlainGiftText() }); } catch {}
+        }
+        processed.add(key);
+        return;
+      }
       const title = String(gift?.title || gift?.name || "Gift");
       const slug = String(gift?.slug || "").trim();
       const num = gift?.num ?? gift?.number ?? null;
@@ -892,6 +944,93 @@ async function run({ mode = "run" } = {}) {
     }
   }
 
+  function savedGiftStableKey(savedGift, fallbackIndex = 0) {
+    const msgId = Number(savedGift?.msgId ?? savedGift?.msg_id);
+    if (Number.isFinite(msgId) && msgId > 0) return `msg:${msgId}`;
+
+    const savedId = savedGift?.savedId ?? savedGift?.saved_id;
+    if (savedId != null) return `saved:${String(savedId)}`;
+
+    const giftId = String(savedGift?.gift?.id ?? savedGift?.gift?.giftId ?? "gift");
+    const from = peerUserId(savedGift?.fromId || savedGift?.from_id) || "u0";
+    const date = Number(savedGift?.date || 0);
+    return `fallback:${giftId}:${from}:${date}:${fallbackIndex}`;
+  }
+
+  function savedGiftToSyntheticMessage(savedGift, fallbackIndex = 0) {
+    const fromPeer = savedGift?.fromId || savedGift?.from_id || null;
+    const rawMsgId = Number(savedGift?.msgId ?? savedGift?.msg_id);
+    const savedId = savedGift?.savedId ?? savedGift?.saved_id;
+    const msgId = (Number.isFinite(rawMsgId) && rawMsgId > 0)
+      ? rawMsgId
+      : (savedId != null ? `saved_${String(savedId)}` : `saved_fallback_${Date.now()}_${fallbackIndex}`);
+
+    const gift = savedGift?.gift || null;
+    const action = {
+      className: isNftGift(gift) ? "MessageActionStarGiftUnique" : "MessageActionStarGift",
+      gift,
+      fromId: fromPeer,
+      savedId: savedId != null ? savedId : null,
+      saved: true,
+      message: savedGift?.message || null
+    };
+
+    return {
+      id: msgId,
+      peerId: fromPeer || null,
+      fromId: fromPeer || null,
+      action
+    };
+  }
+
+  async function processSavedGiftsSnapshot(origin = "SAVED", { notify = false } = {}) {
+    if (!SAVED_GIFTS_WATCH) return { fetched: 0, handled: 0 };
+
+    let fetched = 0;
+    let handled = 0;
+    let offset = "";
+
+    for (let page = 0; page < SAVED_GIFTS_MAX_PAGES; page++) {
+      let res = null;
+      try {
+        res = await client.invoke(new Api.payments.GetSavedStarGifts({
+          peer: "me",
+          offset,
+          limit: SAVED_GIFTS_PAGE_LIMIT
+        }));
+      } catch (e) {
+        console.log(`[Relayer][${origin}] ❌ getSavedStarGifts failed:`, e?.message || e);
+        break;
+      }
+
+      const gifts = Array.isArray(res?.gifts) ? res.gifts : [];
+      if (!gifts.length) break;
+
+      for (let i = 0; i < gifts.length; i++) {
+        const g = gifts[i];
+        fetched++;
+
+        const stableKey = savedGiftStableKey(g, fetched);
+        if (seenSavedGiftKeys.has(stableKey)) continue;
+        seenSavedGiftKeys.add(stableKey);
+
+        const synthetic = savedGiftToSyntheticMessage(g, fetched);
+        const before = processed.size;
+        await handleGiftMessage(synthetic, origin, { notify });
+        if (processed.size > before) handled++;
+      }
+
+      const nextOffset = String(res?.nextOffset ?? res?.next_offset ?? "").trim();
+      if (!nextOffset || nextOffset === offset) break;
+      offset = nextOffset;
+    }
+
+    if (DEBUG || handled > 0) {
+      console.log(`[Relayer][${origin}] saved gifts fetched=${fetched} handled=${handled} seen=${seenSavedGiftKeys.size}`);
+    }
+    return { fetched, handled };
+  }
+
   async function scanRecentDialogsForGiftActions({
     dialogsLimit = 60,
     perDialogLimit = 50,
@@ -944,6 +1083,7 @@ async function run({ mode = "run" } = {}) {
     const dialogsLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_DIALOGS) || 60));
     const perDialogLimit = Math.max(1, Math.min(200, Number(process.env.RELAYER_SYNC_LIMIT) || 50));
     await scanRecentDialogsForGiftActions({ dialogsLimit, perDialogLimit, origin: "SYNC", notify: false });
+    await processSavedGiftsSnapshot("SYNC_SAVED", { notify: false });
     try { await client.disconnect(); } catch {}
     return;
   }
@@ -961,9 +1101,33 @@ async function run({ mode = "run" } = {}) {
     }
   }
 
+  if (SAVED_GIFTS_WATCH) {
+    try {
+      await processSavedGiftsSnapshot("SAVED_BOOT", { notify: false });
+    } catch (e) {
+      console.log("[Relayer][SAVED_BOOT] ❌ saved gifts bootstrap failed:", e?.message || e);
+    }
+  }
+
+  let savedGiftsTimer = null;
+  if (SAVED_GIFTS_WATCH) {
+    console.log(`[Relayer][SAVED] 👀 watching saved gifts (poll=${Math.round(SAVED_GIFTS_POLL_MS / 1000)}s, pageLimit=${SAVED_GIFTS_PAGE_LIMIT}, pages=${SAVED_GIFTS_MAX_PAGES})`);
+    savedGiftsTimer = setInterval(() => {
+      processSavedGiftsSnapshot("SAVED_POLL", { notify: false }).catch((e) => {
+        console.log("[Relayer][SAVED_POLL] ❌ poll error:", e?.message || e);
+      });
+    }, SAVED_GIFTS_POLL_MS);
+  }
+
 // 1) RAW updates (гifts часто приходят именно так)
   client.addEventHandler(async (update) => {
     if (!update) return;
+
+    if (SAVED_GIFTS_WATCH && update instanceof Api.UpdateSavedGifs) {
+      if (DEBUG) console.log("[Relayer][RAW] UpdateSavedGifs received");
+      await processSavedGiftsSnapshot("SAVED_UPDATE", { notify: false });
+      return;
+    }
 
     const isNew =
       (update instanceof Api.UpdateNewMessage) ||
@@ -1003,6 +1167,7 @@ async function run({ mode = "run" } = {}) {
 process.on("SIGINT", async () => {
   console.log("[Relayer] SIGINT -> disconnect");
   try { pricesLoop?.stop?.(); } catch {}
+  try { if (savedGiftsTimer) clearInterval(savedGiftsTimer); } catch {}
   try { await client.disconnect(); } catch {}
   process.exit(0);
 });
@@ -1010,6 +1175,7 @@ process.on("SIGINT", async () => {
 process.on("SIGTERM", async () => {
   console.log("[Relayer] SIGTERM -> disconnect");
   try { pricesLoop?.stop?.(); } catch {}
+  try { if (savedGiftsTimer) clearInterval(savedGiftsTimer); } catch {}
   try { await client.disconnect(); } catch {}
   process.exit(0);
 });
