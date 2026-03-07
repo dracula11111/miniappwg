@@ -369,6 +369,72 @@ function resolveMessageFromId(msg, action = null) {
   );
 }
 
+function normalizeUsername(v) {
+  const s = String(v || "").trim().replace(/^@+/, "");
+  return s || "";
+}
+
+function usernameFromEntity(entity) {
+  if (!entity || typeof entity !== "object") return "";
+  const direct = normalizeUsername(entity?.username || entity?.userName || entity?.user_name);
+  if (direct) return direct;
+
+  const list = Array.isArray(entity?.usernames) ? entity.usernames : [];
+  for (const it of list) {
+    const uname = normalizeUsername(it?.username || it?.userName || it?.user_name);
+    if (!uname) continue;
+    if (it?.active === false || it?.editable === false) continue;
+    return uname;
+  }
+  for (const it of list) {
+    const uname = normalizeUsername(it?.username || it?.userName || it?.user_name);
+    if (uname) return uname;
+  }
+  return "";
+}
+
+function senderLabelFromEntity(entity, fallbackId = "") {
+  const uname = usernameFromEntity(entity);
+  if (uname) return `@${uname}`;
+
+  const first = String(entity?.firstName || entity?.first_name || "").trim();
+  const last = String(entity?.lastName || entity?.last_name || "").trim();
+  const full = [first, last].filter(Boolean).join(" ").trim();
+  if (full) return full;
+
+  const title = String(entity?.title || "").trim();
+  if (title) return title;
+
+  return fallbackId ? `id:${fallbackId}` : "unknown";
+}
+
+function oneLineText(raw, max = 220) {
+  const t = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!t) return "<non-text>";
+  return t.length > max ? `${t.slice(0, max)}...` : t;
+}
+
+const senderMetaCache = new Map();
+
+async function resolveSenderMeta(client, msg) {
+  const fromId = resolveMessageFromId(msg) || "";
+  const cacheKey = fromId || peerKey(msg?.fromId || msg?.from_id || msg?.peerId || msg?.peer_id || null);
+  if (cacheKey && senderMetaCache.has(cacheKey)) return senderMetaCache.get(cacheKey);
+
+  let entity = null;
+  const source = msg?.fromId || msg?.from_id || msg?.peerId || msg?.peer_id || (fromId ? Number(fromId) : null);
+  if (source != null) {
+    try { entity = await client.getEntity(source); } catch {}
+  }
+
+  const username = usernameFromEntity(entity);
+  const label = senderLabelFromEntity(entity, fromId);
+  const meta = { id: fromId, username, label };
+
+  if (cacheKey) senderMetaCache.set(cacheKey, meta);
+  return meta;
+}
+
 function actionClassName(action) {
   return String(action?.className || action?.constructor?.name || "");
 }
@@ -1152,6 +1218,15 @@ async function run({ mode = "run" } = {}) {
   client.addEventHandler(async (event) => {
     const msg = event?.message;
     if (!msg) return;
+
+    if (!msg.action) {
+      const meta = await resolveSenderMeta(client, msg);
+      const text = oneLineText(msg?.message, 260);
+      const unamePart = meta?.username ? ` username=@${meta.username}` : "";
+      const idPart = meta?.id ? ` id=${meta.id}` : "";
+      console.log(`[Relayer][USER_MSG] from="${meta?.label || "unknown"}"${unamePart}${idPart} msgId=${String(msg.id)} text="${text}"`);
+      return;
+    }
 
     if (DEBUG) {
       const from = resolveMessageFromId(msg) || "—";
