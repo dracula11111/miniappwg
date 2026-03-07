@@ -1,0 +1,30 @@
+name: Render Keepalive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Render endpoint
+        shell: bash
+        run: |
+          URL="${{ secrets.RENDER_PING_URL }}"
+          if [ -z "$URL" ]; then
+            URL="https://wildgiftapp.onrender.com/api/relayer/rpc-health"
+          fi
+
+          echo "Pinging: $URL"
+          CODE="$(curl -sS -o response.txt -w '%{http_code}' --max-time 20 "$URL" || true)"
+          echo "HTTP status: $CODE"
+          head -c 500 response.txt || true
+
+          # Fail only when request did not reach server at all.
+          if [ "$CODE" = "000" ]; then
+            echo "Ping failed to reach endpoint."
+            exit 1
+          fi
