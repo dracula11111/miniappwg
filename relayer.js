@@ -36,6 +36,26 @@ import { NewMessage } from "telegram/events/index.js";
 
 const CMD = (process.argv[2] || "run").toLowerCase();
 
+const API_ID_SOURCE = process.env.RELAYER_API_ID_NF
+  ? "RELAYER_API_ID_NF"
+  : process.env.RELAYER_API_ID
+    ? "RELAYER_API_ID"
+    : process.env.TG_API_ID
+      ? "TG_API_ID"
+      : "(empty)";
+const API_HASH_SOURCE = process.env.RELAYER_API_HASH_NF
+  ? "RELAYER_API_HASH_NF"
+  : process.env.RELAYER_API_HASH
+    ? "RELAYER_API_HASH"
+    : process.env.TG_API_HASH
+      ? "TG_API_HASH"
+      : "(empty)";
+const SESSION_SOURCE = process.env.RELAYER_SESSION_NF
+  ? "RELAYER_SESSION_NF"
+  : process.env.RELAYER_SESSION
+    ? "RELAYER_SESSION"
+    : "(empty)";
+
 const API_ID = Number(process.env.RELAYER_API_ID_NF || process.env.RELAYER_API_ID || process.env.TG_API_ID || 0);
 const API_HASH = String(process.env.RELAYER_API_HASH_NF || process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "");
 const SESSION_STR = String(process.env.RELAYER_SESSION_NF || process.env.RELAYER_SESSION || "");
@@ -795,6 +815,9 @@ async function clearMarketItemsRemote() {
 async function run({ mode = "run" } = {}) {
   if (!SESSION_STR) die("[Relayer] RELAYER_SESSION is empty. Run: node relayer.js login");
   if (!INLINE_IMAGES) ensureDir(IMG_DIR);
+  console.log("[Relayer] SESSION_SOURCE:", SESSION_SOURCE);
+  console.log("[Relayer] API_ID_SOURCE:", API_ID_SOURCE);
+  console.log("[Relayer] API_HASH_SOURCE:", API_HASH_SOURCE);
   console.log("[Relayer] SESSION_FINGERPRINT:", sessionFingerprint(SESSION_STR));
   console.log("[Relayer] API_ID:", API_ID || "(empty)");
 
