@@ -1408,7 +1408,7 @@ const RPC_PORT = (() => {
   );
   return Number.isFinite(n) && n > 0 ? n : 3300;
 })();
-const RPC_HOST = String(process.env.RELAYER_RPC_HOST || "127.0.0.1").trim() || "127.0.0.1";
+const RPC_HOST = String(process.env.RELAYER_RPC_HOST || process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 
 function rpcAuthOk(req) {
   const secret = String(SECRET || "");

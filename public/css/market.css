@@ -892,7 +892,7 @@ body.market-gift-overlay-open .topbar{
 
 .market-gift-buy:active{
   transform: scale(0.992);
-  background: #3896ff;
+  background: #3493ff;
 }
 
 .market-gift-buy__price{
