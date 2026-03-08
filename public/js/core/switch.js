@@ -23,6 +23,16 @@
   let __wtTonPillTpl = null;
   let __wtTonPillStyleAttr = null;
 
+  function __wtIsCrashPageActive() {
+    try {
+      if (document.body?.classList?.contains('page-crash')) return true;
+      const crashPage = document.getElementById('crashPage');
+      return !!crashPage?.classList?.contains('page-active');
+    } catch {
+      return false;
+    }
+  }
+
   function __wtGetWalletConnected() {
     try {
       if (window.WildTimeTonConnect?.isConnected) return !!window.WildTimeTonConnect.isConnected();
@@ -87,9 +97,10 @@
     if (!tonPill) return;
 
     const connected = __wtGetWalletConnected();
+    const inCrash = __wtIsCrashPageActive();
 
-    // Only turn it into "Connect Wallet" in TON mode
-    if (currentCurrency === 'ton' && !connected) {
+    // On Crash page keep regular TON pill (do not render long "Connect Wallet" button).
+    if (currentCurrency === 'ton' && !connected && !inCrash) {
       __wtRenderConnectWalletPill(tonPill);
     } else {
       __wtRestoreTonPill(tonPill);
@@ -355,6 +366,7 @@
     // 🔥 НОВОЕ: Слушаем событие смены страницы
     window.addEventListener('page:changed', (e) => {
       console.log('[Switch] 🔄 Page changed to:', e.detail?.page);
+      try { updateTonPillState(); } catch {}
       
       if (e.detail?.page === 'profilePage') {
         setTimeout(() => {
@@ -364,6 +376,13 @@
         clearFloatingIcons();
       }
     });
+
+    // Keep TON pill mode in sync with real page navigation bus.
+    try {
+      window.WT?.bus?.addEventListener?.('page:change', () => {
+        try { updateTonPillState(); } catch {}
+      });
+    } catch {}
   }
 
   // ================== WATCH PROFILE PAGE ==================

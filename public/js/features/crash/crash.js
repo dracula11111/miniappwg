@@ -81,24 +81,40 @@ const ICON_TON = "/icons/tgTonWhite.svg";
   }
 
   function detectCurrency() {
-    const ls = (
+    try {
+      const active = String(window.WildTimeCurrency?.current || "").toLowerCase();
+      if (active === "ton" || active === "stars") return active;
+    } catch (_) {}
+
+    const wtSaved = (localStorage.getItem("wt-currency") || "").toLowerCase();
+    if (wtSaved === "ton" || wtSaved === "stars") return wtSaved;
+
+    const src = (qs("#pillCurrencyIcon")?.getAttribute("src") || "").toLowerCase();
+    if (src.includes("star")) return "stars";
+    if (src.includes("ton")) return "ton";
+
+    // Legacy keys as a last-resort fallback only.
+    const legacy = (
       localStorage.getItem("currency") ||
       localStorage.getItem("selectedCurrency") ||
       localStorage.getItem("balanceCurrency") ||
       ""
     ).toLowerCase();
-
-    if (ls === "stars" || ls === "star") return "stars";
-    if (ls === "ton") return "ton";
-
-    const src = (qs("#pillCurrencyIcon")?.getAttribute("src") || "").toLowerCase();
-    if (src.includes("star")) return "stars";
+    if (legacy === "stars" || legacy === "star") return "stars";
+    if (legacy === "ton") return "ton";
 
     return "ton";
   }
 
   function currencyIcon(currency) {
     return currency === "stars" ? ICON_STAR : ICON_TON;
+  }
+
+  function formatCurrencyAmount(value, currency) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "";
+    if (currency === "stars") return String(Math.max(0, Math.round(n)));
+    return (Math.round(Math.max(0, n) * 100) / 100).toFixed(2);
   }
 
   async function apiDeposit({ amount, currency, type, roundId, depositId }) {
@@ -162,8 +178,17 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     page.innerHTML = `
   <section class="crash">
         <div class="crash-toastHost" id="${TOAST_HOST_ID}" aria-live="polite" aria-atomic="true"></div>
-<div class="crash-card">
+<div class="crash-card" data-theme="crypto">
       <div class="crash-canvasWrap">
+        <div class="crash-spaceLayer" id="crashSpaceLayer" aria-hidden="true">
+          <canvas id="crashSpaceCanvas" class="crash-spaceCanvas"></canvas>
+          <div class="crash-spaceClouds" id="crashSpaceClouds"></div>
+          <div class="crash-spaceGrass"></div>
+          <div class="crash-planet crash-planet--1"></div>
+          <div class="crash-planet crash-planet--2"></div>
+          <div class="rocket" id="crashRocket"></div>
+          <div class="crash-boomFx" id="crashRocketBoom"></div>
+        </div>
         <canvas id="${CANVAS_ID}" aria-label="Crash chart"></canvas>
         <div class="crash-hud" aria-hidden="true">
           <div id="${MULT_ID}" class="crash-mult is-green">1.00x</div>
@@ -226,6 +251,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
   function createEngine(page) {
     const canvas = document.getElementById(CANVAS_ID);
     const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
+    const cardEl = page?.querySelector(".crash-card");
+    const canvasWrapEl = page?.querySelector(".crash-canvasWrap");
 
     const multEl = document.getElementById(MULT_ID);
     const buyBtn = document.getElementById(BUY_ID);
@@ -235,6 +262,49 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     const betTextEl = document.getElementById(BET_TEXT_ID);
     const statusEl = document.getElementById(STATUS_ID);
     const playersEl = document.getElementById("crashPlayers");
+    const spaceLayerEl = document.getElementById("crashSpaceLayer");
+    const spaceCanvas = document.getElementById("crashSpaceCanvas");
+    const spaceCtx = spaceCanvas?.getContext("2d", { alpha: true, desynchronized: true }) || null;
+    const spaceCloudsEl = document.getElementById("crashSpaceClouds");
+    const rocketEl = document.getElementById("crashRocket");
+    const boomEl = document.getElementById("crashRocketBoom");
+    const planetEls = Array.from(page?.querySelectorAll(".crash-planet") || []);
+    const ROCKET_SPRITES = Object.freeze([
+      "/images/crash/rocketSpaceTheme1.webp",
+      "/images/crash/rocketSpaceTheme2.webp",
+      "/images/crash/rocketSpaceTheme3.webp",
+      "/images/crash/rocketSpaceTheme4.webp"
+    ]);
+
+    function ensureTopbarThemeSwitch() {
+      let root = document.getElementById("crashTopThemeSwitch");
+      if (root) return root;
+
+      const topbar = document.querySelector(".topbar");
+      if (!topbar) return null;
+
+      root = document.createElement("div");
+      root.id = "crashTopThemeSwitch";
+      root.className = "crash-topThemeSwitch";
+      root.setAttribute("role", "group");
+      root.setAttribute("aria-label", "Crash theme");
+      root.setAttribute("data-active-theme", "crypto");
+      root.innerHTML = `
+        <button class="crash-topThemeBtn crash-topThemeBtn--crypto is-active" type="button" data-theme="crypto" aria-label="Crypto theme">
+          <span class="crash-topThemeIco crash-topThemeIco--crypto" aria-hidden="true"></span>
+        </button>
+        <button class="crash-topThemeBtn crash-topThemeBtn--space" type="button" data-theme="space" aria-label="Space theme">
+          <span class="crash-topThemeIco crash-topThemeIco--space" aria-hidden="true"></span>
+        </button>
+      `;
+
+      const balanceRoot = topbar.querySelector(".balance");
+      if (balanceRoot) topbar.insertBefore(root, balanceRoot);
+      else topbar.appendChild(root);
+      return root;
+    }
+
+    const topThemeSwitchEl = ensureTopbarThemeSwitch();
 
     let dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
     let W = 0;
@@ -247,6 +317,10 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       H = Math.max(1, Math.floor(rect.height * dpr));
       canvas.width = W;
       canvas.height = H;
+      if (spaceCanvas) {
+        spaceCanvas.width = W;
+        spaceCanvas.height = H;
+      }
     }
 
     const ro = new ResizeObserver(resize);
@@ -287,11 +361,671 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       bettingLeftAt: 0,
       lastPlayerDomUpdate: 0,
       seenPlayerIds: new Set(),
+      theme: "crypto",
+      rocketAngleDeg: 0,
+      rocketX: 0.50,
+      rocketY: 0.72,
+      rocketHidden: true,
+      rocketSpriteRoundId: -1,
+      rocketSprite: ROCKET_SPRITES[0],
+      boomAt: 0,
+      boomRoundId: -1,
+      boomActive: false,
+      stars: [],
+      spaceMix: 0,
+      spaceStars: 0,
+      rocketReturnActive: false,
+      rocketReturnRoundId: -1,
+      rocketReturnStartAt: 0,
+      rocketReturnDurationMs: 2600,
+      rocketReturnFromY: 0.52,
+      rocketReturnFromAngle: -12,
+      rocketReturnFromMix: 0,
+      rocketReturnFromStars: 0,
+      cloudLayoutRoundId: -1,
+      cloudFlow: [],
+      cloudFlowLastAt: 0,
+      planets: [
+        { baseX: 0.24, baseY: 0.30, speed: 0.75, scale: 0.92, wobbleX: 0.08, wobbleY: 0.05 },
+        { baseX: 0.73, baseY: 0.58, speed: 0.95, scale: 1.14, wobbleX: 0.10, wobbleY: 0.06 }
+      ]
 
     };
     function isRunPhase(phase) {
       return phase === "run" || phase === "running" || phase === "inGame";
     }
+
+    function makeStarPool(count = 96) {
+      const stars = [];
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random(),
+          y: Math.random(),
+          radius: 0.6 + Math.random() * 1.9,
+          drift: 0.18 + Math.random() * 0.82,
+          twinkle: 0.7 + Math.random() * 2.2,
+          phase: Math.random() * Math.PI * 2,
+          color: Math.random() > 0.86 ? "rgba(164,216,255,1)" : "rgba(255,255,255,1)"
+        });
+      }
+      return stars;
+    }
+
+    function getSpaceStage(mult) {
+      const m = Math.max(1, Number(mult) || 1);
+      if (m < 2) return 1;
+      if (m < 5) return 2;
+      if (m < 10) return 3;
+      return 4;
+    }
+
+    function getVisualMultiplier() {
+      if (state.phase === "crash" || state.phase === "wait") {
+        const crash = Number(state.crashPoint);
+        if (Number.isFinite(crash) && crash > 0) return crash;
+      }
+      return Math.max(1, Number(state.displayMult) || Number(state.serverMult) || 1);
+    }
+
+    function clearSpaceCanvas() {
+      if (!spaceCtx || !spaceCanvas) return;
+      spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
+    }
+
+    function applyRocketSprite(spritePath) {
+      if (!rocketEl) return;
+      const nextSprite = (typeof spritePath === "string" && spritePath) ? spritePath : ROCKET_SPRITES[0];
+      rocketEl.style.backgroundImage = `url("${nextSprite}")`;
+    }
+
+    function applyRandomRocketSprite(force = false) {
+      const roundKey = Number(state.roundId);
+      const safeRoundKey = Number.isFinite(roundKey) ? roundKey : -1;
+
+      if (!force && state.rocketSpriteRoundId === safeRoundKey) {
+        applyRocketSprite(state.rocketSprite);
+        return state.rocketSprite;
+      }
+
+      let nextSprite = ROCKET_SPRITES[Math.floor(Math.random() * ROCKET_SPRITES.length)] || ROCKET_SPRITES[0];
+
+      if (ROCKET_SPRITES.length > 1 && nextSprite === state.rocketSprite) {
+        const prevIdx = Math.max(0, ROCKET_SPRITES.indexOf(state.rocketSprite));
+        const step = 1 + Math.floor(Math.random() * (ROCKET_SPRITES.length - 1));
+        nextSprite = ROCKET_SPRITES[(prevIdx + step) % ROCKET_SPRITES.length];
+      }
+
+      state.rocketSprite = nextSprite;
+      state.rocketSpriteRoundId = safeRoundKey;
+      applyRocketSprite(nextSprite);
+      return nextSprite;
+    }
+
+    function ensureFlowClouds(force = false) {
+      if (!spaceCloudsEl) return;
+      const desired = 12;
+
+      if (force) {
+        for (const cloud of state.cloudFlow) cloud?.el?.remove?.();
+        state.cloudFlow = [];
+      }
+
+      while (state.cloudFlow.length < desired) {
+        const el = document.createElement("div");
+        el.className = "crash-spaceCloud";
+        spaceCloudsEl.appendChild(el);
+        state.cloudFlow.push({
+          el,
+          x: 0,
+          y: 0,
+          dir: 1,
+          speed: 0.06,
+          size: 36,
+          scale: 1,
+          alpha: 0.65,
+          margin: 0.42,
+          lane: null
+        });
+      }
+
+      while (state.cloudFlow.length > desired) {
+        const cloud = state.cloudFlow.pop();
+        cloud?.el?.remove?.();
+      }
+    }
+
+    function makeCloudLanes() {
+      const rnd = (min, max) => min + Math.random() * (max - min);
+      const flowDir = Math.random() < 0.5 ? 1 : -1;
+      return [
+        {
+          count: 4,
+          y: rnd(0.10, 0.13),
+          jitterY: 0.016,
+          dir: flowDir,
+          speedMin: 0.016,
+          speedMax: 0.026,
+          sizeMin: 18,
+          sizeMax: 28,
+          scaleMin: 0.76,
+          scaleMax: 0.92,
+          alphaMin: 0.22,
+          alphaMax: 0.38
+        },
+        {
+          count: 5,
+          y: rnd(0.17, 0.22),
+          jitterY: 0.020,
+          dir: -flowDir,
+          speedMin: 0.023,
+          speedMax: 0.035,
+          sizeMin: 24,
+          sizeMax: 36,
+          scaleMin: 0.88,
+          scaleMax: 1.04,
+          alphaMin: 0.32,
+          alphaMax: 0.56
+        },
+        {
+          count: 3,
+          y: rnd(0.25, 0.31),
+          jitterY: 0.022,
+          dir: flowDir,
+          speedMin: 0.030,
+          speedMax: 0.044,
+          sizeMin: 30,
+          sizeMax: 44,
+          scaleMin: 1.02,
+          scaleMax: 1.16,
+          alphaMin: 0.42,
+          alphaMax: 0.72
+        }
+      ];
+    }
+
+    function applyFlowCloudStyle(cloud) {
+      cloud.el.style.width = `${cloud.size.toFixed(2)}%`;
+      cloud.el.style.height = `${(cloud.size * 0.62).toFixed(2)}%`;
+      cloud.el.style.opacity = clamp(cloud.alpha, 0, 1).toFixed(3);
+      cloud.el.style.zIndex = cloud.scale > 1.00 ? "3" : "2";
+    }
+
+    function placeFlowCloud(cloud, lane, slot = 0, total = 1, startVisible = false, phase = 0) {
+      const rnd = (min, max) => min + Math.random() * (max - min);
+      const safeTotal = Math.max(1, Number(total) || 1);
+      const lanePhase = ((Number(phase) % 1) + 1) % 1;
+
+      cloud.lane = lane;
+      cloud.dir = lane.dir;
+      cloud.size = rnd(lane.sizeMin, lane.sizeMax);
+      cloud.scale = rnd(lane.scaleMin, lane.scaleMax);
+      cloud.alpha = rnd(lane.alphaMin, lane.alphaMax);
+      cloud.speed = rnd(lane.speedMin, lane.speedMax);
+      cloud.y = clamp(lane.y + rnd(-lane.jitterY, lane.jitterY), 0.06, 0.36);
+      cloud.margin = 0.22 + cloud.size / 170;
+
+      if (startVisible) {
+        const span = 1 + cloud.margin * 2;
+        const xNorm = (slot + lanePhase) / safeTotal;
+        cloud.x = -cloud.margin + xNorm * span;
+      } else {
+        const off = rnd(0.04, 0.26);
+        cloud.x = cloud.dir > 0 ? -cloud.margin - off : 1 + cloud.margin + off;
+      }
+
+      applyFlowCloudStyle(cloud);
+    }
+
+    function resetOneFlowCloud(cloud, startVisible = false) {
+      const lane = cloud.lane || makeCloudLanes()[1];
+      placeFlowCloud(cloud, lane, 0, 1, startVisible, Math.random());
+    }
+
+    function updateCloudFlow(now, force = false) {
+      if (!state.cloudFlow.length) return;
+
+      const prev = Number(state.cloudFlowLastAt) || now;
+      let dt = (now - prev) / 1000;
+      if (!Number.isFinite(dt) || dt < 0) dt = 0;
+      dt = Math.min(dt, 0.10);
+      state.cloudFlowLastAt = now;
+      const runNow = isRunPhase(state.phase);
+      const flightBoost = runNow ? (1 + clamp(Number(state.spaceMix) || 0, 0, 1) * 2.6) : 1;
+      const passScale = runNow ? (1 + clamp(Number(state.spaceMix) || 0, 0, 1) * 0.18) : 1;
+
+      for (const cloud of state.cloudFlow) {
+        if (!force) cloud.x += cloud.dir * cloud.speed * flightBoost * dt;
+
+        const outLeft = cloud.x < -cloud.margin - 0.40;
+        const outRight = cloud.x > 1 + cloud.margin + 0.40;
+        if (outLeft || outRight) resetOneFlowCloud(cloud, false);
+
+        cloud.el.style.left = `${(cloud.x * 100).toFixed(3)}%`;
+        cloud.el.style.top = `${(cloud.y * 100).toFixed(3)}%`;
+        cloud.el.style.transform = `translate(-50%, -50%) scale(${(cloud.scale * passScale).toFixed(3)})`;
+      }
+    }
+
+    function randomizeCloudLayout(force = false) {
+      if (!spaceCloudsEl) return;
+      const roundKey = Number(state.roundId);
+      const safeRoundKey = Number.isFinite(roundKey) ? roundKey : -1;
+      if (!force && state.cloudLayoutRoundId === safeRoundKey) return;
+      state.cloudLayoutRoundId = safeRoundKey;
+
+      ensureFlowClouds(true);
+      const lanes = makeCloudLanes();
+      let idx = 0;
+
+      for (const lane of lanes) {
+        const count = Math.max(1, Number(lane.count) || 1);
+        const phase = Math.random();
+        for (let i = 0; i < count && idx < state.cloudFlow.length; i++) {
+          placeFlowCloud(state.cloudFlow[idx], lane, i, count, true, phase);
+          idx += 1;
+        }
+      }
+
+      const fallbackLane = lanes[1] || lanes[0];
+      while (idx < state.cloudFlow.length) {
+        placeFlowCloud(state.cloudFlow[idx], fallbackLane, idx, state.cloudFlow.length, true, Math.random());
+        idx += 1;
+      }
+
+      state.cloudFlowLastAt = performance.now();
+      updateCloudFlow(state.cloudFlowLastAt, true);
+    }
+
+    function startBettingRocketReturn(force = false) {
+      if (state.theme !== "space") return;
+      const roundKey = Number(state.roundId);
+      const safeRoundKey = Number.isFinite(roundKey) ? roundKey : -1;
+      if (!force && state.rocketReturnRoundId === safeRoundKey) return;
+
+      state.rocketReturnRoundId = safeRoundKey;
+      state.rocketReturnActive = true;
+      state.rocketReturnStartAt = performance.now();
+      state.rocketReturnFromY = clamp(Number(state.rocketY) || 0.52, 0.34, 0.86);
+      state.rocketReturnFromAngle = Number.isFinite(Number(state.rocketAngleDeg)) ? Number(state.rocketAngleDeg) : -12;
+      state.rocketReturnFromMix = clamp(Number(state.spaceMix) || 0, 0, 1);
+      state.rocketReturnFromStars = clamp(Number(state.spaceStars) || 0, 0, 1);
+      state.rocketHidden = true;
+      rocketEl?.classList.add("is-hidden");
+
+      if (boomEl) {
+        state.boomActive = false;
+        boomEl.classList.remove("is-on");
+        boomEl.style.opacity = "0";
+      }
+    }
+
+    function resetSpaceRoundVisuals() {
+      state.rocketHidden = true;
+      state.rocketReturnActive = false;
+      state.rocketReturnRoundId = -1;
+      state.boomActive = false;
+      state.boomAt = 0;
+      state.spaceMix = 0;
+      state.spaceStars = 0;
+      if (rocketEl) rocketEl.classList.add("is-hidden");
+      if (boomEl) {
+        boomEl.classList.remove("is-on");
+        boomEl.style.opacity = "0";
+      }
+      if (canvasWrapEl) {
+        canvasWrapEl.style.setProperty("--space-mix", "0");
+        canvasWrapEl.style.setProperty("--space-stars", "0");
+        canvasWrapEl.style.setProperty("--space-grass", "1");
+        canvasWrapEl.style.setProperty("--space-grass-shift", "0%");
+        canvasWrapEl.style.setProperty("--space-cloud", "0.88");
+        canvasWrapEl.style.setProperty("--space-cloud-shift", "0%");
+        canvasWrapEl.style.setProperty("--space-cloud-scale", "1");
+      }
+    }
+
+    function triggerRocketExplosion() {
+      if (state.theme !== "space") return;
+      if (!rocketEl || !boomEl) return;
+      if (state.boomRoundId === state.roundId) return;
+
+      state.boomRoundId = state.roundId;
+      state.boomAt = performance.now();
+      state.boomActive = true;
+      state.rocketHidden = true;
+
+      rocketEl.classList.add("is-hidden");
+      boomEl.classList.add("is-on");
+      boomEl.style.left = `${(state.rocketX * 100).toFixed(2)}%`;
+      boomEl.style.top = `${(state.rocketY * 100).toFixed(2)}%`;
+      boomEl.style.opacity = "1";
+      boomEl.style.transform = "translate(-50%, -50%) scale(0.72)";
+    }
+
+    function setSpaceThemeVariables(mult) {
+      const m = Math.max(1, Number(mult) || 1);
+      let mixTarget = clamp(Number(state.spaceMix) || 0, 0, 1);
+      let starsTarget = clamp(Number(state.spaceStars) || 0, 0, 1);
+      const ease = (t) => {
+        const x = clamp(t, 0, 1);
+        return x * x * (3 - 2 * x);
+      };
+
+      const inRun = isRunPhase(state.phase);
+      const inBetting = state.phase === "betting";
+      const inCrashHold = state.phase === "crash" || state.phase === "wait";
+      const phaseStart = Number(state.phaseStart) || 0;
+      const runProgress = (inRun && phaseStart > 0)
+        ? clamp((Date.now() - phaseStart) / 4200, 0, 1)
+        : 0;
+      const runEase = ease(runProgress);
+      const returnProgressRaw = (inBetting && state.rocketReturnActive)
+        ? clamp((performance.now() - state.rocketReturnStartAt) / Math.max(1200, state.rocketReturnDurationMs), 0, 1)
+        : 0;
+      const returnProgress = returnProgressRaw * returnProgressRaw * (3 - 2 * returnProgressRaw);
+
+      if (inRun) {
+        if (m < 1.6) {
+          mixTarget = 0;
+        } else if (m < 2.5) {
+          mixTarget = 0.06 + ease((m - 1.6) / 0.9) * 0.12;
+        } else if (m < 5) {
+          mixTarget = 0.18 + ease((m - 2.5) / 2.5) * 0.28;
+        } else if (m < 10) {
+          mixTarget = 0.46 + ease((m - 5) / 5) * 0.38;
+        } else {
+          mixTarget = 0.84 + ease((Math.min(m, 20) - 10) / 10) * 0.16;
+        }
+
+        if (m < 1.9) {
+          starsTarget = 0;
+        } else if (m < 5) {
+          starsTarget = 0.02 + ease((m - 1.9) / 3.1) * 0.28;
+        } else if (m < 10) {
+          starsTarget = 0.30 + ease((m - 5) / 5) * 0.45;
+        } else {
+          starsTarget = 0.75 + ease((Math.min(m, 20) - 10) / 10) * 0.20;
+        }
+
+        // Time keeps the ascent moving toward deep space even on low crash points.
+        mixTarget = Math.max(mixTarget, runEase * 0.98);
+        starsTarget = Math.max(starsTarget, clamp((runEase - 0.18) / 0.82, 0, 0.68));
+      } else if (inBetting) {
+        if (state.rocketReturnActive) {
+          mixTarget = state.rocketReturnFromMix * (1 - returnProgress);
+          starsTarget = state.rocketReturnFromStars * (1 - returnProgress);
+        } else {
+          mixTarget = 0;
+          starsTarget = 0;
+        }
+      } else if (!inCrashHold) {
+        mixTarget = 0;
+        starsTarget = 0;
+      }
+
+      state.spaceMix += (mixTarget - state.spaceMix) * (inRun ? 0.014 : (inBetting ? 0.020 : 0.05));
+      state.spaceStars += (starsTarget - state.spaceStars) * (inRun ? 0.016 : (inBetting ? 0.022 : 0.06));
+      const mix = clamp(state.spaceMix, 0, 1);
+      const stars = clamp(state.spaceStars, 0, 1);
+      const grassFadeT = Math.max(inRun ? runEase * 0.95 : 0, mix * 0.68);
+      const grass = clamp(1 - grassFadeT * 1.95, 0, 1);
+      const grassShift = clamp((inRun ? runEase * 240 : 0) + mix * 130, 0, 430);
+      const clouds = clamp(0.88 - mix * 1.12, 0, 0.88);
+      const cloudShift = clamp((inRun ? runEase * 78 : mix * 44), 0, 96);
+      const cloudScale = 1 + (inRun ? runEase : mix) * 0.14;
+
+      if (canvasWrapEl) {
+        canvasWrapEl.style.setProperty("--space-mix", mix.toFixed(3));
+        canvasWrapEl.style.setProperty("--space-stars", stars.toFixed(3));
+        canvasWrapEl.style.setProperty("--space-grass", grass.toFixed(3));
+        canvasWrapEl.style.setProperty("--space-grass-shift", `${grassShift.toFixed(2)}%`);
+        canvasWrapEl.style.setProperty("--space-cloud", clouds.toFixed(3));
+        canvasWrapEl.style.setProperty("--space-cloud-shift", `${cloudShift.toFixed(2)}%`);
+        canvasWrapEl.style.setProperty("--space-cloud-scale", cloudScale.toFixed(3));
+      }
+      try {
+        document.documentElement.style.setProperty("--crash-space-progress", mix.toFixed(3));
+      } catch (_) {}
+      if (cardEl) {
+        cardEl.setAttribute("data-space-stage", String(getSpaceStage(m)));
+      }
+      if (inBetting && state.rocketReturnActive && returnProgressRaw >= 1) {
+        state.rocketReturnActive = false;
+      }
+    }
+
+    function renderSpaceStars(now, mult) {
+      if (!spaceCtx || !spaceCanvas || state.theme !== "space") return;
+      spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
+      const intensity = clamp(Number(state.spaceStars) || 0, 0, 1);
+      if (intensity <= 0.02) return;
+
+      const w = spaceCanvas.width;
+      const h = spaceCanvas.height;
+      const maxCount = Math.min(68, state.stars.length);
+      const count = Math.max(4, Math.round(6 + maxCount * Math.pow(intensity, 1.05)));
+      const t = now * 0.001;
+      const inRun = isRunPhase(state.phase);
+      const phaseStart = Number(state.phaseStart) || 0;
+      const runProgress = (inRun && phaseStart > 0)
+        ? clamp((Date.now() - phaseStart) / 5600, 0, 1)
+        : 0;
+      const runEase = runProgress * runProgress * (3 - 2 * runProgress);
+      const runRamp = Math.pow(runEase, 1.45);
+      const multBoost = clamp((Math.max(1, Number(mult) || 1) - 1) / 9, 0, 1);
+      const speedMin = 0.014 + intensity * 0.022;
+      const speedMax = 0.098 + intensity * 0.27 + multBoost * 0.14;
+      const speed = speedMin + (speedMax - speedMin) * (inRun ? runRamp : 0.16);
+      const tailBoost = inRun ? (0.36 + runRamp * 0.64) : 0.30;
+
+      for (let i = 0; i < count; i++) {
+        const s = state.stars[i];
+        if (!s) continue;
+
+        const d = 0.36 + s.drift * 0.9;
+        const vx = -(0.12 + speed * 0.75) * d;
+        const vy = (0.24 + speed * 1.35) * d;
+
+        const nx = ((s.x + t * vx) % 1 + 1) % 1;
+        const ny = ((s.y + t * vy) % 1 + 1) % 1;
+        const x = nx * w;
+        const y = ny * h;
+
+        const tw = 0.45 + 0.55 * Math.sin(now * 0.0012 * s.twinkle + s.phase);
+        const alpha = clamp((0.18 + tw * 0.82) * Math.pow(intensity, 1.25), 0, 1);
+        const tailLen = (6 + intensity * 22 + multBoost * 8) * (0.55 + s.drift * 0.8) * tailBoost;
+        const n = Math.hypot(vx, vy) || 1;
+        const tx = vx / n;
+        const ty = vy / n;
+        const x2 = x - tx * tailLen;
+        const y2 = y - ty * tailLen;
+
+        const grad = spaceCtx.createLinearGradient(x, y, x2, y2);
+        grad.addColorStop(0, `rgba(255,255,255,${(alpha * 0.90).toFixed(3)})`);
+        grad.addColorStop(0.32, `rgba(188,222,255,${(alpha * 0.58).toFixed(3)})`);
+        grad.addColorStop(1, "rgba(140,190,255,0)");
+
+        spaceCtx.strokeStyle = grad;
+        spaceCtx.lineWidth = 0.8 + intensity * 1.3;
+        spaceCtx.beginPath();
+        spaceCtx.moveTo(x, y);
+        spaceCtx.lineTo(x2, y2);
+        spaceCtx.stroke();
+
+        spaceCtx.fillStyle = `rgba(255,255,255,${(alpha * 0.95).toFixed(3)})`;
+        spaceCtx.beginPath();
+        spaceCtx.arc(x, y, 0.9 + intensity * 1.1, 0, Math.PI * 2);
+        spaceCtx.fill();
+      }
+    }
+
+    function updatePlanets(now, mult) {
+      if (!planetEls.length) return;
+      const visible = state.theme === "space" && mult >= 10;
+      if (!visible) {
+        planetEls.forEach((el) => el.classList.remove("is-visible"));
+        return;
+      }
+
+      const boost = clamp((mult - 10) / 10, 0, 1);
+      const angleRad = (state.rocketAngleDeg * Math.PI) / 180;
+      const vx = -Math.sin(angleRad);
+      const vy = Math.cos(angleRad);
+
+      planetEls.forEach((el, idx) => {
+        const p = state.planets[idx] || state.planets[0];
+        const travel = ((now * 0.00012 * p.speed) % 1.65) - 0.35;
+        const wobbleX = Math.sin(now * 0.0004 + idx * 2.1) * p.wobbleX;
+        const wobbleY = Math.cos(now * 0.00033 + idx * 1.4) * p.wobbleY;
+        const drift = travel * (0.52 + boost * 0.32);
+        const x = p.baseX + vx * drift + wobbleX;
+        const y = p.baseY + vy * drift + wobbleY;
+        const scale = p.scale + boost * 0.28;
+
+        el.classList.add("is-visible");
+        el.style.left = `${(x * 100).toFixed(2)}%`;
+        el.style.top = `${(y * 100).toFixed(2)}%`;
+        el.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+      });
+    }
+
+    function updateRocket(now) {
+      if (!rocketEl || state.theme !== "space") return;
+      const x = 0.50;
+      const inBetting = state.phase === "betting";
+      if (inBetting && state.rocketReturnActive) {
+        const tRaw = clamp((now - state.rocketReturnStartAt) / Math.max(1200, state.rocketReturnDurationMs), 0, 1);
+        const t = tRaw * tRaw * (3 - 2 * tRaw);
+        const fromY = clamp(Number(state.rocketReturnFromY) || 0.52, 0.34, 0.86);
+        const fromAngle = Number.isFinite(Number(state.rocketReturnFromAngle)) ? Number(state.rocketReturnFromAngle) : -12;
+        const y = fromY + (0.72 - fromY) * t;
+        const angle = fromAngle + (-28 - fromAngle) * t;
+
+        state.rocketAngleDeg = angle;
+        state.rocketX = x;
+        state.rocketY = y;
+
+        rocketEl.style.left = `${(x * 100).toFixed(2)}%`;
+        rocketEl.style.top = `${(y * 100).toFixed(2)}%`;
+        rocketEl.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(2)}deg)`;
+        if (tRaw >= 1) state.rocketReturnActive = false;
+        return;
+      }
+
+      const mix = clamp(Number(state.spaceMix) || 0, 0, 1);
+      const enterT = (() => {
+        const t = clamp((mix - 0.46) / 0.30, 0, 1);
+        return t * t * (3 - 2 * t);
+      })();
+      const y = 0.72 - enterT * 0.20; // move toward center when entering deep space
+      const angle = -28 + enterT * 16; // slight right turn on space-entry
+
+      state.rocketAngleDeg = angle;
+      state.rocketX = x;
+      state.rocketY = y;
+
+      rocketEl.style.left = `${(x * 100).toFixed(2)}%`;
+      rocketEl.style.top = `${(y * 100).toFixed(2)}%`;
+      rocketEl.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(2)}deg)`;
+    }
+
+    function updateExplosion(now) {
+      if (!boomEl) return;
+      if (!state.boomActive) {
+        boomEl.classList.remove("is-on");
+        return;
+      }
+      const elapsed = now - state.boomAt;
+      const duration = 980;
+      const t = clamp(elapsed / duration, 0, 1);
+      const alpha = 1 - t;
+      const scale = 0.72 + t * 0.72;
+      boomEl.style.opacity = alpha.toFixed(3);
+      boomEl.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+      if (t >= 1) {
+        state.boomActive = false;
+        boomEl.classList.remove("is-on");
+      }
+    }
+
+    function updateSpaceScene(now) {
+      if (state.theme !== "space") {
+        clearSpaceCanvas();
+        planetEls.forEach((el) => el.classList.remove("is-visible"));
+        if (rocketEl) rocketEl.classList.add("is-hidden");
+        return;
+      }
+
+      const mult = getVisualMultiplier();
+      setSpaceThemeVariables(mult);
+
+      const runNow = isRunPhase(state.phase);
+
+      if (runNow && !state.rocketHidden) {
+        rocketEl?.classList.remove("is-hidden");
+        updateRocket(now);
+      } else if (!state.boomActive) {
+        rocketEl?.classList.add("is-hidden");
+      }
+
+      updateCloudFlow(now);
+      renderSpaceStars(now, mult);
+      updatePlanets(now, mult);
+      updateExplosion(now);
+    }
+
+    function setTheme(nextTheme, persist = true) {
+      const theme = nextTheme === "space" ? "space" : "crypto";
+      state.theme = theme;
+      if (cardEl) cardEl.setAttribute("data-theme", theme);
+      try {
+        document.body.classList.toggle("crash-space-ui", theme === "space");
+      } catch (_) {}
+      if (spaceLayerEl) {
+        spaceLayerEl.classList.toggle("is-active", theme === "space");
+      }
+      if (topThemeSwitchEl) {
+        topThemeSwitchEl.setAttribute("data-active-theme", theme);
+        topThemeSwitchEl.querySelectorAll(".crash-topThemeBtn").forEach((btn) => {
+          btn.classList.toggle("is-active", btn.dataset.theme === theme);
+        });
+      }
+      if (persist) {
+        try { localStorage.setItem("crashTheme", theme); } catch (_) {}
+      }
+      if (theme !== "space") {
+        try { document.documentElement.style.setProperty("--crash-space-progress", "0"); } catch (_) {}
+        resetSpaceRoundVisuals();
+        clearSpaceCanvas();
+        planetEls.forEach((el) => el.classList.remove("is-visible"));
+      } else {
+        randomizeCloudLayout();
+        resetSpaceRoundVisuals();
+        applyRandomRocketSprite();
+        if (isRunPhase(state.phase)) {
+          state.rocketHidden = false;
+          rocketEl?.classList.remove("is-hidden");
+        }
+      }
+      setSpaceThemeVariables(getVisualMultiplier());
+    }
+
+    state.stars = makeStarPool();
+    const savedTheme = (() => {
+      try { return localStorage.getItem("crashTheme"); } catch (_) { return null; }
+    })();
+    setTheme(savedTheme === "crypto" ? "crypto" : "space", false);
+
+    topThemeSwitchEl?.addEventListener("click", (e) => {
+      const target = e.target instanceof Element ? e.target : null;
+      const btn = target?.closest?.(".crash-topThemeBtn");
+      if (!btn) return;
+      setTheme(btn.dataset.theme || "crypto");
+      if (btn.dataset.theme === "space") {
+        setStatus("Space theme enabled");
+      } else {
+        setStatus("Crypto theme enabled");
+      }
+    });
     
 
     // WebSocket connection
@@ -316,6 +1050,8 @@ function startTestMode() {
   state.serverMult = 1.0;
   state.players = [];
   state.history = [2.34, 1.56, 3.78, 1.23, 5.67];
+  randomizeCloudLayout(true);
+  applyRandomRocketSprite(true);
   
   renderHistory();
   updateUIForPhase();
@@ -410,6 +1146,8 @@ function handleTestCrash() {
     // Start new round after 3 seconds
     setTimeout(() => {
       state.roundId++;
+      randomizeCloudLayout(true);
+      applyRandomRocketSprite(true);
       state.phase = 'betting';
       state.phaseStart = Date.now();
       state.bettingLeftMs = state.bettingTimeMs;
@@ -515,6 +1253,24 @@ function handleTestCrash() {
             state.displayMult = 1.0;
             state.lastCandleAt = 0;
             state.lastTimerSeconds = null;
+            state.boomRoundId = -1;
+            randomizeCloudLayout(true);
+            applyRandomRocketSprite(true);
+            if (state.theme === "space") {
+              state.rocketHidden = true;
+              if (rocketEl) rocketEl.classList.add("is-hidden");
+              if (state.phase === "betting") startBettingRocketReturn(true);
+              else {
+                state.rocketReturnActive = false;
+                state.boomActive = false;
+                if (boomEl) {
+                  boomEl.classList.remove("is-on");
+                  boomEl.style.opacity = "0";
+                }
+              }
+            } else if (state.theme !== "space") {
+              resetSpaceRoundVisuals();
+            }
           }
 
           // Phase transition hygiene
@@ -543,19 +1299,15 @@ function handleTestCrash() {
             try {
               const mult = (typeof msg.mult === 'number' && Number.isFinite(msg.mult)) ? msg.mult : Number(msg.mult);
               const m = Number.isFinite(mult) ? mult : 1.0;
-
-              let payoutText = '';
-              if (state.myBet && typeof state.myBet.amount === 'number' && Number.isFinite(state.myBet.amount)) {
-                const amt = Number(state.myBet.amount);
-                const cur = (state.myBet.currency === 'stars') ? '⭐' : 'TON';
-                const decimals = (state.myBet.currency === 'stars') ? 0 : 2;
-                const payout = amt * m;
-                if (Number.isFinite(payout)) {
-                  payoutText = ` • ${payout.toFixed(decimals)} ${cur}`;
-                }
-              }
-
-              showToast(`Succesfully Claimed!`, { ttl: 2400 });
+              const toastAmount = (state.myBet && typeof state.myBet.amount === "number" && Number.isFinite(state.myBet.amount))
+                ? Number(state.myBet.amount) * m
+                : NaN;
+              const toastCurrency = state.myBet?.currency === "stars" ? "stars" : "ton";
+              showToast("Successfully Claimed!", {
+                ttl: 2400,
+                amount: toastAmount,
+                currency: Number.isFinite(toastAmount) ? toastCurrency : ""
+              });
             } catch (_) {}
             if (state.myBet) {
               state.myBet.claimed = true;
@@ -622,6 +1374,13 @@ function handleTestCrash() {
           
           const card = document.querySelector('.crash-card');
           if (card) card.classList.remove('is-crashed');
+          if (state.theme === "space") {
+            state.rocketHidden = true;
+            if (rocketEl) rocketEl.classList.add("is-hidden");
+            startBettingRocketReturn();
+          } else {
+            resetSpaceRoundVisuals();
+          }
           break;
 
           case 'run':
@@ -629,6 +1388,11 @@ function handleTestCrash() {
             case 'inGame':
               setTimer(0, false);
               if (multEl) multEl.style.display = 'block';
+              if (state.theme === "space") {
+                state.rocketReturnActive = false;
+                state.rocketHidden = false;
+                rocketEl?.classList.remove("is-hidden");
+              }
             
               if (myPlayer && !myPlayer.claimed) {
                 setStatus("Running…");
@@ -649,6 +1413,7 @@ function handleTestCrash() {
           
           const cardCrash = document.querySelector('.crash-card');
           if (cardCrash) cardCrash.classList.add('is-crashed');
+          triggerRocketExplosion();
           
           if (myPlayer && !myPlayer.claimed) {
             setStatus("CRASH! Lost");
@@ -675,6 +1440,7 @@ function handleTestCrash() {
 
           const cardWait = document.querySelector('.crash-card');
           if (cardWait) cardWait.classList.add('is-crashed');
+          triggerRocketExplosion();
 
           if (myPlayer && !myPlayer.claimed) {
             setStatus("CRASH! Lost");
@@ -728,7 +1494,33 @@ function showToast(text, opts = {}) {
 
   const el = document.createElement("div");
   el.className = "crash-toast";
-  el.textContent = String(text || "");
+
+  const textEl = document.createElement("span");
+  textEl.className = "crash-toastText";
+  textEl.textContent = String(text || "");
+  el.appendChild(textEl);
+
+  const toastCurrencyRaw = String(opts.currency || "").toLowerCase();
+  const toastCurrency = toastCurrencyRaw === "stars" ? "stars" : (toastCurrencyRaw === "ton" ? "ton" : "");
+  const toastAmount = Number(opts.amount);
+
+  if (toastCurrency && Number.isFinite(toastAmount)) {
+    const metaEl = document.createElement("span");
+    metaEl.className = "crash-toastMeta";
+
+    const amountEl = document.createElement("span");
+    amountEl.className = "crash-toastAmount";
+    amountEl.textContent = formatCurrencyAmount(toastAmount, toastCurrency);
+
+    const iconEl = document.createElement("img");
+    iconEl.className = "crash-toastCurrency";
+    iconEl.src = currencyIcon(toastCurrency);
+    iconEl.alt = toastCurrency === "stars" ? "Stars" : "TON";
+
+    metaEl.appendChild(amountEl);
+    metaEl.appendChild(iconEl);
+    el.appendChild(metaEl);
+  }
 
   host.appendChild(el);
 
@@ -1268,7 +2060,7 @@ function showToast(text, opts = {}) {
           renderPlayers();
           updateUIForPhase();
           
-          showToast(`Succesfully Claimed! `, { ttl: 2400 });
+          showToast("Successfully Claimed!", { ttl: 2400, amount: payout, currency });
           
           state.actionLock = false;
           return;
@@ -1410,6 +2202,11 @@ function showToast(text, opts = {}) {
 
   // ---------- clear ----------
   ctx.clearRect(0, 0, W, H);
+
+  // Space theme: chart candles/hammers are disabled, scene is rendered by the space layer.
+  if (state.theme === "space") {
+    return;
+  }
 
 // ---------- world grid (camera scroll) ----------
 {
@@ -1806,6 +2603,8 @@ const yOf = (v) => {
         // (но ты и так скрываешь multEl в betting)
         // state.displayMult = 1.0;
       }
+
+      updateSpaceScene(now);
     
       // --- render ---
       draw();
@@ -1869,3 +2668,4 @@ const yOf = (v) => {
   }
 
 })();
+
