@@ -19,7 +19,9 @@
     let swipeStartY = 0;
     let swipeCurrentY = 0;
     let isSwiping = false;
-    let currentLang = localStorage.getItem('wt-language') || 'en';
+    let currentLang = String(
+      window.WT?.i18n?.getLanguage?.() || localStorage.getItem('wt-language') || 'en'
+    ).toLowerCase().startsWith('ru') ? 'ru' : 'en';
   
     // ====== FLAG FORMAT DETECTION ======
     // Определяем лучший формат для браузера
@@ -60,6 +62,15 @@
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred(type);
       }
+    }
+
+    function t(key, fallback = '') {
+      return window.WT?.i18n?.t?.(key, fallback) || fallback;
+    }
+
+    function syncCurrentLangFromState() {
+      const fromI18n = window.WT?.i18n?.getLanguage?.();
+      currentLang = String(fromI18n || currentLang || 'en').toLowerCase().startsWith('ru') ? 'ru' : 'en';
     }
 
     function openSupportLink() {
@@ -231,7 +242,9 @@
       const flagImg = languageSwitcher.querySelector('.settings-flag-img');
       
       if (valueEl) {
-        valueEl.textContent = currentLang === 'en' ? 'English' : 'Русский';
+        valueEl.textContent = currentLang === 'en'
+          ? t('language_english', 'English')
+          : t('language_russian', 'Русский');
       }
       
       // Update flag with swap animation
@@ -243,7 +256,8 @@
         setTimeout(() => {
           const flagSrc = getFlagPath(currentLang);
           flagImg.src = flagSrc;
-          flagImg.alt = currentLang === 'en' ? 'English Flag' : 'Russian Flag';
+          const altText = currentLang === 'en' ? 'English Flag' : 'Russian Flag';
+          flagImg.alt = window.WT?.i18n?.translate?.(altText) || altText;
           
           // Remove switching class after animation
           setTimeout(() => {
@@ -265,25 +279,28 @@
   
     if (languageSwitcher) {
       languageSwitcher.addEventListener('click', () => {
-        // Toggle language
-        currentLang = currentLang === 'ru' ? 'en' : 'ru';
-        
-        // Save to localStorage
-        localStorage.setItem('wt-language', currentLang);
-        
-        // Update display with animation
-        updateLanguageDisplay();
-        
-        // Apply language change
+        const nextLang = currentLang === 'ru' ? 'en' : 'ru';
         if (window.WT?.changeLanguage) {
-          window.WT.changeLanguage(currentLang);
+          currentLang = window.WT.changeLanguage(nextLang);
+        } else {
+          currentLang = nextLang;
+          try { localStorage.setItem('wt-language', currentLang); } catch {}
         }
+
+        updateLanguageDisplay();
         
         haptic('light');
         
         console.log('[Settings] Language changed to:', currentLang);
       });
     }
+
+    window.addEventListener('language:changed', (event) => {
+      const lang = String(event?.detail?.language || '').toLowerCase();
+      if (!lang) return;
+      currentLang = lang.startsWith('ru') ? 'ru' : 'en';
+      updateLanguageDisplay();
+    });
   
     // ====== CLICKABLE ITEMS ======
   
@@ -298,10 +315,11 @@
           openSupportLink();
         } else if (item.id === 'aboutItem') {
           console.log('[Settings] About clicked');
+          const aboutMessage = t('about_popup', 'WildGift v1.0.0\n\nA Telegram mini app for fun gaming!');
           if (tg?.showAlert) {
-            tg.showAlert('WildGift v1.0.0\n\nA Telegram mini app for fun gaming!');
+            tg.showAlert(aboutMessage);
           } else {
-            alert('WildGift v1.0.0\n\nA Telegram mini app for fun gaming!');
+            alert(aboutMessage);
           }
         }
       });
@@ -337,6 +355,7 @@
       console.log('[Settings] Initializing settings module');
       
       updateUserAvatar();
+      syncCurrentLangFromState();
       updateLanguageDisplay();
       preloadFlags(); // Preload flags for smooth animation
       

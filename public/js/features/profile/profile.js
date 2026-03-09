@@ -39,6 +39,7 @@
   // ====== PROMOCODE UI ======
   const promoInput = document.getElementById('promoInput');
   const promoApplyBtn = document.getElementById('promoApplyBtn');
+  const PROMO_APPLY_ICON_HTML = '<img src="/icons/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true">';
   const promoToast = document.getElementById('promo-toast');
 
   let promoToastTimer = null;
@@ -84,6 +85,14 @@
     promoApplyBtn.disabled = v.length < 3;
   }
 
+  function renderPromoApplyButton(loading = false) {
+    if (!promoApplyBtn) return;
+    promoApplyBtn.innerHTML = PROMO_APPLY_ICON_HTML;
+    promoApplyBtn.classList.toggle('is-loading', !!loading);
+    const applyLabel = window.WT?.i18n?.translate?.('Apply') || 'Apply';
+    promoApplyBtn.setAttribute('aria-label', applyLabel);
+  }
+
   async function applyPromocode() {
     if (!promoInput || !promoApplyBtn) return;
     const code = String(promoInput.value || '').trim();
@@ -95,9 +104,8 @@
 
     haptic('medium');
 
-    const oldText = promoApplyBtn.textContent;
     promoApplyBtn.disabled = true;
-    promoApplyBtn.textContent = 'Applying...';
+    renderPromoApplyButton(true);
 
     try {
       const r = await tgFetch('/api/promocode/redeem', {
@@ -146,7 +154,7 @@
       showPromoToast('Network error');
       haptic('light');
     } finally {
-      promoApplyBtn.textContent = oldText || 'Apply';
+      renderPromoApplyButton(false);
       updatePromoBtnState();
     }
   }
@@ -156,6 +164,7 @@
     promoSetupDone = true;
     if (!promoInput || !promoApplyBtn) return;
 
+    renderPromoApplyButton(false);
     updatePromoBtnState();
 
     promoInput.addEventListener('input', updatePromoBtnState);

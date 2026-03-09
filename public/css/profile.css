@@ -5054,9 +5054,13 @@ html[data-currency="stars"] .profile-ava,
 }
 
 .promo-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 44px;
   border-radius: 14px;
-  padding: 0 16px;
+  min-width: 54px;
+  padding: 0 14px;
   border: 0;
   background: linear-gradient(180deg, #2aa8ff 0%, #118cff 100%);
   box-shadow: 0 6px 18px rgba(17, 140, 255, 0.28);
@@ -5069,6 +5073,24 @@ html[data-currency="stars"] .profile-ava,
   transition: opacity 0.15s ease, transform 0.1s ease;
 }
 
+.promo-btn__icon{
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+  filter: brightness(0) saturate(100%) invert(100%);
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.promo-btn.is-loading .promo-btn__icon{
+  opacity: 0.72;
+  animation: promo-btn-pulse 0.85s ease-in-out infinite alternate;
+}
+
+html[data-currency="stars"] .promo-btn__icon{
+  filter: brightness(0) saturate(100%) invert(83%) sepia(70%) saturate(708%) hue-rotate(354deg) brightness(106%) contrast(102%);
+}
+
 .promo-btn:active{
   transform: translateY(1px);
 }
@@ -5079,6 +5101,11 @@ html[data-currency="stars"] .profile-ava,
   transform: none;
   box-shadow: none;
   background: rgba(255, 255, 255, 0.08);
+}
+
+@keyframes promo-btn-pulse {
+  from { transform: scale(0.94); }
+  to { transform: scale(1.04); }
 }
 
 /* Liquid glass toast */
