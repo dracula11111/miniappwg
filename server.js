@@ -35,6 +35,7 @@ function createMemoryDb() {
   const txs = new Map();      // telegram_id(string) -> tx[]
   const promoCodes = new Map(); // code(lower) -> { reward_stars, reward_ton, max_uses, used_count }
   const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
+  const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
   let txId = 1;
   let betId = 1;
 
@@ -256,9 +257,60 @@ function createMemoryDb() {
       }
 
       return { ok: true, added, addedTon, newBalance: nextStars, newTonBalance: nextTon };
-    }
+    },
+    async hasTaskClaim(telegramId, taskKey) {
+      const uid = ensure(telegramId);
+      const key = String(taskKey || "").trim();
+      if (!key) return false;
+      return !!taskClaims.get(uid)?.has(key);
+    },
+    async awardTaskReward(telegramId, taskKey, currency = "stars", amount = 0, description = "Task reward") {
+      const uid = ensure(telegramId);
+      const key = String(taskKey || "").trim();
+      if (!key) throw new Error("taskKey required");
 
-,
+      let delta = Number(amount || 0);
+      if (!Number.isFinite(delta) || delta <= 0) throw new Error("Invalid amount");
+      const cur = String(currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+      if (cur === "stars") delta = Math.max(1, Math.round(delta));
+      if (cur === "ton") delta = Math.round(delta * 100000000) / 100000000;
+
+      if (!taskClaims.has(uid)) taskClaims.set(uid, new Set());
+      const userClaims = taskClaims.get(uid);
+      if (userClaims.has(key)) {
+        const bal = balances.get(uid) || { ton_balance: "0", stars_balance: 0 };
+        return {
+          ok: true,
+          alreadyClaimed: true,
+          currency: cur,
+          added: 0,
+          newBalance: cur === "ton" ? Number(bal.ton_balance || 0) : Number(bal.stars_balance || 0),
+          tonBalance: Number(bal.ton_balance || 0),
+          starsBalance: Number(bal.stars_balance || 0)
+        };
+      }
+
+      userClaims.add(key);
+      let newBalance = 0;
+      try {
+        newBalance = await this.updateBalance(uid, cur, delta, "task_reward", description, { taskKey: key });
+      } catch (error) {
+        userClaims.delete(key);
+        throw error;
+      }
+
+      const bal = balances.get(uid) || { ton_balance: "0", stars_balance: 0 };
+      return {
+        ok: true,
+        alreadyClaimed: false,
+        currency: cur,
+        added: delta,
+        newBalance: Number(newBalance || 0),
+        tonBalance: Number(bal.ton_balance || 0),
+        starsBalance: Number(bal.stars_balance || 0)
+      };
+    },
+
 // ===== Inventory (TEST_MODE memory) =====
 async getUserInventory(telegramId) {
   const k = ensure(telegramId);
@@ -2683,6 +2735,247 @@ app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
   } catch (e) {
     console.error("[Promo] redeem error:", e);
     return res.status(500).json({ ok: false, errorCode: "PROMO_REDEEM_FAILED", error: "internal error" });
+  }
+});
+
+
+const TASK_SUBSCRIBE_KEY = "subscribe_wildgift_channel_v1";
+const TASK_SUBSCRIBE_REWARD_STARS = 1;
+const TASK_SUBSCRIBE_CHANNEL_DEFAULT = "@wildgift_channel";
+const TASK_SUBSCRIBE_CHANNEL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL || TASK_SUBSCRIBE_CHANNEL_DEFAULT).trim() || TASK_SUBSCRIBE_CHANNEL_DEFAULT;
+const TASK_SUBSCRIBE_CHANNEL_URL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL_URL || "").trim();
+
+function parseTelegramChannel(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) {
+    return { chatId: TASK_SUBSCRIBE_CHANNEL_DEFAULT, username: "wildgift_channel", url: "https://t.me/wildgift_channel" };
+  }
+
+  if (/^-?\d+$/.test(raw)) {
+    return { chatId: raw, username: "", url: "" };
+  }
+
+  let username = raw
+    .replace(/^https?:\/\/t\.me\//i, "")
+    .replace(/^@+/, "")
+    .split(/[/?#]/)[0]
+    .trim();
+
+  if (!username) username = "wildgift_channel";
+  return {
+    chatId: `@${username}`,
+    username,
+    url: `https://t.me/${username}`
+  };
+}
+
+const TASK_SUBSCRIBE_CHANNEL = parseTelegramChannel(TASK_SUBSCRIBE_CHANNEL_RAW);
+const TASK_SUBSCRIBE_CHANNEL_CHAT_ID = TASK_SUBSCRIBE_CHANNEL.chatId;
+const TASK_SUBSCRIBE_CHANNEL_URL = TASK_SUBSCRIBE_CHANNEL_URL_RAW || TASK_SUBSCRIBE_CHANNEL.url || "https://t.me/wildgift_channel";
+
+function isSubscribedMemberStatus(status, isMemberFlag = false) {
+  const s = String(status || "").toLowerCase();
+  if (s === "member" || s === "administrator" || s === "creator") return true;
+  if (s === "restricted" && isMemberFlag === true) return true;
+  return false;
+}
+
+async function checkTaskChannelMembership(telegramUserId) {
+  if (!process.env.BOT_TOKEN) {
+    return { ok: false, isMember: false, status: null, error: "BOT_TOKEN not set" };
+  }
+  if (!TASK_SUBSCRIBE_CHANNEL_CHAT_ID) {
+    return { ok: false, isMember: false, status: null, error: "TASK_SUBSCRIBE_CHANNEL not configured" };
+  }
+
+  try {
+    const numericUserId = Number(telegramUserId);
+    const userIdPayload = Number.isFinite(numericUserId) ? numericUserId : String(telegramUserId || "");
+    const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+        user_id: userIdPayload
+      })
+    });
+
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body?.ok) {
+      return {
+        ok: false,
+        isMember: false,
+        status: null,
+        error: String(body?.description || `Telegram API error (${response.status})`)
+      };
+    }
+
+    const status = String(body?.result?.status || "").toLowerCase();
+    const isMember = isSubscribedMemberStatus(status, body?.result?.is_member === true);
+    return { ok: true, isMember, status, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      isMember: false,
+      status: null,
+      error: String(error?.message || error || "Failed to check channel membership")
+    };
+  }
+}
+
+async function resolveTaskRewardForCurrency(baseStars, preferredCurrency) {
+  const starsReward = Math.max(1, Math.round(Number(baseStars || 0)));
+  const currency = String(preferredCurrency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+  if (currency === "stars") {
+    return { currency: "stars", amount: starsReward, baseStars: starsReward };
+  }
+
+  const rate = await getTonUsdRate().catch(() => ({ tonUsd: tonUsdCache.tonUsd }));
+  const starsPerTonRate = starsPerTon(rate?.tonUsd);
+  let tonAmount = Number.isFinite(starsPerTonRate) && starsPerTonRate > 0
+    ? (starsReward / starsPerTonRate)
+    : null;
+  if (!Number.isFinite(tonAmount) || tonAmount <= 0) {
+    tonAmount = starsToTon(starsReward, rate?.tonUsd);
+  }
+
+  let rounded = 0;
+  if (Number.isFinite(tonAmount) && tonAmount > 0) {
+    const precision = tonAmount < 0.01 ? 3 : 2;
+    const factor = precision === 3 ? 1000 : 100;
+    rounded = Math.round(tonAmount * factor) / factor;
+  }
+  if (!(rounded > 0)) rounded = 0.001;
+  return { currency: "ton", amount: rounded, baseStars: starsReward };
+}
+
+app.get("/api/tasks/channel-subscription/status", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const claimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_SUBSCRIBE_KEY))
+      : false;
+
+    let membership = { ok: true, isMember: false, status: null, error: null };
+    if (!claimed) {
+      membership = await checkTaskChannelMembership(userId);
+    }
+
+    const subscribed = claimed ? true : !!membership.isMember;
+    return res.json({
+      ok: true,
+      taskKey: TASK_SUBSCRIBE_KEY,
+      claimed,
+      subscribed,
+      canClaim: subscribed && !claimed,
+      membershipStatus: membership.status || null,
+      checkError: membership.ok ? null : membership.error || "Subscription check failed",
+      channel: {
+        chatId: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+        username: TASK_SUBSCRIBE_CHANNEL.username ? `@${TASK_SUBSCRIBE_CHANNEL.username}` : null,
+        url: TASK_SUBSCRIBE_CHANNEL_URL
+      }
+    });
+  } catch (error) {
+    console.error("[Tasks] status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load task status" });
+  }
+});
+
+app.post("/api/tasks/channel-subscription/claim", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const preferredCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+
+    const alreadyClaimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_SUBSCRIBE_KEY))
+      : false;
+    if (alreadyClaimed) {
+      const balance = await db.getUserBalance(userId).catch(() => null);
+      const newBalance = preferredCurrency === "ton"
+        ? Number(balance?.ton_balance || 0)
+        : Number(balance?.stars_balance || 0);
+      return res.json({
+        ok: true,
+        claimed: true,
+        alreadyClaimed: true,
+        currency: preferredCurrency,
+        added: 0,
+        newBalance,
+        tonBalance: Number(balance?.ton_balance || 0),
+        starsBalance: Number(balance?.stars_balance || 0),
+        channel: {
+          chatId: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+          username: TASK_SUBSCRIBE_CHANNEL.username ? `@${TASK_SUBSCRIBE_CHANNEL.username}` : null,
+          url: TASK_SUBSCRIBE_CHANNEL_URL
+        }
+      });
+    }
+
+    const membership = await checkTaskChannelMembership(userId);
+    if (!membership.ok) {
+      return res.status(502).json({
+        ok: false,
+        code: "TASK_CHANNEL_CHECK_FAILED",
+        error: membership.error || "Failed to verify channel subscription"
+      });
+    }
+    if (!membership.isMember) {
+      return res.status(409).json({
+        ok: false,
+        code: "TASK_NOT_COMPLETED",
+        error: "Subscribe to the channel first",
+        channel: {
+          chatId: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+          username: TASK_SUBSCRIBE_CHANNEL.username ? `@${TASK_SUBSCRIBE_CHANNEL.username}` : null,
+          url: TASK_SUBSCRIBE_CHANNEL_URL
+        }
+      });
+    }
+
+    if (typeof db.awardTaskReward !== "function") {
+      return res.status(503).json({ ok: false, code: "TASK_DB_NOT_READY", error: "Task rewards are not configured" });
+    }
+
+    const reward = await resolveTaskRewardForCurrency(TASK_SUBSCRIBE_REWARD_STARS, preferredCurrency);
+    const claimResult = await db.awardTaskReward(
+      userId,
+      TASK_SUBSCRIBE_KEY,
+      reward.currency,
+      reward.amount,
+      "Task reward: subscribe to channel",
+      {
+        task: TASK_SUBSCRIBE_KEY,
+        channel: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+        membershipStatus: membership.status || null,
+        baseRewardStars: reward.baseStars
+      }
+    );
+
+    try { broadcastBalanceUpdate(userId); } catch {}
+
+    return res.json({
+      ok: true,
+      claimed: true,
+      alreadyClaimed: !!claimResult?.alreadyClaimed,
+      currency: String(claimResult?.currency || reward.currency),
+      added: Number(claimResult?.added || 0),
+      newBalance: Number(claimResult?.newBalance || 0),
+      tonBalance: Number(claimResult?.tonBalance || 0),
+      starsBalance: Number(claimResult?.starsBalance || 0),
+      channel: {
+        chatId: TASK_SUBSCRIBE_CHANNEL_CHAT_ID,
+        username: TASK_SUBSCRIBE_CHANNEL.username ? `@${TASK_SUBSCRIBE_CHANNEL.username}` : null,
+        url: TASK_SUBSCRIBE_CHANNEL_URL
+      }
+    });
+  } catch (error) {
+    console.error("[Tasks] claim error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to claim reward" });
   }
 });
 

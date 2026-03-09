@@ -328,10 +328,14 @@ function ensureGiftDrawer() {
       <div class="market-gift-hero">
         <div class="market-gift-hero__imgWrap">
           <img class="market-gift-hero__img" src="${escapeHtml(PLACEHOLDER_IMG)}" alt="">
-        </div>
-        <div class="market-gift-hero__meta">
-          <div class="market-gift-title">Gift</div>
-          <div class="market-gift-subtitle">Collectible</div>
+          <a class="market-gift-view-link" href="#" target="_blank" rel="noopener noreferrer">
+            <span class="market-gift-view-link__text">View in</span>
+            <img class="market-gift-view-link__icon" src="/icons/TelegramBlack.svg" alt="">
+          </a>
+          <div class="market-gift-caption">
+            <span class="market-gift-caption__name">Gift</span>
+            <span class="market-gift-caption__num"></span>
+          </div>
         </div>
       </div>
 
@@ -365,6 +369,7 @@ function ensureGiftDrawer() {
   const drawer = overlay.querySelector('.market-gift-drawer');
   const closeBtn = overlay.querySelector('.market-gift-close');
   const buyBtn = overlay.querySelector('.market-gift-buy');
+  const viewLink = overlay.querySelector('.market-gift-view-link');
 
   function close() {
     overlay.classList.remove('is-open');
@@ -378,6 +383,22 @@ function ensureGiftDrawer() {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });
+
+  if (viewLink) {
+    viewLink.addEventListener('click', (e) => {
+      const href = String(viewLink.getAttribute('href') || '').trim();
+      if (!href || href === '#') {
+        e.preventDefault();
+        return;
+      }
+
+      const webApp = window.Telegram?.WebApp;
+      if (webApp && typeof webApp.openTelegramLink === 'function') {
+        e.preventDefault();
+        try { webApp.openTelegramLink(href); } catch {}
+      }
+    });
+  }
   closeBtn?.addEventListener('click', close);
 
   // ESC close (desktop)
@@ -832,6 +853,28 @@ function refreshGiftDrawerPrice() {
   }
 }
 
+function buildTelegramNftUrl(gift) {
+  const tg = gift?.tg || null;
+
+  let slug = safeText(tg?.slug, 220) || '';
+  slug = slug
+    .replace(/^https?:\/\/t\.me\/nft\//i, '')
+    .replace(/^\/?nft\//i, '')
+    .trim();
+
+  // Keep Telegram NFT slug URL-safe.
+  slug = slug.replace(/[^A-Za-z0-9_-]/g, '');
+  if (slug) return `https://t.me/nft/${slug}`;
+
+  const namePart = (safeText(gift?.name, 80) || '')
+    .replace(/\s+/g, '')
+    .replace(/[^A-Za-z0-9_-]/g, '');
+  const numberPart = (safeText(gift?.number, 40) || '').replace(/[^\d]/g, '');
+  if (namePart && numberPart) return `https://t.me/nft/${namePart}-${numberPart}`;
+
+  return '';
+}
+
 function openGiftDrawer(gift) {
   ensureGiftDrawer();
 
@@ -846,7 +889,8 @@ function openGiftDrawer(gift) {
   // Text
   const name = safeText(gift?.name, 64) || 'Gift';
   const number = safeText(gift?.number, 32) || '';
-  const subtitle = number ? `Collectible #${number}` : 'Collectible';
+  const cleanNumber = String(number).replace(/[^\d]/g, '');
+  const numberLabel = cleanNumber || number;
 
   // attrs
   const model = safeText(tg?.model?.name, 64) || '—';
@@ -855,10 +899,29 @@ function openGiftDrawer(gift) {
 
   giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('src', imgSrc);
   giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('alt', name);
-  const t = giftDrawerEl.querySelector('.market-gift-title');
-  const s = giftDrawerEl.querySelector('.market-gift-subtitle');
-  if (t) t.textContent = name;
-  if (s) s.textContent = subtitle;
+  const viewLinkEl = giftDrawerEl.querySelector('.market-gift-view-link');
+  const viewHref = buildTelegramNftUrl(gift);
+  if (viewLinkEl) {
+    if (viewHref) {
+      viewLinkEl.setAttribute('href', viewHref);
+      viewLinkEl.style.display = 'inline-flex';
+    } else {
+      viewLinkEl.setAttribute('href', '#');
+      viewLinkEl.style.display = 'none';
+    }
+  }
+  const captionNameEl = giftDrawerEl.querySelector('.market-gift-caption__name');
+  const captionNumEl = giftDrawerEl.querySelector('.market-gift-caption__num');
+  if (captionNameEl) captionNameEl.textContent = name;
+  if (captionNumEl) {
+    if (numberLabel) {
+      captionNumEl.textContent = `#${numberLabel}`;
+      captionNumEl.style.display = '';
+    } else {
+      captionNumEl.textContent = '';
+      captionNumEl.style.display = 'none';
+    }
+  }
 
   const setAttr = (key, val) => {
     const el = giftDrawerEl.querySelector(`.market-gift-v[data-k="${key}"]`);

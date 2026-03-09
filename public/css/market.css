@@ -786,15 +786,16 @@ body.market-gift-overlay-open .topbar{
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 24px 18px 16px;
+  gap: 0;
+  padding: 20px 18px 12px;
   text-align: center;
 }
 
 .market-gift-hero__imgWrap{
-  width: 200px;
-  height: 200px;
-  border-radius: 28px;
+  position: relative;
+  width: min(84vw, 300px);
+  height: min(84vw, 300px);
+  border-radius: 30px;
   overflow: hidden;
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.12);
@@ -813,24 +814,65 @@ body.market-gift-overlay-open .topbar{
   display: block;
 }
 
-.market-gift-hero__meta{
-  display: flex;
-  flex-direction: column;
+.market-gift-view-link{
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-}
-
-.market-gift-title{
-  font-size: 22px;
-  font-weight: 900;
-  line-height: 1.1;
-}
-
-.market-gift-subtitle{
-  margin-top: 4px;
+  gap: 6px;
+  color: #fff;
+  text-decoration: none;
   font-size: 13px;
-  opacity: .75;
-  font-weight: 700;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.45);
+}
+
+.market-gift-view-link__icon{
+  width: 15px;
+  height: 15px;
+  display: block;
+  filter: brightness(0) invert(1);
+}
+
+.market-gift-view-link:active{
+  transform: translateY(1px);
+}
+
+.market-gift-caption{
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.market-gift-caption__name{
+  color: #fff;
+  opacity: 1;
+}
+
+.market-gift-caption__num{
+  color: #fff;
+  opacity: .72;
+  font-weight: 800;
 }
 
 .market-gift-attrs{

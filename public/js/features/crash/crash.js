@@ -361,6 +361,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       bettingLeftAt: 0,
       lastPlayerDomUpdate: 0,
       seenPlayerIds: new Set(),
+      crashFxRoundId: -1,
+      crashFxAt: 0,
       theme: "crypto",
       rocketAngleDeg: 0,
       rocketX: 0.50,
@@ -2443,25 +2445,51 @@ const yOf = (v) => {
 
 
 
-  // ---------- crash vertical line ----------
+  // ---------- crash vertical line (enhanced FX) ----------
   if (state.phase === "crash" || state.phase === "wait") {
     const n2 = (state.candles || []).length;
     if (n2 > 0) {
       const step = plotW / (state.maxCandles + 1);
       const x0 = leftPad + (plotW - step * n2) / 2;
       const lastX = x0 + step * (n2 - 1 + 0.5);
+      const gap = Math.max(3 * dpr, Math.floor(step * 0.22));
+      const bodyW = clamp(Math.floor(step - gap), Math.round(6 * dpr), Math.floor(step * 0.92));
 
       const fromY = yOf(state.crashPoint || state.displayMult || 1.0);
-      const toY = topPad + plotH; // прям в низ графика, не yOf(0)
+      const toY = topPad + plotH;
+      const nowMs = Date.now();
+
+      if (state.crashFxRoundId !== state.roundId) {
+        state.crashFxRoundId = state.roundId;
+        state.crashFxAt = nowMs;
+      }
 
       ctx.save();
-      ctx.strokeStyle = "rgba(255,59,78,0.92)";
-      ctx.lineWidth = Math.max(3 * dpr, 3);
-      ctx.lineCap = "butt"; // не округлять
-      ctx.beginPath();
-      ctx.moveTo(px(lastX), px(fromY));
-      ctx.lineTo(px(lastX), px(toY));
-      ctx.stroke();
+      // Main crash bar with candle-like width, placed after the last candle.
+      const barTop = Math.round(fromY);
+      const barH = Math.max(2, Math.round(toY - fromY));
+      const barW = Math.max(2, Math.round(bodyW));
+      const prevBodyRight = Math.round(lastX + bodyW / 2);
+      const minGap = Math.max(2, Math.round(1 * dpr));
+      let barX = Math.round(lastX + step - barW / 2);
+      const minBarX = prevBodyRight + minGap;
+      const maxBarX = Math.round(W - rightPad - barW - minGap);
+      if (barX < minBarX) barX = minBarX;
+      if (barX > maxBarX) barX = maxBarX;
+      const barCx = barX + barW / 2;
+
+      const barGrad = ctx.createLinearGradient(barCx, fromY, barCx, toY);
+      barGrad.addColorStop(0, "rgba(198,74,96,0.86)");
+      barGrad.addColorStop(0.32, "rgba(174,57,82,0.90)");
+      barGrad.addColorStop(1, "rgba(144,42,66,0.93)");
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(barX, barTop, barW, barH);
+
+      const strokeW = Math.max(1, Math.round(1 * dpr));
+      const strokeOffset = (strokeW % 2) ? 0.5 : 0;
+      ctx.lineWidth = strokeW;
+      ctx.strokeStyle = "rgba(214,110,136,0.28)";
+      ctx.strokeRect(barX + strokeOffset, barTop + strokeOffset, barW, barH);
       ctx.restore();
     }
   }

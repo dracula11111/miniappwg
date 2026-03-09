@@ -143,6 +143,8 @@
 
   let carousels = [];
   let animationFrames = [];
+  let caseSheetLockedScrollY = 0;
+  let caseSheetPrevBodyTop = '';
 
 // ====== ITEM HELPERS (gift / nft) ======
 function itemType(item) {
@@ -719,6 +721,7 @@ function getBalanceSafe(currency) {
         </div>
       `;
     }).join('');
+
   }
 
   function mergeHistoryLocal(newItems) {
@@ -1068,8 +1071,34 @@ function getBalanceSafe(currency) {
 
 
   // ====== OPEN BOTTOM SHEET ======
+  function lockCaseSheetScreen() {
+    if (document.body.classList.contains('case-sheet-open')) return;
+
+    caseSheetLockedScrollY = window.scrollY || window.pageYOffset || 0;
+    caseSheetPrevBodyTop = document.body.style.top || '';
+
+    document.documentElement.classList.add('case-sheet-open');
+    document.body.classList.add('case-sheet-open');
+    document.body.style.top = `-${caseSheetLockedScrollY}px`;
+  }
+
+  function unlockCaseSheetScreen() {
+    if (!document.body.classList.contains('case-sheet-open')) return;
+
+    const restoreY = caseSheetLockedScrollY || 0;
+
+    document.documentElement.classList.remove('case-sheet-open');
+    document.body.classList.remove('case-sheet-open');
+    document.body.style.top = caseSheetPrevBodyTop || '';
+
+    caseSheetPrevBodyTop = '';
+    caseSheetLockedScrollY = 0;
+
+    window.scrollTo(0, restoreY);
+  }
+
   function openBottomSheet(caseId) {
-    if (isAnimating) return;
+    if (isAnimating || document.body.classList.contains('case-sheet-open')) return;
 
     currentCase = CASES[caseId];
     if (!currentCase) return;
@@ -1079,7 +1108,7 @@ function getBalanceSafe(currency) {
     isAnimating = true;
     selectedCount = 1;
 
-    document.body.classList.add('case-sheet-open');
+    lockCaseSheetScreen();
 
     updateSheetContent();
 
@@ -1105,10 +1134,9 @@ function getBalanceSafe(currency) {
     isAnimating = true;
     stopAllAnimations();
 
-    document.body.classList.remove('case-sheet-open');
-
     if (sheetPanel) sheetPanel.classList.remove('active');
     if (overlay) overlay.classList.remove('active');
+    unlockCaseSheetScreen();
 
     if (tg?.HapticFeedback) {
       tg.HapticFeedback.impactOccurred('light');
@@ -1403,11 +1431,15 @@ function getBalanceSafe(currency) {
   
     contentsGrid.innerHTML = currentCase.items.map(raw => {
       const item = normalizeItemForCurrency(raw, currency);
+      const type = itemType(item);
+      const sparkLayer = (type === 'nft')
+        ? '<div class="case-nft-sparks" aria-hidden="true"></div>'
+        : '';
       
       // Для NFT: показываем floor price если есть, иначе fallback
       let val = item?.price?.[currency];
       
-      if (itemType(item) === 'nft') {
+      if (type === 'nft') {
         const floorTon = getFloorTonForItem(item);
         if (floorTon != null && floorTon > 0) {
           val = (currency === 'ton') ? floorTon : tonToStars(floorTon);
@@ -1420,7 +1452,8 @@ function getBalanceSafe(currency) {
 
 
       return `
-        <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${itemType(item)}">
+        <div class="case-content-item" data-rarity="${item.rarity || 'common'}" data-item-type="${type}">
+          ${sparkLayer}
           <img src="${itemIconPath(item)}" alt="${item.displayName || item.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
           <div class="case-content-price">
             <span>${text}</span>
@@ -1429,6 +1462,45 @@ function getBalanceSafe(currency) {
         </div>
       `;
     }).join('');
+
+    initNftContentSparks();
+  }
+
+  function initNftContentSparks() {
+    if (!contentsGrid) return;
+
+    const cards = contentsGrid.querySelectorAll('.case-content-item[data-item-type="nft"]');
+    if (!cards.length) return;
+
+    const rand = (min, max) => Math.random() * (max - min) + min;
+
+    cards.forEach((card) => {
+      const layer = card.querySelector('.case-nft-sparks');
+      if (!layer) return;
+
+      layer.innerHTML = '';
+
+      const sparksCount = 6 + Math.floor(Math.random() * 3); // 6..8
+      for (let i = 0; i < sparksCount; i++) {
+        const spark = document.createElement('span');
+        spark.className = 'case-nft-spark';
+
+        const duration = rand(3.0, 7.0);
+        const delay = -rand(0, 14);
+
+        spark.style.setProperty('--spark-x', `${rand(10, 90).toFixed(2)}%`);
+        spark.style.setProperty('--spark-drift', `${rand(-14, 14).toFixed(2)}px`);
+        spark.style.setProperty('--spark-rise', `${rand(42, 98).toFixed(2)}px`);
+        spark.style.setProperty('--spark-size', `${rand(1.2, 3.0).toFixed(2)}px`);
+        spark.style.setProperty('--spark-duration', `${duration.toFixed(2)}s`);
+        spark.style.setProperty('--spark-delay', `${delay.toFixed(2)}s`);
+        spark.style.setProperty('--spark-alpha', `${rand(0.30, 0.88).toFixed(2)}`);
+        spark.style.setProperty('--spark-blur', `${rand(2.0, 6.0).toFixed(2)}px`);
+        spark.style.setProperty('--spark-twinkle', `${rand(0.8, 2.0).toFixed(2)}s`);
+
+        layer.appendChild(spark);
+      }
+    });
   }
   
   

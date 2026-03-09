@@ -1948,7 +1948,162 @@ body:has(.page-active#casesPage)::before{
   
     
     /* гарантируем, что hidden реально скрывает панель */
-    .case-decision-panel[hidden] { display: none !important; }
+    /* Rare NFT atmosphere override */
+    .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(0, 166, 255, .70);
+      --nft-accent-soft: rgba(0, 166, 255, .26);
+      overflow: hidden;
+      isolation: isolate;
+      border-color: var(--nft-accent);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.07),
+        0 0 0 1px var(--nft-accent-soft),
+        0 14px 30px rgba(0,0,0,.45),
+        0 0 24px var(--nft-accent-soft);
+      background:
+        radial-gradient(160px 92px at 50% 115%, var(--nft-accent-soft) 0%, rgba(0,0,0,0) 72%),
+        radial-gradient(220px 120px at 50% -36px, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 65%),
+        linear-gradient(180deg, rgba(20, 26, 40, .97) 0%, rgba(10, 14, 24, .98) 58%, rgba(4, 7, 13, .99) 100%);
+    }
+
+    .case-sheet-panel[data-case-id] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      border-color: var(--nft-accent);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.07),
+        0 0 0 1px var(--nft-accent-soft),
+        0 14px 30px rgba(0,0,0,.45),
+        0 0 24px var(--nft-accent-soft);
+      background:
+        radial-gradient(160px 92px at 50% 115%, var(--nft-accent-soft) 0%, rgba(0,0,0,0) 72%),
+        radial-gradient(220px 120px at 50% -36px, rgba(255,255,255,.10) 0%, rgba(255,255,255,0) 65%),
+        linear-gradient(180deg, rgba(20, 26, 40, .97) 0%, rgba(10, 14, 24, .98) 58%, rgba(4, 7, 13, .99) 100%);
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"]::before{
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 28%, rgba(0,0,0,0) 66%, rgba(0,0,0,.42) 100%),
+        radial-gradient(120px 74px at 50% 102%, var(--nft-accent-soft) 0%, rgba(0,0,0,0) 78%);
+      opacity: .9;
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"]::after{
+      content: none;
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"] .case-nft-sparks{
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"] .case-nft-spark{
+      position: absolute;
+      left: var(--spark-x, 50%);
+      bottom: -12%;
+      width: var(--spark-size, 2px);
+      height: var(--spark-size, 2px);
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 40% 40%,
+          rgba(255,255,255,.96) 0%,
+          rgba(255,255,255,.72) 42%,
+          rgba(255,255,255,0) 100%);
+      opacity: 0;
+      mix-blend-mode: screen;
+      filter:
+        drop-shadow(0 0 var(--spark-blur, 4px) rgba(255,255,255,.62))
+        drop-shadow(0 0 calc(var(--spark-blur, 4px) * 1.35) var(--nft-accent-soft));
+      transform: translate3d(calc(var(--spark-drift, 0px) * -0.25), 0, 0) scale(.35);
+      animation:
+        nftSparkFloat var(--spark-duration, 4.8s) ease-in-out infinite,
+        nftSparkTwinkle var(--spark-twinkle, 1.4s) steps(2, end) infinite;
+      animation-delay: var(--spark-delay, 0s), var(--spark-delay, 0s);
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"] > :not(.case-nft-sparks){
+      position: relative;
+      z-index: 1;
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"] img{
+      filter:
+        drop-shadow(0 10px 20px rgba(0,0,0,.45))
+        drop-shadow(0 0 14px var(--nft-accent-soft));
+    }
+
+    .case-contents-grid .case-content-item[data-item-type="nft"] .case-content-price{
+      background: rgba(7, 11, 20, .74);
+      border: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+
+    .case-sheet-panel[data-case-id="case1"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(255, 255, 255, .72);
+      --nft-accent-soft: rgba(255, 255, 255, .27);
+    }
+
+    .case-sheet-panel[data-case-id="case2"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(64, 224, 208, .70);
+      --nft-accent-soft: rgba(64, 224, 208, .26);
+    }
+
+    .case-sheet-panel[data-case-id="case3"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(224, 64, 171, .72);
+      --nft-accent-soft: rgba(224, 64, 171, .26);
+    }
+
+    .case-sheet-panel[data-case-id="case4"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(64, 150, 255, .72);
+      --nft-accent-soft: rgba(64, 150, 255, .27);
+    }
+
+    .case-sheet-panel[data-case-id="case5"] .case-contents-grid .case-content-item[data-item-type="nft"]{
+      --nft-accent: rgba(255, 165, 0, .74);
+      --nft-accent-soft: rgba(255, 165, 0, .28);
+    }
+
+    @keyframes nftSparkFloat{
+      0%, 56%{
+        opacity: 0;
+        transform: translate3d(calc(var(--spark-drift, 0px) * -0.25), 0, 0) scale(.35);
+      }
+      61%{
+        opacity: calc(var(--spark-alpha, .55) * .35);
+      }
+      68%{
+        opacity: var(--spark-alpha, .55);
+      }
+      78%{
+        opacity: calc(var(--spark-alpha, .55) * .4);
+      }
+      88%, 100%{
+        opacity: 0;
+        transform: translate3d(var(--spark-drift, 0px), calc(var(--spark-rise, 70px) * -1), 0) scale(1.08);
+      }
+    }
+
+    @keyframes nftSparkTwinkle{
+      0%, 100%{ filter: brightness(.88) saturate(.95); }
+      38%{ filter: brightness(1.16) saturate(1.14); }
+      64%{ filter: brightness(.92) saturate(1.02); }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .case-contents-grid .case-content-item[data-item-type="nft"] .case-nft-spark{
+        animation: none;
+        opacity: .12;
+      }
+    }
+
+.case-decision-panel[hidden] { display: none !important; }
     
     /* ===== CASES: Win decision panel (save to profile / cash-out) ===== */
     .case-decision-panel{
@@ -2304,6 +2459,24 @@ body:has(.page-active#casesPage)::before{
   }
   
   /* Фиксируем баланс при открытой панели кейсов */
+  html.case-sheet-open,
+  body.case-sheet-open {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body.case-sheet-open {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+
+  body.case-sheet-open .case-bottom-sheet {
+    pointer-events: auto;
+  }
+
   body.case-sheet-open .balance {
     position: fixed;
     top: 93px;

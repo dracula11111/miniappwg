@@ -156,6 +156,16 @@ export async function initDatabase() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_promo_redemptions_user ON promo_redemptions(telegram_id);
+
+    CREATE TABLE IF NOT EXISTS user_task_claims (
+      id BIGSERIAL PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      task_key TEXT NOT NULL,
+      task_payload JSONB,
+      claimed_at BIGINT NOT NULL,
+      UNIQUE (telegram_id, task_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_task_claims_user ON user_task_claims(telegram_id);
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -827,6 +837,131 @@ export async function deleteInventoryItemByLookup(telegramId, lookup = {}) {
 
     await client.query("COMMIT");
     return { deleted };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+
+export async function hasTaskClaim(telegramId, taskKey) {
+  const id = BigInt(telegramId);
+  const key = normalizeOptionalText(taskKey, 64);
+  if (!key) return false;
+
+  const r = await query(
+    `SELECT 1 FROM user_task_claims WHERE telegram_id = $1 AND task_key = $2 LIMIT 1`,
+    [id, key]
+  );
+  return (r.rowCount || 0) > 0;
+}
+
+export async function awardTaskReward(
+  telegramId,
+  taskKey,
+  currency = "stars",
+  amount = 0,
+  description = "Task reward",
+  metadata = {}
+) {
+  const id = BigInt(telegramId);
+  const key = normalizeOptionalText(taskKey, 64);
+  if (!key) throw new Error("taskKey required");
+
+  const cur = currency === "ton" ? "ton" : "stars";
+  let delta = Number(amount || 0);
+  if (!Number.isFinite(delta) || delta <= 0) throw new Error("Invalid amount");
+  if (cur === "stars") delta = Math.max(1, Math.round(delta));
+  if (cur === "ton") delta = Math.round(delta * 100000000) / 100000000;
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = (metadata && typeof metadata === "object" && !Array.isArray(metadata)) ? metadata : {};
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, now]
+    );
+    await client.query(
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
+      [id, now]
+    );
+
+    const claimRes = await client.query(
+      `INSERT INTO user_task_claims (telegram_id, task_key, task_payload, claimed_at)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (telegram_id, task_key) DO NOTHING
+       RETURNING id`,
+      [id, key, payload, now]
+    );
+
+    const balRes = await client.query(
+      `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+      [id]
+    );
+    const ton = Number(balRes.rows[0]?.ton_balance || 0);
+    const stars = Number(balRes.rows[0]?.stars_balance || 0);
+
+    if (claimRes.rowCount === 0) {
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        alreadyClaimed: true,
+        currency: cur,
+        added: 0,
+        newBalance: cur === "ton" ? ton : stars,
+        tonBalance: ton,
+        starsBalance: stars
+      };
+    }
+
+    const before = cur === "ton" ? ton : stars;
+    const after = before + delta;
+
+    let nextTon = ton;
+    let nextStars = Math.trunc(stars);
+    if (cur === "ton") {
+      nextTon = after;
+      await client.query(
+        `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+        [after, now, id]
+      );
+    } else {
+      nextStars = Math.trunc(after);
+      await client.query(
+        `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+        [nextStars, now, id]
+      );
+    }
+
+    await syncUserBalanceSnapshot(client, id, nextTon, nextStars);
+
+    await client.query(
+      `INSERT INTO transactions
+       (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, created_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8)`,
+      [id, "task_reward", cur, delta, before, after, description, now]
+    );
+
+    await client.query("COMMIT");
+    return {
+      ok: true,
+      alreadyClaimed: false,
+      currency: cur,
+      added: delta,
+      newBalance: cur === "ton" ? nextTon : nextStars,
+      tonBalance: nextTon,
+      starsBalance: nextStars
+    };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
