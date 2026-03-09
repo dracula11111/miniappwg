@@ -36,6 +36,28 @@ function normalizeUsername(value) {
   return cleaned || null;
 }
 
+function normalizeHash(value) {
+  const raw = normalizeOptionalText(value, 128);
+  if (!raw) return null;
+  const clean = raw.replace(/^0x/i, "").trim();
+  if (!/^[a-fA-F0-9]{32,128}$/.test(clean)) return null;
+  return clean.toUpperCase();
+}
+
+function normalizeTxLt(value) {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (!/^\d+$/.test(raw)) return null;
+  return raw;
+}
+
+function normalizeTonAddressRaw(value) {
+  const raw = normalizeOptionalText(value, 256);
+  if (!raw) return null;
+  return raw.toLowerCase();
+}
+
 async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
   const id = typeof telegramId === "bigint" ? telegramId : BigInt(telegramId);
   await client.query(
@@ -89,6 +111,26 @@ export async function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS ton_deposit_claims (
+      id BIGSERIAL PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      tx_hash TEXT NOT NULL,
+      message_hash TEXT NOT NULL,
+      in_msg_hash TEXT,
+      tx_lt TEXT,
+      from_address TEXT,
+      to_address TEXT,
+      amount_ton NUMERIC(20,8) NOT NULL,
+      payload_json JSONB,
+      created_at BIGINT NOT NULL,
+      UNIQUE (tx_hash),
+      UNIQUE (message_hash),
+      UNIQUE (in_msg_hash)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ton_deposit_claims_user ON ton_deposit_claims(telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_ton_deposit_claims_created ON ton_deposit_claims(created_at DESC);
 
     CREATE TABLE IF NOT EXISTS bets (
       id BIGSERIAL PRIMARY KEY,
@@ -452,6 +494,154 @@ export async function updateBalance(telegramId, currency, amount, type, descript
 
     await client.query("COMMIT");
     return after;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// Atomic TON deposit credit with DB-level idempotency keyed by tx/message hashes.
+export async function applyVerifiedTonDeposit({
+  telegramId,
+  amountTon,
+  txHash,
+  messageHash,
+  inMsgHash = null,
+  txLt = null,
+  fromAddress = null,
+  toAddress = null,
+  payload = null
+}) {
+  const id = BigInt(telegramId);
+  const now = Math.floor(Date.now() / 1000);
+  const delta = Number(amountTon || 0);
+  if (!Number.isFinite(delta) || delta <= 0) {
+    throw new Error("Invalid TON deposit amount");
+  }
+
+  const txHashNorm = normalizeHash(txHash);
+  const msgHashNorm = normalizeHash(messageHash);
+  const inMsgHashNorm = normalizeHash(inMsgHash);
+  const txLtNorm = normalizeTxLt(txLt);
+  const fromAddrNorm = normalizeTonAddressRaw(fromAddress);
+  const toAddrNorm = normalizeTonAddressRaw(toAddress);
+
+  if (!txHashNorm) throw new Error("txHash required");
+  if (!msgHashNorm) throw new Error("messageHash required");
+
+  const payloadJson = payload && typeof payload === "object"
+    ? JSON.stringify(payload)
+    : null;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Ensure user + balance rows exist.
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen)
+       VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, now]
+    );
+    await client.query(
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
+      [id, now]
+    );
+
+    // Claim tx hash/message hash first. If conflict -> already processed.
+    const claimRes = await client.query(
+      `INSERT INTO ton_deposit_claims
+        (telegram_id, tx_hash, message_hash, in_msg_hash, tx_lt, from_address, to_address, amount_ton, payload_json, created_at)
+       VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [
+        id,
+        txHashNorm,
+        msgHashNorm,
+        inMsgHashNorm,
+        txLtNorm,
+        fromAddrNorm,
+        toAddrNorm,
+        delta,
+        payloadJson,
+        now
+      ]
+    );
+
+    if (!claimRes.rowCount) {
+      const existingRes = await client.query(
+        `SELECT telegram_id
+         FROM ton_deposit_claims
+         WHERE tx_hash = $1
+            OR message_hash = $2
+            OR ($3 IS NOT NULL AND in_msg_hash = $3)
+         ORDER BY id DESC
+         LIMIT 1`,
+        [txHashNorm, msgHashNorm, inMsgHashNorm]
+      );
+
+      const ownerId = existingRes.rows[0]?.telegram_id ?? null;
+      if (ownerId === null) {
+        throw new Error("Deposit claim conflict");
+      }
+      if (String(ownerId) !== String(id)) {
+        throw new Error("Deposit already claimed by another user");
+      }
+
+      const balRes = await client.query(
+        `SELECT ton_balance FROM balances WHERE telegram_id = $1`,
+        [id]
+      );
+      const currentBalance = Number(balRes.rows[0]?.ton_balance || 0);
+      await client.query("COMMIT");
+      return { ok: true, duplicate: true, newBalance: currentBalance };
+    }
+
+    // Credit TON balance.
+    const balRes = await client.query(
+      `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    const beforeTon = Number(balRes.rows[0]?.ton_balance || 0);
+    const beforeStars = Number(balRes.rows[0]?.stars_balance || 0);
+    const afterTon = beforeTon + delta;
+
+    await client.query(
+      `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+      [afterTon, now, id]
+    );
+    await syncUserBalanceSnapshot(client, id, afterTon, beforeStars);
+
+    await client.query(
+      `INSERT INTO transactions
+        (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, tx_hash, invoice_id, created_at)
+       VALUES
+        ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        id,
+        "deposit",
+        "ton",
+        delta,
+        beforeTon,
+        afterTon,
+        `TON deposit ${txHashNorm.slice(0, 10)}...`,
+        txHashNorm,
+        msgHashNorm,
+        now
+      ]
+    );
+
+    await client.query("COMMIT");
+    return { ok: true, duplicate: false, newBalance: afterTon };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

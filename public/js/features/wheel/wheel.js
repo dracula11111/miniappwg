@@ -146,6 +146,66 @@ let wheelPrevBonusId = null;
 let wheelBonusOverlayActive = false;  // 🔥 отслеживает открыт ли оверлей
 window.__bonusOverlayOpenedFor = null; // 🔥 ID бонуса для которого открыт оверлей
 window.__wheelPayoutMode = window.__wheelPayoutMode || 'client';
+let wheelPendingState = null;
+let wheelStateRaf = 0;
+let wheelPlayersRenderSig = null;
+let wheelHistoryRenderSig = null;
+let wheelMyBetsSig = null;
+
+function queueWheelServerState(state) {
+  wheelPendingState = state;
+  if (wheelStateRaf) return;
+
+  wheelStateRaf = requestAnimationFrame(() => {
+    wheelStateRaf = 0;
+    const next = wheelPendingState;
+    wheelPendingState = null;
+    if (next) applyWheelServerState(next);
+  });
+}
+
+function buildHistorySignature(historyArr) {
+  if (!Array.isArray(historyArr) || historyArr.length === 0) return '';
+  return historyArr.slice(0, 20).map((seg) => normSeg(seg)).join('|');
+}
+
+function buildPlayersSignature(players) {
+  if (!Array.isArray(players) || players.length === 0) return '';
+  return players.map((p) => {
+    const uid = String(p?.userId ?? '');
+    const cur = String(p?.currency ?? '');
+    const total = Number(p?.totalAmount || 0);
+    const segs = Array.isArray(p?.segments)
+      ? p.segments.map((segEntry) => {
+          const segName = (typeof segEntry === 'string')
+            ? segEntry
+            : (segEntry?.segment || segEntry?.name || segEntry?.type);
+          const amt = (typeof segEntry === 'object' && segEntry)
+            ? Number(segEntry.amount || 0)
+            : 0;
+          return `${normSeg(segName)}:${Number.isFinite(amt) ? amt : 0}`;
+        }).join(',')
+      : '';
+    return `${uid}:${cur}:${total}:${segs}`;
+  }).join(';');
+}
+
+function buildMyBetsSignature(players) {
+  const myId = String(getWheelUserId());
+  const list = Array.isArray(players) ? players : [];
+  const me = list.find((p) => String(p?.userId ?? '') === myId);
+  if (!me || !Array.isArray(me.segments)) return '';
+
+  const cur = String(me.currency || 'ton').toLowerCase();
+  const segs = me.segments.map((segEntry) => {
+    const segName = (typeof segEntry === 'string') ? segEntry : (segEntry?.segment || segEntry?.name || segEntry?.type);
+    const key = normSeg(segName);
+    const amt = (typeof segEntry === 'object' && segEntry) ? Number(segEntry.amount || 0) : 0;
+    return `${key}:${Number.isFinite(amt) ? amt : 0}`;
+  }).join(',');
+
+  return `${cur}|${segs}`;
+}
 
 
 function connectWheelWS() {
@@ -167,11 +227,11 @@ function connectWheelWS() {
     console.warn('[WheelWS] error', e);
   };
 
-  wheelWs.onmessage = async (ev) => {
+  wheelWs.onmessage = (ev) => {
     try {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'wheelState') {
-        applyWheelServerState(msg);
+        queueWheelServerState(msg);
       }
       if (msg.type === 'error') {
         console.warn('[WheelWS] server error:', msg.message);
@@ -407,11 +467,24 @@ function applyWheelServerState(state) {
   }
 
   // Players list + History from server (so refresh does NOT reset UI)
-  renderWheelPlayers(state.players);
-  renderWheelHistoryFromServer(state.history);
+  const playersSig = buildPlayersSignature(state.players);
+  if (playersSig !== wheelPlayersRenderSig) {
+    wheelPlayersRenderSig = playersSig;
+    renderWheelPlayers(state.players);
+  }
 
-  // Restore my bet pills after refresh / reconnect
-  restoreMyBetsFromServer(state.players);
+  const historySig = buildHistorySignature(state.history);
+  if (historySig !== wheelHistoryRenderSig) {
+    wheelHistoryRenderSig = historySig;
+    renderWheelHistoryFromServer(state.history);
+  }
+
+  // Restore my bet pills after refresh / reconnect only when my server bet-state changed
+  const myBetsSig = buildMyBetsSignature(state.players);
+  if (myBetsSig !== wheelMyBetsSig) {
+    wheelMyBetsSig = myBetsSig;
+    restoreMyBetsFromServer(state.players);
+  }
 
   // Phase-based UI
   if (state.phase === 'betting') {
@@ -1009,9 +1082,8 @@ function deductBetAmount(amount, currency) {
 
 /* =====  ADD WIN AMOUNT ===== */
 async function addWinAmount(amount, currency) {
-  console.log('[Wheel] 💰 Adding win:', amount, currency);
-  
-  // 🔥 TEST MODE - update local balance
+  console.log('[Wheel] Adding win:', amount, currency);
+
   if (TEST_MODE) {
     if (currency === 'ton') {
       userBalance.ton += amount;
@@ -1021,43 +1093,12 @@ async function addWinAmount(amount, currency) {
     updateTestBalance();
     return;
   }
-  
-  // 🔥 PRODUCTION MODE - send to server
-  try {
-    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
-    
-    if (userId === 'guest') {
-      console.log('[Wheel] ⚠️ Guest user, win not saved');
-      return;
-    }
-    
-    const response = await fetch('/api/deposit-notification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: userId,
-        amount: amount,
-        currency: currency,
-        type: 'wheel_win',
-        depositId: `${makeWheelPayoutId('wheel_miscwin', userId, (wheelServerState?.spin?.type || 'win'), currency)}_${Math.round(Number(amount || 0) * 100)}`,
-        timestamp: Date.now(),
-        notify: false
-      })
-    });
 
-    const result = await response.json();
-    
-    if (result.ok) {
-      console.log('[Wheel] ✅ Bonus win sent to server:', result);
-    } else {
-      console.error('[Wheel] Server rejected bonus win:', result.error);
-    }
-  } catch (error) {
-    console.error('[Wheel] Failed to send bonus win to server:', error);
-  }
+  // Server handles wheel payouts. Client just waits for live balance sync.
+  console.log('[Wheel] Server payout mode active; client payout request skipped');
 }
 
-// 🔥 Make sure it's exported globally
+// Make sure it's exported globally
 window.addWinAmount = addWinAmount;
 
 
@@ -1305,60 +1346,35 @@ function ensureBetPill(tile, seg) {
 }
 
 function setBetPill(tile, seg, amount, currency) {
-  console.log('[Wheel] 🏷️ SET BET PILL!', { 
-    tile: !!tile, 
-    seg, 
-    amount, 
-    currency 
-  });
-  
   const { pill, isNew } = ensureBetPill(tile, seg);
-  
-  console.log('[Wheel] 📌 Pill element:', {
-    pillExists: !!pill,
-    isNew,
-    pillHTML: pill?.outerHTML?.substring(0, 100)
-  });
   const iconEl = pill.querySelector('.bet-pill__icon');
   const amountEl = pill.querySelector('.bet-pill__amount');
 
   if (iconEl) {
     iconEl.src = getCurrencyIconSrc(currency);
-    console.log('[DEBUG] Set icon src:', iconEl.src);
   }
   if (amountEl) {
     amountEl.textContent = String(amount);
-    console.log('[DEBUG] Set amount text:', amountEl.textContent);
   }
 
   pill.dataset.currency = currency;
   pill.dataset.segment = seg;
-  
-  // CRITICAL: Убираем hidden и обеспечиваем видимость
+
+  // Keep pill visible even if old styles/classes hide it.
   pill.hidden = false;
   pill.style.display = 'flex';
   pill.style.opacity = '1';
   pill.style.visibility = 'visible';
   pill.style.zIndex = '100';
 
-  console.log('[DEBUG] Pill styles:', {
-    display: pill.style.display,
-    opacity: pill.style.opacity,
-    visibility: pill.style.visibility,
-    hidden: pill.hidden
-  });
-
-  // subtle "update" pop only when pill already exists
+  // Subtle update pop only when pill already exists.
   if (!isNew) {
     pill.classList.remove('is-updating');
-    // force reflow so animation can restart
     void pill.offsetWidth;
     pill.classList.add('is-updating');
   } else {
     pill.classList.remove('is-updating');
   }
-  
-  console.log('[DEBUG] setBetPill completed, pill visible:', !pill.hidden);
 }
 
 window.updateCurrentAmount = function(amount) {
@@ -1433,19 +1449,7 @@ function initBettingUI(){
   // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
   betTiles.forEach(tile => {
     tile.addEventListener('click', async () => {
-      // 🔥 ДИАГНОСТИКА
-      console.log('[Wheel] 🎯 TILE CLICKED!', {
-        seg: tile.dataset.seg,
-        TEST_MODE: TEST_MODE,
-        phase: phase,
-        userBalance: userBalance,
-        currentCurrency: currentCurrency,
-        currentAmount: currentAmount
-      });
-      
       if (bettingLocked) {
-        
-        console.log('[Wheel] ⛔ Betting locked - waiting for history update');
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
         return;
@@ -1471,10 +1475,61 @@ function initBettingUI(){
         ? Math.round(cur + currentAmount)
         : +(cur + currentAmount).toFixed(2);
       betsMap.set(seg, next);
-
-      // ✅ SEND BET TO SHARED WHEEL SERVER
-      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      // SEND BET TO SERVER FIRST (authoritative debit), then to shared WS state
+      const tgApp = window.Telegram?.WebApp;
+      const tgUser = tgApp?.initDataUnsafe?.user;
+      const initData = tgApp?.initData || '';
       const userId = tgUser?.id ? String(tgUser.id) : 'guest';
+      const roundId = Number(wheelServerState?.roundId || 0) || null;
+
+      if (!TEST_MODE) {
+        if (userId === 'guest' || !initData) {
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
+          showInsufficientBalanceNotification();
+          return;
+        }
+
+        if (!wheelWs || wheelWs.readyState !== WebSocket.OPEN) {
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
+          showInsufficientBalanceNotification();
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/deposit-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              amount: -currentAmount,
+              currency: currentCurrency,
+              type: 'wheel_bet',
+              roundId,
+              initData,
+              depositId: `bet_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              timestamp: Date.now(),
+              notify: false
+            })
+          });
+
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.ok) {
+            console.error('[Wheel] Server rejected bet:', result.error || response.status);
+            if (next === currentAmount) betsMap.delete(seg);
+            else betsMap.set(seg, cur);
+            showInsufficientBalanceNotification();
+            return;
+          }
+        } catch (error) {
+          console.error('[Wheel] Failed to send bet to server:', error);
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
+          showInsufficientBalanceNotification();
+          return;
+        }
+      }
 
       try {
         wheelWsSend({
@@ -1482,68 +1537,20 @@ function initBettingUI(){
           userId,
           userName: tgUser?.username || tgUser?.first_name || 'Player',
           userAvatar: getWheelUserAvatar() || null,
+          initData,
           segment: seg,
           amount: currentAmount,
-          currency: currentCurrency
+          currency: currentCurrency,
+          roundId
         });
       } catch (wsErr) {
-        console.warn('[WheelWS] Failed to send placeBet, continuing locally:', wsErr);
+        console.warn('[WheelWS] Failed to send placeBet:', wsErr);
+        if (next === currentAmount) betsMap.delete(seg);
+        else betsMap.set(seg, cur);
+        showInsufficientBalanceNotification();
+        return;
       }
-
-  
-      // 🔥 SEND BET TO SERVER (not just in test mode!)
-      if (!TEST_MODE) {
-        try {
-          const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
-          
-          // Don't process guest bets on server
-          if (userId !== 'guest') {
-            const response = await fetch('/api/deposit-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: userId,
-                amount: -currentAmount, // negative = deduct
-                currency: currentCurrency,
-                type: 'wheel_bet',
-                depositId: `bet_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                timestamp: Date.now(),
-                notify: false // don't send telegram message for bets
-              })
-            });
-  
-            const result = await response.json();
-            
-            if (!result.ok) {
-              console.error('[Wheel] Server rejected bet:', result.error);
-              // Rollback bet
-              if (next === currentAmount) {
-                betsMap.delete(seg);
-              } else {
-                betsMap.set(seg, cur);
-              }
-              showInsufficientBalanceNotification();
-              return;
-            }
-  
-            console.log('[Wheel] ✅ Bet sent to server:', result);
-          }
-        } catch (error) {
-          console.error('[Wheel] Failed to send bet to server:', error);
-          // Don't rollback - allow offline mode
-        }
-      }
-      
-      // 🔥 Deduct balance (всегда, не только в TEST_MODE)
       deductBetAmount(currentAmount, currentCurrency);
-      
-      console.log('[DEBUG] Before setBetPill:', { // ДОБАВИТЬ ПЕРЕД строкой 1410
-        tile: tile,
-        seg: seg,
-        next: next,
-        currentCurrency: currentCurrency,
-        betsMap: Array.from(betsMap.entries())
-      });
       setBetPill(tile, seg, next, currentCurrency);
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
@@ -1929,44 +1936,8 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
         testMode: TEST_MODE
       });
       
-      // 🔥 SEND WIN TO SERVER (production mode)
       if (!TEST_MODE) {
-        try {
-          const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
-          
-          if (userId !== 'guest') {
-            const response = await fetch('/api/deposit-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: userId,
-                amount: winAmount,
-                currency: currentCurrency,
-                type: 'wheel_bonus_bet',
-                depositId: makeWheelPayoutId('wheel_bonus', userId, resultType, currentCurrency),
-                timestamp: Date.now(),
-                notify: false,
-                roundId: `round_${Date.now()}`,
-                bets: {
-                  result: resultType,
-                  betAmount: betOnBonus,
-                  multiplier: multiplier,
-                  winAmount: winAmount
-                }
-              })
-            });
-
-            const result = await response.json();
-            
-            if (result.ok) {
-              console.log('[Wheel] ✅ Bonus bet win sent to server:', result);
-            } else {
-              console.error('[Wheel] ❌ Server rejected bonus bet win:', result.error);
-            }
-          }
-        } catch (error) {
-          console.error('[Wheel] ❌ Failed to send bonus bet win to server:', error);
-        }
+        console.log('[Wheel] Server payout mode active; bonus payout handled on backend');
       }
       
       // 🔥 Add win to balance in test mode
@@ -2002,44 +1973,8 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
       testMode: TEST_MODE
     });
     
-    // 🔥 SEND WIN TO SERVER (production mode)
     if (!TEST_MODE) {
-      try {
-        const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'guest';
-        
-        if (userId !== 'guest') {
-          const response = await fetch('/api/deposit-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: userId,
-              amount: winAmount, // positive = add
-              currency: currentCurrency,
-              type: 'wheel_win',
-              depositId: makeWheelPayoutId('wheel_win', userId, resultType, currentCurrency),
-              timestamp: Date.now(),
-              notify: false, // don't send telegram message
-              roundId: `round_${Date.now()}`,
-              bets: {
-                result: resultType,
-                betAmount: betOnResult,
-                multiplier: multiplier,
-                winAmount: winAmount
-              }
-            })
-          });
-
-          const result = await response.json();
-          
-          if (result.ok) {
-            console.log('[Wheel] ✅ Win sent to server:', result);
-          } else {
-            console.error('[Wheel] Server rejected win:', result.error);
-          }
-        }
-      } catch (error) {
-        console.error('[Wheel] Failed to send win to server:', error);
-      }
+      console.log('[Wheel] Server payout mode active; win payout handled on backend');
     }
     
     // 🔥 Add win to balance in test mode
@@ -3647,3 +3582,4 @@ console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
   } catch (_) {}
   
 })();
+

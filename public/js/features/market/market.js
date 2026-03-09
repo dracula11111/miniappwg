@@ -265,7 +265,7 @@ try { window.state = state; } catch {}
   const price = resolvePriceForCurrency(gift, state.currency);
 
   // ✅ Prefer pre-rendered Fragment preview (already contains backdrop + pattern + gift)
-  const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentMediumPreviewUrlFromSlug(tg?.slug)) || '';
+  const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentPreviewUrlFromSlug(tg?.slug, 'medium')) || '';
 
   // Fallbacks (if preview missing)
   const modelImg = safeImg(tg?.model?.image);
@@ -880,8 +880,14 @@ function openGiftDrawer(gift) {
 
   const tg = gift?.tg || null;
 
-  // Image: prefer Fragment medium preview, else model image, else stored image
-  const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentMediumPreviewUrlFromSlug(tg?.slug)) || '';
+  // Image: prefer Fragment large preview in drawer, else model image, else stored image
+  const previewSrc =
+    safeImg(fragmentLargeFromPreviewUrl(gift?.previewUrl)) ||
+    safeImg(fragmentLargeFromPreviewUrl(tg?.previewUrl)) ||
+    safeImg(gift?.previewUrl) ||
+    safeImg(tg?.previewUrl) ||
+    safeImg(fragmentPreviewUrlFromSlug(tg?.slug, 'large')) ||
+    '';
   const modelImg = safeImg(tg?.model?.image);
   const giftImg  = safeImg(gift?.image);
   const imgSrc = previewSrc || modelImg || giftImg || PLACEHOLDER_IMG;
@@ -897,8 +903,24 @@ function openGiftDrawer(gift) {
   const symbol = safeText(tg?.pattern?.name, 64) || '—';
   const backdrop = safeText(tg?.backdrop?.name, 64) || '—';
 
-  giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('src', imgSrc);
-  giftDrawerEl.querySelector('.market-gift-hero__img')?.setAttribute('alt', name);
+  const heroImgEl = giftDrawerEl.querySelector('.market-gift-hero__img');
+  if (heroImgEl) {
+    heroImgEl.onerror = null;
+    if (previewSrc && /^https:\/\/nft\.fragment\.com\/gift\//i.test(previewSrc)) {
+      heroImgEl.onerror = () => {
+        const currentSrc = String(heroImgEl.getAttribute('src') || '');
+        const nextPreviewSrc = nextFragmentPreviewFallback(currentSrc);
+        if (nextPreviewSrc) {
+          heroImgEl.setAttribute('src', nextPreviewSrc);
+        } else {
+          heroImgEl.onerror = null;
+          heroImgEl.setAttribute('src', modelImg || giftImg || PLACEHOLDER_IMG);
+        }
+      };
+    }
+    heroImgEl.setAttribute('src', imgSrc);
+    heroImgEl.setAttribute('alt', name);
+  }
   const viewLinkEl = giftDrawerEl.querySelector('.market-gift-view-link');
   const viewHref = buildTelegramNftUrl(gift);
   if (viewLinkEl) {
@@ -1338,12 +1360,36 @@ function resolvePriceForCurrency(gift, currency) {
     return s.length > max ? s.slice(0, max) : s;
   }
   
-function fragmentMediumPreviewUrlFromSlug(slug) {
+function fragmentPreviewUrlFromSlug(slug, size = 'medium') {
   const s = String(slug ?? '').trim();
   if (!s) return '';
   const base = s.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
   if (!base) return '';
-  return `https://nft.fragment.com/gift/${base}.medium.jpg`;
+  const variant = String(size || 'medium').toLowerCase() === 'large' ? 'large' : 'medium';
+  return `https://nft.fragment.com/gift/${base}.${variant}.jpg`;
+}
+
+function fragmentLargeFromPreviewUrl(url) {
+  const s = String(url ?? '').trim();
+  if (!s) return '';
+  const m = s.match(/^(https:\/\/nft\.fragment\.com\/gift\/[a-z0-9-]+)\.(small|medium|large)\.(jpg|jpeg)(\?.*)?$/i);
+  if (!m) return '';
+  return `${m[1]}.large.${String(m[3] || 'jpg').toLowerCase()}${m[4] || ''}`;
+}
+
+function nextFragmentPreviewFallback(url) {
+  const s = String(url ?? '').trim();
+  if (!s) return '';
+  const m = s.match(/^(https:\/\/nft\.fragment\.com\/gift\/[a-z0-9-]+)\.(small|medium|large)\.(jpg|jpeg)(\?.*)?$/i);
+  if (!m) return '';
+  const base = m[1];
+  const size = String(m[2] || '').toLowerCase();
+  const ext = String(m[3] || '').toLowerCase();
+  const suffix = m[4] || '';
+  if (size === 'large' && ext === 'jpg') return `${base}.large.jpeg${suffix}`;
+  if (size === 'large' && ext === 'jpeg') return `${base}.medium.jpg${suffix}`;
+  if (size === 'medium' && ext === 'jpg') return `${base}.medium.jpeg${suffix}`;
+  return '';
 }
 
 function safeImg(v, maxUrl = 4096) {

@@ -1,5 +1,44 @@
 // public/js/app.js
 (() => {
+  // Silence client console in production-like environments.
+  // Enable logs via ?debug=1 or localStorage.WT_DEBUG_LOGS=1.
+  try {
+    const originalConsole = window.__WT_ORIGINAL_CONSOLE__ || {
+      log: console.log.bind(console),
+      info: console.info.bind(console),
+      debug: console.debug.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      trace: console.trace.bind(console)
+    };
+    window.__WT_ORIGINAL_CONSOLE__ = originalConsole;
+
+    const q = new URLSearchParams(window.location.search || "");
+    const queryDebug = q.get("debug") === "1";
+    const storageDebug = (() => {
+      try { return localStorage.getItem("WT_DEBUG_LOGS") === "1"; }
+      catch (_) { return false; }
+    })();
+    const shouldSilence = !(queryDebug || storageDebug);
+
+    const noop = () => {};
+    if (shouldSilence) {
+      console.log = noop;
+      console.info = noop;
+      console.debug = noop;
+      console.warn = noop;
+      console.error = noop;
+      console.trace = noop;
+    } else {
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.debug = originalConsole.debug;
+      console.warn = originalConsole.warn;
+      console.error = originalConsole.error;
+      console.trace = originalConsole.trace;
+    }
+  } catch (_) {}
+
   // Telegram bootstrap
   const tg = window.Telegram?.WebApp;
   try {
@@ -249,7 +288,8 @@
     ["Open Crash", "Открыть Crash"],
     ["Open Cases", "Открыть кейсы"],
     ["Wheel canvas", "Холст колеса"],
-    ["Crash", "Crash"],
+    ["Crash", "Краш"],
+    ["Soon", "Скоро"],
     ["Error", "Ошибка"],
     ["Go back", "Назад"],
     ["Test mode - Ready", "Тестовый режим - готово"],
@@ -832,19 +872,19 @@
 
         <div class="games-grid">
           <button class="game-tile game-tile--wheel" type="button" data-go="wheelPage" aria-label="Open Wheel">
-            
+            <span class="game-tile__label" aria-hidden="true">Wheel</span>
           </button>
 
           <button class="game-tile game-tile--crash" type="button" data-go="crashPage" aria-label="Open Crash">
-           
+            <span class="game-tile__label" aria-hidden="true">Crash</span>
           </button>
 
           <button class="game-tile game-tile--cases" type="button" data-go="casesPage" aria-label="Open Cases">
-            
+            <span class="game-tile__label" aria-hidden="true">Cases</span>
           </button>
 
           <button class="game-tile game-tile--soon" type="button" disabled aria-disabled="true">
-           
+            <span class="game-tile__label" aria-hidden="true">Soon</span>
           </button>
         </div>
       </section>

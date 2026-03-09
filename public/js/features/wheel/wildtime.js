@@ -120,6 +120,87 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  function snapshotTimingConfig() {
+    return {
+      appearWaitMs: CFG.appearWaitMs,
+      accelMs: CFG.accelMs,
+      decelMsMin: CFG.decelMsMin,
+      decelMsMax: CFG.decelMsMax,
+      preShowXsMs: CFG.preShowXsMs,
+      jarCoverDelayMs: CFG.jarCoverDelayMs,
+      jarAppearMs: CFG.jarAppearMs,
+      jarShuffleMsStart: CFG.jarShuffleMsStart,
+      jarShuffleMsEnd: CFG.jarShuffleMsEnd,
+      pickCountdownSec: CFG.pickCountdownSec,
+      revealShowMs: CFG.revealShowMs,
+      winPopupMs: CFG.winPopupMs
+    };
+  }
+
+  function restoreTimingConfig(snapshot) {
+    if (!snapshot) return;
+    Object.assign(CFG, snapshot);
+  }
+
+  function estimateWildTimeRuntimeMs(cfg) {
+    const avgDecel = (cfg.decelMsMin + cfg.decelMsMax) / 2;
+    const avgShuffleStep = (cfg.jarShuffleMsStart + cfg.jarShuffleMsEnd) / 2;
+    return Math.round(
+      cfg.appearWaitMs +
+      cfg.accelMs +
+      avgDecel +
+      cfg.preShowXsMs +
+      cfg.jarCoverDelayMs +
+      cfg.jarAppearMs +
+      110 +
+      140 +
+      (cfg.jarShuffleSteps * avgShuffleStep) +
+      (cfg.pickCountdownSec * 1000) +
+      620 +
+      280 +
+      cfg.revealShowMs +
+      cfg.winPopupMs +
+      cfg.closeFadeMs +
+      200
+    );
+  }
+
+  function adaptTimingToBudget(durationSec, remainingSec) {
+    const defaultSec = Number.isFinite(durationSec) ? Math.max(1, Math.ceil(durationSec)) : 15;
+    const effectiveSec = Number.isFinite(remainingSec) ? Math.max(1, Math.ceil(remainingSec)) : defaultSec;
+    const budgetMs = Math.max(2500, (effectiveSec * 1000) - 350);
+    const estimatedMs = estimateWildTimeRuntimeMs(CFG);
+    const speedupFactor = Math.max(1, estimatedMs / budgetMs);
+    const scaleMs = (value, min = 0) => Math.max(min, Math.round((Number(value) || 0) / speedupFactor));
+
+    CFG.appearWaitMs = scaleMs(CFG.appearWaitMs, 0);
+    CFG.accelMs = scaleMs(CFG.accelMs, 140);
+    CFG.decelMsMin = scaleMs(CFG.decelMsMin, 1300);
+    CFG.decelMsMax = Math.max(CFG.decelMsMin + 250, scaleMs(CFG.decelMsMax, 1700));
+    CFG.preShowXsMs = scaleMs(CFG.preShowXsMs, 180);
+    CFG.jarCoverDelayMs = scaleMs(CFG.jarCoverDelayMs, 40);
+    CFG.jarAppearMs = scaleMs(CFG.jarAppearMs, 150);
+
+    const scaledShuffleStart = scaleMs(CFG.jarShuffleMsStart, 100);
+    const scaledShuffleEnd = scaleMs(CFG.jarShuffleMsEnd, 45);
+    CFG.jarShuffleMsStart = Math.max(scaledShuffleStart, scaledShuffleEnd + 20);
+    CFG.jarShuffleMsEnd = Math.max(40, Math.min(scaledShuffleEnd, CFG.jarShuffleMsStart - 20));
+
+    CFG.pickCountdownSec = Math.max(1, Math.floor(CFG.pickCountdownSec / speedupFactor));
+    if (Number.isFinite(remainingSec)) {
+      CFG.pickCountdownSec = Math.max(1, Math.min(CFG.pickCountdownSec, Math.ceil(remainingSec)));
+    }
+
+    CFG.revealShowMs = scaleMs(CFG.revealShowMs, 450);
+    CFG.winPopupMs = scaleMs(CFG.winPopupMs, 220);
+
+    if (Number.isFinite(remainingSec) && remainingSec <= 4) {
+      CFG.appearWaitMs = 0;
+    }
+
+    return { speedupFactor, estimatedMs, budgetMs };
+  }
+
   // helper: promise that resolves when <img> is loaded (or already complete)
   const waitImg = (imgEl) =>
     new Promise((res) => {
@@ -927,11 +1008,8 @@
       await sleep(CFG.revealShowMs);
 
       // Payout at the END (after reveal)
-      // Payout at the END (after reveal)
-      const pay = payout(betAmount_, pickedMult);
-      // winEl display removed - using base notification instead
-
-      await sleep(CFG.revealShowMs); // используем время показа множителей вместо winPopupMs          
+      payout(betAmount_, pickedMult);
+      await sleep(CFG.winPopupMs);
       if (pickDoneResolve) pickDoneResolve(true);
     };
 
@@ -1009,17 +1087,10 @@
       return await sess.promise;
     }
 
+    const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 15;
     const remainingSec = Number.isFinite(opts?.remainingSec) ? Math.max(1, Math.ceil(opts.remainingSec)) : null;
-
-    // Adapt countdown & waits to remaining time (for mid-join Watch)
-    const prevPickCountdownSec = CFG.pickCountdownSec;
-    const prevAppearWaitMs = CFG.appearWaitMs;
-    if (remainingSec) {
-      CFG.pickCountdownSec = Math.min(prevPickCountdownSec, remainingSec);
-      if (remainingSec < prevPickCountdownSec) {
-        CFG.appearWaitMs = 0;
-      }
-    }
+    const timingSnapshot = snapshotTimingConfig();
+    adaptTimingToBudget(durationSec, remainingSec);
 
     // Ensure completion gate exists for settlement ordering
     try {
@@ -1095,8 +1166,7 @@
           resolve_ = (val) => resolve(val);
         });
       } finally {
-        CFG.pickCountdownSec = prevPickCountdownSec;
-        CFG.appearWaitMs = prevAppearWaitMs;
+        restoreTimingConfig(timingSnapshot);
       }
     })();
 
@@ -1117,3 +1187,4 @@
     return await runPromise;
   };
 })();
+

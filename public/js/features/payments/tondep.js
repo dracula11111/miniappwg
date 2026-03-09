@@ -1,29 +1,45 @@
-// public/js/tondep.js - TON Deposit Module (FIXED)
 (() => {
-  console.log('[TON] 🚀 Starting TON module');
+  'use strict';
 
-  // ====== CONFIG ======
   const MANIFEST_URL = `${location.origin}/tonconnect-manifest.json`;
-  const PROJECT_TON_ADDRESS = "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J";
+  const PROJECT_TON_ADDRESS = 'UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J';
   const MIN_DEPOSIT = 0.1;
-
-  // ====== TEST MODE (localhost / dev) ======
   const TEST_LS_KEY = 'WT_TON_TEST_WALLET_V1';
 
+  const tg = window.Telegram?.WebApp || null;
+  const tgUserId = tg?.initDataUnsafe?.user?.id || 'guest';
+
+  let tc = null;
+  let platformBalance = 0;
+
+  const popup = document.getElementById('tonDepositPopup');
+  if (!popup) {
+    return;
+  }
+
+  const backdrop = popup.querySelector('.deposit-popup__backdrop');
+  const btnClose = document.getElementById('tonPopupClose');
+  const walletBalance = document.getElementById('tonWalletBalance');
+  const amountInput = document.getElementById('tonAmountInput');
+  const inputWrapper = document.getElementById('tonInputWrapper');
+  const errorNotification = document.getElementById('tonErrorNotification');
+  const btnConnect = document.getElementById('btnConnectTonWallet');
+  const btnDeposit = document.getElementById('btnDepositTon');
+
   function isLocalDevHost() {
-    const h = (location.hostname || '').toLowerCase();
+    const h = String(location.hostname || '').toLowerCase();
     return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h.endsWith('.local');
   }
 
   function loadTestState() {
     try {
       const raw = localStorage.getItem(TEST_LS_KEY);
-      const j = raw ? JSON.parse(raw) : null;
-      if (!j || typeof j !== 'object') return { enabled: false };
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (!parsed || typeof parsed !== 'object') return { enabled: false };
       return {
-        enabled: !!j.enabled,
-        address: typeof j.address === 'string' ? j.address : null,
-        balanceTon: (typeof j.balanceTon === 'number' && Number.isFinite(j.balanceTon)) ? j.balanceTon : 0.06
+        enabled: !!parsed.enabled,
+        address: typeof parsed.address === 'string' ? parsed.address : null,
+        balanceTon: (typeof parsed.balanceTon === 'number' && Number.isFinite(parsed.balanceTon)) ? parsed.balanceTon : 0.06
       };
     } catch {
       return { enabled: false };
@@ -31,7 +47,9 @@
   }
 
   function saveTestState(state) {
-    try { localStorage.setItem(TEST_LS_KEY, JSON.stringify(state || { enabled: false })); } catch {}
+    try {
+      localStorage.setItem(TEST_LS_KEY, JSON.stringify(state || { enabled: false }));
+    } catch {}
   }
 
   function isTestConnected() {
@@ -50,225 +68,440 @@
   }
 
   function setTestConnected(enabled, address, balanceTon) {
-    // Включать тестовый режим имеет смысл только на localhost/dev.
-    if (!isLocalDevHost()) {
-      console.warn('[TON] ⚠️ setTestConnected called on non-localhost host. Ignored.');
-      return false;
-    }
+    if (!isLocalDevHost()) return false;
 
     if (!enabled) {
       saveTestState({ enabled: false });
-      // обновим UI/слушателей
-      try { emitWalletChanged(tc); } catch {}
+      emitWalletChanged();
+      updateUI();
+      fetchWalletBalance().catch(() => {});
       return true;
     }
 
     const prev = loadTestState();
     const addr = (typeof address === 'string' && address.trim())
       ? address.trim()
-      : (prev && typeof prev.address === 'string' && prev.address ? prev.address : PROJECT_TON_ADDRESS);
+      : (typeof prev.address === 'string' && prev.address ? prev.address : PROJECT_TON_ADDRESS);
 
     const bal = (typeof balanceTon === 'number' && Number.isFinite(balanceTon)) ? balanceTon : 0.06;
     saveTestState({ enabled: true, address: addr, balanceTon: bal });
-
-    // обновим UI/слушателей
-    try { emitWalletChanged(tc); } catch {}
+    emitWalletChanged();
+    updateUI();
+    fetchWalletBalance().catch(() => {});
     return true;
   }
 
-  // ====== ADDRESS HELPERS (raw -> user-friendly "UQ...") ======
   function crc16Xmodem(bytes) {
-    let crc = 0x0000;
-    for (let i = 0; i < bytes.length; i++) {
+    let crc = 0;
+    for (let i = 0; i < bytes.length; i += 1) {
       crc ^= (bytes[i] << 8);
-      for (let j = 0; j < 8; j++) {
-        if (crc & 0x8000) crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
-        else crc = (crc << 1) & 0xFFFF;
+      for (let j = 0; j < 8; j += 1) {
+        if (crc & 0x8000) crc = ((crc << 1) ^ 0x1021) & 0xffff;
+        else crc = (crc << 1) & 0xffff;
       }
     }
-    return crc & 0xFFFF;
+    return crc & 0xffff;
   }
 
   function base64UrlEncode(bytes) {
     let bin = '';
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
   function toUserFriendlyAddress(addr) {
     if (!addr || typeof addr !== 'string') return null;
-
-    // already friendly (most TON-friendly addresses look like EQ... / UQ...)
     if (/^(EQ|UQ|kQ|0Q)[A-Za-z0-9_-]{10,}$/.test(addr)) return addr;
 
-    // raw format: "0:abcdef..." or "-1:abcdef..." (64 hex chars)
     const m = addr.match(/^(-?\d+):([0-9a-fA-F]{64})$/);
     if (!m) return addr;
 
     const wc = parseInt(m[1], 10);
     const hex = m[2];
     const hash = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) hash[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    for (let i = 0; i < 32; i += 1) {
+      hash[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
 
-    // 0x51 = non-bounceable (usually starts with "UQ" on mainnet)
     const tag = 0x51;
     const addr34 = new Uint8Array(34);
     addr34[0] = tag;
-    addr34[1] = wc & 0xFF; // signed int8 in 2's complement
+    addr34[1] = wc & 0xff;
     addr34.set(hash, 2);
 
     const crc = crc16Xmodem(addr34);
     const full = new Uint8Array(36);
     full.set(addr34, 0);
-    full[34] = (crc >> 8) & 0xFF;
-    full[35] = crc & 0xFF;
-
+    full[34] = (crc >> 8) & 0xff;
+    full[35] = crc & 0xff;
     return base64UrlEncode(full);
   }
 
-  function getFriendlyConnectedAddress(tc) {
-    const raw = tc?.account?.address || null;
-    return toUserFriendlyAddress(raw);
+  function getFriendlyConnectedAddress() {
+    return toUserFriendlyAddress(tc?.account?.address || null);
   }
 
-  function emitWalletChanged(tc) {
-    const test = isTestConnected();
-    const address = test ? getTestAddress() : getFriendlyConnectedAddress(tc);
-    const realConnected = !!getFriendlyConnectedAddress(tc);
+  function getConnectedAddress() {
+    return isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress();
+  }
+
+  function getInitData() {
+    return window.Telegram?.WebApp?.initData || '';
+  }
+
+  function emitWalletChanged() {
+    const address = getConnectedAddress();
+    const realConnected = !!getFriendlyConnectedAddress();
     window.dispatchEvent(new CustomEvent('wt-wallet-changed', {
-      detail: { connected: !!address, address, test, realConnected }
+      detail: {
+        connected: !!address,
+        address,
+        test: isTestConnected(),
+        realConnected
+      }
     }));
   }
-// ====== DOM ======
-  const popup = document.getElementById("tonDepositPopup");
-  if (!popup) {
-    console.error('[TON] ❌ tonDepositPopup not found!');
-    return;
-  }
 
-  const backdrop = popup.querySelector(".deposit-popup__backdrop");
-  const btnClose = document.getElementById("tonPopupClose");
-  const walletBalance = document.getElementById("tonWalletBalance");
-  const amountInput = document.getElementById("tonAmountInput");
-  const inputWrapper = document.getElementById("tonInputWrapper");
-  const errorNotification = document.getElementById("tonErrorNotification");
-  const btnConnect = document.getElementById("btnConnectTonWallet");
-  const btnDeposit = document.getElementById("btnDepositTon");
-
-  // ====== TELEGRAM ======
-  const tg = window.Telegram?.WebApp;
-  const tgUserId = tg?.initDataUnsafe?.user?.id || "guest";
-  const initData = tg?.initData || "";
-
-  // ====== STATE ======
-  let platformBalance = 0;
-
-  // ====== HELPERS ======
-  function normalize(input) {
+  function normalizeAmount(input) {
     if (!input) return NaN;
-    let s = String(input).trim().replace(",", ".").replace(/[^\d.]/g, "");
-    const dot = s.indexOf(".");
-    if (dot !== -1) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "");
+    let s = String(input).trim().replace(',', '.').replace(/[^\d.]/g, '');
+    const dot = s.indexOf('.');
+    if (dot !== -1) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : NaN;
   }
 
   function toNanoStr(amount) {
-    const s = String(amount).replace(",", ".");
-    const [i = "0", f = ""] = s.split(".");
-    const frac9 = (f + "000000000").slice(0, 9);
-    return (BigInt(i || "0") * 1_000_000_000n + BigInt(frac9)).toString();
+    const s = String(amount).replace(',', '.');
+    const parts = s.split('.');
+    const intPart = parts[0] || '0';
+    const fracPart = (parts[1] || '').slice(0, 9).padEnd(9, '0');
+    return (BigInt(intPart || '0') * 1000000000n + BigInt(fracPart)).toString();
   }
 
-  function fromNano(nanoStr) {
-    const nano = BigInt(nanoStr);
-    return (Number(nano) / 1_000_000_000).toFixed(2);
-  }
-
-  // ====== VALIDATION ======
-  function validateAmount() {
-    const amount = normalize(amountInput?.value);
-    
-    if (inputWrapper) {
-      inputWrapper.classList.remove('error', 'success');
-    }
-    if (errorNotification) {
-      errorNotification.hidden = true;
-    }
-    
-    if (amount >= MIN_DEPOSIT) {
-      if (inputWrapper) inputWrapper.classList.add('success');
-      if (btnDeposit && tc?.account) btnDeposit.disabled = false;
-      return true;
-    } else if (amount > 0) {
-      if (btnDeposit) btnDeposit.disabled = true;
-      return false;
-    } else {
-      if (btnDeposit) btnDeposit.disabled = true;
-      return false;
-    }
-  }
-  
-  function showValidationError() {
-    if (inputWrapper) {
-      inputWrapper.classList.remove('success');
-      inputWrapper.classList.add('error');
-      setTimeout(() => {
-        inputWrapper.classList.remove('error');
-      }, 400);
-    }
-    
-    if (errorNotification) {
-      errorNotification.hidden = false;
-      setTimeout(() => {
-        errorNotification.hidden = true;
-      }, 3000);
-    }
-    
-    if (tg?.HapticFeedback) {
-      tg.HapticFeedback.notificationOccurred('error');
+  function nanoToTonText(nanoStr) {
+    try {
+      const nano = BigInt(String(nanoStr || '0'));
+      return (Number(nano) / 1000000000).toFixed(2);
+    } catch {
+      return null;
     }
   }
 
-  // ====== POPUP ======
-  function openPopup() {
-    console.log('[TON] 📂 Open popup');
-    popup.classList.add('deposit-popup--open');
-    
-    if (tc?.account) fetchWalletBalance();
-    updateUI();
-    
-    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-  }
-
-  function closePopup() {
-    popup.classList.remove('deposit-popup--open');
+  function clearValidation() {
     if (inputWrapper) inputWrapper.classList.remove('error', 'success');
     if (errorNotification) errorNotification.hidden = true;
   }
 
+  function showValidationError() {
+    if (inputWrapper) {
+      inputWrapper.classList.remove('success');
+      inputWrapper.classList.add('error');
+      setTimeout(() => inputWrapper.classList.remove('error'), 400);
+    }
+
+    if (errorNotification) {
+      errorNotification.hidden = false;
+      setTimeout(() => {
+        if (errorNotification) errorNotification.hidden = true;
+      }, 3000);
+    }
+
+    try { tg?.HapticFeedback?.notificationOccurred?.('error'); } catch {}
+  }
+
+  function validateAmount() {
+    const amount = normalizeAmount(amountInput?.value);
+    clearValidation();
+
+    if (amount >= MIN_DEPOSIT) {
+      if (inputWrapper) inputWrapper.classList.add('success');
+      return true;
+    }
+    return false;
+  }
+
+  function setConnectBtnState(label, disabled) {
+    if (!btnConnect) return;
+    const textEl = btnConnect.querySelector('.wt-connect-wallet__text');
+    if (textEl) textEl.textContent = label;
+    else btnConnect.textContent = label;
+    btnConnect.disabled = !!disabled;
+  }
+
+  async function fetchWalletBalance() {
+    if (isTestConnected()) {
+      if (walletBalance) walletBalance.textContent = `${getTestBalanceTon().toFixed(2)} TON`;
+      return;
+    }
+
+    const address = tc?.account?.address;
+    if (!address) {
+      if (walletBalance) walletBalance.textContent = '-';
+      return;
+    }
+
+    if (walletBalance) walletBalance.textContent = 'Loading...';
+
+    try {
+      try {
+        const localRes = await fetch(`/api/ton/balance?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
+        const localJson = await localRes.json().catch(() => null);
+        if (localRes.ok && localJson?.ok) {
+          if (typeof localJson.ton === 'number' && Number.isFinite(localJson.ton)) {
+            if (walletBalance) walletBalance.textContent = `${localJson.ton.toFixed(2)} TON`;
+            return;
+          }
+          const localNano = localJson.nano ?? localJson.result;
+          const localTonText = nanoToTonText(localNano);
+          if (localTonText) {
+            if (walletBalance) walletBalance.textContent = `${localTonText} TON`;
+            return;
+          }
+        }
+      } catch {}
+
+      const res = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`);
+      const data = await res.json().catch(() => null);
+      const tonText = data?.ok && data?.result ? nanoToTonText(data.result) : null;
+      if (walletBalance) walletBalance.textContent = tonText ? `${tonText} TON` : 'Error';
+    } catch {
+      if (walletBalance) walletBalance.textContent = 'Error';
+    }
+  }
+
+  function updateUI() {
+    const connected = !!getConnectedAddress();
+    const validAmount = validateAmount();
+
+    if (btnConnect) btnConnect.style.display = connected ? 'none' : 'block';
+    if (btnDeposit) {
+      btnDeposit.style.display = connected ? 'block' : 'none';
+      btnDeposit.disabled = !(connected && validAmount);
+    }
+  }
+
+  function openPopup() {
+    popup.classList.add('deposit-popup--open');
+    updateUI();
+    fetchWalletBalance().catch(() => {});
+    try { tg?.HapticFeedback?.impactOccurred?.('light'); } catch {}
+  }
+
+  function closePopup() {
+    popup.classList.remove('deposit-popup--open');
+    clearValidation();
+  }
+
+  async function confirmTonDepositOnChain({ amount, boc, walletAddress }) {
+    const initData = getInitData();
+    const maxAttempts = 8;
+    let lastError = null;
+    let pending = false;
+
+    if (!initData) {
+      throw new Error('Telegram initData is missing');
+    }
+    if (!boc || typeof boc !== 'string') {
+      throw new Error('Wallet did not return transaction BOC');
+    }
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const res = await fetch('/api/ton/deposit/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          initData,
+          boc,
+          walletAddress,
+          timestamp: Date.now()
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.ok) {
+        return { confirmed: true, pending: false, data };
+      }
+
+      const isPending = !!data?.pending || res.status === 202 || res.status === 425;
+      if (isPending) {
+        pending = true;
+        lastError = data?.error || 'pending';
+        if (attempt < maxAttempts) {
+          const delayMs = Math.min(1000 * attempt, 4000);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          continue;
+        }
+        break;
+      }
+
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+
+    return { confirmed: false, pending, data: null, error: lastError };
+  }
+
+  function setBalance(balance) {
+    platformBalance = Number.parseFloat(balance) || 0;
+  }
+
+  function setupTonConnectBridge() {
+    window.WildTimeTonConnect = {
+      openModal: () => tc ? tc.openModal() : Promise.reject(new Error('TonConnect is unavailable')),
+      connect: () => tc ? tc.openModal() : Promise.reject(new Error('TonConnect is unavailable')),
+      disconnect: async () => {
+        if (isTestConnected()) {
+          setTestConnected(false);
+          return;
+        }
+        if (tc) return tc.disconnect();
+      },
+      getAddress: () => getConnectedAddress(),
+      get address() { return getConnectedAddress(); },
+      getRawAddress: () => tc?.account?.address || null,
+      isTestConnected: () => isTestConnected(),
+      setTestConnected: (enabled, address, balanceTon) => setTestConnected(enabled, address, balanceTon),
+      getTestBalanceTon: () => getTestBalanceTon(),
+      isConnected: () => !!getConnectedAddress(),
+      isRealConnected: () => !!getFriendlyConnectedAddress(),
+      onStatusChange: (cb) => tc ? tc.onStatusChange(cb) : (() => {})
+    };
+  }
+
+  window.WTTonDeposit = {
+    open: openPopup,
+    close: closePopup,
+    setBalance,
+    isConnected: () => !!getConnectedAddress(),
+    getBalance: () => platformBalance
+  };
+
   backdrop?.addEventListener('click', closePopup);
   btnClose?.addEventListener('click', closePopup);
 
-  // ====== INPUT ======
   amountInput?.addEventListener('input', () => {
     const caret = amountInput.selectionStart;
-    amountInput.value = amountInput.value
-      .replace(",", ".").replace(/[^0-9.]/g, "").replace(/^(\d*\.\d*).*$/, "$1");
+    amountInput.value = String(amountInput.value || '')
+      .replace(',', '.')
+      .replace(/[^0-9.]/g, '')
+      .replace(/^(\d*\.\d*).*$/, '$1');
     try { amountInput.setSelectionRange(caret, caret); } catch {}
-    validateAmount();
+    updateUI();
   });
-  
+
   amountInput?.addEventListener('blur', () => {
-    const amount = normalize(amountInput?.value);
-    if (amount > 0 && amount < MIN_DEPOSIT) {
-      showValidationError();
+    const amount = normalizeAmount(amountInput?.value);
+    if (amount > 0 && amount < MIN_DEPOSIT) showValidationError();
+  });
+
+  btnConnect?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    try { tg?.HapticFeedback?.impactOccurred?.('medium'); } catch {}
+
+    try {
+      setConnectBtnState('Connecting...', true);
+      if (tc) await tc.openModal();
+    } catch {
+      try { tg?.showAlert?.('Failed to connect wallet'); } catch {}
+    } finally {
+      setConnectBtnState('Connect Wallet', false);
     }
   });
 
-  // ====== TONCONNECT ======
+  btnDeposit?.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const amount = normalizeAmount(amountInput?.value);
+    if (!(amount >= MIN_DEPOSIT)) {
+      showValidationError();
+      return;
+    }
+
+    const walletAddress = tc?.account?.address || null;
+    if (!walletAddress) {
+      try { tg?.showAlert?.('Connect TON wallet first'); } catch {}
+      return;
+    }
+
+    try { tg?.HapticFeedback?.impactOccurred?.('medium'); } catch {}
+
+    const tx = {
+      validUntil: Math.floor(Date.now() / 1000) + 600,
+      messages: [{ address: PROJECT_TON_ADDRESS, amount: toNanoStr(amount) }]
+    };
+
+    const oldText = btnDeposit?.textContent || 'Deposit TON';
+    if (btnDeposit) {
+      btnDeposit.disabled = true;
+      btnDeposit.textContent = 'Opening wallet...';
+    }
+
+    try {
+      const result = await tc.sendTransaction(tx);
+      if (btnDeposit) btnDeposit.textContent = 'Processing...';
+
+      const boc = result?.boc || result?.transaction?.boc || result?.txBoc || result?.payload || '';
+      const confirm = await confirmTonDepositOnChain({ amount, boc, walletAddress });
+
+      const confirmed = !!confirm?.confirmed;
+      const popupTitle = confirmed ? 'Success' : 'Pending confirmation';
+      const popupMsg = confirmed
+        ? `Deposited ${amount} TON\n\nYour balance was credited.`
+        : `Transaction sent (${amount} TON).\n\nNetwork confirmation can take a few seconds.`;
+
+      try {
+        tg?.showPopup?.({
+          title: popupTitle,
+          message: popupMsg,
+          buttons: [{ type: 'ok' }]
+        });
+      } catch {}
+
+      try {
+        tg?.HapticFeedback?.notificationOccurred?.(confirmed ? 'success' : 'warning');
+      } catch {}
+
+      setTimeout(() => {
+        closePopup();
+        if (amountInput) amountInput.value = '';
+        if (btnDeposit) {
+          btnDeposit.textContent = oldText;
+          btnDeposit.disabled = false;
+        }
+        updateUI();
+      }, 1200);
+    } catch (err) {
+      const message = String(err?.message || 'Transaction failed');
+      const uiMessage = /cancel/i.test(message) ? 'Cancelled' : 'Transaction failed';
+      try { tg?.showAlert?.(uiMessage); } catch {}
+      try { tg?.HapticFeedback?.notificationOccurred?.('error'); } catch {}
+      if (btnDeposit) {
+        btnDeposit.textContent = oldText;
+        btnDeposit.disabled = false;
+      }
+      updateUI();
+    }
+  });
+
+  window.addEventListener('balance:update', (e) => {
+    if (e?.detail?.ton !== undefined && e.detail?._source !== 'tondep') {
+      setBalance(e.detail.ton);
+    }
+  });
+
+  window.addEventListener('balance:loaded', (e) => {
+    if (e?.detail?.ton !== undefined) {
+      setBalance(e.detail.ton);
+    }
+  });
+
   if (!window.TON_CONNECT_UI) {
-    console.error('[TON] ❌ TonConnect not loaded!');
+    setupTonConnectBridge();
+    window.dispatchEvent(new Event('wt-tc-ready'));
+    emitWalletChanged();
+    updateUI();
     return;
   }
 
@@ -278,263 +511,43 @@
     removeItem: (k) => localStorage.removeItem(`${tgUserId}:tc:${k}`)
   };
 
-  console.log('[TON] ✅ Init TonConnect');
-
-  const tc = new TON_CONNECT_UI.TonConnectUI({
+  tc = new window.TON_CONNECT_UI.TonConnectUI({
     manifestUrl: MANIFEST_URL,
     buttonRootId: null,
     storage,
     restoreConnection: true,
     actionsConfiguration: { twaReturnUrl: 'https://t.me' }
   });
-  // после: const tc = new TON_CONNECT_UI.TonConnectUI({...});
 
-window.tonConnectUI = tc;
+  window.tonConnectUI = tc;
+  window.__wtTonConnect = tc;
+  setupTonConnectBridge();
 
-// единый адаптер под то, что ждёт profile.js + другие страницы
-window.WildTimeTonConnect = {
-  openModal: () => tc.openModal(),
-  connect: () => tc.openModal(),
-
-  // disconnect:
-  // - в тест-режиме просто снимаем флаг (без TonConnect)
-  // - в реальном режиме вызываем tc.disconnect()
-  disconnect: async () => {
-    if (isTestConnected()) {
-      setTestConnected(false);
-      return;
+  tc.onStatusChange(async (wallet) => {
+    emitWalletChanged();
+    if (wallet || isTestConnected()) {
+      await fetchWalletBalance().catch(() => {});
+    } else if (walletBalance) {
+      walletBalance.textContent = '-';
     }
-    return tc.disconnect();
-  },
+    updateUI();
+  });
 
-  // всегда возвращаем "юзер-френдли" адрес (UQ.../EQ...), а не raw "0:..."
-  // В тест-режиме возвращаем адрес из localStorage
-  getAddress: () => (isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)),
-  get address() { return (isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)); },
-
-  // raw адрес (нужен иногда для API/баланса)
-  getRawAddress: () => tc?.account?.address || null,
-
-  // статусы
-  isTestConnected: () => isTestConnected(),
-  setTestConnected: (enabled, address, balanceTon) => setTestConnected(enabled, address, balanceTon),
-  getTestBalanceTon: () => getTestBalanceTon(),
-  isConnected: () => !!(isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress(tc)),
-  isRealConnected: () => !!getFriendlyConnectedAddress(tc),
-
-  // чтобы Profile/другие модули могли подписаться и синхронизировать UI
-  onStatusChange: (cb) => tc.onStatusChange(cb)
-};
-
-window.__wtTonConnect = tc;
-  window.dispatchEvent(new Event("wt-tc-ready"));
-  // быстрый initial sync (включая test mode)
-  setTimeout(() => emitWalletChanged(tc), 0);
-
-  // гарантированный sync после restoreConnection (иначе бывает "вроде подключен, вроде нет")
   try {
-    const p = tc?.connectionRestored;
-    if (p && typeof p.then === "function") {
-      p.then(() => {
-        emitWalletChanged(tc);
-        try { updateUI(); } catch {}
-        if (tc?.account) { try { fetchWalletBalance(); } catch {} }
+    const restored = tc?.connectionRestored;
+    if (restored && typeof restored.then === 'function') {
+      restored.then(() => {
+        emitWalletChanged();
+        updateUI();
+        fetchWalletBalance().catch(() => {});
       }).catch(() => {});
     }
   } catch {}
 
-  console.log('[TON] ✅ TonConnect ready');
-
-  // ====== WALLET BALANCE ======
-  async function fetchWalletBalance() {
-    if (!tc?.account) {
-      if (walletBalance) walletBalance.textContent = '—';
-      return;
-    }
-
-    try {
-      if (walletBalance) walletBalance.textContent = 'Loading...';
-      
-      const res = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${tc.account.address}`);
-      const data = await res.json();
-
-      if (data.ok && data.result) {
-        const balance = fromNano(data.result);
-        if (walletBalance) walletBalance.textContent = `${balance} TON`;
-        console.log('[TON] ✅ Wallet:', balance);
-      } else {
-        if (walletBalance) walletBalance.textContent = 'Error';
-      }
-    } catch (err) {
-      console.error('[TON] ❌ Balance error:', err);
-      if (walletBalance) walletBalance.textContent = 'Error';
-    }
-  }
-
-  // ====== STATUS ======
-  tc.onStatusChange(async (wallet) => {
-    console.log('[TON]', wallet ? '✅ Connected' : '❌ Disconnected');
-    emitWalletChanged(tc);
-    if (wallet) await fetchWalletBalance();
-    else if (walletBalance) walletBalance.textContent = '—';
+  window.dispatchEvent(new Event('wt-tc-ready'));
+  setTimeout(() => {
+    emitWalletChanged();
     updateUI();
-  });
-
-  // ====== UI ======
-  function updateUI() {
-    const connected = !!tc?.account;
-    const valid = validateAmount();
-
-    console.log('[TON] UI:', { connected, valid });
-
-    if (btnConnect) btnConnect.style.display = connected ? 'none' : 'block';
-    if (btnDeposit) {
-      btnDeposit.style.display = connected ? 'block' : 'none';
-      btnDeposit.disabled = !valid || !connected;
-    }
-  }
-
-  // ====== UPDATE BALANCE ======
-  function setBalance(balance) {
-    platformBalance = parseFloat(balance) || 0;
-    console.log('[TON] 💰 Balance set:', platformBalance.toFixed(2));
-  }
-
-  function setConnectBtnState(state, disabled) {
-  if (!btnConnect) return;
-  const textEl = btnConnect.querySelector('.wt-connect-wallet__text');
-  if (textEl) textEl.textContent = state;
-  else btnConnect.textContent = state;
-  btnConnect.disabled = !!disabled;
-}
-
-  // ====== CONNECT ======
-  btnConnect?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    console.log('[TON] 🔌 Connect');
-    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-    
-    try {
-      setConnectBtnState('Connecting…', true);
-      await tc.openModal();
-    } catch (err) {
-      console.error('[TON] ❌ Connect error:', err);
-      if (tg?.showAlert) tg.showAlert('Failed to connect wallet');
-    } finally {
-      setConnectBtnState('Connect Wallet', false);
-    }
-  });
-
-  // ====== DEPOSIT ======
-  btnDeposit?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    
-    const amount = normalize(amountInput?.value);
-    
-    if (amount < MIN_DEPOSIT) {
-      showValidationError();
-      return;
-    }
-
-    console.log('[TON] 💎 Deposit:', amount);
-    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-    const tx = {
-      validUntil: Math.floor(Date.now() / 1000) + 600,
-      messages: [{ address: PROJECT_TON_ADDRESS, amount: toNanoStr(amount) }]
-    };
-
-    const oldText = btnDeposit.textContent;
-    btnDeposit.disabled = true;
-    btnDeposit.textContent = 'Opening wallet...';
-
-    try {
-      console.log('[TON] 🚀 Send TX');
-      const result = await tc.sendTransaction(tx);
-      console.log('[TON] ✅ TX sent!', result);
-
-      btnDeposit.textContent = 'Processing...';
-
-      // Notify server
-      try {
-        console.log('[TON] 📤 Notifying server...');
-        const notifyRes = await fetch('/api/deposit-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount, 
-            currency: 'ton', 
-            userId: tgUserId, 
-            initData,
-            txHash: result?.boc, 
-            timestamp: Date.now()
-          })
-        });
-        
-        if (notifyRes.ok) {
-          console.log('[TON] ✅ Server notified');
-        } else {
-          console.error('[TON] ⚠️ Server notification failed:', notifyRes.status);
-        }
-      } catch (err) {
-        console.error('[TON] ❌ Notification error:', err);
-      }
-
-      if (tg?.showPopup) {
-        tg.showPopup({
-          title: '✅ Success',
-          message: `Deposited ${amount} TON\n\nYour balance will update automatically.`,
-          buttons: [{ type: 'ok' }]
-        });
-      }
-
-      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-
-      setTimeout(() => {
-        closePopup();
-        if (amountInput) amountInput.value = '';
-        btnDeposit.textContent = oldText;
-        btnDeposit.disabled = false;
-      }, 1500);
-
-    } catch (err) {
-      console.error('[TON] ❌ TX error:', err);
-      
-      const msg = err.message?.includes('cancel') ? 'Cancelled' : 'Transaction failed';
-      if (tg?.showAlert) tg.showAlert(msg);
-      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-
-      btnDeposit.textContent = oldText;
-      btnDeposit.disabled = false;
-    }
-  });
-
-  // ====== EVENTS ======
-  window.addEventListener('balance:update', (e) => {
-    if (e.detail?.ton !== undefined && e.detail._source !== 'tondep') {
-      console.log('[TON] 📢 External balance update:', e.detail.ton);
-      setBalance(e.detail.ton);
-    }
-  });
-
-  window.addEventListener('balance:loaded', (e) => {
-    if (e.detail?.ton !== undefined) {
-      console.log('[TON] 🔥 Balance loaded:', e.detail.ton);
-      setBalance(e.detail.ton);
-    }
-  });
-
-  // ====== INIT ======
-  updateUI();
-  
-  console.log('[TON] ✅ Ready');
-
-  // ====== EXPORT ======
-  window.WTTonDeposit = {
-    open: openPopup,
-    close: closePopup,
-    setBalance: setBalance,
-    isConnected: () => !!tc?.account,
-    getBalance: () => platformBalance
-  };
+    fetchWalletBalance().catch(() => {});
+  }, 0);
 })();

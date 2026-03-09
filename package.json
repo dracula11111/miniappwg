@@ -3,18 +3,16 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-     "start": "node server.js",
-
-      "dev:server": "node --watch server.js",
-      "dev:client": "vite",
-
-      "heroku-build": "echo skip-heroku-build",
-      "heroku-postbuild": "echo skip-heroku-postbuild",
-      "build": "vite build",
-      "preview": "vite preview"
-    
+    "start": "node server.js",
+    "dev:server": "node --watch server.js",
+    "dev:client": "vite",
+    "heroku-build": "echo skip-heroku-build",
+    "heroku-postbuild": "echo skip-heroku-postbuild",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
+    "@ton/core": "^0.62.1",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "pg": "^8.12.0",

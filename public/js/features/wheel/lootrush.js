@@ -43,6 +43,7 @@ class LootRush {
     this._rowBagSrcs = [[], [], [], [], []];
     this._forcedPickIndex = null;
     this._forcedMultiplier = null;
+    this._lastNoBetToastAt = 0;
   }
 
   _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -74,13 +75,7 @@ class LootRush {
   }
 
 
-  _flashInsufficient(el) {
-    try {
-      if (typeof window.showInsufficientBalanceNotification === 'function') {
-        window.showInsufficientBalanceNotification();
-      }
-    } catch (_) {}
-
+  _flashDenied(el) {
     if (!el) return;
     const _prevBox = el.style.boxShadow;
     const _prevTf = el.style.transform;
@@ -92,6 +87,30 @@ class LootRush {
       el.style.boxShadow = _prevBox;
       el.style.transform = _prevTf;
     }, 800);
+  }
+
+  _notifyNoBet(el) {
+    this._flashDenied(el);
+
+    const now = Date.now();
+    if (now - this._lastNoBetToastAt < 700) return;
+    this._lastNoBetToastAt = now;
+
+    try {
+      const msg = 'Вы не поставили на Loot Rush';
+      if (typeof window.showToast === 'function') {
+        window.showToast(msg, { variant: 'warning', ttl: 1800, translate: false });
+      } else if (typeof window.notify === 'function') {
+        window.notify(msg, { variant: 'warning', ttl: 1800, translate: false });
+      } else if (typeof window.showInsufficientBalanceNotification === 'function') {
+        // Fallback toast if global showToast is not available.
+        window.showInsufficientBalanceNotification();
+      }
+    } catch (_) {}
+
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('warning');
+    } catch (_) {}
   }
 
   // Soft show/hide (Back hides overlay; Watch resumes)
@@ -402,13 +421,14 @@ class LootRush {
 
   _enableSelection() {
     this._selectEnabled = true;
+    this._selectedIndex = -1;
 
     this._tiles.forEach((tile, i) => {
       tile.classList.add('lr-selectable');
       tile.onclick = () => {
         // Watch-only mode: no bet -> cannot select.
         if (this.options.hasBet === false) {
-          this._flashInsufficient(tile);
+          this._notifyNoBet(tile);
           return;
         }
         if (!this._selectEnabled) return;
@@ -417,11 +437,6 @@ class LootRush {
       };
     });
 
-    if (this.options.hasBet === false) {
-      this._selectedIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
-    } else {
-      this._selectedIndex = -1;
-    }
     this._applySelection();
 
     const timer = this.container.querySelector('#lrTimer');
@@ -558,18 +573,18 @@ class LootRush {
       if (ui.title) ui.title.classList.add('lr-show');
 
       // 🔥 Используем оставшееся время если оно передано (для случая когда пользователь зашел в середине бонуса)
-      let pickedIdx = await this._runCountdown(ui.timer, effectiveDuration);
-      if (
-        Number.isInteger(this._forcedPickIndex) &&
-        (this.options.hasBet === false || !Number.isInteger(pickedIdx) || pickedIdx < 0 || pickedIdx >= this._tiles.length)
-      ) {
-        pickedIdx = this._forcedPickIndex;
-        this._selectedIndex = pickedIdx;
-        this._applySelection();
+      const pickedRaw = await this._runCountdown(ui.timer, effectiveDuration);
+      let pickedIdx = (
+        Number.isInteger(pickedRaw) &&
+        pickedRaw >= 0 &&
+        pickedRaw < this._tiles.length
+      ) ? pickedRaw : null;
+
+      // Watch-only players must never get an auto-picked/highlighted bag.
+      if (this.options.hasBet === false) {
+        pickedIdx = null;
       }
-      if (!Number.isInteger(pickedIdx) || pickedIdx < 0 || pickedIdx >= this._tiles.length) {
-        pickedIdx = 0;
-      }
+
       if (Number.isFinite(this._forcedMultiplier) && Number.isInteger(pickedIdx)) {
         this._multipliers[pickedIdx] = Number(this._forcedMultiplier);
       }
@@ -579,9 +594,11 @@ class LootRush {
       if (this._aborted) return;
 
 
-      chosenMult = Number.isFinite(this._forcedMultiplier)
-        ? Number(this._forcedMultiplier)
-        : (this._multipliers[pickedIdx] || 1.1);
+      chosenMult = Number.isInteger(pickedIdx)
+        ? (Number.isFinite(this._forcedMultiplier)
+          ? Number(this._forcedMultiplier)
+          : (this._multipliers[pickedIdx] || 1.1))
+        : NaN;
 
       await this._wait(Math.max(200, 800 / speedupFactor));  // Сокращено с 1500
 
@@ -605,7 +622,11 @@ class LootRush {
       if (this._aborted) {
         this.options.onComplete('cancelled', NaN);
       } else {
-        this.options.onComplete(this._fmtX(chosenMult), chosenMult);
+        if (Number.isFinite(chosenMult)) {
+          this.options.onComplete(this._fmtX(chosenMult), chosenMult);
+        } else {
+          this.options.onComplete('no_pick', NaN);
+        }
       }
     }
   }

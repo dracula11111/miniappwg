@@ -91,16 +91,20 @@
     transition: transform 220ms ease, filter 220ms ease, border-color 220ms ease;
   }
   
-  /* лёгкий градиент, чтобы текст читался */
+  /* Нижний градиент только в зоне подписи (под текстом) */
   .game-tile::after{
     content:"";
     position:absolute;
-    inset:0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56%;
     background: linear-gradient(180deg,
       rgba(0,0,0,0.00) 0%,
-      rgba(0,0,0,0.18) 42%,
-      rgba(0,0,0,0.32) 100%);
-    z-index:0;
+      rgba(0,0,0,0.16) 28%,
+      rgba(0,0,0,0.42) 64%,
+      rgba(0,0,0,0.78) 100%);
+    z-index:1;
     pointer-events:none;
   }
   
@@ -139,14 +143,70 @@
       0 12px 40px rgba(0,0,0,.22),
       0 20px 60px rgba(0,0,0,.15);
   }
+
+  .game-tile__label{
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    bottom: clamp(16px, 3.2vw, 28px);
+    transform: translateX(-50%);
+    text-align: center;
+    width: max-content;
+    max-width: 90%;
+    margin: 0;
+    pointer-events: none;
+    user-select: none;
+    color: #ffffff;
+    font-weight: 900;
+    font-size: clamp(30px, 8.2vw, 82px);
+    line-height: 0.94;
+    letter-spacing: -0.02em;
+    text-shadow:
+      0 0 10px rgba(255, 255, 255, 0.38),
+      0 0 22px rgba(255, 255, 255, 0.2),
+      0 3px 12px rgba(0, 0, 0, 0.38),
+      0 10px 26px rgba(0, 0, 0, 0.32);
+  }
+
+  .game-tile--wheel .game-tile__label{
+    left: clamp(20px, 5vw, 56px);
+    bottom: clamp(18px, 3.4vw, 30px);
+    transform: none;
+    text-align: left;
+    max-width: none;
+  }
+
+  .game-tile--soon .game-tile__label{
+    left: 50%;
+    bottom: clamp(14px, 3vw, 24px);
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: 90%;
+    opacity: 0.9;
+  }
+
+  .game-tile--crash .game-tile__label,
+  .game-tile--cases .game-tile__label{
+    bottom: clamp(14px, 3vw, 24px);
+    font-size: clamp(24px, 7.1vw, 58px);
+  }
   
   /* ===== AREAS + IMAGES ===== */
-  .game-tile--wheel{ grid-area: wheel;
-   --tile-img: url("/images/games/wheel.webp"); --tile-y: 40%; }
+  .game-tile--wheel{
+    grid-area: wheel;
+    background-size: 104%;
+    --tile-img: url("/images/games/wheel.webp");
+    --tile-y: 40%;
+  }
   .game-tile--crash{ grid-area: crash; 
     background-size: 102%; /* Увеличиваем изображение Crash */
     --tile-img: url("/images/games/crash.webp"); --tile-y: 50%; }
-  .game-tile--cases{ grid-area: cases; --tile-img: url("/images/games/cases.webp"); --tile-y: 35%; }
+  .game-tile--cases{
+    grid-area: cases;
+    background-size: 104%;
+    --tile-img: url("/images/games/cases.webp");
+    --tile-y: 35%;
+  }
   .game-tile--soon { grid-area: soon;  --tile-img: url("/images/games/soon.webp");  --tile-y: 45%; }
   
   /* Если фоток нет — всё равно красиво */
@@ -155,11 +215,11 @@
   .game-tile--cases{ background-color: rgba(90, 255, 200, .16); }
   .game-tile--soon { background-color: rgba(255,255,255,.035); }
   
-  /* лёгкие наклоны как на макете */
-  .game-tile--wheel .game-tile__label{ transform: rotate(0deg); }
-  .game-tile--crash .game-tile__label{ transform: rotate(-7deg); }
-  .game-tile--cases .game-tile__label{ transform: rotate(7deg); }
-  .game-tile--soon  .game-tile__label{ transform: rotate(8deg); opacity:.9; }
+  /* подписи выравниваем по центру без наклона */
+  .game-tile--crash .game-tile__label,
+  .game-tile--cases .game-tile__label{
+    transform: translateX(-50%);
+  }
   
   /* Wheel: сдвиг постера вправо только на 360x780 */
   @media (width: 360px) and (height: 780px){

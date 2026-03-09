@@ -7,6 +7,7 @@ import express from "express";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
+import { Address, Cell } from "@ton/core";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { createServer } from 'http';
@@ -36,6 +37,7 @@ function createMemoryDb() {
   const promoCodes = new Map(); // code(lower) -> { reward_stars, reward_ton, max_uses, used_count }
   const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
+  const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   let txId = 1;
   let betId = 1;
 
@@ -90,6 +92,12 @@ function createMemoryDb() {
 
   function normPromo(code) {
     return String(code || "").trim().toLowerCase();
+  }
+
+  function normHash(v) {
+    const s = String(v || "").replace(/^0x/i, "").trim();
+    if (!s || !/^[a-fA-F0-9]{32,128}$/.test(s)) return "";
+    return s.toUpperCase();
   }
 
   return {
@@ -154,6 +162,47 @@ function createMemoryDb() {
       });
 
       return after;
+    },
+    async applyVerifiedTonDeposit({
+      telegramId,
+      amountTon,
+      txHash,
+      messageHash,
+      inMsgHash = null
+    }) {
+      const k = ensure(telegramId);
+      const delta = Number(amountTon || 0);
+      if (!Number.isFinite(delta) || delta <= 0) throw new Error("Invalid TON deposit amount");
+
+      const txKey = normHash(txHash);
+      const msgKey = normHash(messageHash);
+      const inKey = normHash(inMsgHash);
+      if (!txKey) throw new Error("txHash required");
+      if (!msgKey) throw new Error("messageHash required");
+
+      const keys = [txKey, msgKey, inKey].filter(Boolean);
+      for (const key of keys) {
+        const existing = tonDepositClaims.get(key);
+        if (!existing) continue;
+        if (String(existing.telegramId) !== String(k)) {
+          throw new Error("Deposit already claimed by another user");
+        }
+        const bal = balances.get(k) || { ton_balance: "0" };
+        return { ok: true, duplicate: true, newBalance: Number(bal.ton_balance || 0) };
+      }
+
+      const newBalance = await this.updateBalance(
+        k,
+        "ton",
+        delta,
+        "deposit",
+        `TON deposit ${txKey.slice(0, 10)}...`,
+        { txHash: txKey, invoiceId: msgKey }
+      );
+
+      const entry = { telegramId: k, amountTon: delta, txHash: txKey, messageHash: msgKey };
+      for (const key of keys) tonDepositClaims.set(key, entry);
+      return { ok: true, duplicate: false, newBalance: Number(newBalance || 0) };
     },
     async createBet(telegramId, roundId, betData, totalAmount, currency) {
       const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
@@ -838,6 +887,69 @@ const wheelGame = {
   phaseTimeout: null
 };
 
+// Authorized wheel bet credits registered by /api/deposit-notification (wheel_bet debits).
+// Key format: "<roundId>|<userId>|<currency>" -> remaining amount.
+const wheelBetCredits = new Map();
+
+function wheelBetCreditKey(roundId, userId, currency) {
+  const r = Number(roundId || 0);
+  const uid = String(userId || "").trim();
+  const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+  if (!Number.isFinite(r) || r <= 0 || !uid) return "";
+  return `${Math.trunc(r)}|${uid}|${cur}`;
+}
+
+function registerWheelBetCredit(roundId, userId, currency, amount) {
+  const key = wheelBetCreditKey(roundId, userId, currency);
+  const delta = Number(amount || 0);
+  if (!key || !Number.isFinite(delta) || delta <= 0) return false;
+
+  const cur = key.endsWith("|stars") ? "stars" : "ton";
+  const prev = Number(wheelBetCredits.get(key) || 0);
+  const nextRaw = prev + delta;
+  const next = cur === "stars"
+    ? Math.max(0, Math.round(nextRaw))
+    : Math.max(0, Math.round(nextRaw * 100) / 100);
+  wheelBetCredits.set(key, next);
+  return true;
+}
+
+function consumeWheelBetCredit(roundId, userId, currency, amount) {
+  const key = wheelBetCreditKey(roundId, userId, currency);
+  const need = Number(amount || 0);
+  if (!key || !Number.isFinite(need) || need <= 0) return false;
+
+  const cur = key.endsWith("|stars") ? "stars" : "ton";
+  const available = Number(wheelBetCredits.get(key) || 0);
+  const epsilon = cur === "stars" ? 0 : 1e-9;
+  if (!Number.isFinite(available) || available + epsilon < need) {
+    return false;
+  }
+
+  const leftRaw = available - need;
+  const left = cur === "stars"
+    ? Math.max(0, Math.round(leftRaw))
+    : Math.max(0, Math.round(leftRaw * 100) / 100);
+  if (left <= epsilon) {
+    wheelBetCredits.delete(key);
+  } else {
+    wheelBetCredits.set(key, left);
+  }
+  return true;
+}
+
+function cleanupWheelBetCredits(currentRoundId) {
+  const round = Number(currentRoundId || 0);
+  if (!Number.isFinite(round) || round <= 0) return;
+
+  for (const key of wheelBetCredits.keys()) {
+    const kRound = Number(String(key).split("|")[0] || 0);
+    if (!Number.isFinite(kRound) || kRound < round) {
+      wheelBetCredits.delete(key);
+    }
+  }
+}
+
 function normWheelSeg(seg) {
   if (!seg) return null;
   const s = String(seg).trim();
@@ -1118,6 +1230,7 @@ function wheelStartBetting() {
   wheelGame.phase = 'betting';
   wheelGame.phaseStart = Date.now();
   wheelGame.roundId += 1;
+  cleanupWheelBetCredits(wheelGame.roundId);
   wheelGame.spin = null;
   wheelGame.bonus = null;
   wheelGame.settlement = null;
@@ -1265,6 +1378,27 @@ wheelWss.on('connection', (ws) => {
         const userId = String(msg.userId || '').trim();
         if (!userId) return;
 
+        const initData = String(msg.initData || "");
+        if (!initData || !process.env.BOT_TOKEN) {
+          wsSendSafe(ws, JSON.stringify({ type: "error", message: "Unauthorized" }));
+          return;
+        }
+        const initCheck = verifyInitData(initData, process.env.BOT_TOKEN, 24 * 60 * 60);
+        if (!initCheck.ok) {
+          wsSendSafe(ws, JSON.stringify({ type: "error", message: "Unauthorized" }));
+          return;
+        }
+        let wsUser = null;
+        try {
+          wsUser = JSON.parse(initCheck.params.user || "null");
+        } catch {
+          wsUser = null;
+        }
+        if (!wsUser?.id || String(wsUser.id) !== userId) {
+          wsSendSafe(ws, JSON.stringify({ type: "error", message: "Unauthorized" }));
+          return;
+        }
+
         const seg = normWheelSeg(msg.segment);
         if (!seg || !WHEEL_ALLOWED.has(seg)) return;
 
@@ -1274,6 +1408,12 @@ wheelWss.on('connection', (ws) => {
 
         if (currency === 'stars') amount = Math.round(amount);
         else amount = Math.round(amount * 100) / 100;
+
+        // Bet must be pre-authorized by a successful wheel_bet debit for this round.
+        if (!consumeWheelBetCredit(wheelGame.roundId, userId, currency, amount)) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Bet not authorized' }));
+          return;
+        }
 
         const name = String(msg.userName || 'Player').slice(0, 64);
         const avatar = msg.userAvatar ? String(msg.userAvatar).slice(0, 500) : null;
@@ -2823,6 +2963,141 @@ async function checkTaskChannelMembership(telegramUserId) {
   }
 }
 
+const TON_PROJECT_ADDRESS = String(
+  process.env.PROJECT_TON_ADDRESS || "UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J"
+).trim();
+const TONAPI_BASE = String(process.env.TONAPI_BASE || "https://tonapi.io/v2").replace(/\/+$/, "");
+const TONAPI_KEY = String(process.env.TONAPI_KEY || process.env.TON_API_KEY || "").trim();
+const TON_DEPOSIT_HTTP_TIMEOUT_MS = Math.max(
+  3000,
+  Math.min(30000, Number(process.env.TON_DEPOSIT_HTTP_TIMEOUT_MS || 12000) || 12000)
+);
+const TON_DEPOSIT_MIN_CONFIRM_AGE_SEC = Math.max(
+  0,
+  Math.min(300, Number(process.env.TON_DEPOSIT_MIN_CONFIRM_AGE_SEC || 10) || 10)
+);
+const TON_DEPOSIT_MAX_AGE_SEC = Math.max(
+  300,
+  Math.min(30 * 24 * 60 * 60, Number(process.env.TON_DEPOSIT_MAX_AGE_SEC || 24 * 60 * 60) || 24 * 60 * 60)
+);
+const TON_DEPOSIT_MIN_NANO = BigInt(
+  Math.max(1, Number(process.env.TON_DEPOSIT_MIN_NANO || 1000000) || 1000000)
+);
+
+function tonApiHeaders() {
+  const h = { accept: "application/json" };
+  if (TONAPI_KEY) {
+    h.authorization = `Bearer ${TONAPI_KEY}`;
+  }
+  return h;
+}
+
+function normalizeTonHash(value) {
+  const s = String(value || "").replace(/^0x/i, "").trim();
+  if (!s || !/^[a-fA-F0-9]{32,128}$/.test(s)) return "";
+  return s.toUpperCase();
+}
+
+function normalizeTonLt(value) {
+  const s = String(value ?? "").trim();
+  if (!s || !/^\d+$/.test(s)) return "";
+  return s;
+}
+
+function normalizeTonAddressRaw(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  try {
+    return Address.parse(s).toRawString().toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+const TON_PROJECT_ADDRESS_RAW = normalizeTonAddressRaw(TON_PROJECT_ADDRESS);
+if (!TON_PROJECT_ADDRESS_RAW) {
+  console.warn("[TON Deposit] PROJECT_TON_ADDRESS is invalid; TON deposits will be rejected.");
+}
+
+function toBigIntSafe(value) {
+  try {
+    if (typeof value === "bigint") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return BigInt(Math.trunc(value));
+    const s = String(value ?? "").trim();
+    if (!s) return 0n;
+    return BigInt(s);
+  } catch {
+    return 0n;
+  }
+}
+
+function nanoToTon8(nanoValue) {
+  const n = toBigIntSafe(nanoValue);
+  if (n <= 0n) return 0;
+  const units = 100000000n; // 1e8
+  const rounded = (n * units + 500000000n) / 1000000000n; // round to 8 decimals
+  return Number(rounded) / 1e8;
+}
+
+function getTonMessageHashFromBoc(boc) {
+  const raw = String(boc || "").trim();
+  if (!raw) throw new Error("BOC is required");
+  const cell = Cell.fromBase64(raw);
+  return normalizeTonHash(cell.hash().toString("hex"));
+}
+
+async function fetchTonTxByMessageHash(messageHash) {
+  const hash = normalizeTonHash(messageHash);
+  if (!hash) throw new Error("Invalid message hash");
+
+  const url = `${TONAPI_BASE}/blockchain/messages/${hash}/transaction`;
+  const res = await fetchWithTimeout(url, { headers: tonApiHeaders() }, TON_DEPOSIT_HTTP_TIMEOUT_MS);
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch {}
+
+  if (!res.ok) {
+    const msg = data?.error || text || `HTTP ${res.status}`;
+    throw new Error(`TONAPI transaction lookup failed: ${msg}`);
+  }
+
+  return data || {};
+}
+
+function extractProjectTransferFromTx(tx) {
+  const outMsgs = Array.isArray(tx?.out_msgs) ? tx.out_msgs : [];
+  const projectRaw = TON_PROJECT_ADDRESS_RAW;
+  if (!projectRaw) return null;
+
+  let sumNano = 0n;
+  let inMsgHash = "";
+  let fromRaw = "";
+  let toRaw = projectRaw;
+
+  for (const msg of outMsgs) {
+    const destRaw = normalizeTonAddressRaw(msg?.destination?.address || msg?.destination || "");
+    if (!destRaw || destRaw !== projectRaw) continue;
+
+    const valueNano = toBigIntSafe(msg?.value);
+    if (valueNano <= 0n) continue;
+
+    sumNano += valueNano;
+    if (!inMsgHash) inMsgHash = normalizeTonHash(msg?.hash || "");
+    if (!fromRaw) {
+      fromRaw = normalizeTonAddressRaw(msg?.source?.address || msg?.source || tx?.account?.address || "");
+    }
+  }
+
+  if (sumNano <= 0n) return null;
+  return {
+    amountNano: sumNano,
+    amountTon: nanoToTon8(sumNano),
+    inMsgHash,
+    fromAddressRaw: fromRaw,
+    toAddressRaw: toRaw
+  };
+}
+
 async function resolveTaskRewardForCurrency(baseStars, preferredCurrency) {
   const starsReward = Math.max(1, Math.round(Number(baseStars || 0)));
   const currency = String(preferredCurrency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
@@ -3256,67 +3531,317 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
   }
 });
 
+// ====== TON DEPOSIT CONFIRM (on-chain verified) ======
+app.post("/api/ton/deposit/confirm", async (req, res) => {
+  try {
+    if (!TON_PROJECT_ADDRESS_RAW) {
+      return res.status(500).json({ ok: false, error: "PROJECT_TON_ADDRESS is not configured" });
+    }
+
+    const initData = getInitDataFromReq(req);
+    if (!initData) {
+      return res.status(401).json({ ok: false, error: "initData required" });
+    }
+    if (!process.env.BOT_TOKEN) {
+      return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+    }
+
+    const maxAgeSec = Math.max(
+      60,
+      Math.min(30 * 24 * 60 * 60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400)
+    );
+    const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
+    if (!check.ok) {
+      return res.status(403).json({ ok: false, error: "Bad initData" });
+    }
+
+    let user = null;
+    try { user = JSON.parse(check.params.user || "null"); } catch {}
+    if (!user?.id) {
+      return res.status(403).json({ ok: false, error: "No user in initData" });
+    }
+    const userId = String(user.id);
+
+    try {
+      await db.saveUser(user);
+    } catch (saveErr) {
+      console.error("[TON Deposit] Failed to save user profile:", saveErr);
+    }
+
+    const boc = String(req.body?.boc || req.body?.txBoc || req.body?.txHash || "").trim();
+    if (!boc) {
+      return res.status(400).json({ ok: false, error: "boc required" });
+    }
+    if (boc.length > 12000) {
+      return res.status(400).json({ ok: false, error: "boc is too large" });
+    }
+
+    let messageHash = "";
+    try {
+      messageHash = getTonMessageHashFromBoc(boc);
+    } catch (hashErr) {
+      return res.status(400).json({ ok: false, error: `Invalid boc: ${hashErr.message}` });
+    }
+
+    let tx = null;
+    try {
+      tx = await fetchTonTxByMessageHash(messageHash);
+    } catch (lookupErr) {
+      const text = String(lookupErr?.message || "");
+      if (/not found|can't find|cannot find/i.test(text)) {
+        return res.status(202).json({
+          ok: false,
+          pending: true,
+          messageHash,
+          error: "Transaction is not indexed yet, retry in a few seconds"
+        });
+      }
+      throw lookupErr;
+    }
+
+    const txHash = normalizeTonHash(tx?.hash || "");
+    const txLt = normalizeTonLt(tx?.lt);
+    const txUtime = Number(tx?.utime || 0);
+    if (!txHash || !txLt || !Number.isFinite(txUtime) || txUtime <= 0) {
+      return res.status(422).json({ ok: false, error: "Invalid TON transaction payload" });
+    }
+
+    if (tx?.success !== true) {
+      return res.status(422).json({ ok: false, error: "TON transaction is not successful" });
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec - txUtime < TON_DEPOSIT_MIN_CONFIRM_AGE_SEC) {
+      return res.status(425).json({
+        ok: false,
+        pending: true,
+        error: "Transaction is too fresh, wait for confirmations"
+      });
+    }
+    if (nowSec - txUtime > TON_DEPOSIT_MAX_AGE_SEC) {
+      return res.status(422).json({ ok: false, error: "Transaction is too old to claim" });
+    }
+
+    const transfer = extractProjectTransferFromTx(tx);
+    if (!transfer) {
+      return res.status(422).json({
+        ok: false,
+        error: "No outgoing transfer to project wallet found in transaction"
+      });
+    }
+    if (transfer.amountNano < TON_DEPOSIT_MIN_NANO) {
+      return res.status(422).json({ ok: false, error: "Deposit amount is below minimum" });
+    }
+
+    const claimedWalletRaw = normalizeTonAddressRaw(
+      req.body?.walletAddress ||
+      req.body?.fromAddress ||
+      req.body?.senderAddress ||
+      ""
+    );
+    if (claimedWalletRaw && transfer.fromAddressRaw && claimedWalletRaw !== transfer.fromAddressRaw) {
+      return res.status(403).json({ ok: false, error: "Sender wallet mismatch" });
+    }
+
+    const expectedAmountTon = Number(req.body?.amount || req.body?.expectedAmountTon || 0);
+    if (Number.isFinite(expectedAmountTon) && expectedAmountTon > 0) {
+      const diff = Math.abs(expectedAmountTon - transfer.amountTon);
+      if (diff > 0.00000002) {
+        console.warn("[TON Deposit] expected amount differs from on-chain amount:", {
+          userId,
+          expectedAmountTon,
+          actualAmountTon: transfer.amountTon,
+          txHash
+        });
+      }
+    }
+
+    if (typeof db.applyVerifiedTonDeposit !== "function") {
+      return res.status(500).json({ ok: false, error: "TON deposit claims are not supported by DB driver" });
+    }
+
+    const claimRes = await db.applyVerifiedTonDeposit({
+      telegramId: userId,
+      amountTon: transfer.amountTon,
+      txHash,
+      messageHash,
+      inMsgHash: transfer.inMsgHash || null,
+      txLt,
+      fromAddress: transfer.fromAddressRaw || null,
+      toAddress: transfer.toAddressRaw || null,
+      payload: {
+        provider: "tonapi",
+        txHash,
+        txLt,
+        txUtime,
+        messageHash,
+        inMsgHash: transfer.inMsgHash || null,
+        amountNano: String(transfer.amountNano),
+        amountTon: transfer.amountTon,
+        from: transfer.fromAddressRaw || null,
+        to: transfer.toAddressRaw || null
+      }
+    });
+
+    broadcastBalanceUpdate(userId);
+
+    if (!claimRes?.duplicate && process.env.BOT_TOKEN) {
+      await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`);
+    }
+
+    return res.json({
+      ok: true,
+      duplicate: !!claimRes?.duplicate,
+      userId: Number(userId),
+      amountTon: transfer.amountTon,
+      amountNano: String(transfer.amountNano),
+      newBalance: Number(claimRes?.newBalance || 0),
+      txHash,
+      txLt,
+      messageHash,
+      indexedAt: txUtime
+    });
+  } catch (error) {
+    console.error("[TON Deposit] confirm error:", error);
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Failed to confirm TON deposit"
+    });
+  }
+});
+
 // ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
   try {
-    const { amount, currency, userId, txHash, timestamp, initData, invoiceId, depositId: bodyDepositId, type, roundId, bets, notify } = req.body;
-    
-    const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amount)}_${timestamp}`;
-    
-    console.log('[Deposit] Notification received:', {
+    const {
       amount,
       currency,
       userId,
-      type: type || 'deposit',
-      depositId: depositId?.substring(0, 20) + '...',
+      txHash,
+      timestamp,
+      initData,
+      invoiceId,
+      depositId: bodyDepositId,
+      type,
+      roundId,
+      bets,
+      notify
+    } = req.body || {};
+
+    const amountNum = Number(amount);
+    const typeNorm = String(type || "deposit").trim().toLowerCase();
+
+    // Validation
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "User ID required" });
+    }
+
+    if (!Number.isFinite(amountNum) || amountNum === 0) {
+      return res.status(400).json({ ok: false, error: "Invalid amount" });
+    }
+
+    if (!currency || !["ton", "stars"].includes(currency)) {
+      return res.status(400).json({ ok: false, error: "Invalid currency" });
+    }
+
+    const isRelayer = isRelayerSecretOk(req);
+    const maxAgeSec = Math.max(
+      60,
+      Math.min(30 * 24 * 60 * 60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400)
+    );
+
+    // For browser-originated requests, require valid Telegram initData and strict userId match.
+    let user = null;
+    if (!isRelayer) {
+      if (!initData) {
+        return res.status(401).json({ ok: false, error: "initData required" });
+      }
+      if (!process.env.BOT_TOKEN) {
+        return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+      }
+
+      const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
+      if (!check.ok) {
+        return res.status(403).json({ ok: false, error: "Bad initData" });
+      }
+
+      try {
+        user = JSON.parse(check.params.user || "null");
+      } catch {
+        user = null;
+      }
+
+      if (!user?.id) {
+        return res.status(403).json({ ok: false, error: "No user in initData" });
+      }
+      if (String(user.id) !== String(userId)) {
+        return res.status(403).json({ ok: false, error: "userId mismatch" });
+      }
+    }
+
+    // Emergency anti-fraud: block ALL client-originated positive credits.
+    // Positive balance changes are accepted only from trusted backend/relayer.
+    const isBlockedUntrustedCredit =
+      !isRelayer &&
+      amountNum > 0;
+    if (isBlockedUntrustedCredit) {
+      console.warn("[Deposit][SECURITY] Rejected untrusted positive credit:", {
+        userId,
+        amount: amountNum,
+        currency,
+        type: typeNorm,
+        depositId: String(bodyDepositId || invoiceId || txHash || "").slice(0, 64)
+      });
+      return res.status(403).json({
+        ok: false,
+        error: "Untrusted positive credit is disabled"
+      });
+    }
+
+    // While positive client credits are frozen, also block corresponding risky debits
+    // so users cannot spend funds in game flows that currently cannot pay out safely.
+    const isBlockedUntrustedDebit =
+      !isRelayer &&
+      amountNum < 0 &&
+      (typeNorm === "bet" || typeNorm === "case_open");
+    if (isBlockedUntrustedDebit) {
+      return res.status(503).json({
+        ok: false,
+        error: "This game flow is temporarily disabled for security maintenance"
+      });
+    }
+
+    const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amountNum)}_${timestamp}`;
+
+    console.log("[Deposit] Notification received:", {
+      amount: amountNum,
+      currency,
+      userId,
+      type: typeNorm,
+      depositId: depositId ? `${String(depositId).substring(0, 20)}...` : null,
       timestamp
     });
 
-    // 🔥 Idempotency: dedupe deposits AND wheel bets/wins (even for negative amounts)
-    const shouldDedupe = !!depositId && (amount > 0 || type === 'wheel_bet' || type === 'wheel_win' || type === 'bet');
+    // Idempotency: dedupe positive credits and key bet/win events.
+    const shouldDedupe = !!depositId && (amountNum > 0 || typeNorm === "wheel_bet" || typeNorm === "wheel_win" || typeNorm === "bet");
 
     if (shouldDedupe && isDepositProcessed(depositId)) {
-      console.log('[Deposit] ⚠️ Duplicate detected, skipping:', depositId);
-      return res.json({ 
-        ok: true, 
-        message: 'Already processed',
+      console.log("[Deposit] Duplicate detected, skipping:", depositId);
+      return res.json({
+        ok: true,
+        message: "Already processed",
         duplicate: true
       });
     }
 
-    // Validation
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'User ID required' });
-    }
-
-    // 🔥 Разрешаем отрицательные суммы (списание)
-    const amountNum = Number(amount);
-    if (!Number.isFinite(amountNum) || amountNum === 0) {
-      return res.status(400).json({ ok: false, error: 'Invalid amount' });
-    }
-
-    if (!currency || !['ton', 'stars'].includes(currency)) {
-      return res.status(400).json({ ok: false, error: 'Invalid currency' });
-    }
-
-    // Extract user data from initData
-    let user = null;
-    if (initData) {
-      const maxAgeSec = Math.max(60, Math.min(30*24*60*60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400));
-  const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
-      if (check.ok && check.params.user) {
-        try { 
-          user = JSON.parse(check.params.user);
-          await db.saveUser(user);
-          console.log('[Deposit] User saved:', user.id);
-        } catch (err) {
-          console.error('[Deposit] Failed to parse user:', err);
-        }
+    if (user) {
+      try {
+        await db.saveUser(user);
+        console.log("[Deposit] User saved:", user.id);
+      } catch (err) {
+        console.error("[Deposit] Failed to save user:", err);
       }
-    }
-
-    // 🔥 Mark as processed (same rule as dedupe)
-    if (!user) {
+    } else {
       const fallbackUsername = safeShortText(req.body?.username || req.body?.tgUsername || "", 64) || null;
       const fallbackFirstName = safeShortText(
         req.body?.first_name || req.body?.firstName || req.body?.userName || req.body?.name || "",
@@ -3341,94 +3866,102 @@ app.post("/api/deposit-notification", async (req, res) => {
       markDepositProcessed(depositId);
     }
 
-    // Send Telegram message ONLY for real deposits (not case wins / wheel / etc.)
+    // Send Telegram message only for trusted real deposits.
     const shouldSendDepositMessage =
       notify !== false &&
-      amount > 0 &&
+      amountNum > 0 &&
       process.env.BOT_TOKEN &&
-      (type === 'deposit' || (!type && (txHash || invoiceId)));
+      typeNorm === "deposit";
 
     // Process transaction
     try {
-      if (currency === 'ton') {
+      if (currency === "ton") {
         const newBalance = await db.updateBalance(
           userId,
-          'ton',
-          parseFloat(amount),
-          type || 'deposit',
-          generateDescription(type, amount, txHash, roundId),
+          "ton",
+          amountNum,
+          typeNorm,
+          generateDescription(typeNorm, amountNum, txHash, roundId),
           { txHash, roundId, bets: bets ? JSON.stringify(bets) : null }
         );
-        
-        console.log('[Deposit] ✅ TON balance updated:', { userId, amount, newBalance });
-        
-        // 🔥 BROADCAST BALANCE UPDATE
+
+        if (typeNorm === "wheel_bet" && amountNum < 0) {
+          registerWheelBetCredit(roundId, userId, "ton", Math.abs(amountNum));
+        }
+
+        console.log("[Deposit] TON balance updated:", { userId, amount: amountNum, newBalance });
+
+        // BROADCAST BALANCE UPDATE
         broadcastBalanceUpdate(userId);
-        
+
         // Send notification only for real deposits
         if (shouldSendDepositMessage) {
-          await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${amount} TON`);
+          await sendTelegramMessage(userId, `Deposit confirmed!\n\nYou received ${amountNum} TON`);
         }
-        
-        return res.json({ 
-          ok: true, 
-          message: amount > 0 ? 'TON deposit processed' : 'TON deducted',
-          newBalance: newBalance,
-          amount: amount
+
+        return res.json({
+          ok: true,
+          message: amountNum > 0 ? "TON deposit processed" : "TON deducted",
+          newBalance,
+          amount: amountNum
         });
-        
-      } else if (currency === 'stars') {
+      }
+
+      if (currency === "stars") {
         const newBalance = await db.updateBalance(
           userId,
-          'stars',
-          parseInt(amount),
-          type || 'deposit',
-          generateDescription(type, amount, null, roundId),
+          "stars",
+          amountNum,
+          typeNorm,
+          generateDescription(typeNorm, amountNum, null, roundId),
           { invoiceId: depositId, roundId, bets: bets ? JSON.stringify(bets) : null }
         );
-        
-        console.log('[Deposit] ✅ Stars balance updated:', { userId, amount, newBalance });
-        
-        // 🔥 BROADCAST BALANCE UPDATE
+
+        if (typeNorm === "wheel_bet" && amountNum < 0) {
+          registerWheelBetCredit(roundId, userId, "stars", Math.abs(amountNum));
+        }
+
+        console.log("[Deposit] Stars balance updated:", { userId, amount: amountNum, newBalance });
+
+        // BROADCAST BALANCE UPDATE
         broadcastBalanceUpdate(userId);
-        
+
         // Send notification only for real deposits
         if (shouldSendDepositMessage) {
-          await sendTelegramMessage(userId, `✅ Payment successful!\n\nYou received ${amount} ⭐ Stars`);
+          await sendTelegramMessage(userId, `Payment successful!\n\nYou received ${amountNum} Stars`);
         }
-        
-        return res.json({ 
-          ok: true, 
-          message: amount > 0 ? 'Stars deposit processed' : 'Stars deducted',
-          newBalance: newBalance,
-          amount: amount
+
+        return res.json({
+          ok: true,
+          message: amountNum > 0 ? "Stars deposit processed" : "Stars deducted",
+          newBalance,
+          amount: amountNum
         });
       }
-      
+
+      return res.status(400).json({ ok: false, error: "Invalid currency" });
     } catch (err) {
-      console.error('[Deposit] Error updating balance:', err);
+      console.error("[Deposit] Error updating balance:", err);
       // Remove from processed if failed
-      if (amount > 0) {
+      if (amountNum > 0) {
         processedDeposits.delete(depositId);
       }
-      
-      return res.status(500).json({ 
-        ok: false, 
-        error: 'Failed to update balance',
-        details: err.message 
+
+      return res.status(500).json({
+        ok: false,
+        error: "Failed to update balance",
+        details: err.message
       });
     }
-
   } catch (error) {
-    console.error('[Deposit] Error:', error);
-    res.status(500).json({ 
-      ok: false, 
-      error: error.message || 'Internal server error'
+    console.error("[Deposit] Error:", error);
+    return res.status(500).json({
+      ok: false,
+      error: error.message || "Internal server error"
     });
   }
 });
 
-// 🔥 Helper: Generate transaction description
 function generateDescription(type, amount, txHash, roundId) {
   switch (type) {
     case 'wheel_bet':
@@ -5335,3 +5868,4 @@ async function sendTelegramMessage(chatId, text) {
     console.error('[Telegram] Failed to send message:', err);
   }
 }
+

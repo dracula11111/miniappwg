@@ -4,6 +4,37 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
   <title>Wild Gift</title>
+  <script>
+    (function () {
+      try {
+        var q = new URLSearchParams(window.location.search || "");
+        var queryDebug = q.get("debug") === "1";
+        var storageDebug = false;
+        try { storageDebug = localStorage.getItem("WT_DEBUG_LOGS") === "1"; } catch (_) {}
+        var shouldSilence = !(queryDebug || storageDebug);
+
+        var original = window.__WT_ORIGINAL_CONSOLE__ || {
+          log: console.log.bind(console),
+          info: console.info.bind(console),
+          debug: console.debug.bind(console),
+          warn: console.warn.bind(console),
+          error: console.error.bind(console),
+          trace: console.trace.bind(console)
+        };
+        window.__WT_ORIGINAL_CONSOLE__ = original;
+
+        if (!shouldSilence) return;
+
+        var noop = function () {};
+        console.log = noop;
+        console.info = noop;
+        console.debug = noop;
+        console.warn = noop;
+        console.error = noop;
+        console.trace = noop;
+      } catch (_) {}
+    })();
+  </script>
 
   <!-- TonConnect UI (библиотека, без инициализации здесь) -->
   <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
