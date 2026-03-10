@@ -1,70 +1,34 @@
-/* =========================
-   BASE (always load)
-========================= */
+// Bundle all frontend styles in the same order as legacy <link> tags.
+import "../css/base.css";
+import "../css/layout.css";
+import "../css/components.css";
+import "../css/games.css";
+import "../css/wheel.css";
+import "../css/crash.css";
+import "../css/cases.css";
+import "../css/market.css";
+import "../css/tasks.css";
+import "../css/profile.css";
+import "../css/bonus.css";
 
+// Bundle app scripts in the same order as legacy <script defer> tags.
+import "./shared/ban-guard.js";
 import "./shared/splash.js";
-
 import "./core/app.js";
+import "./features/payments/tondep.js";
+import "./features/payments/starsdep.js";
+import "./features/wheel/wheel.js";
+import "./features/wheel/wildtime.js";
+import "./features/wheel/bonus-5050.js";
+import "./features/wheel/lootrush.js";
+import "./features/crash/crash.js";
 import "./core/switch.js";
-import "./core/settings.js";
-
+import "./features/cases/nft-win-screen.js";
+import "./features/cases/cases.js";
+import "./features/market/market.js";
+import "./features/tasks/tasks.js";
+import "./features/profile/profile.js";
 import "./shared/validation.js";
 import "./shared/balance-live.js";
-
-/* =========================
-   HELPERS
-========================= */
-
-const page =
-  document.body?.dataset?.page ||
-  window.PAGE ||
-  "app";
-
-/* =========================
-   FEATURE LAZY LOAD
-========================= */
-
-// MARKET
-if (page === "market") {
-  import("./features/market/market.js");
-}
-
-// PROFILE
-if (page === "profile") {
-  import("./features/profile/profile.js");
-}
-
-// TASKS
-if (page === "tasks") {
-  import("./features/tasks/tasks.js");
-}
-
-// CRASH
-if (page === "crash") {
-  import("./features/crash/crash.js");
-}
-
-// CASES
-if (page === "cases") {
-  import("./features/cases/cases.js");
-  import("./features/cases/nft-win-screen.js");
-}
-
-// WHEEL
-if (page === "wheel") {
-  import("./features/wheel/wheel.js");
-  import("./features/wheel/wildtime.js");
-  import("./features/wheel/bonus-5050.js");
-  import("./features/wheel/lootrush.js");
-}
-
-// PAYMENTS
-if (page === "payments") {
-  import("./features/payments/tondep.js");
-  import("./features/payments/starsdep.js");
-}
-
-// ADMIN
-if (page === "admin") {
-  import("./features/admin-panel.js");
-}
+import "./core/settings.js";
+import "./features/admin-panel.js";

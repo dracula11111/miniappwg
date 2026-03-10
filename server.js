@@ -1464,8 +1464,15 @@ app.set("trust proxy", true);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false }));
 
-// --- Static files from ./public (Render)
-app.use(express.static(path.join(__dirname, "public"), {
+const PUBLIC_DIR = path.join(__dirname, "public");
+const DIST_DIR = path.join(__dirname, "dist");
+const FRONTEND_DIR =
+  IS_PROD && fs.existsSync(path.join(DIST_DIR, "index.html"))
+    ? DIST_DIR
+    : PUBLIC_DIR;
+
+// --- Static frontend (prefer /dist build; fallback to /public source)
+app.use(express.static(FRONTEND_DIR, {
   extensions: ["html"],
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".json")) {
@@ -1473,6 +1480,17 @@ app.use(express.static(path.join(__dirname, "public"), {
     }
   }
 }));
+
+// Keep legacy public assets available when running built frontend from /dist.
+if (FRONTEND_DIR !== PUBLIC_DIR) {
+  app.use(express.static(PUBLIC_DIR, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".json")) {
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+      }
+    }
+  }));
+}
 
 // --- Market images (persist on Render under /opt/render/project/data)
 const MARKET_GIFTS_IMG_DIR =
@@ -5604,7 +5622,7 @@ app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") {
     return next();
   }
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(FRONTEND_DIR, "index.html"));
 });
 
 // ====== Error handling ======
