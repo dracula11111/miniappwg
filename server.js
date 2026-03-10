@@ -1466,10 +1466,7 @@ app.use(express.urlencoded({ extended: false }));
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DIST_DIR = path.join(__dirname, "dist");
-const FRONTEND_DIR =
-  IS_PROD && fs.existsSync(path.join(DIST_DIR, "index.html"))
-    ? DIST_DIR
-    : PUBLIC_DIR;
+const FRONTEND_DIR = fs.existsSync(path.join(DIST_DIR, "index.html")) ? DIST_DIR : PUBLIC_DIR;
 
 // --- Static frontend (prefer /dist build; fallback to /public source)
 app.use(express.static(FRONTEND_DIR, {
