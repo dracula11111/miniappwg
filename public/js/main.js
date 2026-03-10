@@ -11,6 +11,9 @@ import "../css/tasks.css";
 import "../css/profile.css";
 import "../css/bonus.css";
 
+// Mount the large HTML shell into #root before feature scripts run.
+import "./app-shell.js";
+
 // Bundle app scripts in the same order as legacy <script defer> tags.
 import "./shared/ban-guard.js";
 import "./shared/splash.js";

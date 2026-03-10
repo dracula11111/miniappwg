@@ -1,0 +1,706 @@
+﻿<!-- App shell rendered into #root by /js/app-shell.js -->
+<!-- Splash Screen СЃ С„РѕРЅРѕРІС‹Рј РёР·РѕР±СЂР°Р¶РµРЅРёРµРј -->
+<div id="splash" class="splash">
+  <!-- Р¤РѕРЅРѕРІРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ - Р·Р°РјРµРЅРёС‚Рµ РЅР° СЃРІРѕС‘ -->
+  <div class="splash__background">
+    <img src="/images/splashbackground.jpg" alt="" class="splash__bg-image">
+  </div>
+  
+  <!-- Р—Р°С‚РµРјРЅСЏСЋС‰РёР№ РѕРІРµСЂР»РµР№ -->
+  <div class="splash__overlay"></div>
+  
+  <!-- РљРѕРЅС‚РµРЅС‚ РїРѕ С†РµРЅС‚СЂСѓ -->
+  <div class="splash__center">
+    <div class="splash__brandRow">
+      <img src="/images/logosolid.png" alt="WildGift" class="splash__logo">
+      <div class="splash__brand">WildGift</div>
+    </div>
+
+    <div class="splash__progress">
+      <div class="splash__bar">
+        <div class="splash__bar-fill" id="splash-fill"></div>
+      </div>
+      <!-- РџСЂРѕС†РµРЅС‚ СЃРєСЂС‹С‚ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ -->
+      <div class="splash__percent" id="splash-percent" hidden>0%</div>
+    </div>
+  </div>
+</div>
+
+  <div class="app">
+    
+    
+    <div class="logo-header">
+      <img src="/images/logo.png" alt="Wild Gift" class="main-logo" />
+    </div>
+  
+  
+  
+  
+    <!-- ===== TOP BAR ===== -->
+  <header class="topbar" role="banner">
+    <!-- Left controls -->
+    <div class="topbar__left">
+      <!-- User Avatar -->
+      <button id="userAvatarBtn" class="avatar-btn" type="button" aria-label="User profile">
+        <img 
+          id="userAvatarImg" 
+          src="/images/avatar-default.png" 
+          alt="User" 
+          class="avatar-btn__img"
+        />
+      </button>
+      
+      <!-- Burger Menu -->
+      <button id="burgerBtn" class="burger-btn" type="button" aria-label="Menu">
+        <span class="burger-btn__line"></span>
+        <span class="burger-btn__line"></span>
+        <span class="burger-btn__line"></span>
+      </button>
+    </div>
+  
+    <!-- TON/Stars Р±Р°Р»Р°РЅСЃ (РѕС‚РєСЂС‹РІР°РµС‚ РґРµРїРѕР·РёС‚) -->
+    <div class="balance">
+      <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
+        <!-- рџ”Ґ Р”РёРЅР°РјРёС‡РµСЃРєР°СЏ РёРєРѕРЅРєР° РІР°Р»СЋС‚С‹ (TON РёР»Рё Stars) -->
+        <img 
+          id="pillCurrencyIcon" 
+          src="/icons/ton.svg" 
+          alt="Currency" 
+          class="pill-icon"
+          style="transition: opacity 0.15s ease, transform 0.15s ease;"
+        />
+        <span id="tonAmount">0.00</span>
+        <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
+      </button>     
+    </div>
+  </header>
+
+    <!-- ===== HISTORY (РёРєРѕРЅРєРё РїРѕСЃР»РµРґРЅРёС… РІС‹РїР°РґРµРЅРёР№ вЂ” РґРѕР±Р°РІР»СЏР№ С‡РµСЂРµР· JS) ===== -->
+    <section class="history wheel-only" aria-label="Last results">
+      <div id="historyList" class="history-list">
+        
+        <!-- РїСЂРёРјРµСЂ СЌР»РµРјРµРЅС‚Р° РёСЃС‚РѕСЂРёРё СЃ РёРєРѕРЅРєРѕР№:
+        <div class="history-item">
+          <img src="/images/history/1x_small.png" alt="1x" />
+        </div>
+        -->
+      </div>
+    </section>
+
+    <!-- ===== WHEEL PAGE ===== -->
+    <main id="wheelPage" class="page">
+      <section class="wheel" aria-label="Wheel">
+        <canvas id="wheelCanvas" width="420" height="420" aria-label="Wheel canvas"></canvas>
+        <img id="pointer" class="pointer" src="/images/pointerMain.png" alt="" aria-hidden="true" draggable="false">
+
+        <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true">
+          <span id="countNum">9</span>
+        </div>
+      </section>
+
+      <!-- ===== PLAYERS (slides in under wheel during spin) ===== -->
+      <section id="wheelPlayersPanel" class="wheel-players-panel" aria-label="Players">
+        <div class="wheel-players-panel__head">
+          <div class="wheel-players-panel__title">Players</div>
+          <div class="wheel-players-panel__count" id="wheelPlayersCount">0</div>
+        </div>
+        <div id="wheelPlayersList" class="wheel-players-panel__list" role="list"></div>
+      </section>
+
+      <!-- ===== BET OVERLAY ===== -->
+      <section id="betOverlay" class="bet-overlay bet-overlay--redesign" aria-label="Betting panel">
+        <!-- РЎРµС‚РєР° Р»РѕС‚РѕРІ (Р±РѕР»СЊС€РёРµ РєР°СЂС‚РёРЅРєРё) + С†РµРЅС‚СЂР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР° СЃС‚Р°РІРѕРє -->
+        <div class="bet-grid bet-grid--redesign" role="grid" aria-label="Select segment">
+          <!-- СЂСЏРґ 1 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="1.1x">
+            <img class="bet-img" src="/images/bets/1.1x.webp" alt="1.1x" />
+          </button>
+
+          <button class="bet-tile muted" role="gridcell" data-seg="1.5x">
+            <img class="bet-img" src="/images/bets/1.5x.webp" alt="1.5x" />
+          </button>
+
+          <!-- СЂСЏРґ 2 -->
+          <button class="bet-tile muted" role="gridcell" data-seg="5x">
+            <img class="bet-img" src="/images/bets/5x.webp" alt="5x" />
+          </button>
+
+          <button class="bet-tile muted" role="gridcell" data-seg="11x">
+            <img class="bet-img" src="/images/bets/11x.webp" alt="11x" />
+          </button>
+
+          <!-- СЂСЏРґ 3 (Р±РѕРЅСѓСЃС‹) -->
+          <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
+            <img class="bet-img" src="/images/bets/50-50.webp" alt="50&50" />
+          </button>
+
+          <button class="bet-tile bonus" role="gridcell" data-seg="Loot Rush">
+            <img class="bet-img" src="/images/bets/loot.webp" alt="Loot Rush" />
+          </button>
+
+          <!-- Р¦РµРЅС‚СЂР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР°: back/clear + СЃСѓРјРјС‹ -->
+          <div class="bet-center bet-controls" role="presentation" aria-label="Bet controls">
+            <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
+              <img src="/icons/clear.svg" alt="" />
+            </button>
+
+            <div class="bet-amounts bet-amounts--stack" aria-label="Bet amount">
+              <button class="amount-btn" data-amount="0.1">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">0.1</span>
+              </button>
+              <button class="amount-btn" data-amount="0.5">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">0.5</span>
+              </button>
+              <button class="amount-btn" data-amount="1">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">1</span>
+              </button>
+              <button class="amount-btn" data-amount="2.5">
+                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <span class="amount-value">2.5</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- СЂСЏРґ 4 (С€РёСЂРѕРєРёР№ Р±РѕРЅСѓСЃ) -->
+          <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
+            <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
+          </button>
+        </div>
+
+
+        <!-- ===== PLAYERS PANEL (shown while wheel is spinning) ===== -->
+        <section id="wheelPlayersPanel" class="wheel-players-panel" aria-label="Players">
+          <div class="wheel-players-panel__head">
+            <div class="wheel-players-panel__title">Players</div>
+            <div class="wheel-players-panel__count" id="wheelPlayersCount">0</div>
+          </div>
+          <div class="wheel-players" id="wheelPlayersList"></div>
+        </section>
+      </section>
+      </main>
+
+    <!-- ===== CASES PAGE ===== -->
+    <main id="casesPage" class="page">
+      <!-- Poster / Hero -->
+      <section class="cases-hero" aria-label="Cases poster">
+        <div class="cases-hero__poster">
+          <div class="cases-hero__copy">
+            <div class="cases-hero__title">Cases</div>
+            <div class="cases-hero__sub">Open, win, repeat</div>
+          </div>
+
+          <!-- Auto slideshow of cases (generated by JS) -->
+          <div class="cases-hero__ticker" id="casesHeroTicker" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <!-- Global history (up to 20 items, swipeable) -->
+      <section class="cases-history" aria-label="History">
+        <div class="cases-history__head">
+          <div class="cases-history__title">History</div>
+          
+        </div>
+        <div class="cases-history__list" id="casesHistoryList"></div>
+      </section>
+
+      
+
+      <section class="cases" aria-label="Cases">
+        <div class="cases-grid" id="casesGrid">
+          <!-- Cases Р±СѓРґСѓС‚ РіРµРЅРµСЂРёСЂРѕРІР°С‚СЊСЃСЏ С‡РµСЂРµР· JS -->
+        </div>
+      </section>
+    </main>
+
+
+
+<!-- ===== CASE BOTTOM SHEET (80vh) ===== -->
+<div id="caseBottomSheet" class="case-bottom-sheet">
+  <div class="case-overlay" id="caseOverlay"></div>
+  
+  <div class="case-sheet-panel">
+    <!-- Header -->
+    <div class="case-sheet-header">
+      <h2 id="caseSheetTitle">Case 1</h2>
+      <button class="case-sheet-close" id="caseSheetClose">Г—</button>
+    </div>
+
+    <!-- Carousels Container -->
+    <div class="case-carousels-section">
+      <div id="caseCarouselsWrapper" class="case-carousels-wrapper">
+        <!-- РљР°СЂСѓСЃРµР»Рё РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ JS -->
+      </div>
+    </div>
+
+    <!-- Count Switch (1/2/3) -->
+    <div class="case-count-section">
+      <div id="caseCountSwitch" class="case-count-switch">
+        <button class="case-count-btn active" data-count="1">1</button>
+        <button class="case-count-btn" data-count="2">2</button>
+        <button class="case-count-btn" data-count="3">3</button>
+      </div>
+    </div>
+
+    <!-- Contents (scrollable) -->
+    <div class="case-contents-section">
+      <h3 class="case-contents-title">Contents</h3>
+      <div id="caseContentsGrid" class="case-contents-grid">
+        <!-- РђР№С‚РµРјС‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ JS -->
+      </div>
+    </div>
+
+    <!-- Fixed Bottom Button -->
+    <div class="case-bottom-button">
+      <button id="caseOpenBtn" class="case-open-btn">
+        <span>Open</span>
+        <span class="case-open-price">
+          <span id="casePrice">0.01</span>
+          <img id="caseCurrencyIcon" src="/icons/ton.svg" alt="TON">
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+
+
+  <!-- ===== Tasks Page ===== -->
+  <main id="tasksPage" class="page">
+    <section class="tasks-page" aria-label="Tasks">
+      <h1 class="tasks-title">Tasks</h1>
+      <p class="tasks-subtitle">Complete easy tasks to earn tickets. Use tickets to open free cases!</p>
+  
+      <div class="tasks-card">
+        <div class="task-row">
+          <div class="task-left">
+            <div class="task-icon task-icon--blue">
+              <img src="/icons/tasks.svg" alt="">
+            </div>
+            <div class="task-meta">
+              <div class="task-name">Text 1</div>
+              <div class="task-reward"><span class="task-reward-icon">рџЋџпёЏ</span><span class="task-reward-num">1</span></div>
+            </div>
+          </div>
+          <button class="task-btn" type="button">Start</button>
+        </div>
+  
+        <div class="task-row">
+          <div class="task-left">
+            <div class="task-icon task-icon--green">
+              <img src="/icons/cases.svg" alt="">
+            </div>
+            <div class="task-meta">
+              <div class="task-name">Text 2</div>
+              <div class="task-reward"><span class="task-reward-icon">рџЋџпёЏ</span><span class="task-reward-num">1</span></div>
+            </div>
+          </div>
+          <button class="task-btn" type="button">Start</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+
+
+
+
+    
+<!-- ===== PROFILE PAGE - REDESIGNED ===== -->
+<main id="profilePage" class="page">
+  <section class="profile-card">
+    <!-- РђРІР°С‚Р°СЂ + РёРјСЏ -->
+    <img id="profileAvatar" class="profile-ava" src="/images/avatar-default.png" alt="" />
+    <h2 id="profileName" class="profile-name">User</h2>
+    <p id="profileHandle" class="profile-handle">@username</p>
+
+    <!-- РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ РІР°Р»СЋС‚С‹ -->
+    <div class="currency-switch">
+      <button class="curr-btn curr-btn--active" data-currency="ton">
+        <img src="/icons/ton.svg" alt="" class="curr-icon">
+        <span>TON</span>
+      </button>
+      <button class="curr-btn" data-currency="stars">
+        <img src="/icons/stars.svg" alt="" class="curr-icon">
+        <span>Stars</span>
+      </button>
+    </div>
+
+
+
+<!-- ===== WALLET CARD - REDESIGNED ===== -->
+<div class="wallet-card" id="walletCard">
+  <div class="wallet-card__header">
+    <div class="wallet-card__icon">
+      <img src="/images/telegramwallet.png" alt="" width="24" height="24">
+    </div>
+
+    <div class="wallet-card__info">
+      <div class="wallet-card__label">Wallet</div>
+      <div id="walletCardStatus" class="wallet-card__status">Not connected</div>
+    </div>
+
+    <!-- Red disconnect button (shown when connected) -->
+    <button id="walletHeaderDisconnect" class="wallet-card__disconnect" type="button" hidden>
+      Disconnect
+    </button>
+  </div>
+
+  <!-- Big Connect Button (shown when not connected) -->
+  <div id="walletCardConnect" class="wallet-card__connect" hidden>
+    <button id="profileConnectWalletBtn" class="tg-wallet-btn" type="button">
+      <span class="tg-wallet-btn__left" aria-hidden="true">
+        <img src="/images/telegramwallet.png" alt="">
+      </span>
+
+      <span class="tg-wallet-btn__text">Connect Wallet</span>
+
+      <span class="tg-wallet-btn__right" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <path fill="currentColor" d="M9.74 15.7l-.4 5.64c.57 0 .82-.25 1.12-.55l2.7-2.58 5.6 4.1c1.02.56 1.75.27 2.02-.95L24 2.9c.33-1.53-.55-2.13-1.54-1.76L1.12 9.62c-1.46.57-1.44 1.39-.25 1.76l5.62 1.75L19.5 5.3c.62-.41 1.19-.18.72.23"/>
+        </svg>
+      </span>
+    </button>
+  </div>
+
+  <!-- Details section (hidden, legacy) -->
+  <div id="walletCardDetails" class="wallet-card__details" hidden>
+    <div class="wallet-card__address" id="walletCardAddress">вЂ”</div>
+    <div class="wallet-card__actions">
+      <button id="walletCardCopy" class="btn-action btn-action--secondary">Copy</button>
+      <button id="walletCardDisconnect" class="btn-action btn-action--danger">Disconnect</button>
+    </div>
+  </div>
+
+  <!-- ===== PROMOCODE ===== -->
+  <div class="promo-card" id="promoCard">
+    <div class="promo-title">Promocode</div>
+    <div class="promo-row">
+      <input id="promoInput" class="promo-input" type="text" placeholder="Enter code" maxlength="64" autocomplete="off" />
+      <button id="promoApplyBtn" class="promo-btn" type="button" aria-label="Apply" disabled>
+        <img src="/icons/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true" />
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory panel (separate, bottom of Profile page) -->
+<section class="profile-invpanel" id="profileInventoryPanel">
+  <div class="profile-invpanel__title">Inventory</div>
+
+  <div class="profile-invpanel__icon" aria-hidden="true">
+    <img class="profile-invpanel__img" src="/icons/search.webp" alt="">
+  </div>
+
+  <div class="profile-invpanel__text">No gifts yet.</div>
+</section>
+
+
+
+
+  </section>
+</main>
+
+
+
+
+
+
+        <!-- ===== BOTTOM NAV (SVG + РїРѕРґРїРёСЃРё) ===== -->
+    <nav class="bottom-nav" role="navigation" aria-label="Bottom navigation">
+      <button class="nav-item active" data-target="gamesPage" aria-label="Games">
+        <img src="/icons/games.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Games</span>
+      </button>
+
+      <button class="nav-item" data-target="marketPage" aria-label="Market">
+        <img src="/icons/market.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Market</span>
+      </button>
+
+      <button class="nav-item" data-target="tasksPage" aria-label="Tasks">
+        <img src="/icons/tasks.svg" alt="" class="nav-icon" />
+        <span class="nav-label">Tasks</span>
+      </button>
+
+      <button class="nav-item" data-target="profilePage" aria-label="Profile">
+        <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
+        <span class="nav-label">Profile</span>
+      </button>
+    </nav>
+
+
+
+<!-- ===== OPENING ANIMATION OVERLAY ===== -->
+<div id="openingOverlay" class="opening-overlay" hidden>
+  <div class="opening-content">
+    <div id="openingReel" class="opening-reel">
+      <!-- РџСЂРёР·С‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ С‡РµСЂРµР· JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ===== RESULT MODAL ===== -->
+<div id="resultModal" class="result-modal" hidden>
+  <div class="result-modal__backdrop"></div>
+  <div class="result-modal__content">
+    <button id="resultClose" class="result-modal__close" aria-label="Close">Г—</button>
+    
+    <div class="result-confetti"></div>
+    
+    <div class="result-gift">
+      <div class="result-gift__image">
+        <div id="resultGiftIcon" class="result-gift__icon">рџЋЃ</div>
+      </div>
+      <h3 id="resultGiftName" class="result-gift__name">Gift Name</h3>
+      <div id="resultGiftValue" class="result-gift__value">
+        <img src="/icons/stars.svg" alt="" />
+        <span>0</span>
+      </div>
+    </div>
+    
+    <button id="resultOpenAnother" class="btn btn--primary btn--large">
+      <span class="btn__text">рџЋЃ Try Again</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== BONUS 50/50 OVERLAY РЎ BLUR Р­Р¤Р¤Р•РљРўРћРњ ===== -->
+<!-- Р’СЃС‚Р°РІРёС‚СЊ РџРћРЎР›Р• СЃС‚СЂРѕРєРё 468 (РїРѕСЃР»Рµ </div> menu-overlay) -->
+
+<div id="bonus5050Overlay" class="bonus-overlay" style="display: none;">
+  <!-- Р Р°Р·РјС‹С‚С‹Р№ С„РѕРЅ (РїРѕРєР°Р·С‹РІР°РµС‚ РєРѕР»РµСЃРѕ) -->
+  <div class="bonus-overlay__blur-backdrop"></div>
+  
+  <!-- РљРѕРЅС‚РµР№РЅРµСЂ РґР»СЏ Р±РѕРЅСѓСЃР° -->
+  <div id="bonus5050Container" class="bonus-container"></div>
+</div>
+
+
+
+
+
+<!-- ============================================
+     DEPOSIT POPUPS - РљРћРњРџРђРљРўРќРђРЇ Р’Р•Р РЎРРЇ
+     ============================================ -->
+
+<!-- TON Deposit Popup -->
+<div id="tonDepositPopup" class="deposit-popup">
+  <div class="deposit-popup__backdrop"></div>
+  <div class="deposit-popup__content deposit-popup__content--compact">
+    <button class="deposit-popup__close" id="tonPopupClose" aria-label="Close">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    
+    <h2 class="deposit-popup__title">Top up TON Balance</h2>
+    
+    <!-- РЈРІРµРґРѕРјР»РµРЅРёРµ РѕР± РѕС€РёР±РєРµ -->
+    <div id="tonErrorNotification" class="error-notification" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="error-text">Minimum deposit: 0.1 TON</span>
+    </div>
+    
+    <!-- РџРѕР»Рµ РІРІРѕРґР° СЃСѓРјРјС‹ -->
+    <div class="deposit-popup__input-group">
+      <label class="deposit-popup__label">Amount to deposit</label>
+      <div class="deposit-popup__input-wrapper" id="tonInputWrapper">
+        <img src="/icons/ton.svg" alt="TON" class="deposit-popup__input-icon">
+        <input 
+          type="text" 
+          id="tonAmountInput" 
+          class="deposit-popup__input" 
+          placeholder="0.00" 
+          inputmode="decimal"
+          autocomplete="off"
+        >
+        <span class="deposit-popup__input-currency">TON</span>
+      </div>
+    </div>
+    
+    <!-- Р‘Р°Р»Р°РЅСЃ РєРѕС€РµР»СЊРєР° -->
+    <div class="deposit-popup__wallet-info">
+      <span class="deposit-popup__wallet-icon" aria-hidden="true">
+        <img src="/icons/wallet.svg" class="deposit-popup__wallet-icon-img" alt="">
+      </span>
+      <span id="tonWalletBalance">вЂ”</span>
+    </div>
+    
+    <div class="deposit-popup__divider"></div>
+    
+    <button id="btnConnectTonWallet" class="wt-connect-wallet" type="button">
+      <span class="wt-connect-wallet__icon" aria-hidden="true">
+        <img src="/icons/telegram.svg" alt="">
+      </span>
+      <span class="wt-connect-wallet__text">Connect Wallet</span>
+    </button>
+    
+    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit TON</button>
+  </div>
+</div>
+
+<!-- Stars Purchase Popup -->
+<div id="starsDepositPopup" class="deposit-popup">
+  <div class="deposit-popup__backdrop"></div>
+  <div class="deposit-popup__content deposit-popup__content--compact">
+    <button class="deposit-popup__close" id="starsPopupClose" aria-label="Close">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    
+    <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
+    
+    <!-- РЈРІРµРґРѕРјР»РµРЅРёРµ РѕР± РѕС€РёР±РєРµ -->
+    <div id="starsErrorNotification" class="error-notification" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+        <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="error-text">Minimum purchase: 1 в­ђ</span>
+    </div>
+    
+    <!-- РџРѕР»Рµ РІРІРѕРґР° СЃСѓРјРјС‹ -->
+    <div class="deposit-popup__input-group">
+      <label class="deposit-popup__label">Amount to buy</label>
+      <div class="deposit-popup__input-wrapper" id="starsInputWrapper">
+        <img src="/icons/stars.svg" alt="" class="deposit-popup__input-icon deposit-popup__input-icon--stars">
+        <input 
+          type="text" 
+          id="starsAmountInput" 
+          class="deposit-popup__input"
+          placeholder="0"
+          inputmode="numeric"
+          autocomplete="off"
+        >
+        <span class="deposit-popup__input-currency">Stars</span>
+      </div>
+    </div>
+    
+    <div class="deposit-popup__divider"></div>
+    
+    <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
+  </div>
+</div>
+ <!-- ===== SETTINGS BOTTOM SHEET - COMPLETE VERSION ===== -->
+<!-- Р—Р°РјРµРЅРёС‚Рµ СЌС‚РѕС‚ Р±Р»РѕРє РІ РІР°С€РµРј index.html (РјРµР¶РґСѓ </div> bet-amounts Рё </div> bet-controls) -->
+
+<div id="settingsSheet" class="settings-sheet">
+  <div class="settings-sheet__backdrop"></div>
+  
+  <div class="settings-sheet__panel">
+    <div class="settings-sheet__handle"></div>
+    
+    <button scr="/icons/support.svg" id="settingsCloseBtn" class="settings-sheet__close" aria-label="Close settings">
+      X
+    </button>
+    
+    <h2 class="settings-sheet__title">Settings</h2>
+    
+    <div class="settings-sheet__content">
+      
+      <!-- Language Item with PNG Flag -->
+      <div class="settings-item settings-item--clickable" id="languageSwitcher">
+        <div class="settings-item__icon">
+          <img 
+            src="/icons/english.webp" 
+            alt="English" 
+            class="settings-flag-img"
+          />
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">Language</div>
+          <div class="settings-item__value">English</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+      <!-- Support -->
+      <div class="settings-item settings-item--clickable" id="supportItem">
+        <div class="settings-item__icon settings-item__icon--support">
+          <img 
+            src="/icons/support.webp" 
+            alt="Support" 
+            class="settings-icon-img settings-icon-img--support"
+          />
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">Support</div>
+          <div class="settings-item__value">@wildgift_support</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+      <!-- About -->
+      <div class="settings-item settings-item--clickable" id="aboutItem">
+        <div class="settings-item__icon settings-item__icon--about">
+          <img 
+            src="/icons/about.svg" 
+            alt="About" 
+            class="settings-icon-img settings-icon-img--about"
+          />
+        </div>
+        <div class="settings-item__info">
+          <div class="settings-item__label">About</div>
+          <div class="settings-item__value">App info</div>
+        </div>
+        <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+
+<!-- ===== WALLET DISCONNECT MODAL (TonConnect-like) ===== -->
+<div id="walletDisconnectModal" class="tcw-modal" hidden>
+  <div class="tcw-modal__backdrop" data-close="1" aria-hidden="true"></div>
+
+  <div class="tcw-modal__sheet" role="dialog" aria-modal="true" aria-label="Wallet">
+    <button class="tcw-modal__close" type="button" data-close="1" aria-label="Close">Г—</button>
+
+    <div class="tcw-modal__title">Your wallet</div>
+
+    <div class="tcw-modal__balanceLabel">Balance</div>
+    <div id="walletDisconnectBalance" class="tcw-modal__balance">вЂ”</div>
+
+    <div class="tcw-modal__addrRow">
+      <div class="tcw-modal__addrIcon" aria-hidden="true">
+        <img src="/images/telegramwallet.png" alt="">
+      </div>
+
+      <div class="tcw-modal__addrText">
+        <div id="walletDisconnectAddr" class="tcw-modal__addr">вЂ”</div>
+        <div class="tcw-modal__addrHint">Address</div>
+      </div>
+
+      <button id="walletDisconnectCopy" class="tcw-modal__copy" type="button" aria-label="Copy address">
+        <img class="tcw-modal__copy-icon" src="/icons/copy.svg" alt="">
+      </button>
+    </div>      
+      
+
+    <div class="tcw-modal__question">Disconnect this wallet?</div>
+
+    <button id="walletDisconnectConfirm" class="tcw-modal__btn tcw-modal__btn--danger" type="button">
+      Disconnect
+    </button>
+  </div>
+</div>
+
+<!-- Promo toast (liquid glass) -->
+<div id="promo-toast"></div>
+
+
