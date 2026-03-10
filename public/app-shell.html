@@ -1,32 +1,25 @@
 ﻿<!-- App shell rendered into #root by /js/app-shell.js -->
-<!-- Splash Screen СЃ С„РѕРЅРѕРІС‹Рј РёР·РѕР±СЂР°Р¶РµРЅРёРµРј -->
+<!-- Splash Screen -->
 <div id="splash" class="splash">
-  <!-- Р¤РѕРЅРѕРІРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ - Р·Р°РјРµРЅРёС‚Рµ РЅР° СЃРІРѕС‘ -->
   <div class="splash__background">
     <img src="/images/splashbackground.jpg" alt="" class="splash__bg-image">
   </div>
-  
-  <!-- Р—Р°С‚РµРјРЅСЏСЋС‰РёР№ РѕРІРµСЂР»РµР№ -->
   <div class="splash__overlay"></div>
-  
-  <!-- РљРѕРЅС‚РµРЅС‚ РїРѕ С†РµРЅС‚СЂСѓ -->
   <div class="splash__center">
     <div class="splash__brandRow">
       <img src="/images/logosolid.png" alt="WildGift" class="splash__logo">
       <div class="splash__brand">WildGift</div>
     </div>
-
     <div class="splash__progress">
       <div class="splash__bar">
         <div class="splash__bar-fill" id="splash-fill"></div>
       </div>
-      <!-- РџСЂРѕС†РµРЅС‚ СЃРєСЂС‹С‚ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ -->
       <div class="splash__percent" id="splash-percent" hidden>0%</div>
     </div>
   </div>
 </div>
 
-  <div class="app">
+<div class="app">
     
     
     <div class="logo-header">
@@ -169,16 +162,6 @@
             <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
           </button>
         </div>
-
-
-        <!-- ===== PLAYERS PANEL (shown while wheel is spinning) ===== -->
-        <section id="wheelPlayersPanel" class="wheel-players-panel" aria-label="Players">
-          <div class="wheel-players-panel__head">
-            <div class="wheel-players-panel__title">Players</div>
-            <div class="wheel-players-panel__count" id="wheelPlayersCount">0</div>
-          </div>
-          <div class="wheel-players" id="wheelPlayersList"></div>
-        </section>
       </section>
       </main>
 
@@ -225,7 +208,9 @@
     <!-- Header -->
     <div class="case-sheet-header">
       <h2 id="caseSheetTitle">Case 1</h2>
-      <button class="case-sheet-close" id="caseSheetClose">Г—</button>
+      <button class="case-sheet-close" id="caseSheetClose" aria-label="Close">
+        <img src="/icons/close.svg" alt="" aria-hidden="true">
+      </button>
     </div>
 
     <!-- Carousels Container -->
@@ -446,7 +431,9 @@
 <div id="resultModal" class="result-modal" hidden>
   <div class="result-modal__backdrop"></div>
   <div class="result-modal__content">
-    <button id="resultClose" class="result-modal__close" aria-label="Close">Г—</button>
+    <button id="resultClose" class="result-modal__close" aria-label="Close">
+      <img src="/icons/close.svg" alt="" aria-hidden="true">
+    </button>
     
     <div class="result-confetti"></div>
     
@@ -491,9 +478,7 @@
   <div class="deposit-popup__backdrop"></div>
   <div class="deposit-popup__content deposit-popup__content--compact">
     <button class="deposit-popup__close" id="tonPopupClose" aria-label="Close">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <img src="/icons/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="deposit-popup__title">Top up TON Balance</h2>
@@ -550,9 +535,7 @@
   <div class="deposit-popup__backdrop"></div>
   <div class="deposit-popup__content deposit-popup__content--compact">
     <button class="deposit-popup__close" id="starsPopupClose" aria-label="Close">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <img src="/icons/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
@@ -597,8 +580,8 @@
   <div class="settings-sheet__panel">
     <div class="settings-sheet__handle"></div>
     
-    <button scr="/icons/support.svg" id="settingsCloseBtn" class="settings-sheet__close" aria-label="Close settings">
-      X
+    <button type="button" id="settingsCloseBtn" class="settings-sheet__close" aria-label="Close settings">
+      <img src="/icons/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="settings-sheet__title">Settings</h2>
@@ -669,7 +652,9 @@
   <div class="tcw-modal__backdrop" data-close="1" aria-hidden="true"></div>
 
   <div class="tcw-modal__sheet" role="dialog" aria-modal="true" aria-label="Wallet">
-    <button class="tcw-modal__close" type="button" data-close="1" aria-label="Close">Г—</button>
+    <button class="tcw-modal__close" type="button" data-close="1" aria-label="Close">
+      <img src="/icons/close.svg" alt="" aria-hidden="true">
+    </button>
 
     <div class="tcw-modal__title">Your wallet</div>
 
@@ -702,5 +687,3 @@
 
 <!-- Promo toast (liquid glass) -->
 <div id="promo-toast"></div>
-
-

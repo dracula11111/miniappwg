@@ -293,7 +293,7 @@
   
           @media (max-width: 380px) {
             .topbar {
-              padding: 10px 12px;                          /* Меньшие отступы */
+              padding: 68px 12px 10px;                     /* Компактно, но сохраняем верхнюю линию */
             }
             
             .topbar__left {
@@ -450,10 +450,15 @@
           }
   
           /* RIGHT BALANCE PILL */
-          .balance {
-            position: absolute;                            /* Абсолютное позиционирование */
-            right: 10px;                                   /* Отступ справа */
-            top: 80px;                                     /* Было 40px, теперь 80px */
+          .topbar > .balance {
+            grid-column: 3;                                /* Правая колонка topbar */
+            justify-self: end;                             /* Прижимаем вправо */
+            align-self: start;                             /* Единая верхняя линия */
+            position: static;
+            right: auto;
+            top: auto;
+            margin: 0;
+            transform: translateY(-2px);                   /* Реально поднимаем на пару пикселей */
           }
   
         .pill{
@@ -497,7 +502,7 @@
      =========================== */
      .history {
       padding: 8px 12px;
-      margin-top: 2px;
+      margin-top: 0;
       background: rgba(0, 0, 0, 0.2);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -1029,3 +1034,5 @@
     -webkit-backdrop-filter: none;
   }
 }
+
+

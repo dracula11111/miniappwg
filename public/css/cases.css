@@ -630,9 +630,17 @@ body:has(.page-active#casesPage)::before{
       justify-content:center;
       background: var(--panel);
       border-radius: 999px;
-      font-size:24px;
-      color: var(--muted);
+      border: 0;
+      padding: 0;
+      cursor: pointer;
       transition: transform .12s ease, background .12s ease;
+    }
+    .case-sheet-close img{
+      width:18px;
+      height:18px;
+      display:block;
+      filter: brightness(0) invert(1);
+      opacity:.72;
     }
     .case-sheet-close:active{
       transform: scale(0.92);

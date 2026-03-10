@@ -2498,13 +2498,30 @@ const yOf = (v) => {
 
 
     let lastCurrency = "";
-    setInterval(() => {
+    let currencyPollTimer = 0;
+
+    function syncCrashCurrency(force = false) {
       const cur = detectCurrency();
-      if (cur !== lastCurrency) {
+      if (force || cur !== lastCurrency) {
         lastCurrency = cur;
         renderPills();
       }
-    }, 400);
+    }
+
+    function startCurrencyPolling() {
+      if (currencyPollTimer) return;
+      syncCrashCurrency(true);
+      currencyPollTimer = setInterval(() => {
+        if (document.hidden) return;
+        syncCrashCurrency(false);
+      }, 1200);
+    }
+
+    function stopCurrencyPolling() {
+      if (!currencyPollTimer) return;
+      clearInterval(currencyPollTimer);
+      currencyPollTimer = 0;
+    }
 
     let raf = 0;
     let running = false;
@@ -2618,9 +2635,10 @@ const yOf = (v) => {
           ensureRunPlayersRendered();   // <-- ДО updatePlayerDomLive()
         
         // 6) Лайв-обновление игроков (не каждый кадр)
-        if (now - (state.lastPlayerDomUpdate || 0) >= 120) 
+        if (now - (state.lastPlayerDomUpdate || 0) >= 120) {
           state.lastPlayerDomUpdate = now;
           updatePlayerDomLive();
+        }
         }
       } else {
         // НЕ run: не растим множитель и не двигаем прогресс свечи
@@ -2658,6 +2676,7 @@ const yOf = (v) => {
       running = true;
       resize();
       renderPills();
+      startCurrencyPolling();
       connectWebSocket();
       raf = requestAnimationFrame(loop);
     }
@@ -2666,6 +2685,7 @@ const yOf = (v) => {
       running = false;
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
+      stopCurrencyPolling();
       if (ws) ws.close();
     }
 

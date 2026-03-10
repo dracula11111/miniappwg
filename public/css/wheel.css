@@ -1,6 +1,8 @@
 /* ===========================
                 WHEEL
    =========================== */
+   body.page-wheel,
+   body.page-wheel .app,
    .app:has(#wheelPage.page-active) {
     background: 
       radial-gradient(
@@ -37,11 +39,18 @@
         #050810 100%
       ) !important;
     background-repeat: no-repeat !important;
-    background-attachment: fixed !important;
+    background-attachment: scroll !important;
     background-size: 100% 100% !important;
   }
 
-  /* ===== Falling pstar.svg — layer 1 ===== */
+  @media (hover: hover) and (pointer: fine) {
+    html:not(.wt-lite):not(.wt-reduced-motion) body.page-wheel .app,
+    html:not(.wt-lite):not(.wt-reduced-motion) .app:has(#wheelPage.page-active) {
+      background-attachment: scroll !important;
+    }
+  }
+
+  /* ===== Falling pstar.svg вЂ” layer 1 ===== */
   .app:has(#wheelPage.page-active)::before {
     content: '';
     position: fixed;
@@ -51,8 +60,8 @@
     height: 200vh;
     z-index: 0;
     pointer-events: none;
-    background-image: url('icons/pstar.svg');
-    /* each tile cell: 140px wide × 110px tall — stars sparse and staggered */
+    background-image: url('/icons/pstar.svg');
+    /* each tile cell: 140px wide Г— 110px tall вЂ” stars sparse and staggered */
     background-size: 140px 110px;
     background-repeat: repeat;
     /* start: sheet sits fully to the right and above */
@@ -60,7 +69,7 @@
     animation: pstarScroll 6s linear infinite;
   }
 
-  /* ===== Falling pstar.svg — layer 2 (offset + slower) ===== */
+  /* ===== Falling pstar.svg вЂ” layer 2 (offset + slower) ===== */
   .app:has(#wheelPage.page-active)::after {
     content: '';
     position: fixed;
@@ -69,7 +78,7 @@
     height: 200vh;
     z-index: 0;
     pointer-events: none;
-    background-image: url('icons/pstar.svg');
+    background-image: url('/icons/pstar.svg');
     background-size: 100px 140px;
     background-repeat: repeat;
     /* offset half a tile so layer-2 stars fall between layer-1 stars */
@@ -78,10 +87,28 @@
     animation: pstarScroll2 9s linear infinite;
   }
 
+  @media (hover: none), (pointer: coarse) {
+    .app:has(#wheelPage.page-active)::before {
+      animation-duration: 11s;
+    }
+
+    .app:has(#wheelPage.page-active)::after {
+      animation-duration: 16s;
+    }
+  }
+
+  html.wt-lite .app:has(#wheelPage.page-active)::before,
+  html.wt-lite .app:has(#wheelPage.page-active)::after,
+  html.wt-reduced-motion .app:has(#wheelPage.page-active)::before,
+  html.wt-reduced-motion .app:has(#wheelPage.page-active)::after {
+    animation: none !important;
+    opacity: 0.18;
+  }
+
   /*
-   * Stars scroll diagonally: right→left, top→bottom.
+   * Stars scroll diagonally: rightв†’left, topв†’bottom.
    * We move background-position by exactly one tile size so the
-   * repeat seamlessly loops — no jump, no gap.
+   * repeat seamlessly loops вЂ” no jump, no gap.
    */
   @keyframes pstarScroll {
     0%   { background-position: 140px 0px; }
@@ -91,17 +118,27 @@
     0%   { background-position: 150px 70px; }
     100% { background-position: 50px 210px; }
   }
-   
+
+  /* Disable decorative stars on active wheel page (keeps clean background) */
+  body.page-wheel .app::before,
+  body.page-wheel .app::after {
+    content: none !important;
+    display: none !important;
+    background: none !important;
+    animation: none !important;
+  }
+
+  
    .wheel{
     position: relative;
     display:flex; 
     justify-content:center; 
     align-items:center; 
     padding:8px 10px 12px;
-    overflow: visible; /* Важно для эффекта заезда панели */
+    overflow: visible; /* Р’Р°Р¶РЅРѕ РґР»СЏ СЌС„С„РµРєС‚Р° Р·Р°РµР·РґР° РїР°РЅРµР»Рё */
   }
   
-  /* Блюр эффект убран - карточки теперь видны чётко */
+  /* Р‘Р»СЋСЂ СЌС„С„РµРєС‚ СѓР±СЂР°РЅ - РєР°СЂС‚РѕС‡РєРё С‚РµРїРµСЂСЊ РІРёРґРЅС‹ С‡С‘С‚РєРѕ */
     #wheelCanvas{
       display:block;
       width:min(92vw, 420px, 44vh); 
@@ -115,7 +152,7 @@
       inset 0 0 40px rgba(0,0,0,.35),
       0 0 24px rgba(21,32,51,.4);
       
-      /* Премиум анимация появления колеса */
+      /* РџСЂРµРјРёСѓРј Р°РЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ РєРѕР»РµСЃР° */
       animation: wheelAppear 1s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
     
@@ -144,10 +181,10 @@
     /* Pointer */
     .pointer{
       position:absolute;
-      top:-4px;              /* подстрой: выше/ниже */
+      top:-4px;              /* РїРѕРґСЃС‚СЂРѕР№: РІС‹С€Рµ/РЅРёР¶Рµ */
       left:50%;
       transform:translateX(-50%);
-      width:34px;            /* подстрой размер */
+      width:34px;            /* РїРѕРґСЃС‚СЂРѕР№ СЂР°Р·РјРµСЂ */
       height:auto;
       z-index:10;
       pointer-events:none;
@@ -172,7 +209,7 @@
       display: grid;
       place-items: center;
     
-      /* стеклянная капсула */
+      /* СЃС‚РµРєР»СЏРЅРЅР°СЏ РєР°РїСЃСѓР»Р° */
       background:
         
         rgba(12, 18, 28, 0.09);
@@ -184,12 +221,12 @@
     
       backdrop-filter: blur(2px);
     
-      /* скрыт по умолчанию — JS включает .visible */
+      /* СЃРєСЂС‹С‚ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ вЂ” JS РІРєР»СЋС‡Р°РµС‚ .visible */
       opacity: 0;
       pointer-events: none;
       transition: opacity 180ms ease, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
     
-      z-index: 9; /* под pointer(10), но над canvas */
+      z-index: 9; /* РїРѕРґ pointer(10), РЅРѕ РЅР°Рґ canvas */
     }
     
     #countdown.countdown.visible{
@@ -205,7 +242,7 @@
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
     
-      /* “неоновый” градиент текста */
+      /* вЂњРЅРµРѕРЅРѕРІС‹Р№вЂќ РіСЂР°РґРёРµРЅС‚ С‚РµРєСЃС‚Р° */
       background: white;
       -webkit-background-clip: text;
       background-clip: text;
@@ -216,7 +253,7 @@
         0 0 18px rgba(219, 242, 255, 0.28);
     }
     
-    /* JS дёргает класс .pulse на каждом тике */
+    /* JS РґС‘СЂРіР°РµС‚ РєР»Р°СЃСЃ .pulse РЅР° РєР°Р¶РґРѕРј С‚РёРєРµ */
     #countdown.countdown.pulse{
       animation: wheelCountdownPulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
     }
@@ -234,11 +271,11 @@
     }
       
 /* ===========================
-   УЛУЧШЕНИЯ ДЛЯ КОЛЕСА
+   РЈР›РЈР§РЁР•РќРРЇ Р”Р›РЇ РљРћР›Р•РЎРђ
 =========================== */
 
 
-/* Колесо - улучшенная тень и свечение */
+/* РљРѕР»РµСЃРѕ - СѓР»СѓС‡С€РµРЅРЅР°СЏ С‚РµРЅСЊ Рё СЃРІРµС‡РµРЅРёРµ */
 #wheelCanvas {
   box-shadow:
   0 16px 40px rgba(0,0,0,.55),
@@ -258,7 +295,7 @@
 
 
 
-/* Адаптив для маленьких экранов */
+/* РђРґР°РїС‚РёРІ РґР»СЏ РјР°Р»РµРЅСЊРєРёС… СЌРєСЂР°РЅРѕРІ */
 @media (max-width: 380px) {
   .history-item {
     min-width: 44px;
@@ -306,7 +343,7 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
-/* Анимация появления bet-pill */
+/* РђРЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ bet-pill */
 @keyframes pillAppear {
   from {
     opacity: 0;
@@ -321,7 +358,7 @@
   }
 }
 
-/* Анимация обновления bet-pill */
+/* РђРЅРёРјР°С†РёСЏ РѕР±РЅРѕРІР»РµРЅРёСЏ bet-pill */
 .bet-pill.is-updating {
   animation: pillUpdate 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -434,7 +471,7 @@
   }
 }
 
-/* Плитки ставок - улучшенная подсветка */
+/* РџР»РёС‚РєРё СЃС‚Р°РІРѕРє - СѓР»СѓС‡С€РµРЅРЅР°СЏ РїРѕРґСЃРІРµС‚РєР° */
 .bet-tile.has-bet {
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 
@@ -468,22 +505,22 @@
             BET PANEL
    =========================== */
 /* ===========================
-   🔥 PREMIUM LIQUID GLASS BET OVERLAY
+   рџ”Ґ PREMIUM LIQUID GLASS BET OVERLAY
    =========================== */
 .bet-overlay {
   position: relative; 
-  padding: 20px 12px 100px; /* Увеличили padding снизу */
+  padding: 20px 12px 100px; /* РЈРІРµР»РёС‡РёР»Рё padding СЃРЅРёР·Сѓ */
   
-  /* 🔥 Заезжаем на колесо */
+  /* рџ”Ґ Р—Р°РµР·Р¶Р°РµРј РЅР° РєРѕР»РµСЃРѕ */
   margin-top: -15vh; 
-  margin-bottom: -80px; /* Увеличили чтобы глубже уходила под навигацию */
+  margin-bottom: -80px; /* РЈРІРµР»РёС‡РёР»Рё С‡С‚РѕР±С‹ РіР»СѓР±Р¶Рµ СѓС…РѕРґРёР»Р° РїРѕРґ РЅР°РІРёРіР°С†РёСЋ */
   z-index: 10; 
   
-  /* 🔥 REALISTIC GLASS ЭФФЕКТ */
+  /* рџ”Ґ REALISTIC GLASS Р­Р¤Р¤Р•РљРў */
   background: 
-    /* Subtle noise для реализма */
+    /* Subtle noise РґР»СЏ СЂРµР°Р»РёР·РјР° */
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="3" /><feColorMatrix values="0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 0.02 0"/></filter><rect width="200" height="200" filter="url(%23n)" opacity="0.6"/></svg>'),
-    /* Highlight градиент (как на настоящем стекле) */
+    /* Highlight РіСЂР°РґРёРµРЅС‚ (РєР°Рє РЅР° РЅР°СЃС‚РѕСЏС‰РµРј СЃС‚РµРєР»Рµ) */
     linear-gradient(
       165deg,
       rgba(255, 255, 255, 0.12) 0%,
@@ -492,49 +529,49 @@
       rgba(255, 255, 255, 0.01) 70%,
       rgba(255, 255, 255, 0.08) 100%
     ),
-    /* Основной полупрозрачный слой */
+    /* РћСЃРЅРѕРІРЅРѕР№ РїРѕР»СѓРїСЂРѕР·СЂР°С‡РЅС‹Р№ СЃР»РѕР№ */
     linear-gradient(
       180deg,
       rgba(15, 23, 35, 0.75) 0%,
       rgba(12, 18, 28, 0.82) 100%
     );
   
-  /* Легкое стеклянное размытие */
+  /* Р›РµРіРєРѕРµ СЃС‚РµРєР»СЏРЅРЅРѕРµ СЂР°Р·РјС‹С‚РёРµ */
   backdrop-filter: blur(10px) saturate(140%);
   -webkit-backdrop-filter: blur(10px) saturate(140%);
   
-  /* Границы - только сверху и по бокам, без нижней! */
+  /* Р“СЂР°РЅРёС†С‹ - С‚РѕР»СЊРєРѕ СЃРІРµСЂС…Сѓ Рё РїРѕ Р±РѕРєР°Рј, Р±РµР· РЅРёР¶РЅРµР№! */
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-bottom: none; /* Убираем нижнюю границу */
-  border-radius: 28px 28px 0 0; /* Скругление только сверху */
+  border-bottom: none; /* РЈР±РёСЂР°РµРј РЅРёР¶РЅСЋСЋ РіСЂР°РЅРёС†Сѓ */
+  border-radius: 28px 28px 0 0; /* РЎРєСЂСѓРіР»РµРЅРёРµ С‚РѕР»СЊРєРѕ СЃРІРµСЂС…Сѓ */
   
-  /* Премиум тени */
+  /* РџСЂРµРјРёСѓРј С‚РµРЅРё */
   box-shadow:
-    /* Основная объемная тень */
+    /* РћСЃРЅРѕРІРЅР°СЏ РѕР±СЉРµРјРЅР°СЏ С‚РµРЅСЊ */
     0 -8px 32px rgba(0, 0, 0, 0.3),
     0 16px 48px rgba(0, 0, 0, 0.4),
-    /* Внутренний highlight сверху (как на стекле) */
+    /* Р’РЅСѓС‚СЂРµРЅРЅРёР№ highlight СЃРІРµСЂС…Сѓ (РєР°Рє РЅР° СЃС‚РµРєР»Рµ) */
     inset 0 1px 1px rgba(255, 255, 255, 0.25),
     inset 0 2px 4px rgba(255, 255, 255, 0.1),
-    /* Внутренняя тень по бокам для глубины */
+    /* Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ С‚РµРЅСЊ РїРѕ Р±РѕРєР°Рј РґР»СЏ РіР»СѓР±РёРЅС‹ */
     inset 2px 0 3px rgba(0, 0, 0, 0.15),
     inset -2px 0 3px rgba(0, 0, 0, 0.15),
-    /* Subtle голубое свечение */
+    /* Subtle РіРѕР»СѓР±РѕРµ СЃРІРµС‡РµРЅРёРµ */
     0 0 40px rgba(0, 166, 255, 0.06),
-    /* Дополнительная тень снизу */
+    /* Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅР°СЏ С‚РµРЅСЊ СЃРЅРёР·Сѓ */
     0 20px 50px rgba(0, 0, 0, 0.25);
   
-  /* Плавная трансформация */
+  /* РџР»Р°РІРЅР°СЏ С‚СЂР°РЅСЃС„РѕСЂРјР°С†РёСЏ */
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform: translateY(0);
   opacity: 1;
   
   overflow: visible;
   
-  /* Создаем slight искажение как у настоящего стекла */
+  /* РЎРѕР·РґР°РµРј slight РёСЃРєР°Р¶РµРЅРёРµ РєР°Рє Сѓ РЅР°СЃС‚РѕСЏС‰РµРіРѕ СЃС‚РµРєР»Р° */
   filter: contrast(1.02) brightness(1.01);
   
-  /* 🔥 ГРАДИЕНТНАЯ МАСКА - плавное исчезновение внизу */
+  /* рџ”Ґ Р“Р РђР”РР•РќРўРќРђРЇ РњРђРЎРљРђ - РїР»Р°РІРЅРѕРµ РёСЃС‡РµР·РЅРѕРІРµРЅРёРµ РІРЅРёР·Сѓ */
   -webkit-mask-image: linear-gradient(
     to bottom,
     black 0%,
@@ -549,7 +586,7 @@
   );
 }
 
-/* 🔥 При спине — скрываем панель ставок */
+/* рџ”Ґ РџСЂРё СЃРїРёРЅРµ вЂ” СЃРєСЂС‹РІР°РµРј РїР°РЅРµР»СЊ СЃС‚Р°РІРѕРє */
 .app.is-spinning .bet-overlay {
   margin-top: 0;
   padding: 0 12px;
@@ -560,7 +597,7 @@
   pointer-events: none;
 }
 
-/* 🔥 Интерактивное усиление glass эффекта */
+/* рџ”Ґ РРЅС‚РµСЂР°РєС‚РёРІРЅРѕРµ СѓСЃРёР»РµРЅРёРµ glass СЌС„С„РµРєС‚Р° */
 .bet-overlay:hover {
   border-color: rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(12px) saturate(150%);
@@ -577,7 +614,7 @@
     0 22px 60px rgba(0, 0, 0, 0.3);
 }
 
-/* 🔥 Премиум анимация появления */
+/* рџ”Ґ РџСЂРµРјРёСѓРј Р°РЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ */
 @keyframes premiumGlassAppear {
   from {
     opacity: 0;
@@ -600,7 +637,7 @@
   animation: premiumGlassAppear 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* 🔥 Дополнительный reflex эффект (как блик на стекле) */
+/* рџ”Ґ Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Р№ reflex СЌС„С„РµРєС‚ (РєР°Рє Р±Р»РёРє РЅР° СЃС‚РµРєР»Рµ) */
 .bet-overlay::before {
   content: '';
   position: absolute;
@@ -620,7 +657,7 @@
   filter: blur(20px);
 }
 
-/* 🔥 Тонкая линия бликов по краям */
+/* рџ”Ґ РўРѕРЅРєР°СЏ Р»РёРЅРёСЏ Р±Р»РёРєРѕРІ РїРѕ РєСЂР°СЏРј */
 .bet-overlay::after {
   content: '';
   position: absolute;
@@ -641,10 +678,10 @@
 }
 
 /* ===========================
-   🔥 УЛУЧШЕНИЯ ВНУТРЕННИХ ЭЛЕМЕНТОВ
+   рџ”Ґ РЈР›РЈР§РЁР•РќРРЇ Р’РќРЈРўР Р•РќРќРРҐ Р­Р›Р•РњР•РќРўРћР’
    =========================== */
 
-/* Стеклянные акценты для bet-center */
+/* РЎС‚РµРєР»СЏРЅРЅС‹Рµ Р°РєС†РµРЅС‚С‹ РґР»СЏ bet-center */
 .bet-center.bet-controls {
   background: 
     linear-gradient(
@@ -661,7 +698,7 @@
     0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* Улучшенные amount-btn */
+/* РЈР»СѓС‡С€РµРЅРЅС‹Рµ amount-btn */
 .app.is-betting .amount-btn {
   background: 
     linear-gradient(
@@ -674,7 +711,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Clear button с glass эффектом */
+/* Clear button СЃ glass СЌС„С„РµРєС‚РѕРј */
 .clear-bets-btn {
   backdrop-filter: blur(6px);
   background: 
@@ -696,7 +733,7 @@
   border-color: rgba(255, 77, 79, 0.45);
 }
 
-/* Усиленное свечение при betting фазе */
+/* РЈСЃРёР»РµРЅРЅРѕРµ СЃРІРµС‡РµРЅРёРµ РїСЂРё betting С„Р°Р·Рµ */
 .app.is-betting .bet-overlay {
   box-shadow:
     0 -8px 32px rgba(0, 0, 0, 0.35),
@@ -710,7 +747,7 @@
     0 20px 50px rgba(0, 0, 0, 0.25);
 }
 
-/* Subtle glass для bet-tiles */
+/* Subtle glass РґР»СЏ bet-tiles */
 .bet-tile {
   position: relative;
 }
@@ -729,7 +766,7 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease;
-  z-index: -1; /* 🔥 Под bet-pill чтобы он был виден */
+  z-index: -1; /* рџ”Ґ РџРѕРґ bet-pill С‡С‚РѕР±С‹ РѕРЅ Р±С‹Р» РІРёРґРµРЅ */
 }
 
 .bet-tile:hover::after {
@@ -789,7 +826,7 @@
   color: var(--accent);
 }
 
-/* 🔥 Анимация смены валюты на кнопках */
+/* рџ”Ґ РђРЅРёРјР°С†РёСЏ СЃРјРµРЅС‹ РІР°Р»СЋС‚С‹ РЅР° РєРЅРѕРїРєР°С… */
 .amount-btn.currency-switching .amount-icon,
 .amount-btn.currency-switching .amount-value {
   animation: currencySwitchBtn 0.3s ease;
@@ -810,7 +847,7 @@
   }
 }
 
-/* Контейнер: кнопка очистки + суммы */
+/* РљРѕРЅС‚РµР№РЅРµСЂ: РєРЅРѕРїРєР° РѕС‡РёСЃС‚РєРё + СЃСѓРјРјС‹ */
 .bet-controls {
   position: relative;
   padding: 6px 6px 10px;
@@ -820,7 +857,7 @@
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-/* 🔥 Скрываем betting UI при спине */
+/* рџ”Ґ РЎРєСЂС‹РІР°РµРј betting UI РїСЂРё СЃРїРёРЅРµ */
 .app.is-spinning .bet-controls {
   opacity: 0;
   transform: scale(0.9);
@@ -829,7 +866,7 @@
   visibility: hidden;
 }
 
-/* Кнопка очистки - маленькая, слева */
+/* РљРЅРѕРїРєР° РѕС‡РёСЃС‚РєРё - РјР°Р»РµРЅСЊРєР°СЏ, СЃР»РµРІР° */
 .clear-bets-btn {
   flex-shrink: 0;
   width: 40px;
@@ -880,17 +917,17 @@
 
 /* ===========================
        WHEEL PLAYERS PANEL
-   🔥 LIQUID GLASS — matches .bet-overlay
+   рџ”Ґ LIQUID GLASS вЂ” matches .bet-overlay
    =========================== */
 
-/* ── outer shell ── */
+/* в”Ђв”Ђ outer shell в”Ђв”Ђ */
 .wheel-players-panel {
   width: min(92vw, 420px);
   margin: 0 auto;
   border-radius: 24px;
   overflow: hidden;
 
-  /* 🔥 glass background (same recipe as .bet-overlay) */
+  /* рџ”Ґ glass background (same recipe as .bet-overlay) */
   background:
     url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><filter id="n"><feTurbulence baseFrequency="0.9" numOctaves="3"/><feColorMatrix values="0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 0.02 0"/></filter><rect width="200" height="200" filter="url(%23n)" opacity="0.6"/></svg>'),
     linear-gradient(
@@ -922,7 +959,7 @@
 
   filter: contrast(1.02) brightness(1.01);
 
-  /* ── hidden by default ── */
+  /* в”Ђв”Ђ hidden by default в”Ђв”Ђ */
   max-height: 0;
   opacity: 0;
   transform: translateY(22px);
@@ -937,7 +974,7 @@
     margin    0.55s ease;
 }
 
-/* ── top-edge highlight line (same as .bet-overlay::after) ── */
+/* в”Ђв”Ђ top-edge highlight line (same as .bet-overlay::after) в”Ђв”Ђ */
 .wheel-players-panel::before {
   content: '';
   position: absolute;
@@ -956,7 +993,7 @@
   z-index: 1;
 }
 
-/* ── soft reflex glow at top (same as .bet-overlay::before) ── */
+/* в”Ђв”Ђ soft reflex glow at top (same as .bet-overlay::before) в”Ђв”Ђ */
 .wheel-players-panel::after {
   content: '';
   position: absolute;
@@ -975,7 +1012,7 @@
   z-index: 0;
 }
 
-/* ── visible state (spin phase) ── */
+/* в”Ђв”Ђ visible state (spin phase) в”Ђв”Ђ */
 .app.is-spinning .wheel-players-panel {
   max-height: 280px;
   opacity: 1;
@@ -986,7 +1023,7 @@
   position: relative; /* needed so ::before / ::after position correctly */
 }
 
-/* ── header row ── */
+/* в”Ђв”Ђ header row в”Ђв”Ђ */
 .wheel-players-panel__head {
   display: flex;
   align-items: center;
@@ -1005,10 +1042,10 @@
   text-transform: uppercase;
 }
 
-/* count badge — frosted pill */
+/* count badge вЂ” frosted pill */
 
 
-/* ── scrollable list ── */
+/* в”Ђв”Ђ scrollable list в”Ђв”Ђ */
 .wheel-players-panel__list {
   display: flex;
   flex-direction: column;
@@ -1038,7 +1075,7 @@
 .wheel-players-panel__list::-webkit-scrollbar { display: none; }
 .wheel-players-panel__list { scrollbar-width: none; }
 
-/* ── empty state ── */
+/* в”Ђв”Ђ empty state в”Ђв”Ђ */
 .wheel-players-panel__empty {
   padding: 20px 12px;
   color: rgba(255,255,255,0.42);
@@ -1048,7 +1085,7 @@
   letter-spacing: 0.2px;
 }
 
-/* ── single player row (pill) ── */
+/* в”Ђв”Ђ single player row (pill) в”Ђв”Ђ */
 .wheel-player-pill {
   display: flex;
   align-items: center;
@@ -1089,7 +1126,7 @@
   border-color: rgba(255,255,255,0.16);
 }
 
-/* ── left section: avatar + meta ── */
+/* в”Ђв”Ђ left section: avatar + meta в”Ђв”Ђ */
 .wheel-player-pill__left {
   display: flex;
   align-items: center;
@@ -1097,7 +1134,7 @@
   min-width: 0;
 }
 
-/* avatar — frosted circle */
+/* avatar вЂ” frosted circle */
 .wheel-player-pill__ava {
   width: 36px;
   height: 36px;
@@ -1121,7 +1158,7 @@
   object-fit: cover;
 }
 
-/* ── meta: name + total ── */
+/* в”Ђв”Ђ meta: name + total в”Ђв”Ђ */
 .wheel-player-pill__meta {
   min-width: 0;
 }
@@ -1155,7 +1192,7 @@
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
 
-/* ── right section: segment icons ── */
+/* в”Ђв”Ђ right section: segment icons в”Ђв”Ђ */
 .wheel-player-pill__segments {
   display: flex;
   align-items: center;
@@ -1171,7 +1208,7 @@
 
 .wheel-player-pill__segments::-webkit-scrollbar { display: none; }
 
-/* individual segment chip — mini frosted tile */
+/* individual segment chip вЂ” mini frosted tile */
 .wheel-player-pill__segIcon {
   width: 28px;
   height: 28px;
@@ -1232,14 +1269,14 @@ flex: 0 0 auto;
   pointer-events: none;
 }
 
-/* ── responsive ── */
+/* в”Ђв”Ђ responsive в”Ђв”Ђ */
 @media (max-width: 360px) {
   .wheel-player-pill__name      { max-width: 105px; }
   .wheel-player-pill__segments  { max-width: 120px; }
 }
-/* 🔥 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (показываются при спине) */
+/* рџ”Ґ РљРћРњРџРђРљРўРќР«Р• РљРђР РўРћР§РљР РЎРўРђР’РћРљ (РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ РїСЂРё СЃРїРёРЅРµ) */
 .bet-cards-compact {
-  display: none; /* Скрыты по умолчанию */
+  display: none; /* РЎРєСЂС‹С‚С‹ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ */
   grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
   max-width: min(92vw, 420px);
   gap: 8px;
@@ -1251,14 +1288,14 @@ flex: 0 0 auto;
 }
 
 
-/* Показываем компактные карточки при спине */
+/* РџРѕРєР°Р·С‹РІР°РµРј РєРѕРјРїР°РєС‚РЅС‹Рµ РєР°СЂС‚РѕС‡РєРё РїСЂРё СЃРїРёРЅРµ */
 .app.is-spinning .bet-cards-compact {
   display: grid;
   opacity: 1;
   transform: scale(1) translateY(0);
 }
 
-/* Скрываем обычную сетку при спине */
+/* РЎРєСЂС‹РІР°РµРј РѕР±С‹С‡РЅСѓСЋ СЃРµС‚РєСѓ РїСЂРё СЃРїРёРЅРµ */
 .app.is-spinning .bet-grid {
   opacity: 0;
   transform: scale(0.95);
@@ -1267,7 +1304,7 @@ flex: 0 0 auto;
   visibility: hidden;
 }
 
-/* Компактная карточка */
+/* РљРѕРјРїР°РєС‚РЅР°СЏ РєР°СЂС‚РѕС‡РєР° */
 .bet-card-compact {
   position: relative;
   aspect-ratio: 1;
@@ -1284,7 +1321,7 @@ flex: 0 0 auto;
   animation: cardSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-/* Анимация появления карточек с задержкой */
+/* РђРЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ РєР°СЂС‚РѕС‡РµРє СЃ Р·Р°РґРµСЂР¶РєРѕР№ */
 .bet-card-compact:nth-child(1) { animation-delay: 0.1s; }
 .bet-card-compact:nth-child(2) { animation-delay: 0.15s; }
 .bet-card-compact:nth-child(3) { animation-delay: 0.2s; }
@@ -1302,7 +1339,7 @@ flex: 0 0 auto;
   }
 }
 
-/* Картинка сегмента в компактной карточке */
+/* РљР°СЂС‚РёРЅРєР° СЃРµРіРјРµРЅС‚Р° РІ РєРѕРјРїР°РєС‚РЅРѕР№ РєР°СЂС‚РѕС‡РєРµ */
 .bet-card-compact__img {
   width: 100%;
   height: auto;
@@ -1310,7 +1347,7 @@ flex: 0 0 auto;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
 }
 
-/* Сумма ставки */
+/* РЎСѓРјРјР° СЃС‚Р°РІРєРё */
 .bet-card-compact__amount {
   position: absolute;
   bottom: 4px;
@@ -1333,25 +1370,25 @@ flex: 0 0 auto;
 }
 
 /* ===========================
-   BET PANEL — REDESIGN (компактно, без скролла)
-   3 колонки: слева/центр/справа + нижний широкий бонус
-   ВАЖНО: центр НЕ должен раздувать высоту рядов — уменьшаем размеры
+   BET PANEL вЂ” REDESIGN (РєРѕРјРїР°РєС‚РЅРѕ, Р±РµР· СЃРєСЂРѕР»Р»Р°)
+   3 РєРѕР»РѕРЅРєРё: СЃР»РµРІР°/С†РµРЅС‚СЂ/СЃРїСЂР°РІР° + РЅРёР¶РЅРёР№ С€РёСЂРѕРєРёР№ Р±РѕРЅСѓСЃ
+   Р’РђР–РќРћ: С†РµРЅС‚СЂ РќР• РґРѕР»Р¶РµРЅ СЂР°Р·РґСѓРІР°С‚СЊ РІС‹СЃРѕС‚Сѓ СЂСЏРґРѕРІ вЂ” СѓРјРµРЅСЊС€Р°РµРј СЂР°Р·РјРµСЂС‹
    =========================== */
 
 
 .bet-overlay--redesign{
-  /* компактнее отступы */
+  /* РєРѕРјРїР°РєС‚РЅРµРµ РѕС‚СЃС‚СѓРїС‹ */
   padding: 4px 10px 10px;
 
-  /* размеры (адаптивно) */
+  /* СЂР°Р·РјРµСЂС‹ (Р°РґР°РїС‚РёРІРЅРѕ) */
   --bet-gap: clamp(6px, 1.1vw, 9px);
   --center-w: clamp(58px, 15vw, 78px);
 
-  /* высоты элементов панели */
+  /* РІС‹СЃРѕС‚С‹ СЌР»РµРјРµРЅС‚РѕРІ РїР°РЅРµР»Рё */
   --tile-h: clamp(50px, 7.6vh, 70px);
   --wild-h: clamp(56px, 8.8vh, 82px);
 
-  /* центр: считаем так, чтобы он гарантированно помещался в высоту 3-х рядов */
+  /* С†РµРЅС‚СЂ: СЃС‡РёС‚Р°РµРј С‚Р°Рє, С‡С‚РѕР±С‹ РѕРЅ РіР°СЂР°РЅС‚РёСЂРѕРІР°РЅРЅРѕ РїРѕРјРµС‰Р°Р»СЃСЏ РІ РІС‹СЃРѕС‚Сѓ 3-С… СЂСЏРґРѕРІ */
   --center-h: calc(3 * var(--tile-h) + 2 * var(--bet-gap));
   --clear-h: clamp(38px, 5.2vh, 48px);
   --chip-h: calc((var(--center-h) - var(--clear-h) - 4 * var(--bet-gap)) / 4);
@@ -1370,12 +1407,12 @@ flex: 0 0 auto;
   padding: 2px 2px 0;
 }
 
-/* Сбрасываем поведение .wide (раньше span 2 для 2-х колонок) */
+/* РЎР±СЂР°СЃС‹РІР°РµРј РїРѕРІРµРґРµРЅРёРµ .wide (СЂР°РЅСЊС€Рµ span 2 РґР»СЏ 2-С… РєРѕР»РѕРЅРѕРє) */
 .bet-grid--redesign .bet-tile.wide{ 
   grid-column: auto;
 }
 
-/* Раскладка по зонам */
+/* Р Р°СЃРєР»Р°РґРєР° РїРѕ Р·РѕРЅР°Рј */
 .bet-grid--redesign .bet-tile[data-seg="1.1x"]{ grid-area: left1; }
 .bet-grid--redesign .bet-tile[data-seg="1.5x"]{ grid-area: right1; }
 .bet-grid--redesign .bet-tile[data-seg="5x"]{ grid-area: left2; }
@@ -1388,7 +1425,7 @@ flex: 0 0 auto;
   width: min(100%, 520px);
 }
 
-/* Центральная колонка */
+/* Р¦РµРЅС‚СЂР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР° */
 .bet-grid--redesign .bet-center{
   grid-area: center;
   display: flex;
@@ -1401,7 +1438,7 @@ flex: 0 0 auto;
   min-height: 0;
 }
 
-/* Ставки вертикально */
+/* РЎС‚Р°РІРєРё РІРµСЂС‚РёРєР°Р»СЊРЅРѕ */
 .bet-overlay--redesign .bet-amounts.bet-amounts--stack{
   flex-direction: column;
   justify-content: flex-start;
@@ -1411,13 +1448,13 @@ flex: 0 0 auto;
   min-height: 0;
 }
 
-/* Делаем элементы центра по ширине колонки */
+/* Р”РµР»Р°РµРј СЌР»РµРјРµРЅС‚С‹ С†РµРЅС‚СЂР° РїРѕ С€РёСЂРёРЅРµ РєРѕР»РѕРЅРєРё */
 .bet-overlay--redesign .bet-center > .clear-bets-btn,
 .bet-overlay--redesign .bet-center .amount-btn{
   width: 100%;
 }
 
-/* Высота/типографика для компактности */
+/* Р’С‹СЃРѕС‚Р°/С‚РёРїРѕРіСЂР°С„РёРєР° РґР»СЏ РєРѕРјРїР°РєС‚РЅРѕСЃС‚Рё */
 .bet-overlay--redesign .amount-btn{
   display: flex;
   flex-direction: column;
@@ -1445,7 +1482,7 @@ flex: 0 0 auto;
   font-weight: 900;
 }
 
-/* Верхняя кнопка (back/clear) в центре */
+/* Р’РµСЂС…РЅСЏСЏ РєРЅРѕРїРєР° (back/clear) РІ С†РµРЅС‚СЂРµ */
 .bet-overlay--redesign .clear-bets-btn{
   width: 7px;
   height: 40px;
@@ -1468,7 +1505,7 @@ flex: 0 0 auto;
   padding: 4px;
 }
 
-/* Картинки заполняют плитку по высоте */
+/* РљР°СЂС‚РёРЅРєРё Р·Р°РїРѕР»РЅСЏСЋС‚ РїР»РёС‚РєСѓ РїРѕ РІС‹СЃРѕС‚Рµ */
 .bet-overlay--redesign .bet-tile > img.bet-img{
   width: 100%;
   height: 100%;
@@ -1476,12 +1513,12 @@ flex: 0 0 auto;
   border-radius: 12px;
 }
 
-/* Убираем лишний “подъём” на мобиле (экономим место) */
+/* РЈР±РёСЂР°РµРј Р»РёС€РЅРёР№ вЂњРїРѕРґСЉС‘РјвЂќ РЅР° РјРѕР±РёР»Рµ (СЌРєРѕРЅРѕРјРёРј РјРµСЃС‚Рѕ) */
 @media (hover: none){
   .bet-overlay--redesign .bet-tile:hover{ transform: none; }
 }
 
-/* Доп. ужатие по высоте (маленькие экраны) */
+/* Р”РѕРї. СѓР¶Р°С‚РёРµ РїРѕ РІС‹СЃРѕС‚Рµ (РјР°Р»РµРЅСЊРєРёРµ СЌРєСЂР°РЅС‹) */
 @media (max-height: 720px){
   .bet-overlay--redesign{
     --tile-h: clamp(48px, 7.4vh, 66px);
@@ -1523,7 +1560,7 @@ flex: 0 0 auto;
   z-index: 3;
 }
 
-/* Внутреннее свечение для всех плиток */
+/* Р’РЅСѓС‚СЂРµРЅРЅРµРµ СЃРІРµС‡РµРЅРёРµ РґР»СЏ РІСЃРµС… РїР»РёС‚РѕРє */
 .bet-tile::before {
   content: '';
   position: absolute;
@@ -1548,13 +1585,13 @@ flex: 0 0 auto;
   display: block;
   transition: transform .25s ease, filter .25s ease;
   
-  /* Добавляем тень к изображению */
+  /* Р”РѕР±Р°РІР»СЏРµРј С‚РµРЅСЊ Рє РёР·РѕР±СЂР°Р¶РµРЅРёСЋ */
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 2px 6px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   
-  /* Добавляем небольшое затемнение фона под изображением */
+  /* Р”РѕР±Р°РІР»СЏРµРј РЅРµР±РѕР»СЊС€РѕРµ Р·Р°С‚РµРјРЅРµРЅРёРµ С„РѕРЅР° РїРѕРґ РёР·РѕР±СЂР°Р¶РµРЅРёРµРј */
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(8px);
 }
@@ -1562,14 +1599,14 @@ flex: 0 0 auto;
 .bet-tile:hover > img.bet-img {
   transform: scale(1.02);
   
-  /* Усиливаем тень при ховере */
+  /* РЈСЃРёР»РёРІР°РµРј С‚РµРЅСЊ РїСЂРё С…РѕРІРµСЂРµ */
   box-shadow: 
     0 6px 16px rgba(0, 0, 0, 0.5),
     0 3px 8px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Hover эффект - легкий подъем */
+/* Hover СЌС„С„РµРєС‚ - Р»РµРіРєРёР№ РїРѕРґСЉРµРј */
 .bet-tile:hover { 
   transform: translateY(-4px);
   border-color: rgba(255, 255, 255, 0.12);
@@ -1579,17 +1616,17 @@ flex: 0 0 auto;
   transform: scale(1.02);
 }
 
-/* Active эффект */
+/* Active СЌС„С„РµРєС‚ */
 .bet-tile:active { 
   transform: translateY(-1px) scale(0.98);
 }
 
-/* Широкая плитка */
+/* РЁРёСЂРѕРєР°СЏ РїР»РёС‚РєР° */
 .bet-tile.wide { 
   grid-column: span 2; 
 }
 
-/* Числовые множители - более приглушенные */
+/* Р§РёСЃР»РѕРІС‹Рµ РјРЅРѕР¶РёС‚РµР»Рё - Р±РѕР»РµРµ РїСЂРёРіР»СѓС€РµРЅРЅС‹Рµ */
 .bet-tile.muted { 
   filter: saturate(.7) brightness(.85); 
 }
@@ -1598,7 +1635,7 @@ flex: 0 0 auto;
   filter: saturate(.85) brightness(.95);
 }
 
-/* Бонусные плитки - яркое неоновое свечение */
+/* Р‘РѕРЅСѓСЃРЅС‹Рµ РїР»РёС‚РєРё - СЏСЂРєРѕРµ РЅРµРѕРЅРѕРІРѕРµ СЃРІРµС‡РµРЅРёРµ */
 .bet-tile.bonus { 
   filter: none;
   box-shadow: 
@@ -1606,7 +1643,7 @@ flex: 0 0 auto;
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
-/* Специфичные свечения для разных бонусов */
+/* РЎРїРµС†РёС„РёС‡РЅС‹Рµ СЃРІРµС‡РµРЅРёСЏ РґР»СЏ СЂР°Р·РЅС‹С… Р±РѕРЅСѓСЃРѕРІ */
 .bet-tile.bonus[data-seg="50&50"] {
   box-shadow: 
     0 8px 32px rgba(255, 0, 255, 0.3),
@@ -1716,26 +1753,26 @@ flex: 0 0 auto;
     gap: 4px;
   }
 }
-/* REDESIGN: NO BACKPLATES (оставляем только картинки) */
+/* REDESIGN: NO BACKPLATES (РѕСЃС‚Р°РІР»СЏРµРј С‚РѕР»СЊРєРѕ РєР°СЂС‚РёРЅРєРё) */
 
-/* Убираем «тёмные карточки»/рамки у всех ставок в редизайне */
+/* РЈР±РёСЂР°РµРј В«С‚С‘РјРЅС‹Рµ РєР°СЂС‚РѕС‡РєРёВ»/СЂР°РјРєРё Сѓ РІСЃРµС… СЃС‚Р°РІРѕРє РІ СЂРµРґРёР·Р°Р№РЅРµ */
 .bet-overlay--redesign .bet-tile{
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
   border-radius: 0 !important;
-  overflow: visible !important; /* не режем свечение на картинках */
-  filter: none !important;      /* убираем muted/bonus фильтры */
+  overflow: visible !important; /* РЅРµ СЂРµР¶РµРј СЃРІРµС‡РµРЅРёРµ РЅР° РєР°СЂС‚РёРЅРєР°С… */
+  filter: none !important;      /* СѓР±РёСЂР°РµРј muted/bonus С„РёР»СЊС‚СЂС‹ */
   transform: none !important;
 }
 
-/* Отключаем внутреннее свечение/подложку через псевдоэлемент */
+/* РћС‚РєР»СЋС‡Р°РµРј РІРЅСѓС‚СЂРµРЅРЅРµРµ СЃРІРµС‡РµРЅРёРµ/РїРѕРґР»РѕР¶РєСѓ С‡РµСЂРµР· РїСЃРµРІРґРѕСЌР»РµРјРµРЅС‚ */
 .bet-overlay--redesign .bet-tile::before{
   display: none !important;
 }
 
-/* Картинки ровно как есть (без скейла/рамок) */
+/* РљР°СЂС‚РёРЅРєРё СЂРѕРІРЅРѕ РєР°Рє РµСЃС‚СЊ (Р±РµР· СЃРєРµР№Р»Р°/СЂР°РјРѕРє) */
 .bet-overlay--redesign .bet-tile > img.bet-img{
   width: 100%;
   height: 100%;
@@ -1745,13 +1782,13 @@ flex: 0 0 auto;
   filter: none !important;
 }
 
-/* На ховере/тапе ничего не подпрыгивает */
+/* РќР° С…РѕРІРµСЂРµ/С‚Р°РїРµ РЅРёС‡РµРіРѕ РЅРµ РїРѕРґРїСЂС‹РіРёРІР°РµС‚ */
 .bet-overlay--redesign .bet-tile:hover,
 .bet-overlay--redesign .bet-tile:active{
   transform: none !important;
 }
 
-/* На всякий случай: глушим бонусные свечения, чтобы не было второго «кольца» */
+/* РќР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№: РіР»СѓС€РёРј Р±РѕРЅСѓСЃРЅС‹Рµ СЃРІРµС‡РµРЅРёСЏ, С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ РІС‚РѕСЂРѕРіРѕ В«РєРѕР»СЊС†Р°В» */
 .bet-overlay--redesign .bet-tile.bonus,
 .bet-overlay--redesign .bet-tile.bonus:hover{
   box-shadow: none !important;
@@ -1759,8 +1796,8 @@ flex: 0 0 auto;
 
 
 
-/* Fix: Wild Time wrapper был во всю строку (прозрачный), поэтому bet-pill улетал вправо.
-   Сжимаем кнопку Wild Time по ширине картинки. */
+/* Fix: Wild Time wrapper Р±С‹Р» РІРѕ РІСЃСЋ СЃС‚СЂРѕРєСѓ (РїСЂРѕР·СЂР°С‡РЅС‹Р№), РїРѕСЌС‚РѕРјСѓ bet-pill СѓР»РµС‚Р°Р» РІРїСЂР°РІРѕ.
+   РЎР¶РёРјР°РµРј РєРЅРѕРїРєСѓ Wild Time РїРѕ С€РёСЂРёРЅРµ РєР°СЂС‚РёРЅРєРё. */
 
    .bet-overlay--redesign .bet-grid--redesign .bet-tile[data-seg="Wild Time"]{
     width: fit-content !important;
@@ -1769,7 +1806,7 @@ flex: 0 0 auto;
     align-self: center;
   }
   
-  /* Переопределяем global img{width:100%} только внутри Wild Time */
+  /* РџРµСЂРµРѕРїСЂРµРґРµР»СЏРµРј global img{width:100%} С‚РѕР»СЊРєРѕ РІРЅСѓС‚СЂРё Wild Time */
   .bet-overlay--redesign .bet-grid--redesign .bet-tile[data-seg="Wild Time"] > img.bet-img{
     width: auto !important;
     height: 100% !important;
@@ -1785,7 +1822,7 @@ flex: 0 0 auto;
    STARS -> yellow pill with tgStarBlack.svg (ONLY HERE)
    ========================================================= */
 
-/* Анимация пульса для свечения */
+/* РђРЅРёРјР°С†РёСЏ РїСѓР»СЊСЃР° РґР»СЏ СЃРІРµС‡РµРЅРёСЏ */
 @keyframes pillGlow {
   0%, 100% {
     box-shadow: 
@@ -1825,7 +1862,7 @@ flex: 0 0 auto;
   }
 }
 
-/* База для кнопок сумм (только в редизайне, центр-колонка) */
+/* Р‘Р°Р·Р° РґР»СЏ РєРЅРѕРїРѕРє СЃСѓРјРј (С‚РѕР»СЊРєРѕ РІ СЂРµРґРёР·Р°Р№РЅРµ, С†РµРЅС‚СЂ-РєРѕР»РѕРЅРєР°) */
 .bet-overlay--redesign .bet-center .amount-btn {
   position: relative;
   display: flex !important;
@@ -1836,7 +1873,7 @@ flex: 0 0 auto;
   height: var(--chip-h) !important;
   width: 50% !important;
 
-  padding: 0 44px 0 17px !important; /* справа место под иконку */
+  padding: 0 44px 0 17px !important; /* СЃРїСЂР°РІР° РјРµСЃС‚Рѕ РїРѕРґ РёРєРѕРЅРєСѓ */
 
   border-radius: 9999px !important;
 
@@ -1848,21 +1885,21 @@ flex: 0 0 auto;
   gap: 0 !important;
   overflow: hidden !important;
   
-  /* Голубой градиент для TON */
+  /* Р“РѕР»СѓР±РѕР№ РіСЂР°РґРёРµРЅС‚ РґР»СЏ TON */
   background: linear-gradient(
     135deg,
-    #00a6ff 0%,      /* Яркий голубой */
-    #0d8cff 25%,     /* Насыщенный синий */
-    #1aa8ff 50%,     /* Средний голубой */
-    #00b4ff 75%,     /* Светлый голубой */
-    #00a6ff 100%     /* Возврат к яркому */
+    #00a6ff 0%,      /* РЇСЂРєРёР№ РіРѕР»СѓР±РѕР№ */
+    #0d8cff 25%,     /* РќР°СЃС‹С‰РµРЅРЅС‹Р№ СЃРёРЅРёР№ */
+    #1aa8ff 50%,     /* РЎСЂРµРґРЅРёР№ РіРѕР»СѓР±РѕР№ */
+    #00b4ff 75%,     /* РЎРІРµС‚Р»С‹Р№ РіРѕР»СѓР±РѕР№ */
+    #00a6ff 100%     /* Р’РѕР·РІСЂР°С‚ Рє СЏСЂРєРѕРјСѓ */
   ) !important;
   
-  /* Плавные переходы */
+  /* РџР»Р°РІРЅС‹Рµ РїРµСЂРµС…РѕРґС‹ */
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   cursor: pointer !important;
   
-  /* Голубое свечение */
+  /* Р“РѕР»СѓР±РѕРµ СЃРІРµС‡РµРЅРёРµ */
   animation: pillGlow 3s ease-in-out infinite;
 }
 
@@ -1886,8 +1923,8 @@ flex: 0 0 auto;
 
 
 
-/* Текст значения (крупно как на рефе) */
-/* Текст — центрирован и не заезжает на иконку */
+/* РўРµРєСЃС‚ Р·РЅР°С‡РµРЅРёСЏ (РєСЂСѓРїРЅРѕ РєР°Рє РЅР° СЂРµС„Рµ) */
+/* РўРµРєСЃС‚ вЂ” С†РµРЅС‚СЂРёСЂРѕРІР°РЅ Рё РЅРµ Р·Р°РµР·Р¶Р°РµС‚ РЅР° РёРєРѕРЅРєСѓ */
 .bet-overlay--redesign .bet-center .amount-value {
   position: static !important;
   left: auto !important;
@@ -1896,13 +1933,13 @@ flex: 0 0 auto;
   display: block !important;
   flex: 1 !important;
   text-align: center !important;
-  padding-right: 3px !important; /* отступ чтобы не заезжал на иконку */
+  padding-right: 3px !important; /* РѕС‚СЃС‚СѓРї С‡С‚РѕР±С‹ РЅРµ Р·Р°РµР·Р¶Р°Р» РЅР° РёРєРѕРЅРєСѓ */
 
   font-weight: 900 !important;
   font-size: 15px !important;
   line-height: 1 !important;
 
-  font-variant-numeric: tabular-nums; /* чтобы 1/5/10/25 не прыгали по ширине */
+  font-variant-numeric: tabular-nums; /* С‡С‚РѕР±С‹ 1/5/10/25 РЅРµ РїСЂС‹РіР°Р»Рё РїРѕ С€РёСЂРёРЅРµ */
   color: #fff !important;
   
   position: relative !important;
@@ -1910,7 +1947,7 @@ flex: 0 0 auto;
   transition: all 0.3s ease !important;
 }
 
-/* Иконка (справа) */
+/* РРєРѕРЅРєР° (СЃРїСЂР°РІР°) */
 .bet-overlay--redesign .bet-center .amount-icon {
   position: absolute !important;
   right: 5px !important;
@@ -1925,7 +1962,7 @@ flex: 0 0 auto;
   z-index: 2 !important;
 }
 
-/* ===== HOVER ЭФФЕКТЫ ===== */
+/* ===== HOVER Р­Р¤Р¤Р•РљРўР« ===== */
 .bet-overlay--redesign .bet-center .amount-btn:hover {
   transform: translateY(-4px) scale(1.05) !important;
   animation: pillGlow 1.5s ease-in-out infinite !important;
@@ -1941,7 +1978,7 @@ flex: 0 0 auto;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.6) !important;
 }
 
-/* Блеск на hover */
+/* Р‘Р»РµСЃРє РЅР° hover */
 .bet-overlay--redesign .bet-center .amount-btn:hover::before {
   content: "" !important;
   position: absolute !important;
@@ -1957,7 +1994,7 @@ flex: 0 0 auto;
   z-index: 1 !important;
 }
 
-/* ===== ACTIVE (нажатие) ===== */
+/* ===== ACTIVE (РЅР°Р¶Р°С‚РёРµ) ===== */
 .bet-overlay--redesign .bet-center .amount-btn:active {
   transform: translateY(-2px) scale(0.98) !important;
   animation: pillGlow 0.8s ease-in-out infinite !important;
@@ -1972,7 +2009,7 @@ flex: 0 0 auto;
   z-index: 1 !important;
 }
 
-/* Нажатие без "прыжков" */
+/* РќР°Р¶Р°С‚РёРµ Р±РµР· "РїСЂС‹Р¶РєРѕРІ" */
 .bet-overlay--redesign .bet-center .amount-btn:active {
   transform: none !important;
 }
@@ -1981,11 +2018,11 @@ flex: 0 0 auto;
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) {
   background: linear-gradient(
     135deg, 
-    #ffd700 0%,      /* Богатое золото */
-    #ffed4e 25%,     /* Яркий золотистый */
-    #ffa500 50%,     /* Тёплый оранжевый */
-    #ff8c42 75%,     /* Медный оттенок */
-    #ffd700 100%     /* Возврат к золоту */
+    #ffd700 0%,      /* Р‘РѕРіР°С‚РѕРµ Р·РѕР»РѕС‚Рѕ */
+    #ffed4e 25%,     /* РЇСЂРєРёР№ Р·РѕР»РѕС‚РёСЃС‚С‹Р№ */
+    #ffa500 50%,     /* РўС‘РїР»С‹Р№ РѕСЂР°РЅР¶РµРІС‹Р№ */
+    #ff8c42 75%,     /* РњРµРґРЅС‹Р№ РѕС‚С‚РµРЅРѕРє */
+    #ffd700 100%     /* Р’РѕР·РІСЂР°С‚ Рє Р·РѕР»РѕС‚Сѓ */
   ) !important;
   box-shadow: 
     0 8px 24px rgba(255, 215, 0, 0.4),
@@ -2048,7 +2085,7 @@ flex: 0 0 auto;
   transform: translateY(-50%) scale(1.4) rotate(15deg) !important;
 }
 
-/* Focus state для доступности */
+/* Focus state РґР»СЏ РґРѕСЃС‚СѓРїРЅРѕСЃС‚Рё */
 .bet-overlay--redesign .bet-center .amount-btn:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.5) !important;
   outline-offset: 2px !important;
@@ -2080,7 +2117,7 @@ flex: 0 0 auto;
   filter: brightness(1.4) drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) !important;
 }
 
-/* Анимация пульса для selected состояния */
+/* РђРЅРёРјР°С†РёСЏ РїСѓР»СЊСЃР° РґР»СЏ selected СЃРѕСЃС‚РѕСЏРЅРёСЏ */
 @keyframes selectedPulse {
   0%, 100% {
     box-shadow: 
@@ -2103,7 +2140,7 @@ flex: 0 0 auto;
   animation: selectedPulse 2s ease-in-out infinite !important;
 }
 
-/* SELECTED для TGSTAR режима */
+/* SELECTED РґР»СЏ TGSTAR СЂРµР¶РёРјР° */
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
   background: linear-gradient(135deg, #fffce0 0%, #fff9c4 100%) !important;
@@ -2124,7 +2161,7 @@ flex: 0 0 auto;
   transform: scale(1.05) !important;
 }
 
-/* Анимация для выбранного TGSTAR */
+/* РђРЅРёРјР°С†РёСЏ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ TGSTAR */
 @keyframes selectedStarsPulse {
   0%, 100% {
     box-shadow: 
@@ -2151,39 +2188,39 @@ flex: 0 0 auto;
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"]::after {
   filter: drop-shadow(0 0 12px rgba(255, 208, 74, 1)) drop-shadow(0 0 4px rgba(255, 208, 74, 0.8)) !important;
 }
-/* ===== 🎴 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (под колесом во время спина) ===== */
+/* ===== рџЋґ РљРћРњРџРђРљРўРќР«Р• РљРђР РўРћР§РљР РЎРўРђР’РћРљ (РїРѕРґ РєРѕР»РµСЃРѕРј РІРѕ РІСЂРµРјСЏ СЃРїРёРЅР°) ===== */
 .bet-cards-compact {
-  /* Фиксированное позиционирование для стабильности */
+  /* Р¤РёРєСЃРёСЂРѕРІР°РЅРЅРѕРµ РїРѕР·РёС†РёРѕРЅРёСЂРѕРІР°РЅРёРµ РґР»СЏ СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚Рё */
   position: fixed;
   bottom: 200px;
   left: 50%;
   transform: translateX(-50%);
   
-  /* Flexbox для идеального центрирования */
+  /* Flexbox РґР»СЏ РёРґРµР°Р»СЊРЅРѕРіРѕ С†РµРЅС‚СЂРёСЂРѕРІР°РЅРёСЏ */
   display: flex;
-  flex-wrap: nowrap; /* КРИТИЧНО: всегда в один ряд */
+  flex-wrap: nowrap; /* РљР РРўРР§РќРћ: РІСЃРµРіРґР° РІ РѕРґРёРЅ СЂСЏРґ */
   justify-content: center;
   align-items: center;
   gap: clamp(4px, 1.8vw, 10px);
   
-  /* Ограничения по ширине */
-  width: fit-content; /* Размер по содержимому */
-  max-width: calc(100vw - 20px); /* Отступы от краёв */
+  /* РћРіСЂР°РЅРёС‡РµРЅРёСЏ РїРѕ С€РёСЂРёРЅРµ */
+  width: fit-content; /* Р Р°Р·РјРµСЂ РїРѕ СЃРѕРґРµСЂР¶РёРјРѕРјСѓ */
+  max-width: calc(100vw - 20px); /* РћС‚СЃС‚СѓРїС‹ РѕС‚ РєСЂР°С‘РІ */
   padding: 0 10px;
   
-  /* Видимость */
+  /* Р’РёРґРёРјРѕСЃС‚СЊ */
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   
-  /* Анимация */
+  /* РђРЅРёРјР°С†РёСЏ */
   transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
   
-  /* Z-индекс */
+  /* Z-РёРЅРґРµРєСЃ */
   z-index: 999;
 }
 
-/* Анимация появления */
+/* РђРЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ */
 .bet-cards-compact:not(:empty) {
   animation: compactCardsSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
@@ -2201,33 +2238,33 @@ flex: 0 0 auto;
   }
 }
 
-/* 🔥 КРИТИЧНО: Прячем карточки когда betting UI активен */
+/* рџ”Ґ РљР РРўРР§РќРћ: РџСЂСЏС‡РµРј РєР°СЂС‚РѕС‡РєРё РєРѕРіРґР° betting UI Р°РєС‚РёРІРµРЅ */
 .app.is-betting .bet-cards-compact {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
 
-/* Показываем только когда колесо крутится */
+/* РџРѕРєР°Р·С‹РІР°РµРј С‚РѕР»СЊРєРѕ РєРѕРіРґР° РєРѕР»РµСЃРѕ РєСЂСѓС‚РёС‚СЃСЏ */
 .app.is-spinning .bet-cards-compact:not(:empty) {
   opacity: 1;
   visibility: visible;
 }
 
-/* ===== ОТДЕЛЬНАЯ КАРТОЧКА ===== */
+/* ===== РћРўР”Р•Р›Р¬РќРђРЇ РљРђР РўРћР§РљРђ ===== */
 .bet-card-compact {
   position: relative;
-  flex-shrink: 0; /* КРИТИЧНО: не сжимаем */
+  flex-shrink: 0; /* РљР РРўРР§РќРћ: РЅРµ СЃР¶РёРјР°РµРј */
   flex-grow: 0;
   
-  /* Базовые размеры */
+  /* Р‘Р°Р·РѕРІС‹Рµ СЂР°Р·РјРµСЂС‹ */
   width: clamp(38px, 11vw, 65px);
   height: clamp(26px, 7.5vw, 44px);
   
   border-radius: 6px;
   overflow: hidden;
   
-  /* Тень для глубины */
+  /* РўРµРЅСЊ РґР»СЏ РіР»СѓР±РёРЅС‹ */
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 2px 4px rgba(0, 0, 0, 0.3);
@@ -2235,51 +2272,51 @@ flex: 0 0 auto;
   transition: transform 0.2s ease;
 }
 
-/* ===== АДАПТИВНЫЕ РАЗМЕРЫ ПО КОЛИЧЕСТВУ КАРТОЧЕК ===== */
+/* ===== РђР”РђРџРўРР’РќР«Р• Р РђР—РњР•Р Р« РџРћ РљРћР›РР§Р•РЎРўР’РЈ РљРђР РўРћР§Р•Рљ ===== */
 
-/* 1 карточка - самая большая */
+/* 1 РєР°СЂС‚РѕС‡РєР° - СЃР°РјР°СЏ Р±РѕР»СЊС€Р°СЏ */
 .bet-cards-compact:has(.bet-card-compact:first-child:last-child) .bet-card-compact {
   width: clamp(60px, 18vw, 90px);
   height: clamp(42px, 12vw, 62px);
 }
 
-/* 2 карточки */
+/* 2 РєР°СЂС‚РѕС‡РєРё */
 .bet-cards-compact:has(.bet-card-compact:nth-child(2):last-child) .bet-card-compact {
   width: clamp(52px, 15vw, 80px);
   height: clamp(36px, 10vw, 55px);
 }
 
-/* 3 карточки */
+/* 3 РєР°СЂС‚РѕС‡РєРё */
 .bet-cards-compact:has(.bet-card-compact:nth-child(3):last-child) .bet-card-compact {
   width: clamp(46px, 13vw, 72px);
   height: clamp(32px, 9vw, 50px);
 }
 
-/* 4 карточки */
+/* 4 РєР°СЂС‚РѕС‡РєРё */
 .bet-cards-compact:has(.bet-card-compact:nth-child(4):last-child) .bet-card-compact {
   width: clamp(42px, 12vw, 66px);
   height: clamp(29px, 8vw, 45px);
 }
 
-/* 5 карточек */
+/* 5 РєР°СЂС‚РѕС‡РµРє */
 .bet-cards-compact:has(.bet-card-compact:nth-child(5):last-child) .bet-card-compact {
   width: clamp(38px, 11vw, 60px);
   height: clamp(26px, 7.5vw, 41px);
 }
 
-/* 6 карточек */
+/* 6 РєР°СЂС‚РѕС‡РµРє */
 .bet-cards-compact:has(.bet-card-compact:nth-child(6):last-child) .bet-card-compact {
   width: clamp(35px, 10vw, 54px);
   height: clamp(24px, 7vw, 37px);
 }
 
-/* 7 карточек - самые маленькие */
+/* 7 РєР°СЂС‚РѕС‡РµРє - СЃР°РјС‹Рµ РјР°Р»РµРЅСЊРєРёРµ */
 .bet-cards-compact:has(.bet-card-compact:nth-child(7):last-child) .bet-card-compact {
   width: clamp(32px, 9vw, 50px);
   height: clamp(22px, 6.5vw, 34px);
 }
 
-/* Изображение ставки (фон) - БЕЗ затемнения, фотка видна полностью */
+/* РР·РѕР±СЂР°Р¶РµРЅРёРµ СЃС‚Р°РІРєРё (С„РѕРЅ) - Р‘Р•Р— Р·Р°С‚РµРјРЅРµРЅРёСЏ, С„РѕС‚РєР° РІРёРґРЅР° РїРѕР»РЅРѕСЃС‚СЊСЋ */
 .bet-card-compact__img {
   position: absolute;
   inset: 0;
@@ -2287,10 +2324,10 @@ flex: 0 0 auto;
   height: 100%;
   object-fit: cover;
   
-  /* Без фильтров - фотка видна четко! */
+  /* Р‘РµР· С„РёР»СЊС‚СЂРѕРІ - С„РѕС‚РєР° РІРёРґРЅР° С‡РµС‚РєРѕ! */
 }
 
-/* Количество ставки (по центру) */
+/* РљРѕР»РёС‡РµСЃС‚РІРѕ СЃС‚Р°РІРєРё (РїРѕ С†РµРЅС‚СЂСѓ) */
 .bet-card-compact__amount {
   position: absolute;
   inset: 0;
@@ -2303,27 +2340,27 @@ flex: 0 0 auto;
   
   font-family: 'mf', system-ui, -apple-system, sans-serif;
   font-weight: 900;
-  font-size: clamp(9px, 2.5vw, 13px); /* Уменьшенный шрифт */
+  font-size: clamp(9px, 2.5vw, 13px); /* РЈРјРµРЅСЊС€РµРЅРЅС‹Р№ С€СЂРёС„С‚ */
   color: #fff;
   
   z-index: 2;
 }
 
-/* Иконка валюты */
+/* РРєРѕРЅРєР° РІР°Р»СЋС‚С‹ */
 .bet-card-compact__amount img {
-  width: clamp(10px, 3vw, 14px); /* Уменьшенная иконка */
+  width: clamp(10px, 3vw, 14px); /* РЈРјРµРЅСЊС€РµРЅРЅР°СЏ РёРєРѕРЅРєР° */
   height: clamp(10px, 3vw, 14px);
 }
 
-/* Текст суммы */
+/* РўРµРєСЃС‚ СЃСѓРјРјС‹ */
 .bet-card-compact__amount span {
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 /* ===========================
-   НОВАЯ НИЖНЯЯ ПИЛЮЛЯ ДЛЯ СТАВОК
-   (встроена снизу карточки)
+   РќРћР’РђРЇ РќРР–РќРЇРЇ РџРР›Р®Р›РЇ Р”Р›РЇ РЎРўРђР’РћРљ
+   (РІСЃС‚СЂРѕРµРЅР° СЃРЅРёР·Сѓ РєР°СЂС‚РѕС‡РєРё)
 =========================== */
 .bet-card-compact__badge {
   position: absolute;
@@ -2334,18 +2371,18 @@ flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(1px, 0.8vw, 3px); /* Уменьшенный gap */
+  gap: clamp(1px, 0.8vw, 3px); /* РЈРјРµРЅСЊС€РµРЅРЅС‹Р№ gap */
   
-  height: clamp(12px, 3.5vw, 18px); /* Уменьшенная высота */
-  padding: 0 clamp(3px, 1.5vw, 6px); /* Уменьшенный padding */
+  height: clamp(12px, 3.5vw, 18px); /* РЈРјРµРЅСЊС€РµРЅРЅР°СЏ РІС‹СЃРѕС‚Р° */
+  padding: 0 clamp(3px, 1.5vw, 6px); /* РЈРјРµРЅСЊС€РµРЅРЅС‹Р№ padding */
   
-  /* Полупрозрачный темный фон по умолчанию */
+  /* РџРѕР»СѓРїСЂРѕР·СЂР°С‡РЅС‹Р№ С‚РµРјРЅС‹Р№ С„РѕРЅ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ */
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(4px);
   
   font-family: 'mf', system-ui, -apple-system, sans-serif;
   font-weight: 800;
-  font-size: clamp(7px, 2vw, 10px); /* Уменьшенный шрифт */
+  font-size: clamp(7px, 2vw, 10px); /* РЈРјРµРЅСЊС€РµРЅРЅС‹Р№ С€СЂРёС„С‚ */
   color: #fff;
   
   border-radius: 0 0 6px 6px;
@@ -2356,7 +2393,7 @@ flex: 0 0 auto;
 }
 
 .bet-card-compact__badge-icon {
-  width: clamp(8px, 2.2vw, 11px); /* Уменьшенная иконка */
+  width: clamp(8px, 2.2vw, 11px); /* РЈРјРµРЅСЊС€РµРЅРЅР°СЏ РёРєРѕРЅРєР° */
   height: clamp(8px, 2.2vw, 11px);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
@@ -2367,34 +2404,34 @@ flex: 0 0 auto;
 }
 
 /* ===========================
-   ТЕМНЫЕ ОТТЕНКИ ПОД КАЖДЫЙ СЕГМЕНТ
+   РўР•РњРќР«Р• РћРўРўР•РќРљР РџРћР” РљРђР–Р”Р«Р™ РЎР•Р“РњР•РќРў
 =========================== */
 
-/* 1.1x - темно-оранжевый */
+/* 1.1x - С‚РµРјРЅРѕ-РѕСЂР°РЅР¶РµРІС‹Р№ */
 .bet-card-compact[data-segment="1.1x"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(47, 25, 0, 0.95), rgba(80, 42, 0, 0.98));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* 3x - темно-зеленый */
+/* 3x - С‚РµРјРЅРѕ-Р·РµР»РµРЅС‹Р№ */
 .bet-card-compact[data-segment="3x"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(22, 61, 0, 0.95), rgba(28, 80, 0, 0.98));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* 5x - темно-изумрудный (как вы хотели) */
+/* 5x - С‚РµРјРЅРѕ-РёР·СѓРјСЂСѓРґРЅС‹Р№ (РєР°Рє РІС‹ С…РѕС‚РµР»Рё) */
 .bet-card-compact[data-segment="5x"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(24, 70, 43, 0.95), rgba(10, 65, 33, 0.98));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* 11x - темно-синий */
+/* 11x - С‚РµРјРЅРѕ-СЃРёРЅРёР№ */
 .bet-card-compact[data-segment="11x"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(0, 38, 65, 0.95), rgba(7, 45, 72, 0.98));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* 50&50 - темно-розовый */
+/* 50&50 - С‚РµРјРЅРѕ-СЂРѕР·РѕРІС‹Р№ */
 .bet-card-compact[data-segment="50&50"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(75, 0, 38, 0.95), rgba(180, 20, 100, 0.98));
   box-shadow: 
@@ -2402,7 +2439,7 @@ flex: 0 0 auto;
     0 0 12px rgba(217, 25, 122, 0.3);
 }
 
-/* Loot Rush - темно-фиолетовый */
+/* Loot Rush - С‚РµРјРЅРѕ-С„РёРѕР»РµС‚РѕРІС‹Р№ */
 .bet-card-compact[data-segment="Loot Rush"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(26, 0, 72, 0.95), rgba(85, 33, 170, 0.98));
   box-shadow: 
@@ -2410,7 +2447,7 @@ flex: 0 0 auto;
     0 0 12px rgba(108, 43, 217, 0.3);
 }
 
-/* Wild Time - темно-красный */
+/* Wild Time - С‚РµРјРЅРѕ-РєСЂР°СЃРЅС‹Р№ */
 .bet-card-compact[data-segment="Wild Time"] .bet-card-compact__badge {
   background: linear-gradient(to bottom, rgba(75, 0, 3, 0.95), rgba(160, 18, 24, 0.98));
   box-shadow: 
@@ -2418,35 +2455,35 @@ flex: 0 0 auto;
     0 0 12px rgba(197, 22, 29, 0.3);
 }
 
-/* Для больших экранов - увеличиваем gap и максимальные размеры */
+/* Р”Р»СЏ Р±РѕР»СЊС€РёС… СЌРєСЂР°РЅРѕРІ - СѓРІРµР»РёС‡РёРІР°РµРј gap Рё РјР°РєСЃРёРјР°Р»СЊРЅС‹Рµ СЂР°Р·РјРµСЂС‹ */
 @media (min-width: 768px) {
   .bet-cards-compact {
     gap: 14px;
   }
   
-  /* Карточки будут автоматически масштабироваться через clamp */
-  /* Максимальные значения в clamp сработают на больших экранах */
+  /* РљР°СЂС‚РѕС‡РєРё Р±СѓРґСѓС‚ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РјР°СЃС€С‚Р°Р±РёСЂРѕРІР°С‚СЊСЃСЏ С‡РµСЂРµР· clamp */
+  /* РњР°РєСЃРёРјР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ РІ clamp СЃСЂР°Р±РѕС‚Р°СЋС‚ РЅР° Р±РѕР»СЊС€РёС… СЌРєСЂР°РЅР°С… */
 }
 /* ===========================
    BETTING PHASE SHADOWS
-   (активируется через .app.is-betting)
+   (Р°РєС‚РёРІРёСЂСѓРµС‚СЃСЏ С‡РµСЂРµР· .app.is-betting)
 =========================== */
 
-/* Тени для картинок ставок */
+/* РўРµРЅРё РґР»СЏ РєР°СЂС‚РёРЅРѕРє СЃС‚Р°РІРѕРє */
 .app.is-betting .bet-tile .bet-img {
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4)) 
           drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
   transition: filter 0.3s ease;
 }
 
-/* Дополнительное свечение при наведении */
+/* Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕРµ СЃРІРµС‡РµРЅРёРµ РїСЂРё РЅР°РІРµРґРµРЅРёРё */
 .app.is-betting .bet-tile:hover .bet-img {
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5)) 
           drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4))
           drop-shadow(0 0 20px rgba(255, 255, 255, 0.1));
 }
 
-/* Тени для кнопки Clear */
+/* РўРµРЅРё РґР»СЏ РєРЅРѕРїРєРё Clear */
 .app.is-betting .clear-bets-btn {
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4)) 
           drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
@@ -2459,7 +2496,7 @@ flex: 0 0 auto;
           drop-shadow(0 0 16px rgba(255, 100, 100, 0.2));
 }
 
-/* Тени для кнопок выбора суммы (amount pills) */
+/* РўРµРЅРё РґР»СЏ РєРЅРѕРїРѕРє РІС‹Р±РѕСЂР° СЃСѓРјРјС‹ (amount pills) */
 .app.is-betting .amount-btn {
   box-shadow: 
     0 6px 14px rgba(0, 0, 0, 0.35),
@@ -2477,7 +2514,7 @@ flex: 0 0 auto;
   transform: translateY(-2px);
 }
 
-/* Усиленные тени для выбранной кнопки суммы */
+/* РЈСЃРёР»РµРЅРЅС‹Рµ С‚РµРЅРё РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕР№ РєРЅРѕРїРєРё СЃСѓРјРјС‹ */
 .app.is-betting .amount-btn.selected,
 .app.is-betting .amount-btn[data-selected="true"] {
   box-shadow: 
@@ -2487,7 +2524,7 @@ flex: 0 0 auto;
     inset 0 2px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* Специальные тени для Stars кнопок */
+/* РЎРїРµС†РёР°Р»СЊРЅС‹Рµ С‚РµРЅРё РґР»СЏ Stars РєРЅРѕРїРѕРє */
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
   box-shadow: 
     0 6px 14px rgba(0, 0, 0, 0.35),
@@ -2514,17 +2551,17 @@ flex: 0 0 auto;
     inset 0 2px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* Тени для иконок внутри кнопок */
+/* РўРµРЅРё РґР»СЏ РёРєРѕРЅРѕРє РІРЅСѓС‚СЂРё РєРЅРѕРїРѕРє */
 .app.is-betting .amount-btn .amount-icon {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }/* ===========================
-   BETTING PHASE SHADOWS - ПРАВИЛЬНАЯ ВЕРСИЯ
-   (активируется через .app.is-betting)
+   BETTING PHASE SHADOWS - РџР РђР’РР›Р¬РќРђРЇ Р’Р•Р РЎРРЇ
+   (Р°РєС‚РёРІРёСЂСѓРµС‚СЃСЏ С‡РµСЂРµР· .app.is-betting)
 =========================== */
 
-/* 🔥 ТЕНИ ДЛЯ BET-TILE - переопределяем muted класс */
+/* рџ”Ґ РўР•РќР Р”Р›РЇ BET-TILE - РїРµСЂРµРѕРїСЂРµРґРµР»СЏРµРј muted РєР»Р°СЃСЃ */
 .app.is-betting .bet-tile.muted {
-  /* Объединяем существующий фильтр с тенями */
+  /* РћР±СЉРµРґРёРЅСЏРµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ С„РёР»СЊС‚СЂ СЃ С‚РµРЅСЏРјРё */
   filter: saturate(.7) brightness(.85) 
           drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5)) 
           drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
@@ -2537,7 +2574,7 @@ flex: 0 0 auto;
           drop-shadow(0 0 20px rgba(255, 255, 255, 0.15));
 }
 
-/* 🔥 ТЕНИ ДЛЯ БОНУСНЫХ ПЛИТОК */
+/* рџ”Ґ РўР•РќР Р”Р›РЇ Р‘РћРќРЈРЎРќР«РҐ РџР›РРўРћРљ */
 .app.is-betting .bet-tile.bonus {
   box-shadow: 
     0 8px 20px rgba(0, 0, 0, 0.5),
@@ -2554,7 +2591,7 @@ flex: 0 0 auto;
     0 0 0 1px rgba(255, 255, 255, 0.12) inset;
 }
 
-/* 🔥 ТЕНИ ДЛЯ КНОПКИ CLEAR */
+/* рџ”Ґ РўР•РќР Р”Р›РЇ РљРќРћРџРљР CLEAR */
 .app.is-betting .clear-bets-btn {
   box-shadow: 
     0 6px 14px rgba(0, 0, 0, 0.4),
@@ -2569,7 +2606,7 @@ flex: 0 0 auto;
     0 0 30px rgba(255, 77, 79, 0.4);
 }
 
-/* 🔥 ТЕНИ ДЛЯ AMOUNT BUTTONS */
+/* рџ”Ґ РўР•РќР Р”Р›РЇ AMOUNT BUTTONS */
 .app.is-betting .amount-btn {
   box-shadow: 
     0 6px 14px rgba(0, 0, 0, 0.4),
@@ -2586,7 +2623,7 @@ flex: 0 0 auto;
   transform: translateY(-2px);
 }
 
-/* 🔥 УСИЛЕННЫЕ ТЕНИ ДЛЯ ВЫБРАННОЙ КНОПКИ */
+/* рџ”Ґ РЈРЎРР›Р•РќРќР«Р• РўР•РќР Р”Р›РЇ Р’Р«Р‘Р РђРќРќРћР™ РљРќРћРџРљР */
 .app.is-betting .amount-btn.active,
 .app.is-betting .amount-btn.selected,
 .app.is-betting .amount-btn[data-selected="true"] {
@@ -2598,7 +2635,7 @@ flex: 0 0 auto;
     inset 0 2px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
-/* 🔥 СПЕЦИАЛЬНЫЕ ТЕНИ ДЛЯ STARS КНОПОК */
+/* рџ”Ґ РЎРџР•Р¦РРђР›Р¬РќР«Р• РўР•РќР Р”Р›РЇ STARS РљРќРћРџРћРљ */
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"]),
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"]),
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
@@ -2637,7 +2674,7 @@ flex: 0 0 auto;
     inset 0 2px 0 rgba(255, 255, 255, 0.25) !important;
 }
 
-/* 🔥 ДОПОЛНИТЕЛЬНЫЕ ТЕНИ ДЛЯ ИКОНОК */
+/* рџ”Ґ Р”РћРџРћР›РќРРўР•Р›Р¬РќР«Р• РўР•РќР Р”Р›РЇ РРљРћРќРћРљ */
 .app.is-betting .amount-btn .amount-icon {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
@@ -2647,3 +2684,4 @@ flex: 0 0 auto;
           hue-rotate(335deg) brightness(100%) contrast(92%)
           drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
+

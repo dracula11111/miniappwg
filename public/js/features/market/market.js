@@ -264,7 +264,7 @@ try { window.state = state; } catch {}
   const number = safeText(gift.number, 32);
   const price = resolvePriceForCurrency(gift, state.currency);
 
-  // ✅ Prefer pre-rendered Fragment preview (already contains backdrop + pattern + gift)
+  // Prefer pre-rendered Fragment preview (already contains backdrop + pattern + gift)
   const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentPreviewUrlFromSlug(tg?.slug, 'medium')) || '';
 
   // Fallbacks (if preview missing)
@@ -323,7 +323,9 @@ function ensureGiftDrawer() {
   overlay.className = 'market-gift-overlay';
   overlay.innerHTML = `
     <div class="market-gift-drawer" role="dialog" aria-modal="true">
-      <button class="market-gift-close" type="button" aria-label="Close">✕</button>
+      <button class="market-gift-close" type="button" aria-label="Close">
+        <img src="/icons/close.svg" alt="" aria-hidden="true">
+      </button>
 
       <div class="market-gift-hero">
         <div class="market-gift-hero__imgWrap">
@@ -476,8 +478,7 @@ async function animateGiftToProfile() {
     closeGiftDrawer();
     return;
   }
-
-  // ── clone gift image ──────────────────────────────────────────
+  // Clone gift image
   const clone = sourceImg.cloneNode(true);
   clone.classList.add('market-fly-image');
   clone.style.cssText += `
@@ -487,8 +488,7 @@ async function animateGiftToProfile() {
     height: ${sourceRect.height}px;
   `;
   document.body.appendChild(clone);
-
-  // ── glow ring at source center ────────────────────────────────
+  // Glow ring at source center
   const cx = sourceRect.left + sourceRect.width  / 2;
   const cy = sourceRect.top  + sourceRect.height / 2;
   const glowSize = sourceRect.width * 1.1;
@@ -501,8 +501,7 @@ async function animateGiftToProfile() {
     height: ${glowSize}px;
   `;
   document.body.appendChild(glow);
-
-  // ── sparkle particles ─────────────────────────────────────────
+  // Sparkle particles
   const SPARK_COLORS = ['#FFE066','#FFB300','#FF8C00','#FFF5C0','#FFFACD'];
   const SPARK_COUNT  = 10;
   const sparks = [];
@@ -526,14 +525,11 @@ async function animateGiftToProfile() {
     document.body.appendChild(spark);
     sparks.push(spark);
   }
-
-  // ── close drawer ──────────────────────────────────────────────
+  // Close drawer
   closeGiftDrawer();
-
-  // ── wait for pop animation to finish (320 ms) ─────────────────
+  // Wait for pop animation to finish (320 ms)
   await new Promise(r => setTimeout(r, 320));
-
-  // ── fly to profile icon ───────────────────────────────────────
+  // Fly to profile icon
   const toX  = targetRect.left + targetRect.width  / 2 - (sourceRect.left + sourceRect.width  / 2);
   const toY  = targetRect.top  + targetRect.height / 2 - (sourceRect.top  + sourceRect.height / 2);
   const scale = Math.max(0.14, Math.min(0.30, targetRect.width / Math.max(sourceRect.width, 1)));
@@ -547,8 +543,7 @@ async function animateGiftToProfile() {
       setTimeout(resolve, 700);
     });
   });
-
-  // ── landing pulse on nav profile icon ────────────────────────
+  // Landing pulse on nav profile icon
   const navTarget =
     document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-avatar') ||
     document.querySelector('.bottom-nav .nav-item[data-target="profilePage"] .nav-icon')   ||
@@ -561,8 +556,7 @@ async function animateGiftToProfile() {
       navTarget.classList.remove('market-nav-land-pulse');
     }, { once: true });
   }
-
-  // ── cleanup ───────────────────────────────────────────────────
+  // Cleanup
   clone.remove();
   glow.remove();
   sparks.forEach(s => s.remove());
@@ -668,12 +662,12 @@ async function applyOptimisticPurchase(gift) {
     userId: null
   };
 
-  // 1) Market UI — remove instantly
+  // 1) Market UI - remove instantly
   state.gifts = snapshot.giftsBefore.filter(x => String(x?.id) !== String(gift?.id));
   await animateGiftToProfile();
   renderMarket();
 
-  // 2) Balance UI — deduct instantly
+  // 2) Balance UI - deduct instantly
   const price = resolvePriceForCurrency(gift, state.currency);
   if (Number.isFinite(snapshot.balanceBefore) && Number.isFinite(price) && price > 0) {
     const next = snapshot.currency === 'stars'
@@ -682,7 +676,7 @@ async function applyOptimisticPurchase(gift) {
     setLiveBalance(snapshot.currency, next);
   }
 
-  // 3) Inventory UI — append optimistic item instantly
+  // 3) Inventory UI - append optimistic item instantly
   const inv = getLocalInventorySnapshot();
   snapshot.inventoryBefore = Array.isArray(inv.items) ? inv.items.slice() : null;
   snapshot.userId = inv.userId;
@@ -1395,7 +1389,7 @@ function nextFragmentPreviewFallback(url) {
 function safeImg(v, maxUrl = 4096) {
     const s = String(v ?? '').trim();
     if (!s) return '';
-    if (s.startsWith('data:')) return s; // НЕ режем base64
+    if (s.startsWith('data:')) return s; // Do not trim base64 data URLs
     return s.length > maxUrl ? s.slice(0, maxUrl) : s;
   }
   
@@ -1608,9 +1602,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
         <div class="market-filter-header">
           <h2 class="market-filter-title">Filter Gifts</h2>
           <button class="market-filter-close" type="button" aria-label="Close">
-            <svg class="market-filter-close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            <img class="market-filter-close-icon" src="/icons/close.svg" alt="" aria-hidden="true">
           </button>
         </div>
 

@@ -1,6 +1,8 @@
 /* ====================================
    CRASH GAME - ENHANCED PREMIUM DESIGN
    ==================================== */
+   body.page-crash:not(.crash-space-ui),
+   body.page-crash:not(.crash-space-ui) .app,
    body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) {
     background: 
       radial-gradient(
@@ -25,6 +27,11 @@
     background-repeat: no-repeat !important;
     background-attachment: fixed !important;
     background-size: 100% 100% !important;
+  }
+
+  body.page-crash {
+    overflow-y: hidden !important;
+    overscroll-behavior-y: none;
   }
    :root {
     /* Premium color palette */
@@ -1675,12 +1682,14 @@ filter: blur(2px);
 
 
 
+body.page-crash:not(.crash-space-ui) #crashPage,
 body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage{
   background: transparent !important;
 }
 
 /* iOS fix: fixed background sometimes creates seams */
 @supports (-webkit-touch-callout: none) {
+  body.page-crash:not(.crash-space-ui) .app,
   .app:has(#crashPage.page-active) {
     background-attachment: scroll !important;
   }
@@ -2000,7 +2009,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
 .crash-topThemeSwitch {
   position: absolute;
   left: 50%;
-  top: 80px;
+  top: 70px;
   transform: translateX(-50%);
   z-index: 35;
   display: inline-grid;
@@ -2492,7 +2501,7 @@ body.page-crash.crash-space-ui .crash-mult {
 
 @media (max-width: 430px) {
   .crash-topThemeSwitch {
-    top: 82px;
+    top: 72px;
     padding: 4px;
     gap: 5px;
   }
@@ -2507,3 +2516,4 @@ body.page-crash.crash-space-ui .crash-mult {
     height: 23px;
   }
 }
+

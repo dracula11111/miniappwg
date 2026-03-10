@@ -833,6 +833,28 @@
   };
   const navKeyForPage = (id) => NAV_ALIAS[id] || id;
   const getActivePageId = () => document.querySelector(".page.page-active")?.id || null;
+
+  // If an overlay left scroll-lock styles on body, entering game pages can show
+  // a fake top gap and extra scroll range. Normalize this state on navigation.
+  const RESET_SCROLL_PAGES = new Set([GAMES_PAGE_ID, "wheelPage", "crashPage"]);
+  function normalizeLockedViewportForPage(pageId) {
+    if (!RESET_SCROLL_PAGES.has(pageId)) return;
+    try {
+      document.documentElement.classList.remove("bonus-active");
+      document.body.classList.remove("bonus-active");
+
+      if (document.body.style.top) document.body.style.top = "";
+      if (document.body.style.position === "fixed") document.body.style.position = "";
+      if (document.body.style.left) document.body.style.left = "";
+      if (document.body.style.right) document.body.style.right = "";
+      if (document.body.style.width) document.body.style.width = "";
+      if (document.body.style.overflow === "hidden") document.body.style.overflow = "";
+
+      if ((window.scrollY || window.pageYOffset || 0) !== 0) {
+        window.scrollTo(0, 0);
+      }
+    } catch {}
+  }
   const readHistoryPage = (state = window.history?.state) => {
     const id = state?.[PAGE_HISTORY_KEY];
     return (typeof id === "string" && id) ? id : null;
@@ -921,6 +943,7 @@
     }
 
     const currentId = getActivePageId();
+    normalizeLockedViewportForPage(id);
 
     if (
       !fromHistory &&
@@ -1019,5 +1042,7 @@
       const first = document.querySelector(".page");
       if(first) activatePage(first.id);
     }
+  } else {
+    normalizeLockedViewportForPage(getActivePageId());
   }
 })();

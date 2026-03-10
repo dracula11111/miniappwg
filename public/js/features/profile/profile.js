@@ -763,7 +763,9 @@ function ensureWithdrawModal() {
     <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
-        <button type="button" data-close="1" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;">✕</button>
+        <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">
+          <img src="/icons/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
+        </button>
       </div>
 
       <div style="padding:16px;">
@@ -818,7 +820,9 @@ function ensureWithdrawErrorModal() {
     <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
-        <button type="button" data-close="1" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;">✕</button>
+        <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">
+          <img src="/icons/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
+        </button>
       </div>
 
       <div style="padding:16px;">

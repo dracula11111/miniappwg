@@ -1240,10 +1240,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
 
+  let resizeRaf = 0;
   window.addEventListener('resize', () => {
-    prepareCanvas();
-    drawWheel(currentAngle);
-  });
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = 0;
+      prepareCanvas();
+      drawWheel(currentAngle);
+    });
+  }, { passive: true });
   
   checkHistoryVisibility();
 });

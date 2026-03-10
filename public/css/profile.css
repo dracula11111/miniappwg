@@ -1083,9 +1083,17 @@ html[data-currency="stars"] .profile-ava,
   transform: scale(0.9);
 }
 
-.deposit-popup__close svg {
+.deposit-popup__close img {
   width: 20px;
   height: 20px;
+  display: block;
+  filter: brightness(0) invert(1);
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.deposit-popup__close:hover img {
+  opacity: 0.9;
 }
 
 /* Заголовок */
@@ -1552,20 +1560,7 @@ html[data-currency="stars"] .profile-ava,
 
 
 
-                    /* ===== Topbar layout: left pill — center logo — right pill ===== */
-          .topbar {
-            display: grid;
-            grid-template-columns: 1fr auto 1fr; /* left | center | right */
-            align-items: center;
-            gap: 12px;
-            padding: 10px 14px;
-          }
-
-          /* Центрируем лого (если есть .logo-wrap) */
-          .topbar .logo-wrap { justify-self: center; }
-
-          /* Правую пилюлю прижимаем вправо (твоя TON-пилюля) */
-          .topbar .balance { justify-self: end; }
+                    /* Topbar layout rules are global (layout.css/components.css). */
 
           /* ===== Профиль-пилюля (левая) ===== */
           /* Если у тебя .pill уже есть — этот блок можно не дублировать.
@@ -3211,6 +3206,13 @@ html[data-currency="stars"] .profile-ava,
     align-items: center;
     justify-content: center;
     cursor: pointer;
+  }
+  .tcw-modal__close img{
+    width: 18px;
+    height: 18px;
+    display: block;
+    filter: brightness(0) invert(1);
+    opacity: 0.9;
   }
   
   .tcw-modal__title{
