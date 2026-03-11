@@ -3794,11 +3794,27 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
-    // Emergency anti-fraud: block ALL client-originated positive credits.
-    // Positive balance changes are accepted only from trusted backend/relayer.
+    const allowUntrustedGameFlows = String(process.env.ALLOW_UNTRUSTED_GAME_FLOWS || "1").trim() !== "0";
+    const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
+    const allowedUntrustedCreditTypes = new Set(["crash_win", "case_gift_claim", "case_nft_sell", "wheel_win"]);
+
+    const isAllowedUntrustedDebit =
+      !isRelayer &&
+      allowUntrustedGameFlows &&
+      amountNum < 0 &&
+      allowedUntrustedDebitTypes.has(typeNorm);
+
+    const isAllowedUntrustedCredit =
+      !isRelayer &&
+      allowUntrustedGameFlows &&
+      amountNum > 0 &&
+      allowedUntrustedCreditTypes.has(typeNorm);
+
+    // Keep direct client top-ups blocked; allow only explicit game-flow credit types.
     const isBlockedUntrustedCredit =
       !isRelayer &&
-      amountNum > 0;
+      amountNum > 0 &&
+      !isAllowedUntrustedCredit;
     if (isBlockedUntrustedCredit) {
       console.warn("[Deposit][SECURITY] Rejected untrusted positive credit:", {
         userId,
@@ -3813,11 +3829,11 @@ app.post("/api/deposit-notification", async (req, res) => {
       });
     }
 
-    // While positive client credits are frozen, also block corresponding risky debits
-    // so users cannot spend funds in game flows that currently cannot pay out safely.
+    // When game flows are disabled, keep legacy maintenance lock for these debits.
     const isBlockedUntrustedDebit =
       !isRelayer &&
       amountNum < 0 &&
+      !isAllowedUntrustedDebit &&
       (typeNorm === "bet" || typeNorm === "case_open");
     if (isBlockedUntrustedDebit) {
       return res.status(503).json({
@@ -3838,7 +3854,13 @@ app.post("/api/deposit-notification", async (req, res) => {
     });
 
     // Idempotency: dedupe positive credits and key bet/win events.
-    const shouldDedupe = !!depositId && (amountNum > 0 || typeNorm === "wheel_bet" || typeNorm === "wheel_win" || typeNorm === "bet");
+    const shouldDedupe = !!depositId && (
+      amountNum > 0 ||
+      typeNorm === "wheel_bet" ||
+      typeNorm === "wheel_win" ||
+      typeNorm === "bet" ||
+      typeNorm === "case_open"
+    );
 
     if (shouldDedupe && isDepositProcessed(depositId)) {
       console.log("[Deposit] Duplicate detected, skipping:", depositId);
@@ -3979,6 +4001,16 @@ app.post("/api/deposit-notification", async (req, res) => {
 
 function generateDescription(type, amount, txHash, roundId) {
   switch (type) {
+    case 'bet':
+      return `Crash bet${roundId ? ` (${roundId})` : ''}`;
+    case 'crash_win':
+      return `Crash win${roundId ? ` (${roundId})` : ''}`;
+    case 'case_open':
+      return `Case open${roundId ? ` (${roundId})` : ''}`;
+    case 'case_gift_claim':
+      return `Case gift claim${roundId ? ` (${roundId})` : ''}`;
+    case 'case_nft_sell':
+      return `Case NFT sell${roundId ? ` (${roundId})` : ''}`;
     case 'wheel_bet':
       return `Wheel bet${roundId ? ` (${roundId})` : ''}`;
     case 'wheel_win':

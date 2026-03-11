@@ -9,9 +9,9 @@
       "nextRetryAt": 0,
       "cooldownMs": 0,
       "lastError": "",
-      "lastStatus": "ok",
+      "lastStatus": "disabled",
       "lastResultCount": 0,
-      "health": 100
+      "health": 80
     },
     "giftasset": {
       "weight": 70,
