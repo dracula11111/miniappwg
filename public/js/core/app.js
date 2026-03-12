@@ -704,6 +704,22 @@
   const GAMES_PAGE_ID = "gamesPage";
   const PAGE_HISTORY_KEY = "__wtPage";
   const GAMES_CHILD_PAGES = new Set(["wheelPage", "crashPage", "casesPage"]);
+  const MOBILE_GAME_BACK_PAGES = GAMES_CHILD_PAGES;
+
+  function detectMobileIosOrAndroid() {
+    try {
+      const ua = String(navigator.userAgent || "").toLowerCase();
+      const platform = String(navigator.platform || "").toLowerCase();
+      const touchPoints = Number(navigator.maxTouchPoints || 0);
+      const isAndroid = ua.includes("android");
+      const isIOS = /iphone|ipod|ipad/.test(ua) || (platform === "macintel" && touchPoints > 1);
+      return isAndroid || isIOS;
+    } catch {
+      return false;
+    }
+  }
+
+  const IS_MOBILE_IOS_OR_ANDROID = detectMobileIosOrAndroid();
 
   // какие страницы считаем "внутри Games" (в навбаре подсвечиваем Games)
   const NAV_ALIAS = {
@@ -753,6 +769,57 @@
         window.history.replaceState(nextState, "", window.location.href);
       } else if (!replace && typeof window.history.pushState === "function") {
         window.history.pushState(nextState, "", window.location.href);
+      }
+    } catch {}
+  }
+
+  function syncTelegramMiniGameBackButton(pageId = getActivePageId()) {
+    if (!IS_MOBILE_IOS_OR_ANDROID) return;
+    const backButton = tg?.BackButton;
+    if (!backButton) return;
+
+    const shouldShow = MOBILE_GAME_BACK_PAGES.has(pageId);
+    try {
+      if (shouldShow) backButton.show?.();
+      else backButton.hide?.();
+    } catch {}
+  }
+
+  function navigateToGamesFromMiniGame({ preferHistoryBack = true } = {}) {
+    const currentId = getActivePageId();
+    if (!MOBILE_GAME_BACK_PAGES.has(currentId)) return false;
+
+    if (
+      preferHistoryBack &&
+      readHistoryPage() === currentId &&
+      typeof window.history?.back === "function"
+    ) {
+      window.history.back();
+      return true;
+    }
+
+    activatePage(GAMES_PAGE_ID);
+    return true;
+  }
+
+  function setupTelegramMiniGameBackButton() {
+    if (!IS_MOBILE_IOS_OR_ANDROID) return;
+    const backButton = tg?.BackButton;
+    if (!backButton) return;
+
+    const onBackButtonClick = () => {
+      navigateToGamesFromMiniGame({ preferHistoryBack: true });
+    };
+
+    try {
+      if (typeof backButton.offClick === "function") {
+        backButton.offClick(onBackButtonClick);
+      }
+
+      if (typeof backButton.onClick === "function") {
+        backButton.onClick(onBackButtonClick);
+      } else if (typeof tg?.onEvent === "function") {
+        tg.onEvent("backButtonClicked", onBackButtonClick);
       }
     } catch {}
   }
@@ -860,6 +927,7 @@
     const navKey = navKeyForPage(id);
     document.querySelectorAll(".bottom-nav .nav-item").forEach(i=>i.classList.remove("active"));
     document.querySelector(`.bottom-nav .nav-item[data-target="${navKey}"]`)?.classList.add("active");
+    syncTelegramMiniGameBackButton(id);
 
     if (!fromHistory) {
       const shouldPush = GAMES_CHILD_PAGES.has(id);
@@ -925,4 +993,7 @@
   } else {
     normalizeLockedViewportForPage(getActivePageId());
   }
+
+  setupTelegramMiniGameBackButton();
+  syncTelegramMiniGameBackButton();
 })();

@@ -974,15 +974,35 @@ syncAmountButtons();
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 18px;
   margin: 16px 0;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
   --wt-indicator-x: 0px;
   box-shadow: 
     0 8px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.currency-switch::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.58),
+    rgba(255, 255, 255, 0)
+  );
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* Анимированный индикатор выбора */
