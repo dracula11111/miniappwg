@@ -10,6 +10,9 @@ import "../css/market.css";
 import "../css/tasks.css";
 import "../css/profile.css";
 import "../css/bonus.css";
+import "../css/unauthorized.css";
+
+import { blockNonTelegramBrowserInProd } from "./shared/telegram-entry-guard.js";
 
 // Mount the large HTML shell into #root before feature scripts run.
 import "./app-shell.js";
@@ -35,3 +38,6 @@ import "./shared/validation.js";
 import "./shared/balance-live.js";
 import "./core/settings.js";
 import "./features/admin-panel.js";
+
+// Render Unauthorized screen for non-Telegram browsers in production.
+blockNonTelegramBrowserInProd();

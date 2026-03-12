@@ -1579,11 +1579,12 @@ function getBalanceSafe(currency) {
 
     const currency = window.WildTimeCurrency?.current || 'ton';
     const demoModeAtStart = !!isDemoMode;
+    const hasInitData = (typeof initData === 'string') && initData.trim().length > 0;
     // Важно: шанс выпадения NFT зависит ТОЛЬКО от Demo-тумблера.
     // initData может отсутствовать (например, на десктопе), но это не должно превращать режим в Demo.
     const effectiveDemo = demoModeAtStart;
-    // Серверные списания/начисления делаем только если это не demo и есть реальный userId.
-    const serverEnabled = (!demoModeAtStart && tgUserId !== 'guest');
+    // Серверные списания/начисления делаем только если это не demo, есть userId и валидный initData.
+    let serverEnabled = (!demoModeAtStart && tgUserId !== 'guest' && hasInitData);
     const countAtStart = selectedCount;
     const totalPrice = currentCase.price[currency] * countAtStart;
 
@@ -1626,14 +1627,38 @@ function getBalanceSafe(currency) {
         }, 6500);
 
         if (!r.ok) {
-          showToast('Не удалось списать стоимость кейса. Попробуй ещё раз.');
-          tgWeb?.HapticFeedback?.notificationOccurred?.('error');
-          return;
+          const canFallbackToLocal =
+            r.status === 0 ||
+            r.status === 401 ||
+            r.status === 403 ||
+            r.status === 503;
+
+          if (canFallbackToLocal) {
+            console.warn('[Cases] Server spend failed, falling back to local mode', {
+              status: r.status,
+              error: r.error || r.json?.error || null
+            });
+            if (spend !== 0) applyBalanceDelta(currency, spend);
+            serverEnabled = false;
+            if (activeSpin) {
+              activeSpin.serverEnabled = false;
+              activeSpin.initData = '';
+            }
+            if (r.status === 401 || r.status === 403) {
+              showToast('Сессия Telegram устарела. Продолжаем в локальном режиме.');
+            } else {
+              showToast('Сервер недоступен. Продолжаем в локальном режиме.');
+            }
+          } else {
+            showToast('Не удалось списать стоимость кейса. Попробуй ещё раз.');
+            tgWeb?.HapticFeedback?.notificationOccurred?.('error');
+            return;
+          }
         }
 
-        if (r.json && typeof r.json.newBalance !== 'undefined') {
+        if (r.ok && r.json && typeof r.json.newBalance !== 'undefined') {
           setBalanceValue(currency, r.json.newBalance);
-        } else {
+        } else if (r.ok) {
           // fallback (rare)
           applyBalanceDelta(currency, spend);
         }
@@ -1909,7 +1934,11 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
     // Небольшая задержка для плавной анимации возврата UI
     await delay(400);
     
-    await showResult(currency, spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined);
+    await showResult(
+      currency,
+      spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined,
+      spinCtx && typeof spinCtx.serverEnabled === 'boolean' ? spinCtx.serverEnabled : undefined
+    );
   }
 
   // ====== HIGHLIGHT WINNING ITEM ======
@@ -2151,14 +2180,17 @@ function showToast(msg) {
 // ====== SHOW RESULT (Gift: Claim; NFT: Claim/Sell) ======
 
 // ====== SHOW RESULT (Gift: Claim; NFT: Claim/Sell) ======
-async function showResult(currency, demoModeOverride) {
+async function showResult(currency, demoModeOverride, serverEnabledOverride) {
   const tgWeb = window.Telegram?.WebApp;
   const tgUserId = (tgWeb?.initDataUnsafe?.user?.id) ? String(tgWeb.initDataUnsafe.user.id) : "guest";
   const initData = tgWeb?.initData ? tgWeb.initData : "";
 
   const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
-  // Сервер включаем только если не demo и есть реальный userId.
-  const serverEnabled = (!demoModeForRound && tgUserId !== 'guest');
+  const hasInitData = (typeof initData === 'string') && initData.trim().length > 0;
+  // Сервер включаем только если не demo, есть userId и валидный initData.
+  const serverEnabled = (typeof serverEnabledOverride === 'boolean')
+    ? serverEnabledOverride
+    : (!demoModeForRound && tgUserId !== 'guest' && hasInitData);
 
   // Collect wins with carousel refs (needed for per-line glow clearing)
   const winEntries = carousels

@@ -890,6 +890,43 @@
     0%,100%{ transform:scale(1); }
     50%    { transform:scale(1.18); }
   }
+
+  .lr-overlay-notice {
+    max-width: min(92%, 430px);
+    min-height: 24px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    color: #ffe4e6;
+    background:
+      linear-gradient(180deg, rgba(185, 28, 28, 0.38) 0%, rgba(127, 29, 29, 0.58) 100%);
+    border: 1px solid rgba(251, 113, 133, 0.44);
+    box-shadow:
+      0 10px 24px rgba(127, 29, 29, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.20);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+  }
+
+  .lr-overlay-notice--visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    animation: lrOverlayNoticePulse 0.22s ease;
+  }
+
+  @keyframes lrOverlayNoticePulse {
+    0%   { transform: translateY(-8px) scale(0.94); }
+    70%  { transform: translateY(0) scale(1.02); }
+    100% { transform: translateY(0) scale(1); }
+  }
   
   /* Tile base — fully transparent, image-only */
   .lr-tile {

@@ -44,6 +44,7 @@ class LootRush {
     this._forcedPickIndex = null;
     this._forcedMultiplier = null;
     this._lastNoBetToastAt = 0;
+    this._noBetOverlayTimer = null;
   }
 
   _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -95,6 +96,7 @@ class LootRush {
     const now = Date.now();
     if (now - this._lastNoBetToastAt < 700) return;
     this._lastNoBetToastAt = now;
+    this._showNoBetOverlayNotice('\u0412\u044b \u043d\u0435 \u043f\u043e\u0441\u0442\u0430\u0432\u0438\u043b\u0438 \u043d\u0430 Loot Rush');
 
     try {
       const msg = 'Вы не поставили на Loot Rush';
@@ -111,6 +113,27 @@ class LootRush {
     try {
       window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('warning');
     } catch (_) {}
+  }
+
+  _showNoBetOverlayNotice(message) {
+    const notice = this.container?.querySelector('#lrNoBetNotice');
+    if (!notice) return false;
+
+    notice.textContent = message;
+    notice.classList.remove('lr-overlay-notice--visible');
+    void notice.offsetWidth;
+    notice.classList.add('lr-overlay-notice--visible');
+
+    if (this._noBetOverlayTimer) {
+      clearTimeout(this._noBetOverlayTimer);
+      this._noBetOverlayTimer = null;
+    }
+    this._noBetOverlayTimer = setTimeout(() => {
+      notice.classList.remove('lr-overlay-notice--visible');
+      this._noBetOverlayTimer = null;
+    }, 2200);
+
+    return true;
   }
 
   // Soft show/hide (Back hides overlay; Watch resumes)
@@ -249,6 +272,7 @@ class LootRush {
         <div class="lr-bottom">
           <div class="lr-title" id="lrTitle">Choose your loot bag</div>
           <div class="lr-timer lr-timer-hidden" id="lrTimer">${this.options.durationSec}</div>
+          <div class="lr-overlay-notice" id="lrNoBetNotice" role="status" aria-live="polite"></div>
         </div>
       </div>
     `;
@@ -610,6 +634,11 @@ class LootRush {
 
       overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
       overlay.style.display = 'none';
+
+      if (this._noBetOverlayTimer) {
+        clearTimeout(this._noBetOverlayTimer);
+        this._noBetOverlayTimer = null;
+      }
 
       this.container.innerHTML = '';
       this._unlockScroll();
