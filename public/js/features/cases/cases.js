@@ -480,8 +480,45 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) 
     ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
-   
 
+function safeHaptic(kind, style) {
+  const h = window.Telegram?.WebApp?.HapticFeedback || tg?.HapticFeedback;
+  if (!h) return;
+  try {
+    if (kind === 'selection') {
+      h.selectionChanged?.();
+      return;
+    }
+    if (kind === 'impact') {
+      h.impactOccurred?.(style || 'light');
+      return;
+    }
+    if (kind === 'notification') {
+      h.notificationOccurred?.(style || 'success');
+    }
+  } catch (e) {
+    console.warn('[Cases] Haptic call failed:', {
+      kind,
+      style: style || null,
+      error: e?.message || String(e || 'unknown')
+    });
+  }
+}
+
+function isLocalRuntime() {
+  try {
+    const host = String(window.location.hostname || '').toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    );
+  } catch {
+    return false;
+  }
+}
 
    // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
       // ====== TON <-> STARS rate (0.4332 TON = 50 ⭐) ======
@@ -983,7 +1020,7 @@ function getBalanceSafe(currency) {
       toggle.classList.toggle('active', isDemoMode);
       updateOpenButton();
 
-      tg?.HapticFeedback?.selectionChanged?.();
+      safeHaptic('selection');
       console.log('[Cases] Demo mode:', isDemoMode);
     });
 
@@ -1117,7 +1154,7 @@ function getBalanceSafe(currency) {
     if (sheetPanel) {
       requestAnimationFrame(() => {
         sheetPanel.classList.add('active');
-        tg?.HapticFeedback?.impactOccurred?.('medium');
+        safeHaptic('impact', 'medium');
 
         setTimeout(() => {
           isAnimating = false;
@@ -1138,9 +1175,7 @@ function getBalanceSafe(currency) {
     if (overlay) overlay.classList.remove('active');
     unlockCaseSheetScreen();
 
-    if (tg?.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred('light');
-    }
+    safeHaptic('impact', 'light');
 
     setTimeout(() => {
       isAnimating = false;
@@ -1515,7 +1550,7 @@ function getBalanceSafe(currency) {
       btn.classList.toggle('active', parseInt(btn.dataset.count) === count);
     });
 
-    tg?.HapticFeedback?.selectionChanged?.();
+    safeHaptic('selection');
 
     stopAllAnimations();
 
@@ -1544,9 +1579,14 @@ function getBalanceSafe(currency) {
 
   while (performance.now() - start < timeoutMs) {
     const sig = carousels.map(c => {
-      const m = getCarouselMetrics(c);
-      const w = c.element.getBoundingClientRect().width;
-      return m ? `${w.toFixed(2)}:${m.itemWidth.toFixed(2)}:${(m.gap||0).toFixed(2)}` : 'x';
+      try {
+        if (!c?.element || !c?.itemsContainer) return 'x';
+        const m = getCarouselMetrics(c);
+        const w = c.element.getBoundingClientRect().width;
+        return m ? `${w.toFixed(2)}:${m.itemWidth.toFixed(2)}:${(m.gap||0).toFixed(2)}` : 'x';
+      } catch {
+        return 'x';
+      }
     }).join('|');
 
     if (sig === lastSig) return true;
@@ -1595,14 +1635,16 @@ function getBalanceSafe(currency) {
 
     activeSpin = { demoMode: effectiveDemo, serverEnabled, currency, count: countAtStart, totalPrice, userId: tgUserId, initData, roundId: `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}` };
     setControlsLocked(true);
+    let openStep = 'start';
 
     try {
       // 1) Balance check + server spend (only in normal mode)
+      openStep = 'balance_and_spend';
       if (serverEnabled) {
         const balance = getBalanceSafe(currency);
         if (balance < totalPrice) {
           showToast(`Insufficient ${currency.toUpperCase()} balance`);
-          tgWeb?.HapticFeedback?.notificationOccurred?.('error');
+          safeHaptic('notification', 'error');
           return;
         }
 
@@ -1651,7 +1693,7 @@ function getBalanceSafe(currency) {
             }
           } else {
             showToast('Не удалось списать стоимость кейса. Попробуй ещё раз.');
-            tgWeb?.HapticFeedback?.notificationOccurred?.('error');
+            safeHaptic('notification', 'error');
             return;
           }
         }
@@ -1678,6 +1720,7 @@ function getBalanceSafe(currency) {
       console.log('[Cases] 🎰 Opening case:', { demo: effectiveDemo, serverEnabled, count: countAtStart, currency });
       
       // 2) Активируем fullscreen режим
+      openStep = 'fullscreen';
       document.body.classList.add("case-opening-fullscreen");
       document.body.setAttribute("data-opening-case", currentCase.id);
       
@@ -1689,14 +1732,49 @@ function getBalanceSafe(currency) {
 
 
       // 3) Wait for stable layout, then spin
+      openStep = 'layout_ready';
       await waitForStableCarouselLayout();
-      tgWeb?.HapticFeedback?.impactOccurred?.('heavy');
+      safeHaptic('impact', 'heavy');
 
+      openStep = 'spin';
       await spinCarousels(currency, activeSpin);
+      openStep = 'done';
     } catch (e) {
-      console.error('[Cases] Open error:', e);
-      showToast('Ошибка открытия кейса');
-      tgWeb?.HapticFeedback?.notificationOccurred?.('error');
+      console.error('[Cases] Open error:', {
+        step: openStep,
+        error: e?.message || String(e || 'unknown'),
+        stack: e?.stack || null
+      });
+
+      if (isLocalRuntime()) {
+        showToast(`Ошибка открытия кейса (${openStep})`);
+      } else {
+        showToast('Ошибка открытия кейса');
+      }
+      safeHaptic('notification', 'error');
+
+      // Localhost fallback: try local mode spin once when failure happened before spin.
+      if (isLocalRuntime() && openStep !== 'spin' && openStep !== 'done') {
+        try {
+          console.warn('[Cases] Local fallback: retrying open in local mode', { openStep });
+          if (activeSpin) {
+            activeSpin.serverEnabled = false;
+            activeSpin.initData = '';
+            activeSpin.demoMode = !!effectiveDemo;
+          }
+          document.body.classList.add('case-opening-fullscreen');
+          document.body.setAttribute('data-opening-case', currentCase?.id || '');
+          await delay(120);
+          await waitForStableCarouselLayout(600);
+          await spinCarousels(currency, activeSpin || {
+            demoMode: !!effectiveDemo,
+            serverEnabled: false
+          });
+          return;
+        } catch (fallbackErr) {
+          console.error('[Cases] Local fallback open failed:', fallbackErr);
+        }
+      }
     } finally {
       // NOTE: spinCarousels awaits showResult (claims), so this runs only after claim/sell is done.
       openBtn.disabled = false;
@@ -1723,6 +1801,7 @@ function getBalanceSafe(currency) {
 
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
+        try {
         // 1) Выбираем выигрыш
         const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
             const winItem = normalizeItemForCurrency(winRaw, currency);
@@ -1894,8 +1973,8 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
           cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
 
           // тактилка не чаще, чем раз в 140мс
-          if (tg && tg.HapticFeedback && progress < 0.85 && (currentTime - lastHaptic) > 140) {
-            try { tg.HapticFeedback.impactOccurred('light'); } catch (e) {}
+          if (progress < 0.85 && (currentTime - lastHaptic) > 140) {
+            safeHaptic('impact', 'light');
             lastHaptic = currentTime;
           }
 
@@ -1917,13 +1996,22 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         setTimeout(() => {
           animationFrames[index] = requestAnimationFrame(animate);
         }, index * 140);
+        } catch (spinLineError) {
+          console.error('[Cases] spin line error:', {
+            index,
+            error: spinLineError?.message || String(spinLineError || 'unknown')
+          });
+          resolve();
+        }
       });
     });
 
     await Promise.all(spinPromises);
 
     // для CSS: затемнить остальные
-    carousels.forEach(c => c.element.classList.add('cases-finished'));
+    carousels.forEach(c => {
+      try { c?.element?.classList?.add('cases-finished'); } catch (_) {}
+    });
 
     await delay(250);
     
@@ -1934,11 +2022,33 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
     // Небольшая задержка для плавной анимации возврата UI
     await delay(400);
     
-    await showResult(
-      currency,
-      spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined,
-      spinCtx && typeof spinCtx.serverEnabled === 'boolean' ? spinCtx.serverEnabled : undefined
-    );
+    try {
+      await showResult(
+        currency,
+        spinCtx && typeof spinCtx.demoMode === 'boolean' ? spinCtx.demoMode : undefined,
+        spinCtx && typeof spinCtx.serverEnabled === 'boolean' ? spinCtx.serverEnabled : undefined
+      );
+    } catch (showResultError) {
+      console.error('[Cases] showResult error:', showResultError);
+      showToast('Не удалось отобразить результат. Попробуй ещё раз.');
+      safeHaptic('notification', 'error');
+
+      // Fail-safe UI reset
+      try { hideClaimBar(); } catch (_) {}
+      document.body.classList.remove('case-opening-fullscreen', 'case-opening-complete', 'case-opening-finished');
+      document.body.removeAttribute('data-opening-case');
+      carousels.forEach((carousel) => {
+        if (!carousel) return;
+        try { carousel.element?.classList?.remove('cases-finished'); } catch (_) {}
+        try {
+          const ind = carousel.element?.querySelector?.('.case-carousel-indicator');
+          if (ind) ind.classList.remove('won', 'winning');
+        } catch (_) {}
+        try { delete carousel._clearedGlow; } catch (_) { carousel._clearedGlow = false; }
+        try { resetCarouselToIdleFromCurrent(carousel); } catch (_) {}
+      });
+      try { startIdleAnimation(); } catch (_) {}
+    }
   }
 
   // ====== HIGHLIGHT WINNING ITEM ======
@@ -2344,7 +2454,7 @@ const claimAllNfts = async (queue) => {
   }
   try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
 
-  window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+  safeHaptic('notification', 'success');
   showToast(items.length > 1 ? 'NFT сохранены ✅' : 'NFT сохранено ✅');
 
   return true;
@@ -2587,7 +2697,7 @@ async function onGiftClaimClick() {
       }
     }
 
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    safeHaptic('notification', 'success');
 
     // подарки забраны -> гасим зелёную линию на тех каруселях, где выпали gifts
     clearGlowForType('gift');
@@ -2649,7 +2759,7 @@ async function onNftClaimClick() {
       try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
     }
 
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    safeHaptic('notification', 'success');
     if (!pr.demo) showToast('NFT сохранено ✅');
 
     // Clear glow only for this NFT line
@@ -2709,7 +2819,7 @@ async function onNftSellClick() {
       }
     }
 
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    safeHaptic('notification', 'success');
     if (!pr.demo) showToast('NFT продано ✅');
 
     // Clear glow only for this NFT line

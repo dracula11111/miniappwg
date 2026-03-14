@@ -16,6 +16,26 @@
   // Telegram Web App API
   const tg = window.Telegram?.WebApp;
 
+  const WT_LOCAL_TEST_BALANCE_ENABLED = (() => {
+    try {
+      const host = String(window.location.hostname || '').toLowerCase();
+      return (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '0.0.0.0' ||
+        host === '::1' ||
+        host.endsWith('.local')
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  const WT_LOCAL_TEST_BALANCE = {
+    ton: 1000,
+    stars: 500000
+  };
+
   // =========================
   // Wallet pill: "Connect Wallet" when TON wallet is not connected
   // =========================
@@ -226,12 +246,35 @@
     root.classList.toggle('currency-ton', currentCurrency === 'ton');
     root.classList.toggle('currency-stars', currentCurrency === 'stars');
   }
+
+  function applyLocalTestBalanceFloor() {
+    if (!WT_LOCAL_TEST_BALANCE_ENABLED) return false;
+
+    const prevTon = Number(userBalance.ton);
+    const prevStars = Number(userBalance.stars);
+
+    const nextTon = Number.isFinite(prevTon)
+      ? Math.max(prevTon, WT_LOCAL_TEST_BALANCE.ton)
+      : WT_LOCAL_TEST_BALANCE.ton;
+    const nextStars = Number.isFinite(prevStars)
+      ? Math.max(Math.round(prevStars), WT_LOCAL_TEST_BALANCE.stars)
+      : WT_LOCAL_TEST_BALANCE.stars;
+
+    const changed = (nextTon !== prevTon) || (nextStars !== prevStars);
+    userBalance.ton = nextTon;
+    userBalance.stars = nextStars;
+    return changed;
+  }
   
   // ================== INIT ==================
   function init() {
     console.log('[Switch] 🚀 Initializing currency system...');
     
     loadCurrency();
+    if (WT_LOCAL_TEST_BALANCE_ENABLED) {
+      applyLocalTestBalanceFloor();
+      console.log('[Switch] 🧪 Localhost test balance mode enabled:', WT_LOCAL_TEST_BALANCE);
+    }
     applyCurrencyTheme();
 
     if (document.readyState === 'loading') {
@@ -750,6 +793,8 @@ syncAmountButtons();
     if (balances.stars !== undefined) {
       userBalance.stars = parseInt(balances.stars) || 0;
     }
+
+    applyLocalTestBalanceFloor();
     
     updateBalanceDisplay(true);
     
@@ -818,7 +863,19 @@ syncAmountButtons();
   async function loadBalanceFromServer() {
     const userId = tg?.initDataUnsafe?.user?.id;
     if (!userId) {
-      console.warn('[Switch] ⚠️ No user ID, skipping balance load');
+      if (WT_LOCAL_TEST_BALANCE_ENABLED) {
+        applyLocalTestBalanceFloor();
+        updateBalanceDisplay(false);
+        window.dispatchEvent(new CustomEvent('balance:loaded', {
+          detail: {
+            ton: userBalance.ton,
+            stars: userBalance.stars
+          }
+        }));
+        console.log('[Switch] 🧪 Localhost guest mode: using test balance');
+      } else {
+        console.warn('[Switch] ⚠️ No user ID, skipping balance load');
+      }
       return;
     }
 
@@ -895,6 +952,7 @@ syncAmountButtons();
     
     setBalance: (currency, amount) => {
       userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
+      applyLocalTestBalanceFloor();
       updateBalanceDisplay(true);
     },
     

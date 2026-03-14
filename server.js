@@ -3794,6 +3794,12 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
+    const reserveTon =
+      currency === "ton" && amountNum < 0 ? Math.abs(Number(amountNum) || 0) : 0;
+    const reserveStars =
+      currency === "stars" && amountNum < 0 ? Math.abs(Math.round(Number(amountNum) || 0)) : 0;
+    await ensureLocalDevBalanceFloor(req, userId, { reserveTon, reserveStars });
+
     const allowUntrustedGameFlows = String(process.env.ALLOW_UNTRUSTED_GAME_FLOWS || "1").trim() !== "0";
     const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
     const allowedUntrustedCreditTypes = new Set(["crash_win", "case_gift_claim", "case_nft_sell", "wheel_win"]);
@@ -4025,6 +4031,93 @@ function generateDescription(type, amount, txHash, roundId) {
   }
 }
 // ====== SSE для автообновления баланса ======
+const LOCAL_DEV_BALANCE_ENABLED =
+  !IS_PROD &&
+  String(process.env.LOCAL_DEV_BALANCE_ENABLED || "1").trim() !== "0";
+const LOCAL_DEV_BALANCE_FLOOR_TON = Math.max(
+  0,
+  Number(process.env.LOCAL_DEV_BALANCE_TON || 1000) || 1000
+);
+const LOCAL_DEV_BALANCE_FLOOR_STARS = Math.max(
+  0,
+  Math.round(Number(process.env.LOCAL_DEV_BALANCE_STARS || 500000) || 500000)
+);
+
+function isLocalhostRequest(req) {
+  const rawHost = String(
+    req?.hostname ||
+    req?.get?.("x-forwarded-host") ||
+    req?.get?.("host") ||
+    ""
+  ).split(",")[0].trim();
+  const host = rawHost.replace(/^\[/, "").replace(/\]$/, "").split(":")[0].toLowerCase();
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.endsWith(".local")
+  );
+}
+
+async function ensureLocalDevBalanceFloor(req, userId, opts = {}) {
+  try {
+    if (!LOCAL_DEV_BALANCE_ENABLED || !isLocalhostRequest(req)) return null;
+
+    const uid = parseInt(String(userId || ""), 10);
+    if (Number.isNaN(uid)) return null;
+
+    const reserveTon = Math.max(0, Number(opts.reserveTon || 0) || 0);
+    const reserveStars = Math.max(0, Math.round(Number(opts.reserveStars || 0) || 0));
+
+    const targetTon = LOCAL_DEV_BALANCE_FLOOR_TON + reserveTon;
+    const targetStars = LOCAL_DEV_BALANCE_FLOOR_STARS + reserveStars;
+
+    try {
+      await db.saveUser({
+        id: uid,
+        is_bot: false,
+        first_name: "Local",
+        last_name: "Tester",
+        username: "local_tester",
+        language_code: "en",
+        is_premium: false
+      });
+    } catch {}
+
+    const bal = await db.getUserBalance(uid);
+    const curTon = Number(bal?.ton_balance || 0);
+    const curStars = Number(bal?.stars_balance || 0);
+
+    if (curTon < targetTon) {
+      await db.updateBalance(
+        uid,
+        "ton",
+        targetTon - curTon,
+        "dev_topup",
+        "Localhost test auto top-up (TON)",
+        { localDev: true }
+      );
+    }
+
+    if (curStars < targetStars) {
+      await db.updateBalance(
+        uid,
+        "stars",
+        targetStars - curStars,
+        "dev_topup",
+        "Localhost test auto top-up (Stars)",
+        { localDev: true }
+      );
+    }
+
+    return await db.getUserBalance(uid);
+  } catch (e) {
+    console.warn("[DEV BALANCE] Failed to ensure localhost test balance:", e?.message || e);
+    return null;
+  }
+}
+
 const balanceClients = new Map(); // userId -> Set of response objects
 
 app.get("/api/balance/stream", async (req, res) => {
@@ -4050,6 +4143,7 @@ app.get("/api/balance/stream", async (req, res) => {
   
   // Send initial balance
   try {
+    await ensureLocalDevBalanceFloor(req, userId);
     const balance = await db.getUserBalance(parseInt(userId));
     res.write(`data: ${JSON.stringify({
       type: 'balance',
@@ -4162,6 +4256,7 @@ app.get("/api/balance", async (req, res) => {
       });
     }
 
+    await ensureLocalDevBalanceFloor(req, userId);
     const balance = await db.getUserBalance(parseInt(userId));
 
     console.log('[Balance] ✅ Retrieved:', balance);

@@ -52,7 +52,6 @@ body.wt-unauth-mode.wt-terms-open {
 .wt-unauth__image {
   width: clamp(128px, 34vw, 190px);
   height: auto;
-  filter: drop-shadow(0 16px 34px rgba(0, 155, 255, 0.36));
 }
 
 .wt-unauth__title {

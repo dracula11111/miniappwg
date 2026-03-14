@@ -834,38 +834,59 @@ html[data-currency="stars"] .profile-ava,
                     -webkit-backdrop-filter: blur(10px);
                     border: 1px solid rgba(255, 255, 255, 0.16);
                     border-bottom: none;
-                    border-radius: 20px 20px 0 0; /* ← сглаженные верхние углы */
+                    border-radius: 20px 20px 0 0;
                     box-shadow:
                       0 -10px 24px rgba(0, 0, 0, 0.4),
                       inset 0 1px 0 rgba(255, 255, 255, 0.25),
                       inset 0 -1px 0 rgba(255, 255, 255, 0.05);
                     isolation: isolate;
+                    overflow: hidden;
                     height: calc(75px + constant(safe-area-inset-bottom));
                     padding-bottom: calc(constant(safe-area-inset-bottom) + 12px);
                     height: calc(75px + env(safe-area-inset-bottom, 0px));
                     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
                   }
 
-              .bottom-nav::before {
+              .bottom-nav::before,
+              .bottom-nav::after {
                     content: "";
                     position: absolute;
+                    pointer-events: none;
+                    z-index: 0;
+                  }
+
+              /* border highlight: top-left */
+              .bottom-nav::before {
                     top: 0;
-                    left: 10px;
-                    right: 10px;
+                    left: 16px;
+                    width: 24%;
                     height: 1px;
-                    border-radius: 999px;
                     background: linear-gradient(
                       90deg,
-                      rgba(255, 255, 255, 0),
-                      rgba(255, 255, 255, 0.58),
+                      rgba(255, 255, 255, 0.26),
                       rgba(255, 255, 255, 0)
                     );
-                    pointer-events: none;
+                    opacity: 0.55;
                   }
-                  
+
+              /* border highlight: bottom-right */
+              .bottom-nav::after {
+                    right: 0;
+                    bottom: 12px;
+                    width: 1px;
+                    height: 18px;
+                    background: linear-gradient(
+                      180deg,
+                      rgba(255, 255, 255, 0),
+                      rgba(255, 255, 255, 0.22)
+                    );
+                    opacity: 0.5;
+                  }
 
             /* кнопки */
             .nav-item {
+              position: relative;
+              z-index: 1;
               display: flex;
               flex-direction: column;
               align-items: center;
@@ -875,7 +896,7 @@ html[data-currency="stars"] .profile-ava,
               border: none;
               padding: 4px 6px;
               border-radius: 10px;
-              font-size: 10px; /* подпись меньше */
+              font-size: 10px;
               cursor: pointer;
               -webkit-tap-highlight-color: transparent;
               transition: background 0.18s ease, color 0.18s ease, transform 0.1s ease;
@@ -902,7 +923,7 @@ html[data-currency="stars"] .profile-ava,
               .bottom-nav .nav-item.active .nav-avatar{
                 border-color: rgba(0,166,255,0.55);
               }
-              
+
 
             /* иконки — поменьше */
             .nav-icon {
@@ -916,6 +937,8 @@ html[data-currency="stars"] .profile-ava,
             }
               /* базовое состояние */
           .bottom-nav .nav-item {
+            position: relative;
+            z-index: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -925,7 +948,7 @@ html[data-currency="stars"] .profile-ava,
             border-radius: 0;
             padding: 8px 4px;
             flex: 1;
-            color: #999;                 /* серый текст */
+            color: #999;
             font-size: 12px;
             box-shadow: none;
             transition: color 0.2s ease;
@@ -936,7 +959,6 @@ html[data-currency="stars"] .profile-ava,
             width: 26px;
             height: 26px;
             margin-bottom: 4px;
-            /* фильтр для перекраски SVG в серый */
             filter: brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%);
             transition: filter 0.2s ease;
           }
@@ -945,15 +967,12 @@ html[data-currency="stars"] .profile-ava,
           .bottom-nav .nav-item.active {
             background: transparent;
             box-shadow: none;
-            color: #ffffff;              /* белый текст */
+            color: #ffffff;
           }
 
           .bottom-nav .nav-item.active .nav-icon {
-            /* фильтр для полной перекраски SVG в белый (#ffffff) */
             filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%);
           }
-
-
 
 
 
@@ -5169,3 +5188,4 @@ html[data-currency="stars"] .promo-btn__icon{
   font-weight: 700;
   margin-top: 2px;
 }
+
