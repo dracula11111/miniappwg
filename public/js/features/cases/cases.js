@@ -130,14 +130,18 @@
     }
   };
 
+  // Use global test mode from wheel.js (window.TEST_MODE).
+  const isCasesTestMode = () => !!window.TEST_MODE;
+
   // ====== STATE ======
   let currentCase = null;
   let isAnimating = false;
   let isSpinning = false;
   let selectedCount = 1;
-  let isDemoMode = false;
+  let isDemoMode = isCasesTestMode();
   let activeSpin = null; // locks demo/currency for current spin
   let pendingCurrencyChange = false;
+  let casesLowMotion = false;
 
   let pendingRound = null; // { roundId, currency, demo, ... }
 
@@ -145,6 +149,33 @@
   let animationFrames = [];
   let caseSheetLockedScrollY = 0;
   let caseSheetPrevBodyTop = '';
+  let casesPerfResizeRaf = 0;
+
+  function detectCasesLowMotion() {
+    try {
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return true;
+      const coarse = !!window.matchMedia?.('(pointer: coarse)')?.matches;
+      const narrow = !!window.matchMedia?.('(max-width: 900px)')?.matches;
+      const lowCpu = Number(navigator.hardwareConcurrency || 8) <= 4;
+      const mem = Number(navigator.deviceMemory);
+      const lowMem = Number.isFinite(mem) && mem > 0 && mem <= 4;
+      return coarse && (narrow || lowCpu || lowMem);
+    } catch {
+      return false;
+    }
+  }
+
+  function applyCasesPerformanceProfile() {
+    casesLowMotion = detectCasesLowMotion();
+    try {
+      document.documentElement.classList.toggle('cases-low-motion', casesLowMotion);
+      document.body.classList.toggle('cases-low-motion', casesLowMotion);
+    } catch (_) {}
+  }
+
+  function getIdleBaseCount() {
+    return casesLowMotion ? 44 : 70;
+  }
 
 // ====== ITEM HELPERS (gift / nft) ======
 function itemType(item) {
@@ -616,7 +647,16 @@ function formatAmount(currency, value) {
   }
 
   // Notify listeners
-  window.dispatchEvent(new CustomEvent('balance:update', { detail: { [c]: next } }));
+  try {
+    window.dispatchEvent(new CustomEvent('balance:update', { detail: { [c]: next } }));
+  } catch (_) {
+    // Legacy WebViews may not support CustomEvent constructor.
+    try {
+      const ev = document.createEvent('CustomEvent');
+      ev.initCustomEvent('balance:update', false, false, { [c]: next });
+      window.dispatchEvent(ev);
+    } catch (_) {}
+  }
   return next;
 }
 
@@ -658,9 +698,10 @@ function getBalanceSafe(currency) {
   function setControlsLocked(locked) {
     // Prevent switching Demo/count during spin/claim
     if (demoToggle) {
-      demoToggle.classList.toggle('locked', locked);
-      demoToggle.style.pointerEvents = locked ? 'none' : '';
-      demoToggle.style.opacity = locked ? '0.6' : '';
+      const demoLocked = !!locked || isCasesTestMode();
+      demoToggle.classList.toggle('locked', demoLocked);
+      demoToggle.style.pointerEvents = demoLocked ? 'none' : '';
+      demoToggle.style.opacity = demoLocked ? '0.6' : '';
     }
 
     // Count buttons
@@ -898,6 +939,18 @@ function getBalanceSafe(currency) {
   // ====== INITIALIZE ======
   function init() {
     console.log('[Cases] Initializing...');
+    applyCasesPerformanceProfile();
+    window.addEventListener('resize', () => {
+      if (casesPerfResizeRaf) cancelAnimationFrame(casesPerfResizeRaf);
+      casesPerfResizeRaf = requestAnimationFrame(() => {
+        casesPerfResizeRaf = 0;
+        const prev = casesLowMotion;
+        applyCasesPerformanceProfile();
+        if (prev !== casesLowMotion && currentCase && sheetPanel?.classList.contains('active')) {
+          renderContents(window.WildTimeCurrency?.current || 'ton');
+        }
+      });
+    }, { passive: true });
     setupCasesPageBodyFlag();
 
     // Poster + global history (Cases page)
@@ -1016,6 +1069,7 @@ function getBalanceSafe(currency) {
 
     toggle.addEventListener('click', () => {
       if (isSpinning) return; // нельзя менять режим во время прокрута/клейма
+      if (isCasesTestMode()) return;
       isDemoMode = !isDemoMode;
       toggle.classList.toggle('active', isDemoMode);
       updateOpenButton();
@@ -1026,6 +1080,16 @@ function getBalanceSafe(currency) {
 
     countSection.appendChild(toggle);
     demoToggle = toggle;
+
+    const demoActive = isCasesTestMode() || isDemoMode;
+    toggle.classList.toggle('active', demoActive);
+    if (isCasesTestMode()) {
+      toggle.classList.add('locked');
+      toggle.style.pointerEvents = 'none';
+      toggle.style.opacity = '0.6';
+      isDemoMode = true;
+      console.log('[Cases] Test mode enabled: Demo is forced ON');
+    }
   }
 
   // ====== ATTACH EVENT LISTENERS ======
@@ -1229,7 +1293,7 @@ function getBalanceSafe(currency) {
       btn.classList.toggle('active', parseInt(btn.dataset.count) === selectedCount);
     });
   
-    if (demoToggle) demoToggle.classList.toggle('active', isDemoMode);
+    if (demoToggle) demoToggle.classList.toggle('active', isCasesTestMode() || isDemoMode);
   }
 
 
@@ -1240,13 +1304,14 @@ function getBalanceSafe(currency) {
 
     const currency = window.WildTimeCurrency?.current || 'ton';
     const totalPrice = currentCase.price[currency] * selectedCount;
+    const demoActive = isCasesTestMode() || isDemoMode;
 
     const priceEl = document.getElementById('casePrice');
     if (priceEl) {
-      priceEl.textContent = isDemoMode ? 'FREE' : totalPrice.toFixed(currency === 'ton' ? 2 : 0);
+      priceEl.textContent = demoActive ? 'FREE' : totalPrice.toFixed(currency === 'ton' ? 2 : 0);
     }
 
-    openBtn.classList.toggle('demo-mode', isDemoMode);
+    openBtn.classList.toggle('demo-mode', demoActive);
   }
 
   // ====== RENDER CAROUSELS ======
@@ -1279,7 +1344,7 @@ function getBalanceSafe(currency) {
     itemsContainer.className = 'case-carousel-items';
 
     // База (не меняется сама по себе) — чтобы не было ощущения, что "линия" резко стала другой
-    const IDLE_BASE_COUNT = 70;
+    const IDLE_BASE_COUNT = getIdleBaseCount();
     const baseItems = [];
     for (let i = 0; i < IDLE_BASE_COUNT; i++) {
       const raw = pickStripItem(currentCase, !!isDemoMode) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
@@ -1348,7 +1413,7 @@ function getBalanceSafe(currency) {
     const strip = Array.isArray(carousel.items) && carousel.items.length ? carousel.items : [];
 
     // Если по какой-то причине ленты нет — просто пересоздадим базу
-    const IDLE_BASE_COUNT = 70;
+    const IDLE_BASE_COUNT = getIdleBaseCount();
     const safePool = currentCase?.items || [];
 
     const cont = carousel.itemsContainer;
@@ -1406,7 +1471,9 @@ function getBalanceSafe(currency) {
   carousels.forEach((carousel, index) => {
     // было ~0.5–1 px/frame (~30–60 px/s на 60fps)
     // делаем сразу px/сек — так не дергается при просадках FPS
-    carousel.velocity = 32 + Math.random() * 32; // 32–64 px/s
+    carousel.velocity = casesLowMotion
+      ? (20 + Math.random() * 14)   // 20–34 px/s
+      : (32 + Math.random() * 32);  // 32–64 px/s
     carousel.position = carousel.position || 0;
 
     // для плавности на GPU
@@ -1506,6 +1573,13 @@ function getBalanceSafe(currency) {
 
     const cards = contentsGrid.querySelectorAll('.case-content-item[data-item-type="nft"]');
     if (!cards.length) return;
+    if (casesLowMotion) {
+      cards.forEach((card) => {
+        const layer = card.querySelector('.case-nft-sparks');
+        if (layer) layer.innerHTML = '';
+      });
+      return;
+    }
 
     const rand = (min, max) => Math.random() * (max - min) + min;
 
@@ -1618,7 +1692,7 @@ function getBalanceSafe(currency) {
     const initData = tgWeb?.initData ? tgWeb.initData : "";
 
     const currency = window.WildTimeCurrency?.current || 'ton';
-    const demoModeAtStart = !!isDemoMode;
+    const demoModeAtStart = isCasesTestMode() ? true : !!isDemoMode;
     const hasInitData = (typeof initData === 'string') && initData.trim().length > 0;
     // Важно: шанс выпадения NFT зависит ТОЛЬКО от Demo-тумблера.
     // initData может отсутствовать (например, на десктопе), но это не должно превращать режим в Demo.
@@ -1636,6 +1710,8 @@ function getBalanceSafe(currency) {
     activeSpin = { demoMode: effectiveDemo, serverEnabled, currency, count: countAtStart, totalPrice, userId: tgUserId, initData, roundId: `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}` };
     setControlsLocked(true);
     let openStep = 'start';
+    let spendApplied = false;
+    let fallbackRetried = false;
 
     try {
       // 1) Balance check + server spend (only in normal mode)
@@ -1680,7 +1756,14 @@ function getBalanceSafe(currency) {
               status: r.status,
               error: r.error || r.json?.error || null
             });
-            if (spend !== 0) applyBalanceDelta(currency, spend);
+            spendApplied = true;
+            try {
+              if (spend !== 0) applyBalanceDelta(currency, spend);
+            } catch (balanceErr) {
+              console.warn('[Cases] Failed to apply local spend fallback:', {
+                error: balanceErr?.message || String(balanceErr || 'unknown')
+              });
+            }
             serverEnabled = false;
             if (activeSpin) {
               activeSpin.serverEnabled = false;
@@ -1699,10 +1782,24 @@ function getBalanceSafe(currency) {
         }
 
         if (r.ok && r.json && typeof r.json.newBalance !== 'undefined') {
-          setBalanceValue(currency, r.json.newBalance);
+          spendApplied = true;
+          try {
+            setBalanceValue(currency, r.json.newBalance);
+          } catch (balanceErr) {
+            console.warn('[Cases] Failed to apply server balance update:', {
+              error: balanceErr?.message || String(balanceErr || 'unknown')
+            });
+          }
         } else if (r.ok) {
           // fallback (rare)
-          applyBalanceDelta(currency, spend);
+          spendApplied = true;
+          try {
+            applyBalanceDelta(currency, spend);
+          } catch (balanceErr) {
+            console.warn('[Cases] Failed to apply spend delta:', {
+              error: balanceErr?.message || String(balanceErr || 'unknown')
+            });
+          }
         }
       }
 
@@ -1711,7 +1808,14 @@ function getBalanceSafe(currency) {
         // Guest (без сервера) в обычном режиме: списываем локально, чтобы не было бесплатного фарма
         if (!demoModeAtStart) {
           const spend = (currency === 'ton') ? -Number(totalPrice.toFixed(2)) : -Math.round(totalPrice);
-          if (spend !== 0) applyBalanceDelta(currency, spend);
+          spendApplied = true;
+          try {
+            if (spend !== 0) applyBalanceDelta(currency, spend);
+          } catch (balanceErr) {
+            console.warn('[Cases] Failed to apply local spend:', {
+              error: balanceErr?.message || String(balanceErr || 'unknown')
+            });
+          }
         }
       }
 
@@ -1728,7 +1832,7 @@ function getBalanceSafe(currency) {
       scrollCarouselToCenter();
       
       // Небольшая задержка для плавного перехода UI
-      await delay(600);
+      await delay(casesLowMotion ? 280 : 600);
 
 
       // 3) Wait for stable layout, then spin
@@ -1746,17 +1850,21 @@ function getBalanceSafe(currency) {
         stack: e?.stack || null
       });
 
-      if (isLocalRuntime()) {
-        showToast(`Ошибка открытия кейса (${openStep})`);
-      } else {
-        showToast('Ошибка открытия кейса');
-      }
-      safeHaptic('notification', 'error');
+      const canRetrySafely =
+        !fallbackRetried &&
+        openStep !== 'spin' &&
+        openStep !== 'done' &&
+        (effectiveDemo || spendApplied || !serverEnabled);
 
-      // Localhost fallback: try local mode spin once when failure happened before spin.
-      if (isLocalRuntime() && openStep !== 'spin' && openStep !== 'done') {
+      // Safe fallback: retry one local spin in any runtime (without extra charge).
+      if (canRetrySafely) {
+        fallbackRetried = true;
         try {
-          console.warn('[Cases] Local fallback: retrying open in local mode', { openStep });
+          console.warn('[Cases] Safe fallback: retrying open in local mode', {
+            openStep,
+            spendApplied,
+            serverEnabled
+          });
           if (activeSpin) {
             activeSpin.serverEnabled = false;
             activeSpin.initData = '';
@@ -1764,17 +1872,24 @@ function getBalanceSafe(currency) {
           }
           document.body.classList.add('case-opening-fullscreen');
           document.body.setAttribute('data-opening-case', currentCase?.id || '');
-          await delay(120);
-          await waitForStableCarouselLayout(600);
+          await delay(casesLowMotion ? 80 : 120);
+          await waitForStableCarouselLayout(casesLowMotion ? 420 : 600);
           await spinCarousels(currency, activeSpin || {
             demoMode: !!effectiveDemo,
             serverEnabled: false
           });
           return;
         } catch (fallbackErr) {
-          console.error('[Cases] Local fallback open failed:', fallbackErr);
+          console.error('[Cases] Safe fallback open failed:', fallbackErr);
         }
       }
+
+      if (isLocalRuntime()) {
+        showToast(`Ошибка открытия кейса (${openStep})`);
+      } else {
+        showToast('Ошибка открытия кейса');
+      }
+      safeHaptic('notification', 'error');
     } finally {
       // NOTE: spinCarousels awaits showResult (claims), so this runs only after claim/sell is done.
       openBtn.disabled = false;
@@ -1796,8 +1911,8 @@ function getBalanceSafe(currency) {
   async function spinCarousels(currency, spinCtx) {
     stopAllAnimations();
 
-    const MIN_STRIP_LENGTH = 170;
-    const TAIL_AFTER_WIN = 32;
+    const MIN_STRIP_LENGTH = casesLowMotion ? 128 : 170;
+    const TAIL_AFTER_WIN = casesLowMotion ? 24 : 32;
 
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
@@ -1812,7 +1927,7 @@ function getBalanceSafe(currency) {
         let strip = (Array.isArray(carousel.items) && carousel.items.length) ? carousel.items.slice() : [];
 
         if (!strip.length) {
-          const idleCount = 70;
+          const idleCount = getIdleBaseCount();
           for (let i = 0; i < idleCount; i++) {
             const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
                 strip.push(normalizeItemForCurrency(raw, currency));
@@ -1958,7 +2073,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         const totalDistance = targetPosition - startPosition;
 
         // 11) Плавная анимация
-        const duration = 5200 + index * 250 + Math.random() * 600;
+        const duration = (casesLowMotion ? 3600 : 5200) + index * (casesLowMotion ? 180 : 250) + Math.random() * (casesLowMotion ? 320 : 600);
         const startTime = performance.now();
         let lastHaptic = 0;
 
@@ -2668,6 +2783,14 @@ async function onGiftClaimClick() {
 
   setBtnLoading(btn, true);
   try {
+    if (!Number.isFinite(Number(pr.giftsAmount)) || Number(pr.giftsAmount) <= 0) {
+      pr.giftsPending = false;
+      pr.giftsAmount = 0;
+      renderPendingClaimBar();
+      maybeFinishPendingRound();
+      return;
+    }
+
     if (pr.demo) {
       showToast('Demo: награда не начисляется');
     } else if (!pr.serverEnabled) {
@@ -2689,11 +2812,34 @@ async function onGiftClaimClick() {
       }, 6500);
 
       if (!r.ok) {
-        showToast('Не удалось начислить награду. Попробуй ещё раз.');
-        return;
+        const canFallbackToLocal =
+          r.status === 0 ||
+          r.status === 401 ||
+          r.status === 403 ||
+          r.status === 503;
+
+        if (canFallbackToLocal) {
+          console.warn('[Cases] Gift claim failed on server, falling back to local credit', {
+            status: r.status,
+            error: r.error || r.json?.error || null
+          });
+          applyBalanceDelta(pr.currency, pr.giftsAmount);
+          pr.serverEnabled = false;
+          if (r.status === 401 || r.status === 403) {
+            showToast('Сессия Telegram устарела. Награда начислена локально.');
+          } else {
+            showToast('Сервер недоступен. Награда начислена локально.');
+          }
+        } else {
+          showToast('Не удалось начислить награду. Попробуй ещё раз.');
+          return;
+        }
       }
-      if (r.json && typeof r.json.newBalance !== 'undefined') {
+      if (r.ok && r.json && typeof r.json.newBalance !== 'undefined') {
         setBalanceValue(pr.currency, r.json.newBalance);
+      } else if (r.ok) {
+        // fallback (rare)
+        applyBalanceDelta(pr.currency, pr.giftsAmount);
       }
     }
 
@@ -2866,6 +3012,12 @@ async function onNftSellClick() {
     isDemoMode: () => isDemoMode,
     setDemoMode: (mode) => {
       if (isSpinning) return false; // запрещаем менять режим во время прокрута/клейма
+      if (isCasesTestMode()) {
+        isDemoMode = true;
+        if (demoToggle) demoToggle.classList.add('active');
+        updateOpenButton();
+        return true;
+      }
       isDemoMode = !!mode;
       if (demoToggle) demoToggle.classList.toggle('active', isDemoMode);
       updateOpenButton();

@@ -25,24 +25,44 @@
           width: 40px;                                   /* Ширина кнопки */
           height: 40px;                                  /* Высота кнопки */
           border-radius: 50%;                            /* Круглая форма */
-          background: var(--panel);                      /* Фон панели */
-          border: 1.5px solid rgba(0, 166, 255, 0.3);   /* Акцентная граница */
+          background: rgba(18, 24, 35, 0.4);            /* Более прозрачный нейтральный фон */
+          border: 1.5px solid rgba(255, 255, 255, 0.16);/* Нейтральная граница */
           padding: 0;                                    /* Без отступов */
           overflow: hidden;                              /* Скрываем overflow */
           cursor: pointer;                               /* Курсор pointer */
           transition: all 0.2s ease;                     /* Плавные переходы */
           -webkit-tap-highlight-color: transparent;      /* Убираем подсветку на мобильных */
+          position: relative;
           box-shadow:                                    /* Двойная тень */
             0 2px 8px rgba(0, 0, 0, 0.3),
-            0 0 0 2px rgba(0, 166, 255, 0.1);
+            0 0 0 1px rgba(255, 255, 255, 0.06);
+        }
+
+        .avatar-btn::before,
+        .burger-btn::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background:
+            radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0) 40%),
+            radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 44%);
+          -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+          z-index: 1;
         }
 
         .avatar-btn:hover {
           transform: scale(1.05);                        /* Увеличиваем при hover */
-          border-color: rgba(0, 166, 255, 0.5);          /* Усиливаем границу */
+          border-color: rgba(255, 255, 255, 0.26);       /* Усиливаем границу */
           box-shadow:                                    /* Усиливаем тень */
-            0 4px 12px rgba(0, 166, 255, 0.3),
-            0 0 0 2px rgba(0, 166, 255, 0.2);
+            0 4px 12px rgba(0, 0, 0, 0.34),
+            0 0 0 1px rgba(255, 255, 255, 0.1);
         }
 
         .avatar-btn:active {
@@ -53,6 +73,8 @@
           width: 100%;                                   /* Ширина 100% */
           height: 100%;                                  /* Высота 100% */
           object-fit: cover;                             /* Обрезаем изображение */
+          position: relative;
+          z-index: 2;
         }
 
         /* Burger Button */
@@ -60,8 +82,8 @@
           width: 40px;                                   /* Ширина кнопки */
           height: 40px;                                  /* Высота кнопки */
           border-radius: 12px;                           /* Скруглённые углы */
-          background: var(--panel);                      /* Фон панели */
-          border: 1px solid var(--border);               /* Граница */
+          background: rgba(18, 24, 35, 0.38);           /* Более прозрачный нейтральный фон */
+          border: 1px solid rgba(255, 255, 255, 0.14);  /* Нейтральная граница */
           display: flex;                                 /* Flexbox */
           flex-direction: column;                        /* Вертикальное расположение */
           align-items: center;                           /* Центрируем */
@@ -71,17 +93,18 @@
           transition: all 0.2s ease;                     /* Плавные переходы */
           padding: 0;                                    /* Без отступов */
           -webkit-tap-highlight-color: transparent;      /* Убираем подсветку */
+          position: relative;
           box-shadow:                                    /* Тень + внутренний блик */
             0 2px 8px rgba(0, 0, 0, 0.2),
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .burger-btn:hover {
-          background: var(--card);                       /* Меняем фон при hover */
-          border-color: rgba(0, 166, 255, 0.3);          /* Подсвечиваем границу */
+          background: rgba(24, 30, 40, 0.5);            /* Меняем фон при hover */
+          border-color: rgba(255, 255, 255, 0.24);       /* Подсвечиваем границу */
           transform: translateY(-1px);                   /* Приподнимаем */
           box-shadow:                                    /* Усиливаем тень */
-            0 4px 12px rgba(0, 166, 255, 0.15),
+            0 4px 12px rgba(0, 0, 0, 0.3),
             inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
@@ -95,6 +118,8 @@
           background: var(--text);                       /* Цвет линии */
           border-radius: 2px;                            /* Скругление */
           transition: all 0.3s ease;                     /* Плавные переходы для анимации */
+          position: relative;
+          z-index: 2;
         }
 
         /* Burger animation when sheet is open */

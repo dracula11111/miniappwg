@@ -28,6 +28,8 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
+// Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
+const FRONTEND_TEST_MODE = false;
 
 // ---- Memory DB (per-process; resets on restart). Used only when IS_TEST === true ----
 function createMemoryDb() {
@@ -1466,10 +1468,32 @@ app.use(express.urlencoded({ extended: false }));
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DIST_DIR = path.join(__dirname, "dist");
-const FRONTEND_DIR = fs.existsSync(path.join(DIST_DIR, "index.html")) ? DIST_DIR : PUBLIC_DIR;
+const HAS_DIST_BUILD = fs.existsSync(path.join(DIST_DIR, "index.html"));
+const USE_DIST_IN_DEV = String(process.env.USE_DIST_IN_DEV || "1").trim() !== "0";
+// Default to /dist in local/dev too (public/js/main.js is Vite source and may white-screen without bundling).
+const FRONTEND_DIR = (HAS_DIST_BUILD && (IS_PROD || USE_DIST_IN_DEV)) ? DIST_DIR : PUBLIC_DIR;
+const FRONTEND_INDEX_PATH = path.join(FRONTEND_DIR, "index.html");
+console.log(`[Static] Frontend dir: ${FRONTEND_DIR} (IS_PROD=${IS_PROD}, HAS_DIST_BUILD=${HAS_DIST_BUILD}, USE_DIST_IN_DEV=${USE_DIST_IN_DEV})`);
+console.log(`[Static] Frontend test mode: ${FRONTEND_TEST_MODE}`);
 
-// --- Static frontend (prefer /dist build; fallback to /public source)
+function renderIndexHtmlWithRuntimeFlags() {
+  try {
+    const raw = fs.readFileSync(FRONTEND_INDEX_PATH, "utf8");
+    const runtimeScript = `<script>window.__SERVER_TEST_MODE=${FRONTEND_TEST_MODE ? "true" : "false"};window.TEST_MODE=window.__SERVER_TEST_MODE;</script>`;
+    if (raw.includes("__SERVER_TEST_MODE")) return raw;
+    if (raw.includes("<head>")) {
+      return raw.replace("<head>", `<head>\n    ${runtimeScript}`);
+    }
+    return `${runtimeScript}\n${raw}`;
+  } catch (e) {
+    console.warn("[Static] Failed to render runtime flags:", e?.message || e);
+    return null;
+  }
+}
+
+// --- Static frontend
 app.use(express.static(FRONTEND_DIR, {
+  index: false,
   extensions: ["html"],
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".json")) {
@@ -1481,6 +1505,7 @@ app.use(express.static(FRONTEND_DIR, {
 // Keep legacy public assets available when running built frontend from /dist.
 if (FRONTEND_DIR !== PUBLIC_DIR) {
   app.use(express.static(PUBLIC_DIR, {
+    index: false,
     setHeaders: (res, filePath) => {
       if (filePath.endsWith(".json")) {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -3794,12 +3819,6 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
-    const reserveTon =
-      currency === "ton" && amountNum < 0 ? Math.abs(Number(amountNum) || 0) : 0;
-    const reserveStars =
-      currency === "stars" && amountNum < 0 ? Math.abs(Math.round(Number(amountNum) || 0)) : 0;
-    await ensureLocalDevBalanceFloor(req, userId, { reserveTon, reserveStars });
-
     const allowUntrustedGameFlows = String(process.env.ALLOW_UNTRUSTED_GAME_FLOWS || "1").trim() !== "0";
     const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
     const allowedUntrustedCreditTypes = new Set(["crash_win", "case_gift_claim", "case_nft_sell", "wheel_win"]);
@@ -4031,93 +4050,6 @@ function generateDescription(type, amount, txHash, roundId) {
   }
 }
 // ====== SSE для автообновления баланса ======
-const LOCAL_DEV_BALANCE_ENABLED =
-  !IS_PROD &&
-  String(process.env.LOCAL_DEV_BALANCE_ENABLED || "1").trim() !== "0";
-const LOCAL_DEV_BALANCE_FLOOR_TON = Math.max(
-  0,
-  Number(process.env.LOCAL_DEV_BALANCE_TON || 1000) || 1000
-);
-const LOCAL_DEV_BALANCE_FLOOR_STARS = Math.max(
-  0,
-  Math.round(Number(process.env.LOCAL_DEV_BALANCE_STARS || 500000) || 500000)
-);
-
-function isLocalhostRequest(req) {
-  const rawHost = String(
-    req?.hostname ||
-    req?.get?.("x-forwarded-host") ||
-    req?.get?.("host") ||
-    ""
-  ).split(",")[0].trim();
-  const host = rawHost.replace(/^\[/, "").replace(/\]$/, "").split(":")[0].toLowerCase();
-  return (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host.endsWith(".local")
-  );
-}
-
-async function ensureLocalDevBalanceFloor(req, userId, opts = {}) {
-  try {
-    if (!LOCAL_DEV_BALANCE_ENABLED || !isLocalhostRequest(req)) return null;
-
-    const uid = parseInt(String(userId || ""), 10);
-    if (Number.isNaN(uid)) return null;
-
-    const reserveTon = Math.max(0, Number(opts.reserveTon || 0) || 0);
-    const reserveStars = Math.max(0, Math.round(Number(opts.reserveStars || 0) || 0));
-
-    const targetTon = LOCAL_DEV_BALANCE_FLOOR_TON + reserveTon;
-    const targetStars = LOCAL_DEV_BALANCE_FLOOR_STARS + reserveStars;
-
-    try {
-      await db.saveUser({
-        id: uid,
-        is_bot: false,
-        first_name: "Local",
-        last_name: "Tester",
-        username: "local_tester",
-        language_code: "en",
-        is_premium: false
-      });
-    } catch {}
-
-    const bal = await db.getUserBalance(uid);
-    const curTon = Number(bal?.ton_balance || 0);
-    const curStars = Number(bal?.stars_balance || 0);
-
-    if (curTon < targetTon) {
-      await db.updateBalance(
-        uid,
-        "ton",
-        targetTon - curTon,
-        "dev_topup",
-        "Localhost test auto top-up (TON)",
-        { localDev: true }
-      );
-    }
-
-    if (curStars < targetStars) {
-      await db.updateBalance(
-        uid,
-        "stars",
-        targetStars - curStars,
-        "dev_topup",
-        "Localhost test auto top-up (Stars)",
-        { localDev: true }
-      );
-    }
-
-    return await db.getUserBalance(uid);
-  } catch (e) {
-    console.warn("[DEV BALANCE] Failed to ensure localhost test balance:", e?.message || e);
-    return null;
-  }
-}
-
 const balanceClients = new Map(); // userId -> Set of response objects
 
 app.get("/api/balance/stream", async (req, res) => {
@@ -4143,7 +4075,6 @@ app.get("/api/balance/stream", async (req, res) => {
   
   // Send initial balance
   try {
-    await ensureLocalDevBalanceFloor(req, userId);
     const balance = await db.getUserBalance(parseInt(userId));
     res.write(`data: ${JSON.stringify({
       type: 'balance',
@@ -4256,7 +4187,6 @@ app.get("/api/balance", async (req, res) => {
       });
     }
 
-    await ensureLocalDevBalanceFloor(req, userId);
     const balance = await db.getUserBalance(parseInt(userId));
 
     console.log('[Balance] ✅ Retrieved:', balance);
@@ -5746,7 +5676,11 @@ app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api") || req.path === "/tonconnect-manifest.json") {
     return next();
   }
-  res.sendFile(path.join(FRONTEND_DIR, "index.html"));
+  const html = renderIndexHtmlWithRuntimeFlags();
+  if (html) {
+    return res.type("html").send(html);
+  }
+  res.sendFile(FRONTEND_INDEX_PATH);
 });
 
 // ====== Error handling ======

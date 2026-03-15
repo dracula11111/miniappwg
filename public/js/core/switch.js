@@ -15,26 +15,7 @@
 
   // Telegram Web App API
   const tg = window.Telegram?.WebApp;
-
-  const WT_LOCAL_TEST_BALANCE_ENABLED = (() => {
-    try {
-      const host = String(window.location.hostname || '').toLowerCase();
-      return (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host === '0.0.0.0' ||
-        host === '::1' ||
-        host.endsWith('.local')
-      );
-    } catch {
-      return false;
-    }
-  })();
-
-  const WT_LOCAL_TEST_BALANCE = {
-    ton: 1000,
-    stars: 500000
-  };
+  const isGlobalTestMode = () => !!window.TEST_MODE;
 
   // =========================
   // Wallet pill: "Connect Wallet" when TON wallet is not connected
@@ -247,34 +228,11 @@
     root.classList.toggle('currency-stars', currentCurrency === 'stars');
   }
 
-  function applyLocalTestBalanceFloor() {
-    if (!WT_LOCAL_TEST_BALANCE_ENABLED) return false;
-
-    const prevTon = Number(userBalance.ton);
-    const prevStars = Number(userBalance.stars);
-
-    const nextTon = Number.isFinite(prevTon)
-      ? Math.max(prevTon, WT_LOCAL_TEST_BALANCE.ton)
-      : WT_LOCAL_TEST_BALANCE.ton;
-    const nextStars = Number.isFinite(prevStars)
-      ? Math.max(Math.round(prevStars), WT_LOCAL_TEST_BALANCE.stars)
-      : WT_LOCAL_TEST_BALANCE.stars;
-
-    const changed = (nextTon !== prevTon) || (nextStars !== prevStars);
-    userBalance.ton = nextTon;
-    userBalance.stars = nextStars;
-    return changed;
-  }
-  
   // ================== INIT ==================
   function init() {
     console.log('[Switch] 🚀 Initializing currency system...');
     
     loadCurrency();
-    if (WT_LOCAL_TEST_BALANCE_ENABLED) {
-      applyLocalTestBalanceFloor();
-      console.log('[Switch] 🧪 Localhost test balance mode enabled:', WT_LOCAL_TEST_BALANCE);
-    }
     applyCurrencyTheme();
 
     if (document.readyState === 'loading') {
@@ -794,8 +752,6 @@ syncAmountButtons();
       userBalance.stars = parseInt(balances.stars) || 0;
     }
 
-    applyLocalTestBalanceFloor();
-    
     updateBalanceDisplay(true);
     
     if (balances.ton !== undefined && window.WTTonDeposit?.setBalance) {
@@ -861,21 +817,14 @@ syncAmountButtons();
 
   // ================== SERVER SYNC ==================
   async function loadBalanceFromServer() {
+    if (isGlobalTestMode()) {
+      console.log('[Switch] 🧪 TEST_MODE active: skip server balance load');
+      return;
+    }
+
     const userId = tg?.initDataUnsafe?.user?.id;
     if (!userId) {
-      if (WT_LOCAL_TEST_BALANCE_ENABLED) {
-        applyLocalTestBalanceFloor();
-        updateBalanceDisplay(false);
-        window.dispatchEvent(new CustomEvent('balance:loaded', {
-          detail: {
-            ton: userBalance.ton,
-            stars: userBalance.stars
-          }
-        }));
-        console.log('[Switch] 🧪 Localhost guest mode: using test balance');
-      } else {
-        console.warn('[Switch] ⚠️ No user ID, skipping balance load');
-      }
+      console.warn('[Switch] ⚠️ No user ID, skipping balance load');
       return;
     }
 
@@ -952,7 +901,6 @@ syncAmountButtons();
     
     setBalance: (currency, amount) => {
       userBalance[currency] = currency === 'ton' ? parseFloat(amount) : parseInt(amount);
-      applyLocalTestBalanceFloor();
       updateBalanceDisplay(true);
     },
     
@@ -1032,7 +980,7 @@ syncAmountButtons();
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.02);
   border-radius: 18px;
   margin: 16px 0;
   position: relative;
@@ -1040,27 +988,11 @@ syncAmountButtons();
   isolation: isolate;
   --wt-indicator-x: 0px;
   box-shadow: 
-    0 8px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .currency-switch::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 10px;
-  right: 10px;
-  height: 1px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0.58),
-    rgba(255, 255, 255, 0)
-  );
-  pointer-events: none;
-  z-index: 2;
+  content: none;
 }
 
 /* Анимированный индикатор выбора */

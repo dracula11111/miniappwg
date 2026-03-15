@@ -2540,8 +2540,46 @@ body:has(.page-active#casesPage)::before{
         aspect-ratio: 1 / 1;
         padding: 14px;
       }
-      .case-img{
+     .case-img{
         object-fit: contain !important;
         display: block;
       }
     }
+
+  /* ===== Performance profile (low-end mobile / reduced motion) ===== */
+  .cases-low-motion #casesPage .case-path-track-shimmer,
+  .cases-low-motion #casesPage .case-path-item-float,
+  .cases-low-motion #casesPage .cases-hero__ticker-item {
+    animation: none !important;
+  }
+
+  .cases-low-motion #casesPage .case-path-items {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .cases-low-motion #casesPage .case-path-track,
+  .cases-low-motion #casesPage .case-path-price,
+  .cases-low-motion .case-overlay,
+  .cases-low-motion body.case-sheet-open .balance,
+  body.cases-low-motion.case-sheet-open .balance {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .cases-low-motion #casesPage .case-path-glow,
+  .cases-low-motion #casesPage img.case-path-image,
+  .cases-low-motion #casesPage .case-path-item-float img {
+    filter: none !important;
+  }
+
+  .cases-low-motion #casesPage .case-path-track,
+  .cases-low-motion #casesPage .case-path-price,
+  .cases-low-motion .case-carousel-indicator,
+  .cases-low-motion .case-carousel-item.winning::before {
+    box-shadow: none !important;
+  }
+
+  .cases-low-motion .case-contents-grid .case-content-item[data-item-type="nft"] .case-nft-sparks {
+    display: none !important;
+  }

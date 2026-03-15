@@ -451,49 +451,74 @@
   
           /* RIGHT BALANCE PILL */
           .topbar > .balance {
-            grid-column: 3;                                /* Правая колонка topbar */
-            justify-self: end;                             /* Прижимаем вправо */
-            align-self: start;                             /* Единая верхняя линия */
+            grid-column: 3;
+            justify-self: end;
+            align-self: start;
             position: static;
             right: auto;
             top: auto;
             margin: 0;
-            transform: translateY(-2px);                   /* Реально поднимаем на пару пикселей */
+            transform: translateY(-2px);
           }
-  
-        .pill{
+
+        .topbar .pill{
           display: inline-flex;                            /* Инлайн-флекс */
           align-items: center;                             /* Центрируем по вертикали */
           gap: 8px;                                        /* Расстояние между элементами */
-          background: var(--panel);                        /* Фон панели */
-          border: 1px solid var(--border);                 /* Граница */
+          background: rgba(18, 24, 35, 0.4);              /* Более прозрачный нейтральный фон */
+          border: 1px solid rgba(255, 255, 255, 0.14);    /* Нейтральная граница */
           padding: 6px 10px;                               /* Внутренние отступы */
           border-radius: 999px;                            /* Капсульная форма */
           box-shadow: inset 0 1px 0 rgba(255,255,255,.05); /* Внутренняя тень */
           transition: background .15s ease, border-color .15s ease, transform .12s ease; /* Плавные переходы */
+          position: relative;
+          overflow: hidden;
         }
-        .pill:hover{
-          background: #162031;                             /* Затемняем фон при hover */
-          border-color: #2a3a54;                           /* Подсвечиваем границу */
+        .topbar .pill::before{
+          content: "";
+          position: absolute;
+          inset: 0;
+          padding: 1px;
+          border-radius: 999px;
+          background:
+            radial-gradient(circle at 14% 8%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 40%),
+            radial-gradient(circle at 88% 92%, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 44%);
+          -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+          z-index: 1;
+        }
+        .topbar .pill:hover{
+          background: rgba(24, 30, 40, 0.5);              /* Затемняем фон при hover */
+          border-color: rgba(255, 255, 255, 0.24);        /* Подсвечиваем границу */
           transform: translateY(-1px);                     /* Приподнимаем */
         }
-        .pill-icon{
+        .topbar .pill-icon{
           width:16px;                                      /* Ширина иконки */
           height:16px;                                     /* Высота иконки */
+          position: relative;
+          z-index: 2;
           }
-        .pill-plus{ 
+        .topbar .pill-plus{ 
           margin-left:2px;                                 /* Отступ слева */
           font-weight:900;                                 /* Жирный шрифт */
         }
-        .pill-plus,
-        .pill-plus-icon{
+        .topbar .pill-plus,
+        .topbar .pill-plus-icon{
           width:16px;                                      /* Ширина иконки плюса */
           height:16px;                                     /* Высота иконки плюса */
+          position: relative;
+          z-index: 2;
           }
-        #tonAmount{ 
+        .topbar #tonAmount{ 
       font-weight:800;                                     /* Жирный шрифт */
        font-size:13px;                                     /* Размер шрифта */
        letter-spacing:.2px;                                /* Расстояние между буквами */
+       position: relative;
+       z-index: 2;
        }
   
   

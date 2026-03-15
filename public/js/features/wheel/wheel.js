@@ -1,7 +1,44 @@
 // wheel.js - FINAL VERSION - Test Mode with Balance Management
 
 /* ===== CONFIG ===== */
-const TEST_MODE = false;   // ← В ПРОДЕ false. Для теста руками поставь true.
+function isWheelLocalRuntime() {
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host.endsWith(".local")
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Local default: OFF. Override with ?test=0/1 or localStorage WT_TEST_MODE.
+const SERVER_TEST_MODE = (() => {
+  try {
+    return (typeof window.__SERVER_TEST_MODE === "boolean") ? window.__SERVER_TEST_MODE : null;
+  } catch {
+    return null;
+  }
+})();
+
+const TEST_MODE = (() => {
+  if (SERVER_TEST_MODE !== null) return SERVER_TEST_MODE;
+  if (!isWheelLocalRuntime()) return false;
+  try {
+    const q = String(new URLSearchParams(window.location.search).get("test") || "").toLowerCase();
+    if (q === "0" || q === "false" || q === "off") return false;
+    if (q === "1" || q === "true" || q === "on") return true;
+
+    const ls = String(localStorage.getItem("WT_TEST_MODE") || "").toLowerCase();
+    if (ls === "0" || ls === "false" || ls === "off") return false;
+    if (ls === "1" || ls === "true" || ls === "on") return true;
+  } catch {}
+  return false;
+})();
 window.TEST_MODE = TEST_MODE;
 
 
@@ -1051,7 +1088,7 @@ function initTestModeBalance() {
   
   // Dispatch event
   window.dispatchEvent(new CustomEvent('balance:update', {
-    detail: { ton: 999, stars: 999 }
+    detail: { ton: 999, stars: 999, _testMode: true }
   }));
   
   console.log('[Wheel] ✅ Test balance set:', userBalance);

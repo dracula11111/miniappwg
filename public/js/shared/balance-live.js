@@ -3,6 +3,10 @@
   console.log('[Balance Live] 🔴 Starting live balance module');
 
   const tg = window.Telegram?.WebApp;
+  if (window.TEST_MODE) {
+    console.log('[Balance Live] 🧪 TEST_MODE active, skipping server sync');
+    return;
+  }
 
   async function getUserIdWithRetry() {
     for (let i = 0; i < 40; i++) { // ~2s total

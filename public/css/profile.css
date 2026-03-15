@@ -829,16 +829,14 @@ html[data-currency="stars"] .profile-ava,
                     display: flex;
                     justify-content: space-around;
                     align-items: center;
-                    background: rgba(20, 20, 20, 0.85);
+                    background: rgba(20, 20, 20, 0.78);
                     backdrop-filter: blur(10px);
                     -webkit-backdrop-filter: blur(10px);
-                    border: 1px solid rgba(255, 255, 255, 0.16);
-                    border-bottom: none;
+                    border: none;
                     border-radius: 20px 20px 0 0;
                     box-shadow:
                       0 -10px 24px rgba(0, 0, 0, 0.4),
-                      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-                      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+                      inset 0 1px 0 rgba(255, 255, 255, 0.06);
                     isolation: isolate;
                     overflow: hidden;
                     height: calc(75px + constant(safe-area-inset-bottom));
@@ -855,32 +853,22 @@ html[data-currency="stars"] .profile-ava,
                     z-index: 0;
                   }
 
-              /* border highlight: top-left */
               .bottom-nav::before {
-                    top: 0;
-                    left: 16px;
-                    width: 24%;
-                    height: 1px;
-                    background: linear-gradient(
-                      90deg,
-                      rgba(255, 255, 255, 0.26),
-                      rgba(255, 255, 255, 0)
-                    );
-                    opacity: 0.55;
+                    inset: 0;
+                    padding: 1px;
+                    border-radius: 20px 20px 0 0;
+                    background:
+                      radial-gradient(circle at 10% 7%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 36%),
+                      radial-gradient(circle at 92% 92%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%);
+                    -webkit-mask:
+                      linear-gradient(#000 0 0) content-box,
+                      linear-gradient(#000 0 0);
+                    -webkit-mask-composite: xor;
+                    mask-composite: exclude;
                   }
 
-              /* border highlight: bottom-right */
               .bottom-nav::after {
-                    right: 0;
-                    bottom: 12px;
-                    width: 1px;
-                    height: 18px;
-                    background: linear-gradient(
-                      180deg,
-                      rgba(255, 255, 255, 0),
-                      rgba(255, 255, 255, 0.22)
-                    );
-                    opacity: 0.5;
+                    content: none;
                   }
 
             /* кнопки */

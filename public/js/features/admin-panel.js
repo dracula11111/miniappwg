@@ -1,7 +1,9 @@
 // admin-panel.js (FIXED) — test/admin tools for Wheel (TEST_MODE)
 // Self-contained: injects its own UI, and works with wheel.js exports (window.WheelAdmin, window.stopOnSegment, etc.)
 (() => {
-  const isTest = !!window.TEST_MODE;
+  const isTest = (typeof window.__SERVER_TEST_MODE === 'boolean')
+    ? window.__SERVER_TEST_MODE
+    : !!window.TEST_MODE;
   if (!isTest) return;
 
   const SEGMENTS = ['1.1x', '3x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
