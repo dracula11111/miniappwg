@@ -7,7 +7,7 @@
           display: grid;                                 /* Grid: left | center | right */
           grid-template-columns: 1fr auto 1fr;
           align-items: start;                            /* Единая верхняя линия */
-          padding: 70px 14px 10px;                       /* Единый верхний оффсет под логотип */
+          padding: 72px 14px 10px;                       /* Единый верхний оффсет под логотип */
           gap: 12px;                                     /* Расстояние между элементами */
         }
 

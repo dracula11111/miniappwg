@@ -293,7 +293,7 @@
   
           @media (max-width: 380px) {
             .topbar {
-              padding: 68px 12px 10px;                     /* Компактно, но сохраняем верхнюю линию */
+              padding: 70px 12px 10px;                     /* Компактно, но сохраняем верхнюю линию */
             }
             
             .topbar__left {

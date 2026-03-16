@@ -150,6 +150,7 @@
   let caseSheetLockedScrollY = 0;
   let caseSheetPrevBodyTop = '';
   let casesPerfResizeRaf = 0;
+  let casesPathObserver = null;
 
   function detectCasesLowMotion() {
     try {
@@ -946,8 +947,11 @@ function getBalanceSafe(currency) {
         casesPerfResizeRaf = 0;
         const prev = casesLowMotion;
         applyCasesPerformanceProfile();
-        if (prev !== casesLowMotion && currentCase && sheetPanel?.classList.contains('active')) {
-          renderContents(window.WildTimeCurrency?.current || 'ton');
+        if (prev !== casesLowMotion) {
+          generateCasesGrid();
+          if (currentCase && sheetPanel?.classList.contains('active')) {
+            renderContents(window.WildTimeCurrency?.current || 'ton');
+          }
         }
       });
     }, { passive: true });
@@ -1110,6 +1114,41 @@ function getBalanceSafe(currency) {
 
   // ====== GENERATE CASES GRID ======
 
+  function disconnectCasesPathObserver() {
+    if (!casesPathObserver) return;
+    try { casesPathObserver.disconnect(); } catch (_) {}
+    casesPathObserver = null;
+  }
+
+  function setupCasesPathAnimationVisibility(casesPath) {
+    const pathItems = Array.from(casesPath?.querySelectorAll?.('.case-path-item') || []);
+    if (!pathItems.length) {
+      disconnectCasesPathObserver();
+      return;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      pathItems.forEach((item) => item.classList.add('is-visible'));
+      disconnectCasesPathObserver();
+      return;
+    }
+
+    disconnectCasesPathObserver();
+    casesPathObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const el = entry?.target;
+        if (!el?.classList) return;
+        el.classList.toggle('is-visible', !!entry.isIntersecting);
+      });
+    }, {
+      root: null,
+      rootMargin: '180px 0px',
+      threshold: 0.01
+    });
+
+    pathItems.forEach((item) => casesPathObserver.observe(item));
+  }
+
   function generateCasesGrid() {
     const casesPath = document.getElementById('casesGrid');
     if (!casesPath) return;
@@ -1125,11 +1164,11 @@ function getBalanceSafe(currency) {
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
       
-      // Get 3 items for animated track display
-      const displayItems = caseData.items.slice(0, 3);
+      // Low-motion keeps fewer moving objects to reduce main-thread load.
+      const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
 
       const pathItem = document.createElement('div');
-      pathItem.className = 'case-path-item';
+      pathItem.className = 'case-path-item is-visible';
       pathItem.dataset.caseId = caseData.id;
 
       pathItem.innerHTML = `
@@ -1140,10 +1179,12 @@ function getBalanceSafe(currency) {
         
         <!-- Animated items sliding on track -->
         <div class="case-path-items">
-          ${displayItems.map(item => `
-            <div class="case-path-item-float">
+          ${displayItems.map((item, itemIndex) => `
+            <div class="case-path-item-float" style="--gift-duration:${(casesLowMotion ? 8.2 : 5.4).toFixed(1)}s;--gift-delay:${(-(casesLowMotion ? 2.9 : 1.8) * itemIndex).toFixed(2)}s">
               <img src="${itemIconPath(item)}" 
-                   alt="${item.id}"
+                   alt="${item.id || caseData.name}"
+                   loading="lazy"
+                   decoding="async"
                    onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
             </div>
           `).join('')}
@@ -1155,6 +1196,8 @@ function getBalanceSafe(currency) {
             <div class="case-path-glow"></div>
             <img src="${assetUrl(`images/cases/${caseData.id}.png`)}" 
                  alt="${caseData.name}" 
+                 loading="lazy"
+                 decoding="async"
                  class="case-path-image">
           </div>
           <!-- Liquid glass price pill OVER the case -->
@@ -1168,6 +1211,8 @@ function getBalanceSafe(currency) {
       pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
       casesPath.appendChild(pathItem);
     });
+
+    setupCasesPathAnimationVisibility(casesPath);
   }
 
 
@@ -2229,9 +2274,42 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
   }
 
 // ====== CLAIM BAR (under carousels) ======
+function bindClaimBarHandlers(bar) {
+  if (!bar) return;
+
+  const giftBtn = bar.querySelector('#caseClaimBtn');
+  const nftClaimBtn = bar.querySelector('#caseNftClaimBtn');
+  const nftSellBtn  = bar.querySelector('#caseNftSellBtn');
+
+  // Use explicit onclick rebinding so handlers stay alive even if bar survived a hot/shell remount.
+  if (giftBtn) {
+    giftBtn.onclick = (ev) => {
+      try { ev?.preventDefault?.(); ev?.stopPropagation?.(); } catch (_) {}
+      onGiftClaimClick();
+    };
+  }
+  if (nftClaimBtn) {
+    nftClaimBtn.onclick = (ev) => {
+      try { ev?.preventDefault?.(); ev?.stopPropagation?.(); } catch (_) {}
+      onNftClaimClick();
+    };
+  }
+  if (nftSellBtn) {
+    nftSellBtn.onclick = (ev) => {
+      try { ev?.preventDefault?.(); ev?.stopPropagation?.(); } catch (_) {}
+      onNftSellClick();
+    };
+  }
+
+  bar.dataset.bound = '1';
+}
+
 function ensureClaimBar() {
   let bar = document.getElementById('caseClaimBar');
-  if (bar) return bar;
+  if (bar) {
+    bindClaimBarHandlers(bar);
+    return bar;
+  }
 
   // Вставляем сразу под блоком каруселей
   const section = document.querySelector('.case-carousels-section');
@@ -2270,16 +2348,7 @@ function ensureClaimBar() {
   // Вставим после секции каруселей
   section.insertAdjacentElement('afterend', bar);
 
-  // Bind claim buttons once (event delegation via stable handlers)
-  if (!bar.dataset.bound) {
-    bar.dataset.bound = '1';
-    const giftBtn = bar.querySelector('#caseClaimBtn');
-    const nftClaimBtn = bar.querySelector('#caseNftClaimBtn');
-    const nftSellBtn  = bar.querySelector('#caseNftSellBtn');
-    giftBtn && giftBtn.addEventListener('click', onGiftClaimClick);
-    nftClaimBtn && nftClaimBtn.addEventListener('click', onNftClaimClick);
-    nftSellBtn && nftSellBtn.addEventListener('click', onNftSellClick);
-  }
+  bindClaimBarHandlers(bar);
 
   return bar;
 }
@@ -2777,10 +2846,12 @@ function maybeFinishPendingRound() {
 async function onGiftClaimClick() {
   const pr = pendingRound;
   if (!pr || !pr.giftsPending) return;
+  if (pr._giftClaimInFlight) return;
 
   const bar = document.getElementById('caseClaimBar');
   const btn = bar?.querySelector('#caseClaimBtn');
 
+  pr._giftClaimInFlight = true;
   setBtnLoading(btn, true);
   try {
     if (!Number.isFinite(Number(pr.giftsAmount)) || Number(pr.giftsAmount) <= 0) {
@@ -2816,6 +2887,10 @@ async function onGiftClaimClick() {
           r.status === 0 ||
           r.status === 401 ||
           r.status === 403 ||
+          r.status === 409 ||
+          r.status === 429 ||
+          r.status === 500 ||
+          r.status === 502 ||
           r.status === 503;
 
         if (canFallbackToLocal) {
@@ -2852,7 +2927,11 @@ async function onGiftClaimClick() {
     pr.giftsAmount = 0;
     renderPendingClaimBar();
     maybeFinishPendingRound();
+  } catch (e) {
+    console.error('[Cases] Gift claim click failed:', e);
+    showToast('Не удалось обработать клейм. Попробуй ещё раз.');
   } finally {
+    pr._giftClaimInFlight = false;
     setBtnLoading(btn, false);
   }
 }
@@ -2860,12 +2939,14 @@ async function onGiftClaimClick() {
 async function onNftClaimClick() {
   const pr = pendingRound;
   if (!pr) return;
+  if (pr._nftClaimInFlight) return;
 
   const entry = (pr.nftQueue && pr.nftQueue.length) ? pr.nftQueue[0] : null;
   if (!entry) return;
 
   const bar = document.getElementById('caseClaimBar');
   const btn = bar?.querySelector('#caseNftClaimBtn');
+  pr._nftClaimInFlight = true;
   if (btn) { btn.disabled = true; btn.classList.add('loading'); }
 
   try {
@@ -2918,6 +2999,7 @@ async function onNftClaimClick() {
     renderPendingClaimBar();
     maybeFinishPendingRound();
   } finally {
+    pr._nftClaimInFlight = false;
     if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
   }
 }
@@ -2925,12 +3007,14 @@ async function onNftClaimClick() {
 async function onNftSellClick() {
   const pr = pendingRound;
   if (!pr) return;
+  if (pr._nftSellInFlight) return;
 
   const entry = (pr.nftQueue && pr.nftQueue.length) ? pr.nftQueue[0] : null;
   if (!entry) return;
 
   const bar = document.getElementById('caseClaimBar');
   const btn = bar?.querySelector('#caseNftSellBtn');
+  pr._nftSellInFlight = true;
   if (btn) { btn.disabled = true; btn.classList.add('loading'); }
 
   try {
@@ -2978,6 +3062,7 @@ async function onNftSellClick() {
     renderPendingClaimBar();
     maybeFinishPendingRound();
   } finally {
+    pr._nftSellInFlight = false;
     if (btn) { btn.disabled = false; btn.classList.remove('loading'); }
   }
 }

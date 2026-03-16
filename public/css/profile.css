@@ -5081,6 +5081,18 @@ html[data-currency="stars"] .profile-ava,
   background: rgba(42, 168, 255, 0.07);
 }
 
+html[data-currency="stars"] .promo-input:not(:placeholder-shown):focus,
+html.currency-stars .promo-input:not(:placeholder-shown):focus{
+  border-color: rgba(255, 198, 61, 0.62);
+  background: rgba(255, 198, 61, 0.12);
+}
+
+html[data-currency="stars"] .promo-input:placeholder-shown:focus,
+html.currency-stars .promo-input:placeholder-shown:focus{
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .promo-input::placeholder{
   color: rgba(255, 255, 255, 0.3);
 }
@@ -5103,6 +5115,12 @@ html[data-currency="stars"] .profile-ava,
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+html[data-currency="stars"] .promo-btn:not(:disabled),
+html.currency-stars .promo-btn:not(:disabled){
+  background: linear-gradient(180deg, #ffd34f 0%, #ffbb1b 100%);
+  box-shadow: 0 6px 18px rgba(255, 187, 27, 0.34);
 }
 
 .promo-btn__icon{
