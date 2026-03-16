@@ -633,18 +633,44 @@ function formatAmount(currency, value) {
     ? Math.max(0, Math.round((parseFloat(value) || 0) * 100) / 100)
     : Math.max(0, Math.round(parseFloat(value) || 0));
 
-  // Update internal balance if exists
-  if (window.WildTimeCurrency) {
-    window.WildTimeCurrency.balance = window.WildTimeCurrency.balance || { ton: 0, stars: 0 };
-    window.WildTimeCurrency.balance[c] = next;
-  } else {
-    window.WildTimeCurrency = { current: c, balance: { ton: 0, stars: 0 } };
-    window.WildTimeCurrency.balance[c] = next;
+  // IMPORTANT: in ESM strict mode, assigning to getter-only properties throws.
+  // Update through official API only.
+  const api = window.WildTimeCurrency || null;
+  let applied = false;
+
+  if (api && typeof api.setBalance === 'function') {
+    try {
+      api.setBalance(c, next);
+      applied = true;
+    } catch (e) {
+      console.warn('[Cases] setBalance failed, trying fallback:', e?.message || e);
+    }
   }
 
-  // Prefer official setter if available
-  if (typeof window.WildTimeCurrency.setBalance === 'function') {
-    try { window.WildTimeCurrency.setBalance(c, next); } catch (_) {}
+  if (!applied && api && typeof api.updateBalance === 'function') {
+    try {
+      const snap = (api.balance && typeof api.balance === 'object') ? api.balance : {};
+      const merged = {
+        ton: Number(snap.ton || 0),
+        stars: Number(snap.stars || 0)
+      };
+      merged[c] = next;
+      api.updateBalance(merged);
+      applied = true;
+    } catch (e) {
+      console.warn('[Cases] updateBalance fallback failed:', e?.message || e);
+    }
+  }
+
+  // Last resort local shadow state (keeps claim flow non-blocking even if currency API is unavailable)
+  if (!applied) {
+    try {
+      const fb = (window.__WT_CASES_BALANCE_FALLBACK && typeof window.__WT_CASES_BALANCE_FALLBACK === 'object')
+        ? window.__WT_CASES_BALANCE_FALLBACK
+        : { ton: 0, stars: 0 };
+      fb[c] = next;
+      window.__WT_CASES_BALANCE_FALLBACK = fb;
+    } catch (_) {}
   }
 
   // Notify listeners
@@ -671,7 +697,11 @@ function formatAmount(currency, value) {
 
 function applyBalanceDelta(currency, delta) {
   const c = (currency === 'stars') ? 'stars' : 'ton';
-  const curr = window.WildTimeCurrency?.balance?.[c] ?? 0;
+  let curr = window.WildTimeCurrency?.balance?.[c];
+  if (!(typeof curr === 'number' && Number.isFinite(curr))) {
+    curr = Number(window.__WT_CASES_BALANCE_FALLBACK?.[c]);
+  }
+  if (!(typeof curr === 'number' && Number.isFinite(curr))) curr = 0;
   const d = parseFloat(delta) || 0;
 
   const next = (c === 'ton')
@@ -685,6 +715,9 @@ function getBalanceSafe(currency) {
 
   const b = window.WildTimeCurrency?.balance?.[c];
   if (typeof b === 'number' && Number.isFinite(b)) return b;
+
+   const fb = Number(window.__WT_CASES_BALANCE_FALLBACK?.[c]);
+   if (Number.isFinite(fb)) return fb;
 
   // Fallback: try reading from the balance pill text
   const el = document.getElementById('tonAmount');

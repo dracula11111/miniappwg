@@ -50,6 +50,18 @@
         <span class="burger-btn__line"></span>
       </button>
     </div>
+
+    <!-- Cases page currency switch (center slot in topbar) -->
+    <div class="cases-topbar-switch" aria-label="Cases currency switch">
+      <div class="currency-switch currency-switch--cases" role="group" aria-label="Currency">
+        <button class="curr-btn" data-currency="stars" type="button" aria-label="Stars">
+          <img src="/icons/stars.svg" alt="" class="curr-icon">
+        </button>
+        <button class="curr-btn curr-btn--active" data-currency="ton" type="button" aria-label="TON">
+          <img src="/icons/ton.svg" alt="" class="curr-icon">
+        </button>
+      </div>
+    </div>
   
     <!-- TON/Stars Р±Р°Р»Р°РЅСЃ (РѕС‚РєСЂС‹РІР°РµС‚ РґРµРїРѕР·РёС‚) -->
     <div class="balance">
@@ -521,7 +533,7 @@
     
     <button id="btnConnectTonWallet" class="wt-connect-wallet" type="button">
       <span class="wt-connect-wallet__icon" aria-hidden="true">
-        <img src="/icons/telegram.svg" alt="">
+        <img src="/icons/TelegramBlack.svg" class="wt-tgwallet-icon" alt="">
       </span>
       <span class="wt-connect-wallet__text">Connect Wallet</span>
     </button>

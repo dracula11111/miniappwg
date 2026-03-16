@@ -467,26 +467,43 @@
   }
 
   async function openWalletConnect() {
+    let lastError = null;
+
     try {
       if (typeof window.WildTimeTonConnect?.connect === 'function') {
         await window.WildTimeTonConnect.connect();
-        return;
+        return true;
       }
-    } catch {}
+    } catch (err) {
+      lastError = err;
+    }
 
     try {
       if (typeof window.WildTimeTonConnect?.openModal === 'function') {
         await window.WildTimeTonConnect.openModal();
-        return;
+        return true;
       }
-    } catch {}
+    } catch (err) {
+      lastError = err;
+    }
 
     try {
       if (typeof window.tonConnectUI?.openModal === 'function') {
         await window.tonConnectUI.openModal();
-        return;
+        return true;
       }
-    } catch {}
+    } catch (err) {
+      lastError = err;
+    }
+
+    if (lastError) {
+      console.warn('[Profile] Connect wallet failed:', lastError?.message || lastError);
+    } else {
+      console.warn('[Profile] Connect wallet failed: TonConnect is unavailable');
+    }
+
+    showToast('Failed to connect wallet');
+    return false;
   }
 
   async function doDisconnect() {

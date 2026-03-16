@@ -5,6 +5,10 @@
   const PROJECT_TON_ADDRESS = 'UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J';
   const MIN_DEPOSIT = 0.1;
   const TEST_LS_KEY = 'WT_TON_TEST_WALLET_V1';
+  const TONCONNECT_UI_FALLBACK_SOURCES = [
+    'https://cdn.jsdelivr.net/npm/@tonconnect/ui@latest/dist/tonconnect-ui.min.js',
+    'https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js'
+  ];
 
   const tg = window.Telegram?.WebApp || null;
   const tgUserId = tg?.initDataUnsafe?.user?.id || 'guest';
@@ -229,6 +233,47 @@
     btnConnect.disabled = !!disabled;
   }
 
+  function notifyConnectError(message = 'Failed to connect wallet') {
+    try { tg?.showAlert?.(message); return; } catch {}
+    try { window.showToast?.(message); return; } catch {}
+    try { alert(message); } catch {}
+  }
+
+  function loadTonConnectFromScript(src) {
+    return new Promise((resolve, reject) => {
+      if (!src) return reject(new Error('Empty TonConnect script src'));
+
+      const existing = document.querySelector(`script[data-wt-tonconnect-src="${src}"]`);
+      if (existing) {
+        if (window.TON_CONNECT_UI) return resolve(true);
+        existing.addEventListener('load', () => resolve(true), { once: true });
+        existing.addEventListener('error', () => reject(new Error(`Failed to load ${src}`)), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.dataset.wtTonconnectSrc = src;
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensureTonConnectLibrary() {
+    if (window.TON_CONNECT_UI) return true;
+
+    for (const src of TONCONNECT_UI_FALLBACK_SOURCES) {
+      try {
+        await loadTonConnectFromScript(src);
+        if (window.TON_CONNECT_UI) return true;
+      } catch {}
+    }
+
+    return !!window.TON_CONNECT_UI;
+  }
+
   async function fetchWalletBalance() {
     if (isTestConnected()) {
       if (walletBalance) walletBalance.textContent = `${getTestBalanceTon().toFixed(2)} TON`;
@@ -402,9 +447,21 @@
 
     try {
       setConnectBtnState('Connecting...', true);
-      if (tc) await tc.openModal();
-    } catch {
-      try { tg?.showAlert?.('Failed to connect wallet'); } catch {}
+      if (!tc) {
+        await ensureTonConnectLibrary().catch(() => {});
+        if (!tc && window.TON_CONNECT_UI) {
+          await initTonConnectUI().catch(() => {});
+        }
+      }
+
+      if (tc && typeof tc.openModal === 'function') {
+        await tc.openModal();
+      } else {
+        throw new Error('TonConnect is unavailable');
+      }
+    } catch (err) {
+      console.warn('[TonDep] Connect wallet failed:', err?.message || err);
+      notifyConnectError('Failed to connect wallet');
     } finally {
       setConnectBtnState('Connect Wallet', false);
     }
@@ -497,57 +554,78 @@
     }
   });
 
-  if (!window.TON_CONNECT_UI) {
+  async function initTonConnectUI() {
+    if (tc) return tc;
+    if (!window.TON_CONNECT_UI) return null;
+
+    const storage = {
+      getItem: (k) => localStorage.getItem(`${tgUserId}:tc:${k}`),
+      setItem: (k, v) => localStorage.setItem(`${tgUserId}:tc:${k}`, v),
+      removeItem: (k) => localStorage.removeItem(`${tgUserId}:tc:${k}`)
+    };
+
+    tc = new window.TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: MANIFEST_URL,
+      buttonRootId: null,
+      storage,
+      restoreConnection: true,
+      actionsConfiguration: { twaReturnUrl: 'https://t.me' }
+    });
+
+    window.tonConnectUI = tc;
+    window.__wtTonConnect = tc;
+    setupTonConnectBridge();
+
+    tc.onStatusChange(async (wallet) => {
+      emitWalletChanged();
+      if (wallet || isTestConnected()) {
+        await fetchWalletBalance().catch(() => {});
+      } else if (walletBalance) {
+        walletBalance.textContent = '-';
+      }
+      updateUI();
+    });
+
+    try {
+      const restored = tc?.connectionRestored;
+      if (restored && typeof restored.then === 'function') {
+        restored.then(() => {
+          emitWalletChanged();
+          updateUI();
+          fetchWalletBalance().catch(() => {});
+        }).catch(() => {});
+      }
+    } catch {}
+
+    return tc;
+  }
+
+  (async () => {
+    if (!window.TON_CONNECT_UI) {
+      await ensureTonConnectLibrary().catch(() => {});
+    }
+
+    if (!window.TON_CONNECT_UI) {
+      setupTonConnectBridge();
+      window.dispatchEvent(new Event('wt-tc-ready'));
+      emitWalletChanged();
+      updateUI();
+      return;
+    }
+
+    await initTonConnectUI();
+
+    window.dispatchEvent(new Event('wt-tc-ready'));
+    setTimeout(() => {
+      emitWalletChanged();
+      updateUI();
+      fetchWalletBalance().catch(() => {});
+    }, 0);
+  })().catch((err) => {
+    console.warn('[TonDep] TonConnect init failed:', err?.message || err);
     setupTonConnectBridge();
     window.dispatchEvent(new Event('wt-tc-ready'));
     emitWalletChanged();
     updateUI();
-    return;
-  }
-
-  const storage = {
-    getItem: (k) => localStorage.getItem(`${tgUserId}:tc:${k}`),
-    setItem: (k, v) => localStorage.setItem(`${tgUserId}:tc:${k}`, v),
-    removeItem: (k) => localStorage.removeItem(`${tgUserId}:tc:${k}`)
-  };
-
-  tc = new window.TON_CONNECT_UI.TonConnectUI({
-    manifestUrl: MANIFEST_URL,
-    buttonRootId: null,
-    storage,
-    restoreConnection: true,
-    actionsConfiguration: { twaReturnUrl: 'https://t.me' }
   });
-
-  window.tonConnectUI = tc;
-  window.__wtTonConnect = tc;
-  setupTonConnectBridge();
-
-  tc.onStatusChange(async (wallet) => {
-    emitWalletChanged();
-    if (wallet || isTestConnected()) {
-      await fetchWalletBalance().catch(() => {});
-    } else if (walletBalance) {
-      walletBalance.textContent = '-';
-    }
-    updateUI();
-  });
-
-  try {
-    const restored = tc?.connectionRestored;
-    if (restored && typeof restored.then === 'function') {
-      restored.then(() => {
-        emitWalletChanged();
-        updateUI();
-        fetchWalletBalance().catch(() => {});
-      }).catch(() => {});
-    }
-  } catch {}
-
-  window.dispatchEvent(new Event('wt-tc-ready'));
-  setTimeout(() => {
-    emitWalletChanged();
-    updateUI();
-    fetchWalletBalance().catch(() => {});
-  }, 0);
 })();
