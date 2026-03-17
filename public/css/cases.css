@@ -78,25 +78,19 @@ body:has(.page-active#casesPage)::before{
   opacity: 0.8;
 }
 
-/* Temporary test palette: Stars mode on Cases = grass-like background */
+/* Stars palette: forest atmosphere for Cases page */
 html.currency-stars body:has(.page-active#casesPage){
+  --stars-layout-w: min(100vw, 430px);
+  --stars-image-ratio: 5.72067; /* starsbackimg.png = 716x4096 */
+  --stars-bg-h: calc(var(--stars-layout-w) * var(--stars-image-ratio));
   background:
-    radial-gradient(920px 520px at 50% 110%,
-      rgba(255,255,255,0.18) 0%,
-      rgba(181,255,156,0.12) 42%,
-      rgba(0,0,0,0.00) 74%),
-    radial-gradient(760px 420px at 50% -160px,
-      rgba(136,236,122,0.18) 0%,
-      rgba(58,141,61,0.12) 40%,
-      rgba(0,0,0,0.00) 74%),
-    linear-gradient(180deg,
-      #0a2410 0%,
-      #15451b 34%,
-      #2f7f2d 70%,
-      #60b94b 100%);
-  --sky-glass: rgba(13, 42, 16, 0.24);
-  --sky-border: rgba(214, 255, 194, 0.30);
-  --sky-shadow: rgba(8, 28, 12, 0.26);
+    #272727 url('/images/cases/starcases/starsbackimg.png')
+    top center / var(--stars-layout-w) auto no-repeat;
+  background-attachment: scroll;
+  background-repeat: no-repeat;
+  --sky-glass: rgba(13, 35, 17, 0.32);
+  --sky-border: rgba(214, 255, 194, 0.22);
+  --sky-shadow: rgba(8, 22, 11, 0.36);
 }
 
 html.currency-stars body:has(.page-active#casesPage)::before{
@@ -162,6 +156,8 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
     inset 0 1px 0 rgba(255,255,255,0.11);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: border-color .22s ease, box-shadow .22s ease, background .22s ease;
+  transform: translateZ(0);
   /* Cases order is Stars (left) -> TON (right), so TON active should be on the right */
   --wt-indicator-x: calc(100% + 4px);
 }
@@ -186,9 +182,22 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn{
   gap: 0;
 }
 
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:hover,
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:active{
+  transform: none;
+}
+
 body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-icon{
   width: 18px;
   height: 18px;
+}
+
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:hover .curr-icon{
+  transform: translateZ(0) scale(1.02);
+}
+
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
+  animation: none;
 }
 
 @media (max-width: 420px){
@@ -689,6 +698,175 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-icon{
 
 #casesPage .case-path-item[data-case-id="case1"] .case-path-glow{
   inset: -34%;
+}
+
+/* ============================================
+   STARS BACKGROUND TEST MODE (single image)
+   ============================================ */
+html.currency-stars #casesPage #casesGrid.cases-path,
+html.currency-stars #casesPage .cases-path{
+  --stars-grid-top-offset: 118px;   /* topbar/logo zone */
+  --stars-grid-bottom-offset: 90px; /* app bottom safe-area */
+  --stars-grid-h: calc(var(--stars-bg-h) - var(--stars-grid-top-offset) - var(--stars-grid-bottom-offset));
+  position: relative;
+  isolation: isolate;
+  padding: 0;
+  min-height: max(100dvh, var(--stars-grid-h));
+  background: transparent;
+}
+
+html.currency-stars #casesPage #casesGrid.cases-path::before,
+html.currency-stars #casesPage .cases-path::before,
+html.currency-stars #casesPage #casesGrid.cases-path::after,
+html.currency-stars #casesPage .cases-path::after{
+  content: none !important;
+  display: none !important;
+}
+
+html.currency-stars #casesPage .case-stars-fireflies{
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+html.currency-stars #casesPage .case-stars-firefly{
+  display: block;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--size, 2.4px);
+  height: var(--size, 2.4px);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translateZ(0) scale(0.72);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,244,196,1) 0%, rgba(255,220,126,0.94) 52%, rgba(255,179,76,0.00) 100%);
+  box-shadow:
+    0 0 2px rgba(255,234,160,0.92),
+    0 0 7px rgba(255,190,92,0.62);
+  filter:
+    drop-shadow(0 0 5px rgba(255,206,112,0.72))
+    drop-shadow(0 0 11px rgba(255,176,76,0.42));
+  mix-blend-mode: screen;
+  animation: wtStarsFirefly var(--dur, 4.8s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform, opacity;
+}
+
+@keyframes wtStarsFirefly{
+  0%, 100%{
+    opacity: 0;
+    transform: translateZ(0) scale(0.70);
+  }
+  18%{
+    opacity: 0;
+  }
+  46%{
+    opacity: var(--alpha, 0.72);
+    transform: translateZ(0) scale(1);
+  }
+  74%{
+    opacity: 0;
+    transform: translateZ(0) scale(0.84);
+  }
+}
+
+html.cases-low-motion #casesPage .case-stars-firefly{
+  animation-duration: 9.2s;
+}
+
+html.currency-stars #casesPage .case-path-item--stars{
+  --case-s: clamp(190px, 46vw, 252px);
+  min-height: clamp(
+    300px,
+    calc(var(--stars-grid-h) / 5),
+    460px
+  );
+  padding: 0 0 52px;
+  contain: none;
+  content-visibility: visible;
+  overflow: visible;
+  z-index: 2;
+  background: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+html.currency-stars #casesPage .case-path-item--stars::after{
+  display: none !important;
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-track,
+html.currency-stars #casesPage .case-path-item--stars .case-path-items,
+html.currency-stars #casesPage .case-path-item--stars .case-path-glow,
+html.currency-stars #casesPage .case-path-item--stars .case-path-grove,
+html.currency-stars #casesPage .case-path-item--stars .case-path-gap{
+  display: none !important;
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-case{
+  top: 39%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+}
+
+html.currency-stars #casesPage .case-path-item--stars[data-case-id="case1"] .case-path-case{
+  top: 34%;
+}
+
+html.currency-stars #casesPage .case-path-item--stars[data-case-id="case3"] .case-path-case,
+html.currency-stars #casesPage .case-path-item--stars[data-case-id="case4"] .case-path-case,
+html.currency-stars #casesPage .case-path-item--stars[data-case-id="case5"] .case-path-case{
+  top: 39%;
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-image-wrapper{
+  width: var(--case-s);
+  height: var(--case-s);
+}
+
+html.currency-stars #casesPage .case-path-item--stars img.case-path-image{
+  filter:
+    drop-shadow(0 18px 28px rgba(0,0,0,0.48))
+    drop-shadow(0 7px 12px rgba(0,0,0,0.34));
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-price{
+  bottom: -14px;
+  gap: 0;
+  min-width: 82px;
+  justify-content: center;
+  padding: 8px 18px;
+  background: rgba(16, 37, 20, 0.62);
+  border: 1px solid rgba(255, 223, 133, 0.36);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,248,214,0.24),
+    inset 0 -1px 0 rgba(71,48,23,0.32);
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-price-icon{
+  display: none;
+}
+
+html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
+  color: #ffe39f;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  font-size: 18px;
+  letter-spacing: 0.6px;
+}
+
+@media (max-width: 420px){
+  html.currency-stars #casesPage .case-path-item--stars{
+    padding-bottom: 44px;
+  }
+
+  html.currency-stars #casesPage .case-path-item--stars .case-path-price{
+    padding: 7px 15px;
+    min-width: 74px;
+  }
 }
 
 

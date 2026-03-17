@@ -1,18 +1,18 @@
-// public/js/cases.js - Case opening system with realistic spin animation
+﻿// public/js/cases.js - Case opening system with realistic spin animation
 (() => {
-  console.log('[Cases] 🎁 Starting cases module');
+  console.log('[Cases] рџЋЃ Starting cases module');
 
   const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
   // ====== ASSET URL HELPERS ======
-  // Важно для Telegram WebApp и любых деплоев в подпапку: убираем ведущий "/" и строим URL относительно document.baseURI.
+  // Р’Р°Р¶РЅРѕ РґР»СЏ Telegram WebApp Рё Р»СЋР±С‹С… РґРµРїР»РѕРµРІ РІ РїРѕРґРїР°РїРєСѓ: СѓР±РёСЂР°РµРј РІРµРґСѓС‰РёР№ "/" Рё СЃС‚СЂРѕРёРј URL РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ document.baseURI.
   const __ASSET_BASE__ = new URL('.', document.baseURI).toString();
   function assetUrl(p) {
     if (!p) return p;
     const s = String(p);
-    // абсолютные ссылки / data / blob оставляем как есть
+    // Р°Р±СЃРѕР»СЋС‚РЅС‹Рµ СЃСЃС‹Р»РєРё / data / blob РѕСЃС‚Р°РІР»СЏРµРј РєР°Рє РµСЃС‚СЊ
     if (/^(https?:)?\/\//i.test(s) || s.startsWith('data:') || s.startsWith('blob:')) return s;
-    // если путь начинается с "/", делаем его относительным к baseURI, а не к доменному корню
+    // РµСЃР»Рё РїСѓС‚СЊ РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ "/", РґРµР»Р°РµРј РµРіРѕ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Рј Рє baseURI, Р° РЅРµ Рє РґРѕРјРµРЅРЅРѕРјСѓ РєРѕСЂРЅСЋ
     const clean = s.startsWith('/') ? s.slice(1) : s;
     return new URL(clean, __ASSET_BASE__).toString();
   }
@@ -187,20 +187,20 @@ function itemType(item) {
 }
 
 function itemIconPath(item) {
-  // NFT лежат в /images/gifts/nfts/ (папка nfts внутри gifts)
+  // NFT Р»РµР¶Р°С‚ РІ /images/gifts/nfts/ (РїР°РїРєР° nfts РІРЅСѓС‚СЂРё gifts)
   const base = itemType(item) === 'nft' ? 'images/gifts/nfts/' : 'images/gifts/';
   const icon = (item && item.icon) ? String(item.icon) : 'stars.webp';
 
-  // Если уже дали абсолютную ссылку — не трогаем.
+  // Р•СЃР»Рё СѓР¶Рµ РґР°Р»Рё Р°Р±СЃРѕР»СЋС‚РЅСѓСЋ СЃСЃС‹Р»РєСѓ вЂ” РЅРµ С‚СЂРѕРіР°РµРј.
   if (/^(https?:)?\/\//i.test(icon) || icon.startsWith('data:') || icon.startsWith('blob:')) return icon;
 
-  // Если пришёл абсолютный путь вида "/images/..." — всё равно делаем его относительным к baseURI (а не к корню домена)
+  // Р•СЃР»Рё РїСЂРёС€С‘Р» Р°Р±СЃРѕР»СЋС‚РЅС‹Р№ РїСѓС‚СЊ РІРёРґР° "/images/..." вЂ” РІСЃС‘ СЂР°РІРЅРѕ РґРµР»Р°РµРј РµРіРѕ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Рј Рє baseURI (Р° РЅРµ Рє РєРѕСЂРЅСЋ РґРѕРјРµРЅР°)
   if (icon.startsWith('/')) return assetUrl(icon);
 
   return assetUrl(base + icon);
 }
 
-// общий фолбэк (если картинка не найдена)
+// РѕР±С‰РёР№ С„РѕР»Р±СЌРє (РµСЃР»Рё РєР°СЂС‚РёРЅРєР° РЅРµ РЅР°Р№РґРµРЅР°)
 const ITEM_ICON_FALLBACK = assetUrl('images/gifts/stars.webp');
 
 
@@ -273,7 +273,7 @@ function getPeekNameForItem(item) {
 }
 
 async function ensurePeekFloorsLoaded() {
-  // обновлять чаще смысла нет, у нас сервер обновляет раз в час
+  // РѕР±РЅРѕРІР»СЏС‚СЊ С‡Р°С‰Рµ СЃРјС‹СЃР»Р° РЅРµС‚, Сѓ РЅР°СЃ СЃРµСЂРІРµСЂ РѕР±РЅРѕРІР»СЏРµС‚ СЂР°Р· РІ С‡Р°СЃ
   if (peekFloorMap && (Date.now() - peekFloorUpdatedAt) < 10 * 60 * 1000) return;
 
   try {
@@ -325,12 +325,12 @@ async function ensurePeekFloorsLoaded() {
     peekFloorMap = m;
     peekFloorUpdatedAt = Date.now();
     
-    console.log('[Cases] ✅ Loaded floor prices:', {
+    console.log('[Cases] вњ… Loaded floor prices:', {
       count: m.size,
       prices: Array.from(m.entries())
     });
   } catch (e) {
-    console.error('[Cases] ❌ Failed to load floor prices:', e);
+    console.error('[Cases] вќЊ Failed to load floor prices:', e);
   }
 }
 
@@ -344,18 +344,18 @@ function getFloorTonForItem(item) {
 
 
 // ====== DROP RATES (NFT rarity) ======
-// Demo: NFT выпадает часто (почти каждый прокрут)
-// Paid (TON / Stars): NFT выпадает редко
+// Demo: NFT РІС‹РїР°РґР°РµС‚ С‡Р°СЃС‚Рѕ (РїРѕС‡С‚Рё РєР°Р¶РґС‹Р№ РїСЂРѕРєСЂСѓС‚)
+// Paid (TON / Stars): NFT РІС‹РїР°РґР°РµС‚ СЂРµРґРєРѕ
 const NFT_DROP_RATES = {
-  demo: 0.40,          // 90% на выигрыш в демо
-  ton: 0.13,           // 3% на выигрыш за TON
-  stars: 0.12          // 2% на выигрыш за Stars
+  demo: 0.40,          // 90% РЅР° РІС‹РёРіСЂС‹С€ РІ РґРµРјРѕ
+  ton: 0.13,           // 3% РЅР° РІС‹РёРіСЂС‹С€ Р·Р° TON
+  stars: 0.12          // 2% РЅР° РІС‹РёРіСЂС‹С€ Р·Р° Stars
 };
 
-// Для заполнения ленты (визуально): чтобы NFT не мелькали слишком часто
+// Р”Р»СЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ Р»РµРЅС‚С‹ (РІРёР·СѓР°Р»СЊРЅРѕ): С‡С‚РѕР±С‹ NFT РЅРµ РјРµР»СЊРєР°Р»Рё СЃР»РёС€РєРѕРј С‡Р°СЃС‚Рѕ
 const STRIP_NFT_CHANCE = {
-  demo: 0.28,          // в демо пусть иногда мелькают
-  paid: 0.26           // в обычном режиме редко
+  demo: 0.28,          // РІ РґРµРјРѕ РїСѓСЃС‚СЊ РёРЅРѕРіРґР° РјРµР»СЊРєР°СЋС‚
+  paid: 0.26           // РІ РѕР±С‹С‡РЅРѕРј СЂРµР¶РёРјРµ СЂРµРґРєРѕ
 };
 
 const _casePoolsCache = new Map();
@@ -387,7 +387,7 @@ function pickWeightedNft(nfts) {
     if (Number.isFinite(w) && w > 0) totalWeight += w;
   }
 
-  // Фолбэк на равномерный выбор, если веса не заданы
+  // Р¤РѕР»Р±СЌРє РЅР° СЂР°РІРЅРѕРјРµСЂРЅС‹Р№ РІС‹Р±РѕСЂ, РµСЃР»Рё РІРµСЃР° РЅРµ Р·Р°РґР°РЅС‹
   if (!(totalWeight > 0)) return pickRandom(nfts);
 
   let roll = Math.random() * totalWeight;
@@ -447,7 +447,7 @@ function pickWinningItem(caseData, demoMode, currency) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
 
-  // Если NFT в кейсе нет — выбираем как обычно
+  // Р•СЃР»Рё NFT РІ РєРµР№СЃРµ РЅРµС‚ вЂ” РІС‹Р±РёСЂР°РµРј РєР°Рє РѕР±С‹С‡РЅРѕ
   if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
 
   const chance = getNftWinChance(demoMode, currency);
@@ -456,7 +456,7 @@ function pickWinningItem(caseData, demoMode, currency) {
   if (roll < chance) {
     return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
   }
-  // не NFT: выбираем из подарков
+  // РЅРµ NFT: РІС‹Р±РёСЂР°РµРј РёР· РїРѕРґР°СЂРєРѕРІ
   return pickWeightedGift(pools.gifts) || pickRandom(pools.gifts) || pickRandom(pools.items);
 }
 
@@ -482,13 +482,13 @@ function pickStripItem(caseData, demoMode) {
   const contRect = cont.getBoundingClientRect();
   const indRect = indicator.getBoundingClientRect();
 
-  // Центр линии в координатах контента ленты (itemsContainer)
+  // Р¦РµРЅС‚СЂ Р»РёРЅРёРё РІ РєРѕРѕСЂРґРёРЅР°С‚Р°С… РєРѕРЅС‚РµРЅС‚Р° Р»РµРЅС‚С‹ (itemsContainer)
   const x = (indRect.left + indRect.width / 2) - contRect.left;
   return Number.isFinite(x) ? x : 0;
 }
 
 function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) {
-  // где линия указывает в координатах контента ленты
+  // РіРґРµ Р»РёРЅРёСЏ СѓРєР°Р·С‹РІР°РµС‚ РІ РєРѕРѕСЂРґРёРЅР°С‚Р°С… РєРѕРЅС‚РµРЅС‚Р° Р»РµРЅС‚С‹
   const xContent = finalPos + lineX;
 
   const w = (Number.isFinite(itemWidth) && itemWidth > 0) ? itemWidth : step;
@@ -507,7 +507,7 @@ function syncWinByLine(carousel, finalPos, strip, padL, step, lineX, itemWidth) 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
   function easeInOutCubic(t) {
-  // 0..1 -> 0..1 (плавный старт + плавная остановка)
+  // 0..1 -> 0..1 (РїР»Р°РІРЅС‹Р№ СЃС‚Р°СЂС‚ + РїР»Р°РІРЅР°СЏ РѕСЃС‚Р°РЅРѕРІРєР°)
   return t < 0.5
     ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -553,11 +553,11 @@ function isLocalRuntime() {
 }
 
    // ====== TON <-> STARS rate (0.4332 TON = 50 Stars) ======
-      // ====== TON <-> STARS rate (0.4332 TON = 50 ⭐) ======
+      // ====== TON <-> STARS rate (0.4332 TON = 50 в­ђ) ======
 
 
 // =========================
-// TON ↔ Stars rate (dynamic)
+// TON в†” Stars rate (dynamic)
 // =========================
 // Prefer window.WildTimeRates (defined in switch.js). Fallback to cached localStorage or legacy constant.
 const __Rates = (typeof window !== 'undefined') ? (window.WildTimeRates || null) : null;
@@ -595,7 +595,7 @@ function prizeValue(item, currency) {
   const p = item?.price || {};
 
   if (currency === 'ton') {
-    // ⭐-приз -> конвертим в TON по курсу
+    // в­ђ-РїСЂРёР· -> РєРѕРЅРІРµСЂС‚РёРј РІ TON РїРѕ РєСѓСЂСЃСѓ
     if (isStarsPrizeGift(item)) {
       const s = Number(p.stars);
       return (Number.isFinite(s) && s > 0) ? starsToTon(s) : 0;
@@ -605,13 +605,13 @@ function prizeValue(item, currency) {
   }
 
   // currency === 'stars'
-  // ⭐-приз остаётся в звёздах как есть
+  // в­ђ-РїСЂРёР· РѕСЃС‚Р°С‘С‚СЃСЏ РІ Р·РІС‘Р·РґР°С… РєР°Рє РµСЃС‚СЊ
   if (isStarsPrizeGift(item)) {
     const s = Number(p.stars);
     return (Number.isFinite(s) && s > 0) ? s : 0;
   }
 
-  // Всё остальное: считаем Stars из TON (актуальный курс, чтобы цены не были завышены/занижены)
+  // Р’СЃС‘ РѕСЃС‚Р°Р»СЊРЅРѕРµ: СЃС‡РёС‚Р°РµРј Stars РёР· TON (Р°РєС‚СѓР°Р»СЊРЅС‹Р№ РєСѓСЂСЃ, С‡С‚РѕР±С‹ С†РµРЅС‹ РЅРµ Р±С‹Р»Рё Р·Р°РІС‹С€РµРЅС‹/Р·Р°РЅРёР¶РµРЅС‹)
   const t = Number(p.ton);
   if (Number.isFinite(t) && t > 0) return tonToStars(t);
 
@@ -791,6 +791,17 @@ function getBalanceSafe(currency) {
     return !!(p && p.classList.contains('page-active'));
   }
 
+  function getCaseImageFolder(currency) {
+    return currency === 'stars' ? 'starcases' : 'toncases';
+  }
+
+  function getCaseImagePath(caseId, currency) {
+    const rawId = String(caseId || 'case1').toLowerCase();
+    const safeId = rawId.replace(/[^a-z0-9_-]/g, '') || 'case1';
+    const effectiveId = (currency === 'stars') ? 'case1' : safeId;
+    return assetUrl(`images/cases/${getCaseImageFolder(currency)}/${effectiveId}.png`);
+  }
+
   function initHeroTicker() {
     heroTickerEl = document.getElementById('casesHeroTicker');
     if (!heroTickerEl) return;
@@ -798,6 +809,7 @@ function getBalanceSafe(currency) {
     // Clear and (re)build
     heroTickerEl.innerHTML = '';
     const list = Object.values(CASES);
+    const currency = window.WildTimeCurrency?.current || 'ton';
     const slotMs = 2200; // each case visible ~2.2s
     const totalMs = Math.max(slotMs * Math.max(1, list.length), 3000);
 
@@ -806,7 +818,7 @@ function getBalanceSafe(currency) {
       item.className = 'cases-hero__ticker-item';
       item.style.animationDuration = `${totalMs}ms`;
       item.style.animationDelay = `${idx * slotMs}ms`;
-      item.innerHTML = `<img src="images/cases/${escapeHtml(caseData.id)}.png" alt="${escapeHtml(caseData.name)}">`;
+      item.innerHTML = `<img src="${getCaseImagePath(caseData.id, currency)}" alt="${escapeHtml(caseData.name)}">`;
       heroTickerEl.appendChild(item);
     });
   }
@@ -814,16 +826,19 @@ function getBalanceSafe(currency) {
   function renderHistory(items) {
     if (!historyListEl) return;
     const arr = Array.isArray(items) ? items : [];
+    const currency = window.WildTimeCurrency?.current || 'ton';
     historyListEl.innerHTML = arr.map((h) => {
       const u = h.user || {};
       const userLabel = escapeHtml(u.username || u.name || 'User');
       const itemLabel = escapeHtml(h.drop?.label || h.drop?.id || '');
-      const caseId = escapeHtml(h.caseId || 'case1');
+      const caseIdRaw = String(h.caseId || 'case1');
+      const caseId = escapeHtml(caseIdRaw);
+      const caseImage = getCaseImagePath(caseIdRaw, currency);
       const dropIcon = escapeHtml(h.drop?.icon || ITEM_ICON_FALLBACK);
       return `
-        <div class="cases-history-item" title="${userLabel} • ${itemLabel}">
+        <div class="cases-history-item" title="${userLabel} вЂў ${itemLabel}">
           <div class="cases-history-item__thumb">
-            <img class="cases-history-item__case" src="images/cases/${caseId}.png" alt="${caseId}">
+            <img class="cases-history-item__case" src="${caseImage}" alt="${caseId}">
             <div class="cases-history-item__drop"><img src="${dropIcon}" alt="${itemLabel}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'"></div>
           </div>
           <div class="cases-history-item__meta">
@@ -936,14 +951,14 @@ function getBalanceSafe(currency) {
     const payloadNoInit   = { userId, entries: list };
 
     try {
-      // fire-and-forget (don’t block UX)
+      // fire-and-forget (donвЂ™t block UX)
       fetchJsonSafe('/api/cases/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadWithInit)
       }, 3500)
         .then((r) => {
-          // Telegram initData expires (server verifies age). If we got 401/403 — retry without initData.
+          // Telegram initData expires (server verifies age). If we got 401/403 вЂ” retry without initData.
           if (!r.ok && (r.status === 401 || r.status === 403)) {
             return fetchJsonSafe('/api/cases/history', {
               method: 'POST',
@@ -1008,12 +1023,12 @@ function getBalanceSafe(currency) {
     attachListeners();
     generateCasesGrid();
 
-    // Загрузить floor prices при старте
+    // Р—Р°РіСЂСѓР·РёС‚СЊ floor prices РїСЂРё СЃС‚Р°СЂС‚Рµ
     ensurePeekFloorsLoaded().catch(e => {
       console.warn('[Cases] Failed to load floor prices:', e);
     });
 
-    console.log('[Cases] ✅ Ready');
+    console.log('[Cases] вњ… Ready');
   }
   // ====== EMERGENCY FIX FOR Z-INDEX & SCROLL ======
 
@@ -1086,7 +1101,7 @@ function getBalanceSafe(currency) {
       }
     }
     
-    console.log('[Cases] Fix applied ✅');
+    console.log('[Cases] Fix applied вњ…');
   }
 
 
@@ -1105,7 +1120,7 @@ function getBalanceSafe(currency) {
     `;
 
     toggle.addEventListener('click', () => {
-      if (isSpinning) return; // нельзя менять режим во время прокрута/клейма
+      if (isSpinning) return; // РЅРµР»СЊР·СЏ РјРµРЅСЏС‚СЊ СЂРµР¶РёРј РІРѕ РІСЂРµРјСЏ РїСЂРѕРєСЂСѓС‚Р°/РєР»РµР№РјР°
       if (isCasesTestMode()) return;
       isDemoMode = !isDemoMode;
       toggle.classList.toggle('active', isDemoMode);
@@ -1182,6 +1197,32 @@ function getBalanceSafe(currency) {
     pathItems.forEach((item) => casesPathObserver.observe(item));
   }
 
+  function appendStarsFireflies(casesPath) {
+    const layer = document.createElement('div');
+    layer.className = 'case-stars-fireflies';
+
+    const count = casesLowMotion ? 28 : 64;
+    for (let i = 0; i < count; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'case-stars-firefly';
+
+      const size = (Math.random() * (casesLowMotion ? 1.2 : 2.0)) + 1.8;
+      const duration = (Math.random() * (casesLowMotion ? 4.8 : 3.8)) + (casesLowMotion ? 7.4 : 3.6);
+      const alpha = (Math.random() * 0.32) + 0.60;
+
+      dot.style.setProperty('--x', `${(Math.random() * 95 + 2).toFixed(2)}%`);
+      dot.style.setProperty('--y', `${(Math.random() * 94 + 3).toFixed(2)}%`);
+      dot.style.setProperty('--size', `${size.toFixed(2)}px`);
+      dot.style.setProperty('--dur', `${duration.toFixed(2)}s`);
+      dot.style.setProperty('--delay', `${(-Math.random() * 9).toFixed(2)}s`);
+      dot.style.setProperty('--alpha', alpha.toFixed(2));
+
+      layer.appendChild(dot);
+    }
+
+    casesPath.appendChild(layer);
+  }
+
   function generateCasesGrid() {
     const casesPath = document.getElementById('casesGrid');
     if (!casesPath) return;
@@ -1192,10 +1233,12 @@ function getBalanceSafe(currency) {
 
     const casesArray = Object.values(CASES);
     const currency = window.WildTimeCurrency?.current || 'ton';
+    const isStarsTheme = currency === 'stars';
     const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/stars.svg');
 
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
+      const priceDisplay = isStarsTheme ? '-' : price;
       
       // Low-motion keeps fewer moving objects to reduce main-thread load.
       const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
@@ -1203,47 +1246,68 @@ function getBalanceSafe(currency) {
       const pathItem = document.createElement('div');
       pathItem.className = 'case-path-item is-visible';
       pathItem.dataset.caseId = caseData.id;
+      pathItem.dataset.variant = String((index % 3) + 1);
 
-      pathItem.innerHTML = `
-        <!-- Premium horizontal track with border & shimmer -->
-        <div class="case-path-track">
-          <div class="case-path-track-shimmer"></div>
-        </div>
-        
-        <!-- Animated items sliding on track -->
-        <div class="case-path-items">
-          ${displayItems.map((item, itemIndex) => `
-            <div class="case-path-item-float" style="--gift-duration:${(casesLowMotion ? 8.2 : 5.4).toFixed(1)}s;--gift-delay:${(-(casesLowMotion ? 2.9 : 1.8) * itemIndex).toFixed(2)}s">
-              <img src="${itemIconPath(item)}" 
-                   alt="${item.id || caseData.name}"
+      if (isStarsTheme) {
+        pathItem.classList.add('case-path-item--stars');
+        pathItem.innerHTML = `
+          <div class="case-path-case">
+            <div class="case-path-image-wrapper">
+              <img src="${getCaseImagePath(caseData.id, currency)}"
+                   alt="${caseData.name}"
                    loading="lazy"
                    decoding="async"
-                   onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+                   class="case-path-image">
             </div>
-          `).join('')}
-        </div>
-        
-        <!-- Case positioned ON the track -->
-        <div class="case-path-case">
-          <div class="case-path-image-wrapper">
-            <div class="case-path-glow"></div>
-            <img src="${assetUrl(`images/cases/${caseData.id}.png`)}" 
-                 alt="${caseData.name}" 
-                 loading="lazy"
-                 decoding="async"
-                 class="case-path-image">
+            <div class="case-path-price case-path-price--stub">
+              <span class="case-path-price-val">${priceDisplay}</span>
+            </div>
           </div>
-          <!-- Liquid glass price pill OVER the case -->
-          <div class="case-path-price">
-            <img src="${icon}" class="case-path-price-icon" alt="${currency}">
-            <span class="case-path-price-val">${price}</span>
+        `;
+      } else {
+        pathItem.innerHTML = `
+          <!-- Premium horizontal track with border & shimmer -->
+          <div class="case-path-track">
+            <div class="case-path-track-shimmer"></div>
           </div>
-        </div>
-      `;
+          
+          <!-- Animated items sliding on track -->
+          <div class="case-path-items">
+            ${displayItems.map((item, itemIndex) => `
+              <div class="case-path-item-float" style="--gift-duration:${(casesLowMotion ? 8.2 : 5.4).toFixed(1)}s;--gift-delay:${(-(casesLowMotion ? 2.9 : 1.8) * itemIndex).toFixed(2)}s">
+                <img src="${itemIconPath(item)}" 
+                     alt="${item.id || caseData.name}"
+                     loading="lazy"
+                     decoding="async"
+                     onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+              </div>
+            `).join('')}
+          </div>
+          
+          <!-- Case positioned ON the track -->
+          <div class="case-path-case">
+            <div class="case-path-image-wrapper">
+              <div class="case-path-glow"></div>
+              <img src="${getCaseImagePath(caseData.id, currency)}" 
+                   alt="${caseData.name}" 
+                   loading="lazy"
+                   decoding="async"
+                   class="case-path-image">
+            </div>
+            <!-- Liquid glass price pill OVER the case -->
+            <div class="case-path-price">
+              <img src="${icon}" class="case-path-price-icon" alt="${currency}">
+              <span class="case-path-price-val">${priceDisplay}</span>
+            </div>
+          </div>
+        `;
+      }
 
       pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
       casesPath.appendChild(pathItem);
     });
+
+    if (isStarsTheme) appendStarsFireflies(casesPath);
 
     setupCasesPathAnimationVisibility(casesPath);
   }
@@ -1282,7 +1346,7 @@ function getBalanceSafe(currency) {
     currentCase = CASES[caseId];
     if (!currentCase) return;
 
-    console.log('[Cases] 🎁 Opening:', currentCase.name);
+    console.log('[Cases] рџЋЃ Opening:', currentCase.name);
 
     isAnimating = true;
     selectedCount = 1;
@@ -1338,7 +1402,7 @@ function getBalanceSafe(currency) {
   
     const priceEl = document.getElementById('casePrice');
     const iconEl = document.getElementById('caseCurrencyIcon');
-    if (priceEl) priceEl.textContent = price;
+    if (priceEl) priceEl.textContent = (currency === 'stars') ? '-' : price;
     if (iconEl) iconEl.src = icon;
   
     // Set case ID on panel for gradient styling
@@ -1349,7 +1413,7 @@ function getBalanceSafe(currency) {
     // Set case image for count section
     const countSection = document.querySelector('.case-count-section');
     if (countSection) {
-      const caseImg = assetUrl(`images/cases/${currentCase.id}.png`);
+      const caseImg = getCaseImagePath(currentCase.id, currency);
       countSection.style.setProperty('--current-case-image', `url('${caseImg}')`);
 }
   
@@ -1357,7 +1421,7 @@ function getBalanceSafe(currency) {
 
 
     
-    // подтянем floors и перерисуем contents
+    // РїРѕРґС‚СЏРЅРµРј floors Рё РїРµСЂРµСЂРёСЃСѓРµРј contents
         ensurePeekFloorsLoaded().then(() => {
           if (!currentCase) return;
           const cur = window.WildTimeCurrency?.current || 'ton';
@@ -1386,7 +1450,11 @@ function getBalanceSafe(currency) {
 
     const priceEl = document.getElementById('casePrice');
     if (priceEl) {
-      priceEl.textContent = demoActive ? 'FREE' : totalPrice.toFixed(currency === 'ton' ? 2 : 0);
+      if (currency === 'stars') {
+        priceEl.textContent = '-';
+      } else {
+        priceEl.textContent = demoActive ? 'FREE' : totalPrice.toFixed(currency === 'ton' ? 2 : 0);
+      }
     }
 
     openBtn.classList.toggle('demo-mode', demoActive);
@@ -1421,7 +1489,7 @@ function getBalanceSafe(currency) {
     const itemsContainer = document.createElement('div');
     itemsContainer.className = 'case-carousel-items';
 
-    // База (не меняется сама по себе) — чтобы не было ощущения, что "линия" резко стала другой
+    // Р‘Р°Р·Р° (РЅРµ РјРµРЅСЏРµС‚СЃСЏ СЃР°РјР° РїРѕ СЃРµР±Рµ) вЂ” С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ РѕС‰СѓС‰РµРЅРёСЏ, С‡С‚Рѕ "Р»РёРЅРёСЏ" СЂРµР·РєРѕ СЃС‚Р°Р»Р° РґСЂСѓРіРѕР№
     const IDLE_BASE_COUNT = getIdleBaseCount();
     const baseItems = [];
     for (let i = 0; i < IDLE_BASE_COUNT; i++) {
@@ -1429,7 +1497,7 @@ function getBalanceSafe(currency) {
       baseItems.push(normalizeItemForCurrency(raw, currency));
     }
 
-    // Делаем 2 копии, чтобы лента реально была бесконечной
+    // Р”РµР»Р°РµРј 2 РєРѕРїРёРё, С‡С‚РѕР±С‹ Р»РµРЅС‚Р° СЂРµР°Р»СЊРЅРѕ Р±С‹Р»Р° Р±РµСЃРєРѕРЅРµС‡РЅРѕР№
     const items = baseItems.concat(baseItems);
 
     itemsContainer.innerHTML = items.map(item => (
@@ -1448,7 +1516,7 @@ function getBalanceSafe(currency) {
       element: container,
       itemsContainer,
       baseItems,
-      items, // всегда актуальная "лента" (в айдле = baseItems*2, во время спина = удлинённая)
+      items, // РІСЃРµРіРґР° Р°РєС‚СѓР°Р»СЊРЅР°СЏ "Р»РµРЅС‚Р°" (РІ Р°Р№РґР»Рµ = baseItems*2, РІРѕ РІСЂРµРјСЏ СЃРїРёРЅР° = СѓРґР»РёРЅС‘РЅРЅР°СЏ)
       position: 0,
       velocity: 0,
       winningItem: null,
@@ -1490,14 +1558,14 @@ function getBalanceSafe(currency) {
     const metrics = getCarouselMetrics(carousel);
     const strip = Array.isArray(carousel.items) && carousel.items.length ? carousel.items : [];
 
-    // Если по какой-то причине ленты нет — просто пересоздадим базу
+    // Р•СЃР»Рё РїРѕ РєР°РєРѕР№-С‚Рѕ РїСЂРёС‡РёРЅРµ Р»РµРЅС‚С‹ РЅРµС‚ вЂ” РїСЂРѕСЃС‚Рѕ РїРµСЂРµСЃРѕР·РґР°РґРёРј Р±Р°Р·Сѓ
     const IDLE_BASE_COUNT = getIdleBaseCount();
     const safePool = currentCase?.items || [];
 
     const cont = carousel.itemsContainer;
     if (!cont || !safePool.length) return;
 
-    // fallback: если размеры ещё не готовы
+    // fallback: РµСЃР»Рё СЂР°Р·РјРµСЂС‹ РµС‰С‘ РЅРµ РіРѕС‚РѕРІС‹
     if (!metrics || metrics.step <= 0) {
       const base = [];
       for (let i = 0; i < IDLE_BASE_COUNT; i++) {
@@ -1513,8 +1581,8 @@ function getBalanceSafe(currency) {
       return;
     }
 
-    // Берём "окно" из текущей ленты с того места, где она остановилась,
-    // чтобы визуально НЕ было резкой смены последовательности.
+    // Р‘РµСЂС‘Рј "РѕРєРЅРѕ" РёР· С‚РµРєСѓС‰РµР№ Р»РµРЅС‚С‹ СЃ С‚РѕРіРѕ РјРµСЃС‚Р°, РіРґРµ РѕРЅР° РѕСЃС‚Р°РЅРѕРІРёР»Р°СЃСЊ,
+    // С‡С‚РѕР±С‹ РІРёР·СѓР°Р»СЊРЅРѕ РќР• Р±С‹Р»Рѕ СЂРµР·РєРѕР№ СЃРјРµРЅС‹ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕСЃС‚Рё.
     const padL = metrics.padL || 0;
     const startIndex = Math.max(0, Math.floor((carousel.position - padL) / metrics.step));
 
@@ -1529,10 +1597,10 @@ function getBalanceSafe(currency) {
     carousel.winningItem = null;
     carousel.winningStripIndex = null;
 
-    // "перебазируем" position, чтобы текущий кадр совпал
+    // "РїРµСЂРµР±Р°Р·РёСЂСѓРµРј" position, С‡С‚РѕР±С‹ С‚РµРєСѓС‰РёР№ РєР°РґСЂ СЃРѕРІРїР°Р»
     let newPos = carousel.position - startIndex * metrics.step;
 
-    // нормализуем в диапазон одной петли
+    // РЅРѕСЂРјР°Р»РёР·СѓРµРј РІ РґРёР°РїР°Р·РѕРЅ РѕРґРЅРѕР№ РїРµС‚Р»Рё
     const loopWidth = Math.max(0, base.length * metrics.step);
     if (loopWidth > 0) {
       newPos = ((newPos % loopWidth) + loopWidth) % loopWidth;
@@ -1547,14 +1615,14 @@ function getBalanceSafe(currency) {
   // ====== IDLE ANIMATION (slow continuous scroll) ======
   function startIdleAnimation() {
   carousels.forEach((carousel, index) => {
-    // было ~0.5–1 px/frame (~30–60 px/s на 60fps)
-    // делаем сразу px/сек — так не дергается при просадках FPS
+    // Р±С‹Р»Рѕ ~0.5вЂ“1 px/frame (~30вЂ“60 px/s РЅР° 60fps)
+    // РґРµР»Р°РµРј СЃСЂР°Р·Сѓ px/СЃРµРє вЂ” С‚Р°Рє РЅРµ РґРµСЂРіР°РµС‚СЃСЏ РїСЂРё РїСЂРѕСЃР°РґРєР°С… FPS
     carousel.velocity = casesLowMotion
-      ? (20 + Math.random() * 14)   // 20–34 px/s
-      : (32 + Math.random() * 32);  // 32–64 px/s
+      ? (20 + Math.random() * 14)   // 20вЂ“34 px/s
+      : (32 + Math.random() * 32);  // 32вЂ“64 px/s
     carousel.position = carousel.position || 0;
 
-    // для плавности на GPU
+    // РґР»СЏ РїР»Р°РІРЅРѕСЃС‚Рё РЅР° GPU
     if (carousel.itemsContainer) {
       carousel.itemsContainer.style.willChange = 'transform';
     }
@@ -1562,20 +1630,20 @@ function getBalanceSafe(currency) {
     let lastTime = 0;
 
     const animate = (t) => {
-      // если карусель скрыли/удалили — прекращаем
+      // РµСЃР»Рё РєР°СЂСѓСЃРµР»СЊ СЃРєСЂС‹Р»Рё/СѓРґР°Р»РёР»Рё вЂ” РїСЂРµРєСЂР°С‰Р°РµРј
       if (!carousel.element.classList.contains('active')) return;
 
       if (!lastTime) lastTime = t;
 
-      // dt в секундах, clamp чтобы после сворачивания вкладки не прыгало
+      // dt РІ СЃРµРєСѓРЅРґР°С…, clamp С‡С‚РѕР±С‹ РїРѕСЃР»Рµ СЃРІРѕСЂР°С‡РёРІР°РЅРёСЏ РІРєР»Р°РґРєРё РЅРµ РїСЂС‹РіР°Р»Рѕ
       const dt = Math.min(0.05, (t - lastTime) / 1000);
       lastTime = t;
 
-      // во время спина айдл не двигаем, но RAF оставляем живым
+      // РІРѕ РІСЂРµРјСЏ СЃРїРёРЅР° Р°Р№РґР» РЅРµ РґРІРёРіР°РµРј, РЅРѕ RAF РѕСЃС‚Р°РІР»СЏРµРј Р¶РёРІС‹Рј
       if (!isSpinning) {
         const metrics = getCarouselMetrics(carousel);
 
-        // шаг на этом кадре
+        // С€Р°Рі РЅР° СЌС‚РѕРј РєР°РґСЂРµ
         const delta = carousel.velocity * dt;
         carousel.position += delta;
 
@@ -1616,7 +1684,7 @@ function getBalanceSafe(currency) {
         ? '<div class="case-nft-sparks" aria-hidden="true"></div>'
         : '';
       
-      // Для NFT: показываем floor price если есть, иначе fallback
+      // Р”Р»СЏ NFT: РїРѕРєР°Р·С‹РІР°РµРј floor price РµСЃР»Рё РµСЃС‚СЊ, РёРЅР°С‡Рµ fallback
       let val = item?.price?.[currency];
       
       if (type === 'nft') {
@@ -1721,10 +1789,10 @@ function getBalanceSafe(currency) {
   const start = performance.now();
   let lastSig = null;
 
-  // 2 кадра — чтобы браузер точно применил классы/разметку
+  // 2 РєР°РґСЂР° вЂ” С‡С‚РѕР±С‹ Р±СЂР°СѓР·РµСЂ С‚РѕС‡РЅРѕ РїСЂРёРјРµРЅРёР» РєР»Р°СЃСЃС‹/СЂР°Р·РјРµС‚РєСѓ
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // если шрифт грузится — дождёмся (иногда влияет на высоты/лейаут)
+  // РµСЃР»Рё С€СЂРёС„С‚ РіСЂСѓР·РёС‚СЃСЏ вЂ” РґРѕР¶РґС‘РјСЃСЏ (РёРЅРѕРіРґР° РІР»РёСЏРµС‚ РЅР° РІС‹СЃРѕС‚С‹/Р»РµР№Р°СѓС‚)
   if (document.fonts?.ready) {
     try { await document.fonts.ready; } catch (e) {}
   }
@@ -1746,18 +1814,18 @@ function getBalanceSafe(currency) {
 
     await new Promise(r => requestAnimationFrame(r));
   }
-  return false; // если не успели — всё равно продолжим
+  return false; // РµСЃР»Рё РЅРµ СѓСЃРїРµР»Рё вЂ” РІСЃС‘ СЂР°РІРЅРѕ РїСЂРѕРґРѕР»Р¶РёРј
 }
 
-  // Функция для блокировки прокрутки в fullscreen режиме
+  // Р¤СѓРЅРєС†РёСЏ РґР»СЏ Р±Р»РѕРєРёСЂРѕРІРєРё РїСЂРѕРєСЂСѓС‚РєРё РІ fullscreen СЂРµР¶РёРјРµ
   function scrollCarouselToCenter() {
-    // В fullscreen режиме карусель позиционируется через CSS (position: fixed, top: 50%)
-    // Просто блокируем прокрутку body, но не трогаем панель
+    // Р’ fullscreen СЂРµР¶РёРјРµ РєР°СЂСѓСЃРµР»СЊ РїРѕР·РёС†РёРѕРЅРёСЂСѓРµС‚СЃСЏ С‡РµСЂРµР· CSS (position: fixed, top: 50%)
+    // РџСЂРѕСЃС‚Рѕ Р±Р»РѕРєРёСЂСѓРµРј РїСЂРѕРєСЂСѓС‚РєСѓ body, РЅРѕ РЅРµ С‚СЂРѕРіР°РµРј РїР°РЅРµР»СЊ
     requestAnimationFrame(() => {
-      // Сохраняем текущую позицию прокрутки панели
+      // РЎРѕС…СЂР°РЅСЏРµРј С‚РµРєСѓС‰СѓСЋ РїРѕР·РёС†РёСЋ РїСЂРѕРєСЂСѓС‚РєРё РїР°РЅРµР»Рё
       const panel = document.querySelector('.case-sheet-panel');
       if (panel) {
-        // Запоминаем позицию для возможного восстановления
+        // Р—Р°РїРѕРјРёРЅР°РµРј РїРѕР·РёС†РёСЋ РґР»СЏ РІРѕР·РјРѕР¶РЅРѕРіРѕ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ
         panel.dataset.scrollTop = panel.scrollTop;
       }
     });
@@ -1772,10 +1840,10 @@ function getBalanceSafe(currency) {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const demoModeAtStart = isCasesTestMode() ? true : !!isDemoMode;
     const hasInitData = (typeof initData === 'string') && initData.trim().length > 0;
-    // Важно: шанс выпадения NFT зависит ТОЛЬКО от Demo-тумблера.
-    // initData может отсутствовать (например, на десктопе), но это не должно превращать режим в Demo.
+    // Р’Р°Р¶РЅРѕ: С€Р°РЅСЃ РІС‹РїР°РґРµРЅРёСЏ NFT Р·Р°РІРёСЃРёС‚ РўРћР›Р¬РљРћ РѕС‚ Demo-С‚СѓРјР±Р»РµСЂР°.
+    // initData РјРѕР¶РµС‚ РѕС‚СЃСѓС‚СЃС‚РІРѕРІР°С‚СЊ (РЅР°РїСЂРёРјРµСЂ, РЅР° РґРµСЃРєС‚РѕРїРµ), РЅРѕ СЌС‚Рѕ РЅРµ РґРѕР»Р¶РЅРѕ РїСЂРµРІСЂР°С‰Р°С‚СЊ СЂРµР¶РёРј РІ Demo.
     const effectiveDemo = demoModeAtStart;
-    // Серверные списания/начисления делаем только если это не demo, есть userId и валидный initData.
+    // РЎРµСЂРІРµСЂРЅС‹Рµ СЃРїРёСЃР°РЅРёСЏ/РЅР°С‡РёСЃР»РµРЅРёСЏ РґРµР»Р°РµРј С‚РѕР»СЊРєРѕ РµСЃР»Рё СЌС‚Рѕ РЅРµ demo, РµСЃС‚СЊ userId Рё РІР°Р»РёРґРЅС‹Р№ initData.
     let serverEnabled = (!demoModeAtStart && tgUserId !== 'guest' && hasInitData);
     const countAtStart = selectedCount;
     const totalPrice = currentCase.price[currency] * countAtStart;
@@ -1848,12 +1916,12 @@ function getBalanceSafe(currency) {
               activeSpin.initData = '';
             }
             if (r.status === 401 || r.status === 403) {
-              showToast('Сессия Telegram устарела. Продолжаем в локальном режиме.');
+              showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџСЂРѕРґРѕР»Р¶Р°РµРј РІ Р»РѕРєР°Р»СЊРЅРѕРј СЂРµР¶РёРјРµ.');
             } else {
-              showToast('Сервер недоступен. Продолжаем в локальном режиме.');
+              showToast('РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РџСЂРѕРґРѕР»Р¶Р°РµРј РІ Р»РѕРєР°Р»СЊРЅРѕРј СЂРµР¶РёРјРµ.');
             }
           } else {
-            showToast('Не удалось списать стоимость кейса. Попробуй ещё раз.');
+            showToast('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ СЃС‚РѕРёРјРѕСЃС‚СЊ РєРµР№СЃР°. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
             safeHaptic('notification', 'error');
             return;
           }
@@ -1882,8 +1950,8 @@ function getBalanceSafe(currency) {
       }
 
       else {
-        // Demo: OPEN is FREE (не списываем баланс)
-        // Guest (без сервера) в обычном режиме: списываем локально, чтобы не было бесплатного фарма
+        // Demo: OPEN is FREE (РЅРµ СЃРїРёСЃС‹РІР°РµРј Р±Р°Р»Р°РЅСЃ)
+        // Guest (Р±РµР· СЃРµСЂРІРµСЂР°) РІ РѕР±С‹С‡РЅРѕРј СЂРµР¶РёРјРµ: СЃРїРёСЃС‹РІР°РµРј Р»РѕРєР°Р»СЊРЅРѕ, С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ Р±РµСЃРїР»Р°С‚РЅРѕРіРѕ С„Р°СЂРјР°
         if (!demoModeAtStart) {
           const spend = (currency === 'ton') ? -Number(totalPrice.toFixed(2)) : -Math.round(totalPrice);
           spendApplied = true;
@@ -1899,17 +1967,17 @@ function getBalanceSafe(currency) {
 
 
 
-      console.log('[Cases] 🎰 Opening case:', { demo: effectiveDemo, serverEnabled, count: countAtStart, currency });
+      console.log('[Cases] рџЋ° Opening case:', { demo: effectiveDemo, serverEnabled, count: countAtStart, currency });
       
-      // 2) Активируем fullscreen режим
+      // 2) РђРєС‚РёРІРёСЂСѓРµРј fullscreen СЂРµР¶РёРј
       openStep = 'fullscreen';
       document.body.classList.add("case-opening-fullscreen");
       document.body.setAttribute("data-opening-case", currentCase.id);
       
-      // Центрируем карусель и сбрасываем прокрутку
+      // Р¦РµРЅС‚СЂРёСЂСѓРµРј РєР°СЂСѓСЃРµР»СЊ Рё СЃР±СЂР°СЃС‹РІР°РµРј РїСЂРѕРєСЂСѓС‚РєСѓ
       scrollCarouselToCenter();
       
-      // Небольшая задержка для плавного перехода UI
+      // РќРµР±РѕР»СЊС€Р°СЏ Р·Р°РґРµСЂР¶РєР° РґР»СЏ РїР»Р°РІРЅРѕРіРѕ РїРµСЂРµС…РѕРґР° UI
       await delay(casesLowMotion ? 280 : 600);
 
 
@@ -1963,9 +2031,9 @@ function getBalanceSafe(currency) {
       }
 
       if (isLocalRuntime()) {
-        showToast(`Ошибка открытия кейса (${openStep})`);
+        showToast(`РћС€РёР±РєР° РѕС‚РєСЂС‹С‚РёСЏ РєРµР№СЃР° (${openStep})`);
       } else {
-        showToast('Ошибка открытия кейса');
+        showToast('РћС€РёР±РєР° РѕС‚РєСЂС‹С‚РёСЏ РєРµР№СЃР°');
       }
       safeHaptic('notification', 'error');
     } finally {
@@ -1985,7 +2053,7 @@ function getBalanceSafe(currency) {
     }
   }
 
-  // ====== SPIN CAROUSELS (плавный спин, точная остановка по линии) ======
+  // ====== SPIN CAROUSELS (РїР»Р°РІРЅС‹Р№ СЃРїРёРЅ, С‚РѕС‡РЅР°СЏ РѕСЃС‚Р°РЅРѕРІРєР° РїРѕ Р»РёРЅРёРё) ======
   async function spinCarousels(currency, spinCtx) {
     stopAllAnimations();
 
@@ -1995,13 +2063,13 @@ function getBalanceSafe(currency) {
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
         try {
-        // 1) Выбираем выигрыш
+        // 1) Р’С‹Р±РёСЂР°РµРј РІС‹РёРіСЂС‹С€
         const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
             const winItem = normalizeItemForCurrency(winRaw, currency);
             carousel.winningItem = winItem;
 
 
-        // 2) Берём текущую ленту как базу (чтобы не было резкого "скачка")
+        // 2) Р‘РµСЂС‘Рј С‚РµРєСѓС‰СѓСЋ Р»РµРЅС‚Сѓ РєР°Рє Р±Р°Р·Сѓ (С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ СЂРµР·РєРѕРіРѕ "СЃРєР°С‡РєР°")
         let strip = (Array.isArray(carousel.items) && carousel.items.length) ? carousel.items.slice() : [];
 
         if (!strip.length) {
@@ -2013,30 +2081,30 @@ function getBalanceSafe(currency) {
           }
         }
 
-        // 3) Удлиняем ленту
+        // 3) РЈРґР»РёРЅСЏРµРј Р»РµРЅС‚Сѓ
         while (strip.length < MIN_STRIP_LENGTH) {
           const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
           strip.push(normalizeItemForCurrency(raw, currency));
         }
 
-        // 4) Фиксируем позицию выигрыша ближе к концу
+        // 4) Р¤РёРєСЃРёСЂСѓРµРј РїРѕР·РёС†РёСЋ РІС‹РёРіСЂС‹С€Р° Р±Р»РёР¶Рµ Рє РєРѕРЅС†Сѓ
         const winAt = strip.length - TAIL_AFTER_WIN;
         strip[winAt] = winItem;
 
-        // В обычном режиме делаем "безопасную зону" вокруг выигрышной позиции,
-        // чтобы из‑за пиксельного сдвига линия не могла случайно попасть на NFT.
+        // Р’ РѕР±С‹С‡РЅРѕРј СЂРµР¶РёРјРµ РґРµР»Р°РµРј "Р±РµР·РѕРїР°СЃРЅСѓСЋ Р·РѕРЅСѓ" РІРѕРєСЂСѓРі РІС‹РёРіСЂС‹С€РЅРѕР№ РїРѕР·РёС†РёРё,
+        // С‡С‚РѕР±С‹ РёР·вЂ‘Р·Р° РїРёРєСЃРµР»СЊРЅРѕРіРѕ СЃРґРІРёРіР° Р»РёРЅРёСЏ РЅРµ РјРѕРіР»Р° СЃР»СѓС‡Р°Р№РЅРѕ РїРѕРїР°СЃС‚СЊ РЅР° NFT.
         if (!(spinCtx && spinCtx.demoMode) && itemType(winItem) !== 'nft') {
           const poolsSafe = getCasePools(currentCase);
           const giftsPool = (poolsSafe && poolsSafe.gifts && poolsSafe.gifts.length) ? poolsSafe.gifts : null;
           if (giftsPool) {
-            const safeRadius = 5; // +-5 слотов вокруг выигрыша
+            const safeRadius = 5; // +-5 СЃР»РѕС‚РѕРІ РІРѕРєСЂСѓРі РІС‹РёРіСЂС‹С€Р°
             for (let k = -safeRadius; k <= safeRadius; k++) {
               const ii = winAt + k;
               if (ii < 0 || ii >= strip.length) continue;
               strip[ii] = normalizeItemForCurrency(pickRandom(giftsPool) || strip[ii], currency);
 
             }
-            // гарантируем сам выигрыш
+            // РіР°СЂР°РЅС‚РёСЂСѓРµРј СЃР°Рј РІС‹РёРіСЂС‹С€
             strip[winAt] = winItem;
           }
         }
@@ -2047,7 +2115,7 @@ function getBalanceSafe(currency) {
         const cont = carousel.itemsContainer;
         if (!cont) { resolve(); return; }
 
-        // 5) Синхронизируем DOM с strip (не трогаем transform)
+        // 5) РЎРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј DOM СЃ strip (РЅРµ С‚СЂРѕРіР°РµРј transform)
         const existingNodes = Array.prototype.slice.call(cont.children);
         const needed = strip.length;
 
@@ -2084,7 +2152,7 @@ function getBalanceSafe(currency) {
           }
         }
 
-        // 5.5) Надёжный замер размеров (иногда в момент переключения fullscreen браузер может вернуть 0)
+        // 5.5) РќР°РґС‘Р¶РЅС‹Р№ Р·Р°РјРµСЂ СЂР°Р·РјРµСЂРѕРІ (РёРЅРѕРіРґР° РІ РјРѕРјРµРЅС‚ РїРµСЂРµРєР»СЋС‡РµРЅРёСЏ fullscreen Р±СЂР°СѓР·РµСЂ РјРѕР¶РµС‚ РІРµСЂРЅСѓС‚СЊ 0)
 let itemWidth = 0;
 let gap = 0;
 let padL = 0;
@@ -2109,7 +2177,7 @@ for (let a = 0; a < 12; a++) {
 if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
 
-        // 6) Стартовая позиция — текущая
+        // 6) РЎС‚Р°СЂС‚РѕРІР°СЏ РїРѕР·РёС†РёСЏ вЂ” С‚РµРєСѓС‰Р°СЏ
         let startPosition = (typeof carousel.position === 'number') ? carousel.position : 0;
         if (!startPosition) {
           const tr = getComputedStyle(cont).transform;
@@ -2123,26 +2191,26 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
           }
         }
 
-        // 7) Линия (центр) в координатах itemsContainer
+        // 7) Р›РёРЅРёСЏ (С†РµРЅС‚СЂ) РІ РєРѕРѕСЂРґРёРЅР°С‚Р°С… itemsContainer
         const lineX = getLineXInItems(carousel);
 
-        // 🔥 FIX: lineX зависит от текущей позиции ленты (contRect сдвигается при translateX).
-        // Вычитаем startPosition, чтобы получить КОНСТАНТУ — смещение индикатора
-        // относительно начала контента при position=0.
+        // рџ”Ґ FIX: lineX Р·Р°РІРёСЃРёС‚ РѕС‚ С‚РµРєСѓС‰РµР№ РїРѕР·РёС†РёРё Р»РµРЅС‚С‹ (contRect СЃРґРІРёРіР°РµС‚СЃСЏ РїСЂРё translateX).
+        // Р’С‹С‡РёС‚Р°РµРј startPosition, С‡С‚РѕР±С‹ РїРѕР»СѓС‡РёС‚СЊ РљРћРќРЎРўРђРќРўРЈ вЂ” СЃРјРµС‰РµРЅРёРµ РёРЅРґРёРєР°С‚РѕСЂР°
+        // РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РЅР°С‡Р°Р»Р° РєРѕРЅС‚РµРЅС‚Р° РїСЂРё position=0.
         const lineOffset = lineX - startPosition;
 
-        // 8) Точка внутри выигрышного айтема (чтобы не попадать строго в край)
+        // 8) РўРѕС‡РєР° РІРЅСѓС‚СЂРё РІС‹РёРіСЂС‹С€РЅРѕРіРѕ Р°Р№С‚РµРјР° (С‡С‚РѕР±С‹ РЅРµ РїРѕРїР°РґР°С‚СЊ СЃС‚СЂРѕРіРѕ РІ РєСЂР°Р№)
         const innerMargin = Math.max(0, Math.min(18, itemWidth * 0.18));
         const span = Math.max(0, itemWidth - innerMargin * 2);
         const randomPoint = innerMargin + Math.random() * span;
 
-        // 9) Целевая позиция: под линию попадает randomPoint у winAt
+        // 9) Р¦РµР»РµРІР°СЏ РїРѕР·РёС†РёСЏ: РїРѕРґ Р»РёРЅРёСЋ РїРѕРїР°РґР°РµС‚ randomPoint Сѓ winAt
         let targetPosition = padL + winAt * step + randomPoint - lineOffset;
 
         const maxTarget = padL + (strip.length - 1) * step + (itemWidth - 1) - lineOffset;
         targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
 
-        // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
+        // 10) РњРёРЅРёРјР°Р»СЊРЅР°СЏ "РґРёСЃС‚Р°РЅС†РёСЏ", С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ РѕС‰СѓС‰РµРЅРёСЏ РјРёРєСЂРѕ-РґРµСЂРіР°
         const minTravel = step * 20;
         if (targetPosition - startPosition < minTravel) {
           targetPosition = Math.min(maxTarget, startPosition + minTravel);
@@ -2150,7 +2218,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
         const totalDistance = targetPosition - startPosition;
 
-        // 11) Плавная анимация
+        // 11) РџР»Р°РІРЅР°СЏ Р°РЅРёРјР°С†РёСЏ
         const duration = (casesLowMotion ? 3600 : 5200) + index * (casesLowMotion ? 180 : 250) + Math.random() * (casesLowMotion ? 320 : 600);
         const startTime = performance.now();
         let lastHaptic = 0;
@@ -2165,7 +2233,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
           carousel.position = startPosition + totalDistance * eased;
           cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
 
-          // тактилка не чаще, чем раз в 140мс
+          // С‚Р°РєС‚РёР»РєР° РЅРµ С‡Р°С‰Рµ, С‡РµРј СЂР°Р· РІ 140РјСЃ
           if (progress < 0.85 && (currentTime - lastHaptic) > 140) {
             safeHaptic('impact', 'light');
             lastHaptic = currentTime;
@@ -2178,7 +2246,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
             cont.style.transform = `translate3d(-${targetPosition}px, 0, 0)`;
             cont.style.willChange = '';
 
-            // ВАЖНО: финальный выигрыш = то, что реально под линией
+            // Р’РђР–РќРћ: С„РёРЅР°Р»СЊРЅС‹Р№ РІС‹РёРіСЂС‹С€ = С‚Рѕ, С‡С‚Рѕ СЂРµР°Р»СЊРЅРѕ РїРѕРґ Р»РёРЅРёРµР№
             syncWinByLine(carousel, targetPosition, strip, padL, step, lineOffset, itemWidth);
 
             highlightWinningItem(carousel, index);
@@ -2201,18 +2269,18 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
     await Promise.all(spinPromises);
 
-    // для CSS: затемнить остальные
+    // РґР»СЏ CSS: Р·Р°С‚РµРјРЅРёС‚СЊ РѕСЃС‚Р°Р»СЊРЅС‹Рµ
     carousels.forEach(c => {
       try { c?.element?.classList?.add('cases-finished'); } catch (_) {}
     });
 
     await delay(250);
     
-    // Плавно возвращаем UI - переходим в режим "complete"
+    // РџР»Р°РІРЅРѕ РІРѕР·РІСЂР°С‰Р°РµРј UI - РїРµСЂРµС…РѕРґРёРј РІ СЂРµР¶РёРј "complete"
     document.body.classList.remove("case-opening-fullscreen");
     document.body.classList.add("case-opening-complete");
     
-    // Небольшая задержка для плавной анимации возврата UI
+    // РќРµР±РѕР»СЊС€Р°СЏ Р·Р°РґРµСЂР¶РєР° РґР»СЏ РїР»Р°РІРЅРѕР№ Р°РЅРёРјР°С†РёРё РІРѕР·РІСЂР°С‚Р° UI
     await delay(400);
     
     try {
@@ -2223,7 +2291,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
       );
     } catch (showResultError) {
       console.error('[Cases] showResult error:', showResultError);
-      showToast('Не удалось отобразить результат. Попробуй ещё раз.');
+      showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РѕР±СЂР°Р·РёС‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
       safeHaptic('notification', 'error');
 
       // Fail-safe UI reset
@@ -2246,27 +2314,27 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
   // ====== HIGHLIGHT WINNING ITEM ======
   function highlightWinningItem(carousel, index) {
-    // Линия — зелёный импульс + фиксируем зелёный до клейма
+    // Р›РёРЅРёСЏ вЂ” Р·РµР»С‘РЅС‹Р№ РёРјРїСѓР»СЊСЃ + С„РёРєСЃРёСЂСѓРµРј Р·РµР»С‘РЅС‹Р№ РґРѕ РєР»РµР№РјР°
     const indicator = carousel.element.querySelector('.case-carousel-indicator');
     if (indicator) {
-      // держим зелёным, пока юзер не заберёт награду (claim/sell)
+      // РґРµСЂР¶РёРј Р·РµР»С‘РЅС‹Рј, РїРѕРєР° СЋР·РµСЂ РЅРµ Р·Р°Р±РµСЂС‘С‚ РЅР°РіСЂР°РґСѓ (claim/sell)
       indicator.classList.add('won');
-      // короткий импульс (чтобы было понятно что выпало) — потом убираем, оставляя won
+      // РєРѕСЂРѕС‚РєРёР№ РёРјРїСѓР»СЊСЃ (С‡С‚РѕР±С‹ Р±С‹Р»Рѕ РїРѕРЅСЏС‚РЅРѕ С‡С‚Рѕ РІС‹РїР°Р»Рѕ) вЂ” РїРѕС‚РѕРј СѓР±РёСЂР°РµРј, РѕСЃС‚Р°РІР»СЏСЏ won
       indicator.classList.add('winning');
       setTimeout(() => indicator.classList.remove('winning'), 650);
     }
 
-    // Убираем старую подсветку предмета
+    // РЈР±РёСЂР°РµРј СЃС‚Р°СЂСѓСЋ РїРѕРґСЃРІРµС‚РєСѓ РїСЂРµРґРјРµС‚Р°
     const prev = carousel.itemsContainer.querySelector('.case-carousel-item.winning');
     if (prev) prev.classList.remove('winning');
 
-    // Берём тот индекс, куда МЫ положили выигрышный предмет
+    // Р‘РµСЂС‘Рј С‚РѕС‚ РёРЅРґРµРєСЃ, РєСѓРґР° РњР« РїРѕР»РѕР¶РёР»Рё РІС‹РёРіСЂС‹С€РЅС‹Р№ РїСЂРµРґРјРµС‚
     const winIndex = carousel.winningStripIndex;
     const winEl = (carousel.itemsContainer && carousel.itemsContainer.children) ? carousel.itemsContainer.children[winIndex] : null;
 
     if (winEl) {
       winEl.classList.add('winning');
-      // класс winning не снимаем — при ресете карусель полностью перерисовывается
+      // РєР»Р°СЃСЃ winning РЅРµ СЃРЅРёРјР°РµРј вЂ” РїСЂРё СЂРµСЃРµС‚Рµ РєР°СЂСѓСЃРµР»СЊ РїРѕР»РЅРѕСЃС‚СЊСЋ РїРµСЂРµСЂРёСЃРѕРІС‹РІР°РµС‚СЃСЏ
     }
   }
 
@@ -2344,7 +2412,7 @@ function ensureClaimBar() {
     return bar;
   }
 
-  // Вставляем сразу под блоком каруселей
+  // Р’СЃС‚Р°РІР»СЏРµРј СЃСЂР°Р·Сѓ РїРѕРґ Р±Р»РѕРєРѕРј РєР°СЂСѓСЃРµР»РµР№
   const section = document.querySelector('.case-carousels-section');
   if (!section) return null;
 
@@ -2378,7 +2446,7 @@ function ensureClaimBar() {
     <div class="case-claim-note" id="caseClaimNote" hidden></div>
   `;
 
-  // Вставим после секции каруселей
+  // Р’СЃС‚Р°РІРёРј РїРѕСЃР»Рµ СЃРµРєС†РёРё РєР°СЂСѓСЃРµР»РµР№
   section.insertAdjacentElement('afterend', bar);
 
   bindClaimBarHandlers(bar);
@@ -2514,7 +2582,7 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
 
   const demoModeForRound = (typeof demoModeOverride === 'boolean') ? demoModeOverride : isDemoMode;
   const hasInitData = (typeof initData === 'string') && initData.trim().length > 0;
-  // Сервер включаем только если не demo, есть userId и валидный initData.
+  // РЎРµСЂРІРµСЂ РІРєР»СЋС‡Р°РµРј С‚РѕР»СЊРєРѕ РµСЃР»Рё РЅРµ demo, РµСЃС‚СЊ userId Рё РІР°Р»РёРґРЅС‹Р№ initData.
   const serverEnabled = (typeof serverEnabledOverride === 'boolean')
     ? serverEnabledOverride
     : (!demoModeForRound && tgUserId !== 'guest' && hasInitData);
@@ -2552,7 +2620,7 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
 
   // Use one roundId for the whole open -> claim flow
   const roundId = activeSpin?.roundId || `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
- // чтобы getFloorTonForItem() уже знал цены
+ // С‡С‚РѕР±С‹ getFloorTonForItem() СѓР¶Рµ Р·РЅР°Р» С†РµРЅС‹
   try { await ensurePeekFloorsLoaded(); } catch (_) {}
 
   // Build NFT queue (we will CLAIM ALL from overlay at once)
@@ -2563,7 +2631,7 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
     const fixedTon = (Number.isFinite(tonVal) && tonVal > 0) ? Math.round(tonVal * 100) / 100 : 0;
     const starsVal = (fixedTon > 0) ? tonToStars(fixedTon) : 0;
   
-    // ВАЖНО: сохраняем цену в item.price => попадёт в Inventory
+    // Р’РђР–РќРћ: СЃРѕС…СЂР°РЅСЏРµРј С†РµРЅСѓ РІ item.price => РїРѕРїР°РґС‘С‚ РІ Inventory
     const item = {
       ...e.item,
       price: {
@@ -2573,7 +2641,7 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
       }
     };
   
-    // amount -> это то, что увидит Winning Screen (nft-win-screen.js берет nft.amount) :contentReference[oaicite:3]{index=3}
+    // amount -> СЌС‚Рѕ С‚Рѕ, С‡С‚Рѕ СѓРІРёРґРёС‚ Winning Screen (nft-win-screen.js Р±РµСЂРµС‚ nft.amount) :contentReference[oaicite:3]{index=3}
     const amount = (currency === 'stars') ? starsVal : fixedTon;
   
     return {
@@ -2596,10 +2664,10 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
   const resetAfter = () => {
     hideClaimBar();
     
-    // Добавляем класс finished для убирания оверлея
+    // Р”РѕР±Р°РІР»СЏРµРј РєР»Р°СЃСЃ finished РґР»СЏ СѓР±РёСЂР°РЅРёСЏ РѕРІРµСЂР»РµСЏ
     document.body.classList.add("case-opening-finished");
     
-    // Через задержку убираем все классы
+    // Р§РµСЂРµР· Р·Р°РґРµСЂР¶РєСѓ СѓР±РёСЂР°РµРј РІСЃРµ РєР»Р°СЃСЃС‹
     setTimeout(() => {
       document.body.classList.remove("case-opening-complete", "case-opening-finished");
       document.body.removeAttribute("data-opening-case");
@@ -2628,7 +2696,7 @@ const claimAllNfts = async (queue) => {
   const items = queue.map(q => q.item);
 
   if (demoModeForRound) {
-    showToast('Demo: NFT не сохраняются');
+    showToast('Demo: NFT РЅРµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ');
     return true;
   }
 
@@ -2636,7 +2704,7 @@ const claimAllNfts = async (queue) => {
   if (!serverEnabled) {
     addToLocalInventory(tgUserId, items);
     try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-    showToast(items.length > 1 ? 'NFT сохранены локально ✅' : 'NFT сохранено локально ✅');
+    showToast(items.length > 1 ? 'NFT СЃРѕС…СЂР°РЅРµРЅС‹ Р»РѕРєР°Р»СЊРЅРѕ вњ…' : 'NFT СЃРѕС…СЂР°РЅРµРЅРѕ Р»РѕРєР°Р»СЊРЅРѕ вњ…');
     return true;
   }
 
@@ -2655,9 +2723,9 @@ const claimAllNfts = async (queue) => {
 
   if (!r.ok) {
     if (r.status === 401 || r.status === 403) {
-      showToast('Сессия Telegram устарела. Перезапусти мини‑апп и попробуй ещё раз.');
+      showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџРµСЂРµР·Р°РїСѓСЃС‚Рё РјРёРЅРёвЂ‘Р°РїРї Рё РїРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
     } else {
-      showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй ещё раз.');
+      showToast(r.json?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
     }
     return false;
   }
@@ -2672,7 +2740,7 @@ const claimAllNfts = async (queue) => {
   try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
 
   safeHaptic('notification', 'success');
-  showToast(items.length > 1 ? 'NFT сохранены ✅' : 'NFT сохранено ✅');
+  showToast(items.length > 1 ? 'NFT СЃРѕС…СЂР°РЅРµРЅС‹ вњ…' : 'NFT СЃРѕС…СЂР°РЅРµРЅРѕ вњ…');
 
   return true;
 };
@@ -2732,7 +2800,7 @@ const claimAllNfts = async (queue) => {
           currencyIcon: pr.icon,
           caseId: currentCase?.id || 'case1', // Pass case ID for theme
           nfts: uiNfts,
-          // В примере часто показывают value под заголовком — включаем, когда выпало >= 1 NFT
+          // Р’ РїСЂРёРјРµСЂРµ С‡Р°СЃС‚Рѕ РїРѕРєР°Р·С‹РІР°СЋС‚ value РїРѕРґ Р·Р°РіРѕР»РѕРІРєРѕРј вЂ” РІРєР»СЋС‡Р°РµРј, РєРѕРіРґР° РІС‹РїР°Р»Рѕ >= 1 NFT
           showTotal: true,
           total,
           
@@ -2743,7 +2811,7 @@ const claimAllNfts = async (queue) => {
               if (!ok) return false; // keep overlay open
             } else {
               // demo: just close + clear UI highlight
-              // (toast inside claimAllNfts not нужен, чтобы не спамить)
+              // (toast inside claimAllNfts not РЅСѓР¶РµРЅ, С‡С‚РѕР±С‹ РЅРµ СЃРїР°РјРёС‚СЊ)
             }
 
             // Clear highlight for all NFT lines (these are "already claimed")
@@ -2799,7 +2867,7 @@ function renderPendingClaimBar() {
     }
 
     // Gifts (left)
-    // Если выпали ТОЛЬКО NFT (и нет валюты) — левую кнопку скрываем полностью.
+    // Р•СЃР»Рё РІС‹РїР°Р»Рё РўРћР›Р¬РљРћ NFT (Рё РЅРµС‚ РІР°Р»СЋС‚С‹) вЂ” Р»РµРІСѓСЋ РєРЅРѕРїРєСѓ СЃРєСЂС‹РІР°РµРј РїРѕР»РЅРѕСЃС‚СЊСЋ.
     if (giftBtn) {
       const hideGiftBtn = (!hasGifts && hasNfts);
       giftBtn.hidden = hideGiftBtn;
@@ -2815,7 +2883,7 @@ function renderPendingClaimBar() {
       giftBtn.classList.remove('loading');
     }
 
-    // NFT actions (right block) — показываем только когда реально выпало NFT
+    // NFT actions (right block) вЂ” РїРѕРєР°Р·С‹РІР°РµРј С‚РѕР»СЊРєРѕ РєРѕРіРґР° СЂРµР°Р»СЊРЅРѕ РІС‹РїР°Р»Рѕ NFT
     if (hasNfts) {
       if (nftWrap) { nftWrap.hidden = false; nftWrap.style.display = ''; }
 
@@ -2838,7 +2906,7 @@ function renderPendingClaimBar() {
       if (sellAmountEl) sellAmountEl.textContent = formatAmount(pendingRound.currency, 0);
     }
 
-    // Скрываем панель только если нечего клеймить/продавать
+    // РЎРєСЂС‹РІР°РµРј РїР°РЅРµР»СЊ С‚РѕР»СЊРєРѕ РµСЃР»Рё РЅРµС‡РµРіРѕ РєР»РµР№РјРёС‚СЊ/РїСЂРѕРґР°РІР°С‚СЊ
     bar.hidden = !(hasGifts || hasNfts);
   } catch (e) {
     console.error('[Cases] renderPendingClaimBar error:', e);
@@ -2896,7 +2964,7 @@ async function onGiftClaimClick() {
     }
 
     if (pr.demo) {
-      showToast('Demo: награда не начисляется');
+      showToast('Demo: РЅР°РіСЂР°РґР° РЅРµ РЅР°С‡РёСЃР»СЏРµС‚СЃСЏ');
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, pr.giftsAmount);
     } else {
@@ -2934,12 +3002,12 @@ async function onGiftClaimClick() {
           applyBalanceDelta(pr.currency, pr.giftsAmount);
           pr.serverEnabled = false;
           if (r.status === 401 || r.status === 403) {
-            showToast('Сессия Telegram устарела. Награда начислена локально.');
+            showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РќР°РіСЂР°РґР° РЅР°С‡РёСЃР»РµРЅР° Р»РѕРєР°Р»СЊРЅРѕ.');
           } else {
-            showToast('Сервер недоступен. Награда начислена локально.');
+            showToast('РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РќР°РіСЂР°РґР° РЅР°С‡РёСЃР»РµРЅР° Р»РѕРєР°Р»СЊРЅРѕ.');
           }
         } else {
-          showToast('Не удалось начислить награду. Попробуй ещё раз.');
+          showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°С‡РёСЃР»РёС‚СЊ РЅР°РіСЂР°РґСѓ. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
           return;
         }
       }
@@ -2953,7 +3021,7 @@ async function onGiftClaimClick() {
 
     safeHaptic('notification', 'success');
 
-    // подарки забраны -> гасим зелёную линию на тех каруселях, где выпали gifts
+    // РїРѕРґР°СЂРєРё Р·Р°Р±СЂР°РЅС‹ -> РіР°СЃРёРј Р·РµР»С‘РЅСѓСЋ Р»РёРЅРёСЋ РЅР° С‚РµС… РєР°СЂСѓСЃРµР»СЏС…, РіРґРµ РІС‹РїР°Р»Рё gifts
     clearGlowForType('gift');
 
     pr.giftsPending = false;
@@ -2962,7 +3030,7 @@ async function onGiftClaimClick() {
     maybeFinishPendingRound();
   } catch (e) {
     console.error('[Cases] Gift claim click failed:', e);
-    showToast('Не удалось обработать клейм. Попробуй ещё раз.');
+    showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ РєР»РµР№Рј. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
   } finally {
     pr._giftClaimInFlight = false;
     setBtnLoading(btn, false);
@@ -2986,7 +3054,7 @@ async function onNftClaimClick() {
     const item = entry.item;
 
     if (pr.demo) {
-      showToast('Demo: NFT не сохраняются');
+      showToast('Demo: NFT РЅРµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ');
     } else if (!pr.serverEnabled) {
       addToLocalInventory(pr.userId, [item]);
     } else {
@@ -3003,9 +3071,9 @@ async function onNftClaimClick() {
       }, 6500);
       if (!r.ok) {
         if (r.status === 401 || r.status === 403) {
-        showToast('Сессия Telegram устарела. Перезапусти мини‑апп и попробуй ещё раз.');
+        showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџРµСЂРµР·Р°РїСѓСЃС‚Рё РјРёРЅРёвЂ‘Р°РїРї Рё РїРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
       } else {
-        showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй ещё раз.');
+        showToast(r.json?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
       }
         return;
       }
@@ -3020,7 +3088,7 @@ async function onNftClaimClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT сохранено ✅');
+    if (!pr.demo) showToast('NFT СЃРѕС…СЂР°РЅРµРЅРѕ вњ…');
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);
@@ -3054,7 +3122,7 @@ async function onNftSellClick() {
     const amount = entry.amount;
 
     if (pr.demo) {
-      showToast('Demo: продажа отключена');
+      showToast('Demo: РїСЂРѕРґР°Р¶Р° РѕС‚РєР»СЋС‡РµРЅР°');
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, amount);
     } else {
@@ -3074,7 +3142,7 @@ async function onNftSellClick() {
       }, 6500);
 
       if (!r.ok) {
-        showToast('Не удалось продать NFT. Попробуй ещё раз.');
+        showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРґР°С‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
         return;
       }
       if (r.json && typeof r.json.newBalance !== 'undefined') {
@@ -3083,7 +3151,7 @@ async function onNftSellClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT продано ✅');
+    if (!pr.demo) showToast('NFT РїСЂРѕРґР°РЅРѕ вњ…');
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);
@@ -3108,6 +3176,8 @@ async function onNftSellClick() {
       return;
     }
 
+    initHeroTicker();
+    renderHistory(historyState);
     generateCasesGrid();
 
     if (currentCase && sheetPanel?.classList.contains('active')) {
@@ -3129,7 +3199,7 @@ async function onNftSellClick() {
     getCases: () => CASES,
     isDemoMode: () => isDemoMode,
     setDemoMode: (mode) => {
-      if (isSpinning) return false; // запрещаем менять режим во время прокрута/клейма
+      if (isSpinning) return false; // Р·Р°РїСЂРµС‰Р°РµРј РјРµРЅСЏС‚СЊ СЂРµР¶РёРј РІРѕ РІСЂРµРјСЏ РїСЂРѕРєСЂСѓС‚Р°/РєР»РµР№РјР°
       if (isCasesTestMode()) {
         isDemoMode = true;
         if (demoToggle) demoToggle.classList.add('active');
@@ -3145,3 +3215,4 @@ async function onNftSellClick() {
 
   console.log('[Cases] Module loaded');
 })();
+

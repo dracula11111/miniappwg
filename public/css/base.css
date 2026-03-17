@@ -169,3 +169,29 @@
         background: transparent !important;
         box-shadow: none !important;
       }
+
+/* Enhanced logo glow/shadow */
+.logo-header::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: clamp(136px, 42vw, 228px);
+  height: clamp(34px, 8vw, 52px);
+  transform: translate(-50%, -44%);
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at center, rgba(168, 217, 255, 0.32) 0%, rgba(168, 217, 255, 0.14) 44%, rgba(168, 217, 255, 0.00) 78%);
+  filter: blur(13px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.main-logo{
+  position: relative;
+  z-index: 1;
+  filter:
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.42))
+    drop-shadow(0 0 12px rgba(176, 225, 255, 0.24))
+    drop-shadow(0 0 24px rgba(176, 225, 255, 0.12));
+}

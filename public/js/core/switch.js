@@ -12,10 +12,21 @@
     ton: 0,
     stars: 0
   };
+  let __wtIconSwapTimer = 0;
+  let __wtBalanceAnimRaf = 0;
+  let __wtBalanceAnimToken = 0;
+  let __wtFloatingIconsTimer = 0;
+  let __wtAmountSyncTimer = 0;
+  let __wtAmountActivateTimer = 0;
 
   // Telegram Web App API
   const tg = window.Telegram?.WebApp;
   const isGlobalTestMode = () => !!window.TEST_MODE;
+  const WT_PILL_ICONS = Object.freeze({
+    ton: '/icons/ton.svg',
+    stars: '/icons/stars.svg'
+  });
+  const __wtPreloadedIcons = new Set();
 
   // =========================
   // Wallet pill: "Connect Wallet" when TON wallet is not connected
@@ -29,6 +40,16 @@
       if (document.body?.classList?.contains('page-crash')) return true;
       const crashPage = document.getElementById('crashPage');
       return !!crashPage?.classList?.contains('page-active');
+    } catch {
+      return false;
+    }
+  }
+
+  function __wtIsCasesPageActive() {
+    try {
+      if (document.body?.classList?.contains('page-cases')) return true;
+      const casesPage = document.getElementById('casesPage');
+      return !!casesPage?.classList?.contains('page-active');
     } catch {
       return false;
     }
@@ -99,9 +120,10 @@
 
     const connected = __wtGetWalletConnected();
     const inCrash = __wtIsCrashPageActive();
+    const inCases = __wtIsCasesPageActive();
 
-    // On Crash page keep regular TON pill (do not render long "Connect Wallet" button).
-    if (currentCurrency === 'ton' && !connected && !inCrash) {
+    // On Crash/Cases pages keep regular balance pill (do not render long "Connect Wallet" button).
+    if (currentCurrency === 'ton' && !connected && !inCrash && !inCases) {
       __wtRenderConnectWalletPill(tonPill);
     } else {
       __wtRestoreTonPill(tonPill);
@@ -228,6 +250,27 @@
     root.classList.toggle('currency-stars', currentCurrency === 'stars');
   }
 
+  function preloadIcon(src) {
+    if (!src || __wtPreloadedIcons.has(src)) return;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = src;
+    __wtPreloadedIcons.add(src);
+  }
+
+  function isProfilePageActive() {
+    const profilePage = document.getElementById('profilePage');
+    return !!(profilePage && profilePage.classList.contains('page-active'));
+  }
+
+  function scheduleFloatingIconsRefresh(delay = 120) {
+    clearTimeout(__wtFloatingIconsTimer);
+    __wtFloatingIconsTimer = setTimeout(() => {
+      __wtFloatingIconsTimer = 0;
+      createFloatingIcons();
+    }, delay);
+  }
+
   // ================== INIT ==================
   function init() {
     console.log('[Switch] 🚀 Initializing currency system...');
@@ -258,6 +301,8 @@
     }
 
     initUI();
+    preloadIcon(WT_PILL_ICONS.ton);
+    preloadIcon(WT_PILL_ICONS.stars);
     attachEventListeners();
     watchProfilePageActive();
     
@@ -370,10 +415,10 @@
       try { updateTonPillState(); } catch {}
       
       if (e.detail?.page === 'profilePage') {
-        setTimeout(() => {
-          createFloatingIcons();
-        }, 300);
+        scheduleFloatingIconsRefresh(260);
       } else {
+        clearTimeout(__wtFloatingIconsTimer);
+        __wtFloatingIconsTimer = 0;
         clearFloatingIcons();
       }
     });
@@ -395,14 +440,14 @@
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const isActive = profilePage.classList.contains('page--active');
+          const isActive = profilePage.classList.contains('page-active');
           console.log('[Switch] 👀 Profile page active:', isActive);
           
           if (isActive) {
-            setTimeout(() => {
-              createFloatingIcons();
-            }, 200);
+            scheduleFloatingIconsRefresh(180);
           } else {
+            clearTimeout(__wtFloatingIconsTimer);
+            __wtFloatingIconsTimer = 0;
             clearFloatingIcons();
           }
         }
@@ -415,10 +460,8 @@
     });
 
     // Проверяем текущее состояние
-    if (profilePage.classList.contains('page--active')) {
-      setTimeout(() => {
-        createFloatingIcons();
-      }, 200);
+    if (profilePage.classList.contains('page-active')) {
+      scheduleFloatingIconsRefresh(180);
     }
   }
 
@@ -476,15 +519,8 @@
     console.log('[Switch] ✨ createFloatingIcons called');
     
     const profilePage = document.getElementById('profilePage');
-    
-    // 🔥 УЛУЧШЕННАЯ ПРОВЕРКА: проверяем несколько условий
-    const isProfileVisible = profilePage && (
-      profilePage.classList.contains('page--active') ||
-      profilePage.style.display !== 'none' ||
-      getComputedStyle(profilePage).display !== 'none'
-    );
 
-    if (!isProfileVisible) {
+    if (!profilePage || !profilePage.classList.contains('page-active')) {
       console.log('[Switch] ⭐️ Profile page not visible, skipping icons');
       return;
     }
@@ -506,6 +542,9 @@
     }
 
     const oldContainer = wrapper.querySelector('.currency-icons-float');
+    if (oldContainer && wrapper.dataset.currencyIcons === currentCurrency) {
+      return;
+    }
     if (oldContainer) {
       oldContainer.remove();
     }
@@ -550,6 +589,7 @@
     });
 
     wrapper.appendChild(container);
+    wrapper.dataset.currencyIcons = currentCurrency;
 
     console.log(`[Switch] ✨ Created ${iconConfigs.length} flying icons around avatar`);
   }
@@ -557,6 +597,8 @@
   function clearFloatingIcons() {
     const containers = document.querySelectorAll('.currency-icons-float');
     containers.forEach(c => c.remove());
+    const wrappers = document.querySelectorAll('.profile-avatar-wrapper');
+    wrappers.forEach(w => { delete w.dataset.currencyIcons; });
     console.log('[Switch] 🧹 Cleared floating icons');
   }
 
@@ -580,18 +622,21 @@
     console.log(`[Switch] 🔄 Switching from ${currentCurrency} to ${currency}`);
     
     closeAllPopups();
-    clearFloatingIcons();
     
     currentCurrency = currency;
     saveCurrency();
     updateCurrencyUI();
     updateBalanceDisplay(true);
-        try { updateTonPillState(); } catch {}
-syncAmountButtons();
+    try { updateTonPillState(); } catch {}
+    syncAmountButtons();
     
-    setTimeout(() => {
-      createFloatingIcons();
-    }, 150);
+    if (isProfilePageActive()) {
+      scheduleFloatingIconsRefresh(120);
+    } else {
+      clearTimeout(__wtFloatingIconsTimer);
+      __wtFloatingIconsTimer = 0;
+      clearFloatingIcons();
+    }
     
     window.dispatchEvent(new CustomEvent('currency:changed', {
       detail: { currency }
@@ -627,18 +672,35 @@ syncAmountButtons();
       return;
     }
 
-    const iconPath = currentCurrency === 'ton' ? '/icons/ton.svg' : '/icons/stars.svg';
+    const iconPath = WT_PILL_ICONS[currentCurrency] || WT_PILL_ICONS.ton;
+    preloadIcon(iconPath);
     
     console.log('[Switch] 🎨 Changing icon to:', currentCurrency);
-    
-    pillIcon.style.opacity = '0';
-    pillIcon.style.transform = 'scale(0.8) rotate(-15deg)';
-    
-    setTimeout(() => {
-      pillIcon.src = iconPath;
-      pillIcon.style.opacity = '1';
-      pillIcon.style.transform = 'scale(1) rotate(0deg)';
-    }, 150);
+
+    const currentSrc = pillIcon.getAttribute('src') || '';
+    const alreadyApplied = (pillIcon.dataset.currency || '') === currentCurrency
+      || currentSrc.endsWith(iconPath);
+    if (alreadyApplied) {
+      pillIcon.dataset.currency = currentCurrency;
+      return;
+    }
+
+    if (__wtIconSwapTimer) {
+      clearTimeout(__wtIconSwapTimer);
+      __wtIconSwapTimer = 0;
+    }
+
+    pillIcon.dataset.currency = currentCurrency;
+    pillIcon.classList.remove('pill-icon-swap');
+    void pillIcon.offsetWidth;
+
+    pillIcon.setAttribute('src', iconPath);
+    pillIcon.classList.add('pill-icon-swap');
+
+    __wtIconSwapTimer = setTimeout(() => {
+      __wtIconSwapTimer = 0;
+      pillIcon.classList.remove('pill-icon-swap');
+    }, 240);
   }
 
   // ================== AMOUNT BUTTONS SYNC ==================
@@ -651,9 +713,13 @@ syncAmountButtons();
 
     console.log('[Switch] 🔄 Syncing amount buttons for:', currentCurrency);
     
+    clearTimeout(__wtAmountSyncTimer);
+    clearTimeout(__wtAmountActivateTimer);
+
     amountBtns.forEach(btn => btn.classList.add('currency-switching'));
     
-    setTimeout(() => {
+    __wtAmountSyncTimer = setTimeout(() => {
+      __wtAmountSyncTimer = 0;
       if (currentCurrency === 'ton') {
         const tonAmounts = [0.1, 0.5, 1, 2.5];
         amountBtns.forEach((btn, index) => {
@@ -683,7 +749,8 @@ syncAmountButtons();
       amountBtns.forEach(btn => btn.classList.remove('currency-switching'));
     }, 150);
     
-    setTimeout(() => {
+    __wtAmountActivateTimer = setTimeout(() => {
+      __wtAmountActivateTimer = 0;
       amountBtns.forEach((btn, index) => {
         if (index === 0) {
           btn.classList.add('active');
@@ -766,48 +833,86 @@ syncAmountButtons();
     const tonAmount = document.getElementById('tonAmount');
     if (!tonAmount) return;
 
-    const targetValue = currentCurrency === 'ton' 
-      ? userBalance.ton.toFixed(2)
-      : formatStars(userBalance.stars);
+    const currencyAtRender = currentCurrency;
+    const targetNum = currencyAtRender === 'ton'
+      ? Number(userBalance.ton) || 0
+      : Number(userBalance.stars) || 0;
+    const targetValue = formatBalanceValue(currencyAtRender, targetNum);
 
     if (animate) {
-      animateBalanceChange(tonAmount, targetValue);
+      animateBalanceChange(tonAmount, targetNum, currencyAtRender);
     } else {
+      cancelBalanceAnimation();
+      tonAmount.classList.remove('balance-jelly');
       tonAmount.textContent = targetValue;
     }
   }
 
-  function animateBalanceChange(element, targetValue) {
+  function parseDisplayAmount(value) {
+    const parsed = Number(String(value || '').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatBalanceValue(currency, value) {
+    if (currency === 'ton') {
+      return (Number(value) || 0).toFixed(2);
+    }
+    return formatStars(Math.max(0, Math.round(Number(value) || 0)));
+  }
+
+  function cancelBalanceAnimation() {
+    if (__wtBalanceAnimRaf) {
+      cancelAnimationFrame(__wtBalanceAnimRaf);
+      __wtBalanceAnimRaf = 0;
+    }
+  }
+
+  function animateBalanceChange(element, targetNum, currencySnapshot) {
+    cancelBalanceAnimation();
+    const token = ++__wtBalanceAnimToken;
+    const startNum = parseDisplayAmount(element.textContent);
+    const toNum = Number(targetNum) || 0;
+    const duration = currencySnapshot === 'ton' ? 280 : 220;
+
+    element.classList.remove('balance-jelly');
+    void element.offsetWidth;
     element.classList.add('balance-jelly');
-    
-    const currentText = element.textContent;
-    const currentNum = parseFloat(currentText.replace(/[^\d.]/g, '')) || 0;
-    const targetNum = parseFloat(targetValue.replace(/[^\d.]/g, '')) || 0;
-    
-    const duration = 800;
-    const steps = 30;
-    const stepDuration = duration / steps;
-    const increment = (targetNum - currentNum) / steps;
-    
-    let currentStep = 0;
-    
-    const timer = setInterval(() => {
-      currentStep++;
-      
-      if (currentStep >= steps) {
-        element.textContent = targetValue;
-        clearInterval(timer);
-        
-        setTimeout(() => {
+
+    if (Math.abs(toNum - startNum) < (currencySnapshot === 'ton' ? 0.001 : 0.5)) {
+      element.textContent = formatBalanceValue(currencySnapshot, toNum);
+      setTimeout(() => {
+        if (token === __wtBalanceAnimToken) {
           element.classList.remove('balance-jelly');
-        }, 600);
-      } else {
-        const newValue = currentNum + (increment * currentStep);
-        element.textContent = currentCurrency === 'ton' 
-          ? newValue.toFixed(2)
-          : formatStars(Math.round(newValue));
+        }
+      }, 220);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const render = (ts) => {
+      if (token !== __wtBalanceAnimToken) return;
+      const progress = Math.min(1, (ts - startedAt) / duration);
+      const eased = easeOutCubic(progress);
+      const value = startNum + ((toNum - startNum) * eased);
+      element.textContent = formatBalanceValue(currencySnapshot, value);
+
+      if (progress < 1) {
+        __wtBalanceAnimRaf = requestAnimationFrame(render);
+        return;
       }
-    }, stepDuration);
+
+      __wtBalanceAnimRaf = 0;
+      element.textContent = formatBalanceValue(currencySnapshot, toNum);
+      setTimeout(() => {
+        if (token === __wtBalanceAnimToken) {
+          element.classList.remove('balance-jelly');
+        }
+      }, 220);
+    };
+
+    __wtBalanceAnimRaf = requestAnimationFrame(render);
   }
 
    //Stars Format
@@ -948,25 +1053,33 @@ syncAmountButtons();
     }
 
     #tonAmount.balance-jelly {
-      animation: jellyBounce 0.8s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+      animation: jellyBounce 0.34s cubic-bezier(0.22, 0.61, 0.36, 1) both;
       transform-origin: center;
     }
 
     @keyframes jellyBounce {
       0% { transform: scale3d(1, 1, 1); }
-      10% { transform: scale3d(1.25, 0.75, 1); }
-      20% { transform: scale3d(0.85, 1.15, 1); }
-      30% { transform: scale3d(1.15, 0.85, 1); }
-      40% { transform: scale3d(0.95, 1.05, 1); }
-      50% { transform: scale3d(1.05, 0.95, 1); }
-      60% { transform: scale3d(0.98, 1.02, 1); }
-      70% { transform: scale3d(1.02, 0.98, 1); }
-      80%, 100% { transform: scale3d(1, 1, 1); }
+      35% { transform: scale3d(1.04, 1.04, 1); }
+      65% { transform: scale3d(0.985, 0.985, 1); }
+      100% { transform: scale3d(1, 1, 1); }
     }
 
     #pillCurrencyIcon {
-      transition: opacity 0.15s ease, transform 0.15s ease;
-      will-change: opacity, transform;
+      display: block;
+      transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.22s ease;
+      will-change: transform, opacity;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    #pillCurrencyIcon.pill-icon-swap {
+      animation: wtPillIconSwap 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    @keyframes wtPillIconSwap {
+      0% { opacity: 0.7; transform: translateZ(0) scale(0.92); }
+      60% { opacity: 1; transform: translateZ(0) scale(1.06); }
+      100% { opacity: 1; transform: translateZ(0) scale(1); }
     }
 
     /* ============================================
@@ -987,6 +1100,8 @@ syncAmountButtons();
   overflow: hidden;
   isolation: isolate;
   --wt-indicator-x: 0px;
+  contain: paint;
+  transform: translateZ(0);
   box-shadow: 
     0 8px 24px rgba(0, 0, 0, 0.3);
 }
@@ -1013,9 +1128,10 @@ syncAmountButtons();
     0 4px 16px rgba(0, 166, 255, 0.3),
     0 0 0 1px rgba(0, 166, 255, 0.2) inset,
     0 1px 2px rgba(255, 255, 255, 0.1) inset;
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.26s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.22s ease, background 0.22s ease;
   pointer-events: none;
   z-index: 0;
+  will-change: transform;
   transform: translateX(var(--wt-indicator-x));
 }
 
@@ -1051,7 +1167,7 @@ syncAmountButtons();
   font-weight: 800;
   font-size: 15px;
   letter-spacing: 0.3px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: color 0.22s ease, text-shadow 0.22s ease, transform 0.16s ease;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -1062,11 +1178,11 @@ syncAmountButtons();
 
 .curr-btn:hover {
   color: rgba(255, 255, 255, 0.75);
-  transform: scale(1.02);
+  transform: scale(1.01);
 }
 
 .curr-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.99);
 }
 
 /* Активная кнопка TON */
@@ -1086,39 +1202,31 @@ syncAmountButtons();
   width: 22px;
   height: 22px;
   opacity: 0.6;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.22s ease, transform 0.22s ease, filter 0.22s ease;
   pointer-events: none;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  transform: translateZ(0);
 }
 
 .curr-btn:hover .curr-icon {
   opacity: 0.85;
-  transform: scale(1.08) rotate(-5deg);
+  transform: translateZ(0) scale(1.04);
 }
 
 .curr-btn:active .curr-icon {
-  transform: scale(0.95);
+  transform: translateZ(0) scale(0.98);
 }
 
 /* Активная иконка TON */
 .curr-btn--active .curr-icon {
   opacity: 1;
   filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.6));
-  animation: iconPulse 2s ease-in-out infinite;
+  transform: translateZ(0) scale(1);
 }
 
 /* Активная иконка Stars */
 .curr-btn[data-currency="stars"].curr-btn--active .curr-icon {
   filter: drop-shadow(0 0 8px rgba(255, 193, 7, 0.7));
-}
-
-@keyframes iconPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
 }
 
 /* ============================================
@@ -1269,16 +1377,24 @@ syncAmountButtons();
    ACCESSIBILITY
    ============================================ */
 
+@media (hover: none) {
+  .curr-btn:hover {
+    transform: none;
+  }
+
+  .curr-btn:hover .curr-icon {
+    transform: translateZ(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  #pillCurrencyIcon,
+  #pillCurrencyIcon.pill-icon-swap,
   .currency-switch::before,
   .curr-btn,
   .curr-icon,
   #currency-lock-toast {
     transition: none;
-    animation: none;
-  }
-  
-  .curr-btn--active .curr-icon {
     animation: none;
   }
 }
