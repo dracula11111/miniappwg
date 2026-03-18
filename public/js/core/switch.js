@@ -344,6 +344,11 @@
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (isCasesCurrencySwitchLocked()) {
+          triggerCurrencySwitchError(btn);
+          try { tg?.HapticFeedback?.notificationOccurred?.('error'); } catch {}
+          return;
+        }
         const currency = btn.dataset.currency;
         console.log('[Switch] 📘 Currency button clicked:', currency);
         switchCurrency(currency, btn);
@@ -410,23 +415,26 @@
     });
 
     // 🔥 НОВОЕ: Слушаем событие смены страницы
-    window.addEventListener('page:changed', (e) => {
-      console.log('[Switch] 🔄 Page changed to:', e.detail?.page);
+    const handlePageChange = (pageId) => {
+      console.log('[Switch] Page changed to:', pageId);
       try { updateTonPillState(); } catch {}
-      
-      if (e.detail?.page === 'profilePage') {
+
+      if (pageId === 'profilePage') {
         scheduleFloatingIconsRefresh(260);
       } else {
         clearTimeout(__wtFloatingIconsTimer);
         __wtFloatingIconsTimer = 0;
         clearFloatingIcons();
       }
+    };
+
+    window.addEventListener('page:changed', (e) => {
+      handlePageChange(e.detail?.page || e.detail?.id || null);
     });
 
-    // Keep TON pill mode in sync with real page navigation bus.
     try {
-      window.WT?.bus?.addEventListener?.('page:change', () => {
-        try { updateTonPillState(); } catch {}
+      window.WT?.bus?.addEventListener?.('page:change', (e) => {
+        handlePageChange(e?.detail?.id || null);
       });
     } catch {}
   }
@@ -462,6 +470,17 @@
     // Проверяем текущее состояние
     if (profilePage.classList.contains('page-active')) {
       scheduleFloatingIconsRefresh(180);
+    }
+  }
+
+  function isCasesCurrencySwitchLocked() {
+    try {
+      const body = document.body;
+      if (body?.classList?.contains('case-sheet-open')) return true;
+      if (body?.classList?.contains('case-opening-fullscreen')) return true;
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -604,6 +623,14 @@
 
   // ================== CURRENCY SWITCHING ==================
   function switchCurrency(currency, sourceBtn) {
+    if (isCasesCurrencySwitchLocked()) {
+      if (sourceBtn) {
+        triggerCurrencySwitchError(sourceBtn);
+        try { tg?.HapticFeedback?.notificationOccurred?.('error'); } catch {}
+      }
+      return;
+    }
+
     if (currency === currentCurrency) {
       console.log('[Switch] Already on', currency);
       return;
@@ -631,7 +658,13 @@
     syncAmountButtons();
     
     if (isProfilePageActive()) {
-      scheduleFloatingIconsRefresh(120);
+      const floatingIconImages = document.querySelectorAll('#profilePage .currency-icons-float .currency-icon-item img');
+      if (floatingIconImages.length > 0) {
+        const iconSrc = currentCurrency === 'ton' ? '/icons/tgTonWhite.svg' : '/icons/tgStarWhite.svg';
+        floatingIconImages.forEach((img) => { img.src = iconSrc; });
+      } else {
+        scheduleFloatingIconsRefresh(120);
+      }
     } else {
       clearTimeout(__wtFloatingIconsTimer);
       __wtFloatingIconsTimer = 0;

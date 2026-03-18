@@ -171,7 +171,9 @@
       }
 
 /* Enhanced logo glow/shadow */
-.logo-header::after{
+body.page-wheel .logo-header::after,
+body.page-crash .logo-header::after,
+body.page-cases .logo-header::after{
   content: "";
   position: absolute;
   left: 50%;
@@ -187,7 +189,9 @@
   z-index: 0;
 }
 
-.main-logo{
+body.page-wheel .main-logo,
+body.page-crash .main-logo,
+body.page-cases .main-logo{
   position: relative;
   z-index: 1;
   filter:

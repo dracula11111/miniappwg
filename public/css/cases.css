@@ -124,6 +124,25 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch{
   opacity: 1;
   pointer-events: auto;
 }
+body.page-cases .topbar .cases-topbar-switch{
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Never show Crash theme switch on Cases page */
+body:has(.page-active#casesPage) .topbar > .crash-topThemeSwitch{
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.page-cases .topbar > .crash-topThemeSwitch{
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 
 /* Keep left controls and balance on one line while cases page is active */
 body:has(.page-active#casesPage) .topbar{
@@ -140,7 +159,7 @@ body:has(.page-active#casesPage) .topbar > .balance{
   grid-column: 3;
   justify-self: end;
   align-self: start;
-  transform: translateY(-2px);
+  transform: translateY(0);
 }
 
 body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
@@ -2855,39 +2874,65 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     pointer-events: auto;
   }
 
-  body.case-sheet-open .balance {
-    /* Keep balance pill exactly in topbar flow; no extra floating wrapper */
-    position: static;
-    top: auto;
-    right: auto;
-    z-index: auto;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    padding: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  
-  /* Оставляем при открытом кейсе только balance-pill в topbar */
+  /* Keep top controls visible while case sheet is open */
   body.case-sheet-open .topbar {
+    pointer-events: none;
+    z-index: 2305;
+  }
+
+  body.case-sheet-open .topbar > .topbar__left,
+  body.case-sheet-open .topbar > .cases-topbar-switch,
+  body.case-sheet-open .topbar > .balance {
     pointer-events: none;
   }
 
-  body.case-sheet-open .topbar > :not(.balance) {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
+  /* Hide currency switch while case sheet is open */
+  body.case-sheet-open .topbar > .cases-topbar-switch {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Hard-stop currency switch interactions while case sheet is open */
+  body.case-sheet-open .topbar > .cases-topbar-switch,
+  body.case-sheet-open .topbar > .cases-topbar-switch .currency-switch,
+  body.case-sheet-open .topbar > .cases-topbar-switch .curr-btn {
+    pointer-events: none !important;
+  }
+
+  body.case-sheet-open .topbar > .crash-topThemeSwitch {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   body.case-sheet-open .logo-header {
-    opacity: 0;
+    pointer-events: none;
+    z-index: 2306;
+  }
+
+  /* Hard lock background interactions while sheet is open */
+  body.case-sheet-open .page.page-active,
+  body.case-sheet-open #casesPage,
+  body.case-sheet-open .bottom-nav {
     pointer-events: none;
   }
 
-  /* Разрешаем клик только по балансу */
-  body.case-sheet-open .balance {
+  /* Allow interactions only inside case sheet layer */
+  body.case-sheet-open .case-bottom-sheet,
+  body.case-sheet-open .case-bottom-sheet * {
     pointer-events: auto;
+  }
+
+  body.case-sheet-open {
+    touch-action: none;
+  }
+
+  body.case-sheet-open .case-sheet-panel,
+  body.case-sheet-open .case-sheet-panel * {
+    touch-action: auto;
   }
   
   

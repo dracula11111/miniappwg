@@ -15,7 +15,7 @@
           display: flex;                                 /* Flexbox */
           align-items: center;                           /* Центрируем по вертикали */
           gap: 10px;                                     /* Расстояние между элементами */
-          margin-top: 0;                                 /* Без локального вертикального смещения */
+          margin-top: 2px;                               /* Без локального вертикального смещения */
           grid-column: 1;
           justify-self: start;
         }
@@ -142,7 +142,7 @@
           justify-self: end;
           align-self: start;
           margin: 0;
-          transform: translateY(-3px);
+          transform: translateY(0);
           position: static;
           right: auto;
           top: auto;

@@ -705,6 +705,199 @@
   const PAGE_HISTORY_KEY = "__wtPage";
   const GAMES_CHILD_PAGES = new Set(["wheelPage", "crashPage", "casesPage"]);
   const MOBILE_GAME_BACK_PAGES = GAMES_CHILD_PAGES;
+  const CASES_TILE_IMAGES = [
+    'url("/images/games/cases1.webp")',
+    'url("/images/games/cases2.webp")'
+  ];
+  const CRASH_TILE_IMAGES = [
+    'url("/images/games/crash1.webp")',
+    'url("/images/games/crash2.webp")'
+  ];
+  const TILE_ROTATE_MIN_SEC = 8;
+  const TILE_ROTATE_MAX_SEC = 14;
+  let casesTileRotationTimer = null;
+  let crashTileRotationTimer = null;
+
+  function getRandomTileRotateDelayMs(minSec = TILE_ROTATE_MIN_SEC, maxSec = TILE_ROTATE_MAX_SEC) {
+    const min = Number.isFinite(minSec) ? Math.max(1, Math.floor(minSec)) : TILE_ROTATE_MIN_SEC;
+    const max = Number.isFinite(maxSec) ? Math.max(min, Math.floor(maxSec)) : TILE_ROTATE_MAX_SEC;
+    const randomSec = Math.floor(Math.random() * (max - min + 1)) + min;
+    return randomSec * 1000;
+  }
+
+  function ensureCasesTileFadeLayers(casesTile, initialImage) {
+    let layerA = casesTile.querySelector(".game-tile__cases-bg--a");
+    let layerB = casesTile.querySelector(".game-tile__cases-bg--b");
+
+    if (!layerA || !layerB) {
+      if (layerA) layerA.remove();
+      if (layerB) layerB.remove();
+
+      layerA = document.createElement("span");
+      layerA.className = "game-tile__cases-bg game-tile__cases-bg--a";
+      layerA.setAttribute("aria-hidden", "true");
+
+      layerB = document.createElement("span");
+      layerB.className = "game-tile__cases-bg game-tile__cases-bg--b";
+      layerB.setAttribute("aria-hidden", "true");
+
+      casesTile.prepend(layerB);
+      casesTile.prepend(layerA);
+    }
+
+    if (initialImage) {
+      layerA.style.backgroundImage = initialImage;
+      layerB.style.backgroundImage = initialImage;
+    }
+
+    return { layerA, layerB };
+  }
+
+  function ensureCrashTileFadeLayers(crashTile, initialImage) {
+    let layerA = crashTile.querySelector(".game-tile__crash-bg--a");
+    let layerB = crashTile.querySelector(".game-tile__crash-bg--b");
+
+    if (!layerA || !layerB) {
+      if (layerA) layerA.remove();
+      if (layerB) layerB.remove();
+
+      layerA = document.createElement("span");
+      layerA.className = "game-tile__crash-bg game-tile__crash-bg--a";
+      layerA.setAttribute("aria-hidden", "true");
+
+      layerB = document.createElement("span");
+      layerB.className = "game-tile__crash-bg game-tile__crash-bg--b";
+      layerB.setAttribute("aria-hidden", "true");
+
+      crashTile.prepend(layerB);
+      crashTile.prepend(layerA);
+    }
+
+    if (initialImage) {
+      layerA.style.backgroundImage = initialImage;
+      layerB.style.backgroundImage = initialImage;
+    }
+
+    return { layerA, layerB };
+  }
+
+  function scheduleNextCasesTileRotation() {
+    const delayMs = getRandomTileRotateDelayMs();
+    casesTileRotationTimer = window.setTimeout(() => {
+      const tile = document.querySelector(".game-tile--cases");
+      if (!tile) {
+        scheduleNextCasesTileRotation();
+        return;
+      }
+
+      const prevIndex = Number.parseInt(tile.dataset.casesImageIndex || "0", 10);
+      const safePrev = Number.isFinite(prevIndex) ? prevIndex : 0;
+      const nextIndex = (safePrev + 1) % CASES_TILE_IMAGES.length;
+      const activeLayerName = tile.dataset.casesActiveLayer === "b" ? "b" : "a";
+      const nextLayerName = activeLayerName === "a" ? "b" : "a";
+      const currentLayer = tile.querySelector(`.game-tile__cases-bg--${activeLayerName}`);
+      const nextLayer = tile.querySelector(`.game-tile__cases-bg--${nextLayerName}`);
+
+      if (!currentLayer || !nextLayer) {
+        const startImage = CASES_TILE_IMAGES[safePrev % CASES_TILE_IMAGES.length];
+        const layers = ensureCasesTileFadeLayers(tile, startImage);
+        layers.layerA.classList.add("is-visible");
+        layers.layerB.classList.remove("is-visible");
+        tile.dataset.casesActiveLayer = "a";
+        scheduleNextCasesTileRotation();
+        return;
+      }
+
+      tile.dataset.casesImageIndex = String(nextIndex);
+      nextLayer.style.backgroundImage = CASES_TILE_IMAGES[nextIndex];
+      nextLayer.classList.add("is-visible");
+      currentLayer.classList.remove("is-visible");
+      tile.dataset.casesActiveLayer = nextLayerName;
+
+      scheduleNextCasesTileRotation();
+    }, delayMs);
+  }
+
+  function scheduleNextCrashTileRotation() {
+    const delayMs = getRandomTileRotateDelayMs();
+    crashTileRotationTimer = window.setTimeout(() => {
+      const tile = document.querySelector(".game-tile--crash");
+      if (!tile) {
+        scheduleNextCrashTileRotation();
+        return;
+      }
+
+      const prevIndex = Number.parseInt(tile.dataset.crashImageIndex || "0", 10);
+      const safePrev = Number.isFinite(prevIndex) ? prevIndex : 0;
+      const nextIndex = (safePrev + 1) % CRASH_TILE_IMAGES.length;
+      const activeLayerName = tile.dataset.crashActiveLayer === "b" ? "b" : "a";
+      const nextLayerName = activeLayerName === "a" ? "b" : "a";
+      const currentLayer = tile.querySelector(`.game-tile__crash-bg--${activeLayerName}`);
+      const nextLayer = tile.querySelector(`.game-tile__crash-bg--${nextLayerName}`);
+
+      if (!currentLayer || !nextLayer) {
+        const startImage = CRASH_TILE_IMAGES[safePrev % CRASH_TILE_IMAGES.length];
+        const layers = ensureCrashTileFadeLayers(tile, startImage);
+        layers.layerA.classList.add("is-visible");
+        layers.layerB.classList.remove("is-visible");
+        tile.dataset.crashActiveLayer = "a";
+        scheduleNextCrashTileRotation();
+        return;
+      }
+
+      tile.dataset.crashImageIndex = String(nextIndex);
+      nextLayer.style.backgroundImage = CRASH_TILE_IMAGES[nextIndex];
+      nextLayer.classList.add("is-visible");
+      currentLayer.classList.remove("is-visible");
+      tile.dataset.crashActiveLayer = nextLayerName;
+
+      scheduleNextCrashTileRotation();
+    }, delayMs);
+  }
+
+  function setupCasesTileRotation(scope = document) {
+    const root = (scope && typeof scope.querySelector === "function") ? scope : document;
+    const casesTile = root.querySelector(".game-tile--cases") || document.querySelector(".game-tile--cases");
+    if (!casesTile || !CASES_TILE_IMAGES.length) return;
+
+    const currentIndex = Number.parseInt(casesTile.dataset.casesImageIndex || "0", 10);
+    const startIndex = Number.isFinite(currentIndex)
+      ? Math.abs(currentIndex) % CASES_TILE_IMAGES.length
+      : 0;
+
+    casesTile.dataset.casesImageIndex = String(startIndex);
+    const { layerA, layerB } = ensureCasesTileFadeLayers(casesTile, CASES_TILE_IMAGES[startIndex]);
+    layerA.style.backgroundImage = CASES_TILE_IMAGES[startIndex];
+    layerB.style.backgroundImage = CASES_TILE_IMAGES[startIndex];
+    layerA.classList.add("is-visible");
+    layerB.classList.remove("is-visible");
+    casesTile.dataset.casesActiveLayer = "a";
+
+    if (casesTileRotationTimer !== null) return;
+    scheduleNextCasesTileRotation();
+  }
+
+  function setupCrashTileRotation(scope = document) {
+    const root = (scope && typeof scope.querySelector === "function") ? scope : document;
+    const crashTile = root.querySelector(".game-tile--crash") || document.querySelector(".game-tile--crash");
+    if (!crashTile || !CRASH_TILE_IMAGES.length) return;
+
+    const currentIndex = Number.parseInt(crashTile.dataset.crashImageIndex || "0", 10);
+    const startIndex = Number.isFinite(currentIndex)
+      ? Math.abs(currentIndex) % CRASH_TILE_IMAGES.length
+      : 0;
+
+    crashTile.dataset.crashImageIndex = String(startIndex);
+    const { layerA, layerB } = ensureCrashTileFadeLayers(crashTile, CRASH_TILE_IMAGES[startIndex]);
+    layerA.style.backgroundImage = CRASH_TILE_IMAGES[startIndex];
+    layerB.style.backgroundImage = CRASH_TILE_IMAGES[startIndex];
+    layerA.classList.add("is-visible");
+    layerB.classList.remove("is-visible");
+    crashTile.dataset.crashActiveLayer = "a";
+
+    if (crashTileRotationTimer !== null) return;
+    scheduleNextCrashTileRotation();
+  }
 
   function detectMobileIosOrAndroid() {
     try {
@@ -980,7 +1173,9 @@
   });
 
   // Создаём Games-хаб и пункт в навбаре (если его ещё нет)
-  ensureGamesPage();
+  const gamesPage = ensureGamesPage();
+  setupCasesTileRotation(gamesPage);
+  setupCrashTileRotation(gamesPage);
 
   // Если при старте нет активной — активируем Games (или первую)
   if(!document.querySelector(".page.page-active")){

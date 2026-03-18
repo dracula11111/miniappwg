@@ -200,12 +200,46 @@
   }
   .game-tile--crash{ grid-area: crash; 
     background-size: 102%; /* Увеличиваем изображение Crash */
-    --tile-img: url("/images/games/crash.webp"); --tile-y: 50%; }
+    --tile-img: url("/images/games/crash1.webp"); --tile-y: 50%;
+    background-image: none; }
   .game-tile--cases{
     grid-area: cases;
     background-size: 104%;
-    --tile-img: url("/images/games/cases.webp");
+    --tile-img: url("/images/games/cases1.webp");
     --tile-y: 35%;
+    background-image: none;
+  }
+  .game-tile--cases .game-tile__cases-bg{
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    background-repeat: no-repeat;
+    background-size: 104%;
+    background-position: calc(50% + var(--tile-x)) var(--tile-y);
+    will-change: opacity;
+    transition: opacity 1800ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .game-tile--cases .game-tile__cases-bg.is-visible{
+    opacity: 1;
+  }
+  .game-tile--crash .game-tile__crash-bg{
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    background-repeat: no-repeat;
+    background-size: 102%;
+    background-position: calc(50% + var(--tile-x)) var(--tile-y);
+    will-change: opacity;
+    transition: opacity 1800ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .game-tile--crash .game-tile__crash-bg.is-visible{
+    opacity: 1;
   }
   .game-tile--soon { grid-area: soon;  --tile-img: url("/images/games/soon.webp");  --tile-y: 45%; }
   
