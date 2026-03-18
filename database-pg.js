@@ -13,12 +13,47 @@ const pool = new Pool({
   ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
 });
 
+const RLS_PROTECTED_TABLES = [
+  "users",
+  "balances",
+  "transactions",
+  "ton_deposit_claims",
+  "bets",
+  "inventory_claims",
+  "inventory_items",
+  "market_items",
+  "promo_codes",
+  "promo_redemptions",
+  "user_task_claims"
+];
+
 async function query(text, params) {
   const client = await pool.connect();
   try {
     return await client.query(text, params);
   } finally {
     client.release();
+  }
+}
+
+async function hardenPublicSchemaAccess() {
+  // The app works via backend DB connection; public API roles should not get direct access.
+  await query(`REVOKE ALL ON SCHEMA public FROM anon, authenticated`);
+  await query(`ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated`);
+  await query(`ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated`);
+
+  for (const table of RLS_PROTECTED_TABLES) {
+    await query(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`);
+    await query(`REVOKE ALL ON TABLE public.${table} FROM anon, authenticated`);
+    await query(`DROP POLICY IF EXISTS service_role_full_access ON public.${table}`);
+    await query(
+      `CREATE POLICY service_role_full_access
+       ON public.${table}
+       FOR ALL
+       TO service_role
+       USING (true)
+       WITH CHECK (true)`
+    );
   }
 }
 
@@ -268,6 +303,11 @@ export async function initDatabase() {
     WHERE r.telegram_id = u.telegram_id
       AND (r.telegram_username IS NULL OR r.telegram_username = '')
   `);
+  try {
+    await hardenPublicSchemaAccess();
+  } catch (error) {
+    console.warn("[DB] Security hardening skipped:", error?.message || error);
+  }
   console.log("[DB] ✅ Postgres schema ready");
 }
 
