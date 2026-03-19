@@ -158,6 +158,8 @@ const SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(20, Number(process.env.RELAYE
 // Manual import by link can scan deeper than background polling without increasing poll load.
 const IMPORT_SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_IMPORT_SAVED_GIFTS_PAGE_LIMIT || 200) || 200));
 const IMPORT_SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(50, Number(process.env.RELAYER_IMPORT_SAVED_GIFTS_MAX_PAGES || 20) || 20));
+const IMPORT_DIALOGS_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_IMPORT_DIALOGS || 80) || 80));
+const IMPORT_DIALOG_MESSAGES_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_IMPORT_DIALOG_MESSAGES || 120) || 120));
 // Optional one-shot cleanup flag for polluted market state.
 const CLEAR_MARKET_ON_START = /^(1|true|yes)$/i.test(String(process.env.RELAYER_CLEAR_MARKET_ON_START || "0"));
 
@@ -1203,6 +1205,134 @@ async function run({ mode = "run" } = {}) {
     return { gift: null, scanned, pages };
   }
 
+  async function findGiftActionMessageBySlugAndNum({
+    slugNorm,
+    num,
+    dialogsLimit = IMPORT_DIALOGS_LIMIT,
+    perDialogLimit = IMPORT_DIALOG_MESSAGES_LIMIT
+  }) {
+    const targetSlug = normalizeGiftSlugForCompare(slugNorm);
+    const targetNum = Number(num);
+    if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) {
+      return { message: null, scannedMessages: 0, scannedActions: 0, dialogsScanned: 0 };
+    }
+
+    const dl = Math.max(1, Math.min(200, Number(dialogsLimit) || IMPORT_DIALOGS_LIMIT));
+    const ml = Math.max(1, Math.min(200, Number(perDialogLimit) || IMPORT_DIALOG_MESSAGES_LIMIT));
+
+    let dialogs = [];
+    try {
+      dialogs = await client.getDialogs({ limit: dl });
+    } catch (e) {
+      return {
+        message: null,
+        scannedMessages: 0,
+        scannedActions: 0,
+        dialogsScanned: 0,
+        error: String(e?.message || e || "getDialogs failed")
+      };
+    }
+
+    let scannedMessages = 0;
+    let scannedActions = 0;
+    let dialogsScanned = 0;
+
+    for (const d of dialogs) {
+      const entity = d?.entity || d;
+      dialogsScanned += 1;
+      let msgs = [];
+      try {
+        msgs = await client.getMessages(entity, { limit: ml });
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(msgs) || !msgs.length) continue;
+
+      scannedMessages += msgs.length;
+      for (const m of msgs) {
+        if (!m?.action) continue;
+        scannedActions += 1;
+
+        const action = m.action;
+        const gift = extractGiftFromAction(action);
+        if (!gift || !isNftGift(gift, action)) continue;
+
+        const foundSlug = normalizeGiftSlugForCompare(gift?.slug || "");
+        const foundNum = Number(gift?.num ?? gift?.number ?? NaN);
+        if (foundSlug && foundSlug === targetSlug && Number.isInteger(foundNum) && foundNum === targetNum) {
+          return { message: m, scannedMessages, scannedActions, dialogsScanned };
+        }
+      }
+    }
+
+    return { message: null, scannedMessages, scannedActions, dialogsScanned };
+  }
+
+  function buildMarketItemFromGiftActionMessage(msg) {
+    const rawMsgId = Number(msg?.id);
+    if (!Number.isInteger(rawMsgId) || rawMsgId <= 0) {
+      throw new Error("MESSAGE_ID_MISSING");
+    }
+
+    const action = msg?.action || null;
+    const gift = extractGiftFromAction(action);
+    if (!gift || typeof gift !== "object") {
+      throw new Error("GIFT_MISSING");
+    }
+    if (!isNftGift(gift, action)) {
+      throw new Error("NOT_NFT");
+    }
+
+    const title = String(gift?.title || gift?.name || "Gift").trim() || "Gift";
+    const slug = String(gift?.slug || "").trim();
+    if (!slug) throw new Error("SLUG_MISSING");
+
+    const numRaw = Number(gift?.num ?? gift?.number ?? NaN);
+    const num = Number.isInteger(numRaw) && numRaw > 0 ? numRaw : null;
+    if (num == null) throw new Error("NUMBER_MISSING");
+
+    const giftId = gift?.id ?? gift?.giftId ?? null;
+    const numberText = formatNum(num);
+    const msgId = String(rawMsgId);
+    const fromPeer = msg?.fromId || msg?.from_id || action?.fromId || action?.from_id || null;
+    const peerK = peerKey(fromPeer) || "msg";
+    const eventKey = `tg_link_${peerK}_${msgId}`;
+    const assets = extractGiftAssets(gift);
+
+    const tgPayload = {
+      kind: "star_gift",
+      giftId: giftId != null ? String(giftId) : null,
+      slug: slug || null,
+      num,
+      collectible: !!assets.backdrop,
+      model: {
+        name: assets.modelName || null,
+        image: ""
+      },
+      pattern: assets.patternName
+        ? { name: assets.patternName || null, image: "" }
+        : null,
+      backdrop: assets.backdrop || null,
+      peerKey: peerK,
+      messageId: msgId,
+      eventKey
+    };
+
+    const marketItem = {
+      id: `m_${slug || giftId || "gift"}_${String(num ?? "n")}_${peerK}_${msgId}`,
+      sourceKey: eventKey,
+      name: title,
+      number: numberText,
+      image: "",
+      previewUrl: fragmentMediumPreviewUrlFromSlug(slug),
+      priceTon: null,
+      createdAt: Date.now(),
+      tg: tgPayload
+    };
+
+    return { marketItem, title, numberText, msgId, slug, num };
+  }
+
   function buildMarketItemFromSavedGift(savedGift) {
     const rawMsgId = Number(savedGift?.msgId ?? savedGift?.msg_id);
     if (!Number.isInteger(rawMsgId) || rawMsgId <= 0) {
@@ -1270,40 +1400,71 @@ async function run({ mode = "run" } = {}) {
       return { ok: false, code: "BAD_LINK", error: "Invalid gift link. Expected https://t.me/nft/<Slug>-<Number>" };
     }
 
-    let savedGift = null;
-    let scanned = 0;
-    let pages = 0;
+    let built = null;
+    let source = "";
+    let diagMsgScanned = 0;
+    let diagActionScanned = 0;
+    let diagDialogsScanned = 0;
+    let diagSavedScanned = 0;
+    let diagSavedPages = 0;
+
+    // Primary path for admin text import: search collectible gift actions in message history.
+    // This avoids strict dependency on Saved Gifts state and uses real messageId for withdraw.
     try {
-      const search = await findSavedGiftBySlugAndNum({
+      const fromMessages = await findGiftActionMessageBySlugAndNum({
         slugNorm: parsed.slugNorm,
         num: parsed.num,
-        pageLimit: IMPORT_SAVED_GIFTS_PAGE_LIMIT,
-        maxPages: IMPORT_SAVED_GIFTS_MAX_PAGES
+        dialogsLimit: IMPORT_DIALOGS_LIMIT,
+        perDialogLimit: IMPORT_DIALOG_MESSAGES_LIMIT
       });
-      savedGift = search?.gift || null;
-      scanned = Number(search?.scanned || 0);
-      pages = Number(search?.pages || 0);
+      diagMsgScanned = Number(fromMessages?.scannedMessages || 0);
+      diagActionScanned = Number(fromMessages?.scannedActions || 0);
+      diagDialogsScanned = Number(fromMessages?.dialogsScanned || 0);
+      if (fromMessages?.message) {
+        built = buildMarketItemFromGiftActionMessage(fromMessages.message);
+        source = "history";
+      }
     } catch (e) {
-      return { ok: false, code: "SAVED_GIFTS_FETCH_FAILED", error: e?.message || "Failed to query Saved Gifts" };
+      console.log("[Relayer][ImportByLink] history lookup failed:", e?.message || e);
     }
 
-    if (!savedGift) {
-      const hint = `Gift not found in relayer Saved Gifts (scanned ${scanned} item(s), ${pages} page(s)).`;
+    // Fallback: Saved Gifts API.
+    if (!built) {
+      let savedGift = null;
+      try {
+        const search = await findSavedGiftBySlugAndNum({
+          slugNorm: parsed.slugNorm,
+          num: parsed.num,
+          pageLimit: IMPORT_SAVED_GIFTS_PAGE_LIMIT,
+          maxPages: IMPORT_SAVED_GIFTS_MAX_PAGES
+        });
+        savedGift = search?.gift || null;
+        diagSavedScanned = Number(search?.scanned || 0);
+        diagSavedPages = Number(search?.pages || 0);
+      } catch (e) {
+        return { ok: false, code: "SAVED_GIFTS_FETCH_FAILED", error: e?.message || "Failed to query Saved Gifts" };
+      }
+
+      if (savedGift) {
+        try {
+          built = buildMarketItemFromSavedGift(savedGift);
+          source = "saved";
+        } catch (e) {
+          const code = String(e?.message || "BUILD_FAILED");
+          if (code === "NOT_NFT") {
+            return { ok: false, code, error: "Gift is not NFT/collectible" };
+          }
+          if (code === "MESSAGE_ID_MISSING") {
+            return { ok: false, code, error: "Gift has no messageId in Saved Gifts" };
+          }
+          return { ok: false, code: "BUILD_FAILED", error: code };
+        }
+      }
+    }
+
+    if (!built) {
+      const hint = `Gift not found. history: dialogs=${diagDialogsScanned}, messages=${diagMsgScanned}, giftActions=${diagActionScanned}; saved: items=${diagSavedScanned}, pages=${diagSavedPages}.`;
       return { ok: false, code: "GIFT_NOT_FOUND", error: hint };
-    }
-
-    let built = null;
-    try {
-      built = buildMarketItemFromSavedGift(savedGift);
-    } catch (e) {
-      const code = String(e?.message || "BUILD_FAILED");
-      if (code === "NOT_NFT") {
-        return { ok: false, code, error: "Gift is not NFT/collectible" };
-      }
-      if (code === "MESSAGE_ID_MISSING") {
-        return { ok: false, code, error: "Gift has no messageId in Saved Gifts" };
-      }
-      return { ok: false, code: "BUILD_FAILED", error: code };
     }
 
     const addRes = await addToMarket({ item: built.marketItem });
@@ -1319,6 +1480,7 @@ async function run({ mode = "run" } = {}) {
     return {
       ok: true,
       code: "IMPORTED",
+      source,
       relisted: !!addRes?.json?.relisted,
       parsed: { slug: parsed.slug, num: parsed.num },
       item: marketItem
@@ -1379,7 +1541,8 @@ async function run({ mode = "run" } = {}) {
       const numberText = String(result?.item?.number || "").trim();
       const label = numberText ? `${name} #${numberText}` : name;
       const relisted = result?.relisted ? " (relisted)" : "";
-      await sendCommandReply(msg, fromId, `Added to market: ${label}${relisted}`);
+      const sourceText = result?.source ? ` [${String(result.source)}]` : "";
+      await sendCommandReply(msg, fromId, `Added to market: ${label}${relisted}${sourceText}`);
       processedTextImports.add(cmdKey);
       return true;
     } catch (e) {
