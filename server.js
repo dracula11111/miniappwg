@@ -30,6 +30,7 @@ const IS_PROD = NODE_ENV === "production";
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
+const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 
 const RUSSIAN_UI_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
 const RUSSIAN_UI_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
@@ -3988,6 +3989,31 @@ app.get("/api/relayer/rpc-health", async (req, res) => {
   }
 });
 
+// Admin panel unlock: Telegram admin + panel password -> returns per-request admin key for current page session.
+app.post("/api/admin/panel/auth", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "").trim();
+    if (!userId || !isRelayerAdminUserId(userId)) {
+      return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+
+    const expectedPassword = getAdminPanelPassword();
+    const providedPassword = String(req.body?.password || "").trim();
+    if (!expectedPassword || !safeTextEqual(providedPassword, expectedPassword)) {
+      return res.status(403).json({ ok: false, error: "wrong password" });
+    }
+
+    const adminKey = String(process.env.ADMIN_KEY || "").trim();
+    if (!adminKey) {
+      return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
+    }
+
+    return res.json({ ok: true, adminKey });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || "auth failed" });
+  }
+});
+
 // Admin: import gift from relayer Saved Gifts to market by public link (no transfer needed).
 app.post("/api/admin/relayer/import-market-gift", requireAdminKey, async (req, res) => {
   try {
@@ -4047,16 +4073,8 @@ app.post("/api/admin/relayer/import-market-gift", requireAdminKey, async (req, r
 });
 
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
-app.post("/api/admin/inventory/add", async (req, res) => {
+app.post("/api/admin/inventory/add", requireAdminKey, async (req, res) => {
   try {
-    const adminKey = process.env.ADMIN_KEY;
-    if (!adminKey) {
-      return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
-    }
-    const hdr = String(req.headers["x-admin-key"] || "");
-    if (hdr !== adminKey) return res.status(403).json({ ok: false, error: "forbidden" });
-    
-
     const { userId, items, item, claimId } = req.body || {};
     const uid = String(userId || "");
     if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
@@ -6656,6 +6674,17 @@ async function requireTelegramUser(req, res, next) {
   }
 }
 
+function safeTextEqual(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+function getAdminPanelPassword() {
+  return String(process.env.ADMIN_PANEL_PASSWORD || DEFAULT_ADMIN_PANEL_PASSWORD || "").trim();
+}
+
 function requireAdminKey(req, res, next) {
   const adminKey = String(process.env.ADMIN_KEY || "").trim();
   if (!adminKey) {
@@ -6668,7 +6697,7 @@ function requireAdminKey(req, res, next) {
     ? authHeader.slice(7).trim()
     : "";
 
-  if (headerKey !== adminKey && bearerKey !== adminKey) {
+  if (!safeTextEqual(headerKey, adminKey) && !safeTextEqual(bearerKey, adminKey)) {
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
 

@@ -4,9 +4,14 @@
   const isTest = (typeof window.__SERVER_TEST_MODE === 'boolean')
     ? window.__SERVER_TEST_MODE
     : !!window.TEST_MODE;
-  if (!isTest) return;
+  const host = String(window.location?.hostname || '').toLowerCase();
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const allowLocalTestPanel = isTest && isLocalHost;
 
   const SEGMENTS = ['1.1x', '3x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
+  let panelUnlocked = false;
+  let panelAdminKey = '';
+  let panelMode = allowLocalTestPanel ? 'LOCAL_TEST' : 'ADMIN';
 
   // ===== Utils =====
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -64,6 +69,61 @@
     if (v == null) return '';
     if (typeof v === 'number') return String(v);
     return String(v);
+  }
+
+  function getInitData() {
+    try { return String(window.Telegram?.WebApp?.initData || ''); } catch {}
+    return '';
+  }
+
+  function buildAuthHeaders(withJson = false) {
+    const headers = withJson ? { 'Content-Type': 'application/json' } : {};
+    const initData = getInitData();
+    if (initData) headers['x-telegram-init-data'] = initData;
+    if (panelAdminKey) headers['x-admin-key'] = panelAdminKey;
+    return headers;
+  }
+
+  async function resolveAdminAccess() {
+    if (allowLocalTestPanel) {
+      return { allowed: true, mode: 'LOCAL_TEST' };
+    }
+
+    const initData = getInitData();
+    if (!initData) return { allowed: false, mode: 'NONE' };
+
+    try {
+      const r = await fetch('/api/user/inventory', {
+        method: 'GET',
+        headers: { 'x-telegram-init-data': initData }
+      });
+      const j = await r.json().catch(() => null);
+      const isAdmin = !!(r.ok && j && j.ok === true && j.isAdmin === true);
+      return { allowed: isAdmin, mode: isAdmin ? 'ADMIN' : 'NONE' };
+    } catch {
+      return { allowed: false, mode: 'NONE' };
+    }
+  }
+
+  async function authPanelPassword(password) {
+    const initData = getInitData();
+    if (!initData) {
+      return { ok: false, error: 'Telegram initData missing' };
+    }
+    try {
+      const r = await fetch('/api/admin/panel/auth', {
+        method: 'POST',
+        headers: buildAuthHeaders(true),
+        body: JSON.stringify({ password })
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok !== true) {
+        return { ok: false, error: (j && j.error) ? j.error : `HTTP ${r.status}` };
+      }
+      return { ok: true, adminKey: String(j.adminKey || '') };
+    } catch (e) {
+      return { ok: false, error: String(e?.message || e || 'auth failed') };
+    }
   }
 
   // ===== UI =====
@@ -187,8 +247,8 @@
     panel.innerHTML = `
       <div class="ap-head">
         <div>
-          <div class="ap-title">TEST Admin Panel</div>
-          <div class="ap-sub">Wheel / Bonuses</div>
+          <div class="ap-title">${panelMode === 'LOCAL_TEST' ? 'TEST Admin Panel' : 'Admin Panel'}</div>
+          <div class="ap-sub">${panelMode === 'LOCAL_TEST' ? 'Local Test' : 'Secured Admin Access'}</div>
         </div>
         <button class="ap-close" id="apClose">Close</button>
       </div>
@@ -254,7 +314,7 @@
           </div>
 
           <div class="ap-sub" style="margin-top:8px; opacity:.75">
-            If ADMIN_KEY is set on server, also set localStorage ADMIN_KEY to use this.
+            Admin key is loaded only after password unlock and kept in memory until page refresh.
           </div>
         </div>
 
@@ -301,9 +361,10 @@
         .slice(0, 48);
 
     async function adminAddItems(userId, items) {
-      const headers = { 'Content-Type': 'application/json' };
-      const adminKey = localStorage.getItem('ADMIN_KEY');
-      if (adminKey) headers['x-admin-key'] = adminKey;
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+        throw new Error('Admin panel is locked');
+      }
+      const headers = buildAuthHeaders(true);
 
       const r = await fetch('/api/admin/inventory/add', {
         method: 'POST',
@@ -319,9 +380,10 @@
     }
 
     async function adminImportRelayerGift(giftLink) {
-      const headers = { 'Content-Type': 'application/json' };
-      const adminKey = localStorage.getItem('ADMIN_KEY');
-      if (adminKey) headers['x-admin-key'] = adminKey;
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+        throw new Error('Admin panel is locked');
+      }
+      const headers = buildAuthHeaders(true);
 
       const r = await fetch('/api/admin/relayer/import-market-gift', {
         method: 'POST',
@@ -426,7 +488,28 @@
 
     // toggle open/close
     const toggleBtn = $('#adminToggleBtn');
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', async () => {
+      if (panelMode !== 'LOCAL_TEST' && !panelUnlocked) {
+        const passRaw = window.prompt('Enter admin panel password');
+        if (passRaw == null) return;
+        const password = String(passRaw || '').trim();
+        if (!password) {
+          log('Password is required', 'warn');
+          return;
+        }
+        toggleBtn.disabled = true;
+        toggleBtn.textContent = 'Auth...';
+        const auth = await authPanelPassword(password);
+        toggleBtn.disabled = false;
+        toggleBtn.textContent = '🧪 Admin';
+        if (!auth.ok) {
+          log(`Auth failed: ${auth.error || 'forbidden'}`, 'err');
+          return;
+        }
+        panelAdminKey = String(auth.adminKey || '');
+        panelUnlocked = true;
+        log('Admin access granted for current page session', 'ok');
+      }
       panel.classList.toggle('open');
       renderState();
     });
@@ -676,7 +759,11 @@
   }
 
   // Boot
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
+    const access = await resolveAdminAccess();
+    if (!access.allowed) return;
+    panelMode = access.mode || panelMode;
+
     createUI();
     renderState();
     log('Admin panel loaded', 'ok');

@@ -155,6 +155,9 @@ const SAVED_GIFTS_AUTH_DUP_PAUSE_MS = Math.max(
 );
 const SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_SAVED_GIFTS_PAGE_LIMIT || 100) || 100));
 const SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(20, Number(process.env.RELAYER_SAVED_GIFTS_MAX_PAGES || 5) || 5));
+// Manual import by link can scan deeper than background polling without increasing poll load.
+const IMPORT_SAVED_GIFTS_PAGE_LIMIT = Math.max(1, Math.min(200, Number(process.env.RELAYER_IMPORT_SAVED_GIFTS_PAGE_LIMIT || 200) || 200));
+const IMPORT_SAVED_GIFTS_MAX_PAGES = Math.max(1, Math.min(50, Number(process.env.RELAYER_IMPORT_SAVED_GIFTS_MAX_PAGES || 20) || 20));
 // Optional one-shot cleanup flag for polluted market state.
 const CLEAR_MARKET_ON_START = /^(1|true|yes)$/i.test(String(process.env.RELAYER_CLEAR_MARKET_ON_START || "0"));
 
@@ -893,6 +896,16 @@ async function run({ mode = "run" } = {}) {
   const client = await makeClient(SESSION_STR);
   await client.connect();
 
+  try {
+    const me = await client.getMe();
+    const meId = normalizeTelegramId(me?.id || "");
+    const meUsername = normalizeUsername(me?.username || "");
+    const meName = [String(me?.firstName || "").trim(), String(me?.lastName || "").trim()].filter(Boolean).join(" ").trim();
+    console.log(`[Relayer] ACCOUNT: ${meName || "(no name)"}${meUsername ? ` @${meUsername}` : ""}${meId ? ` (id=${meId})` : ""}`);
+  } catch (e) {
+    console.log("[Relayer] ACCOUNT: failed to resolve current account:", e?.message || e);
+  }
+
   // RPC server: allows backend to request withdrawals and manual market imports.
   if (mode !== "sync") startRpcServer(client, { importMarketGiftByLink });
 
@@ -1150,28 +1163,36 @@ async function run({ mode = "run" } = {}) {
     }
   }
 
-  async function findSavedGiftBySlugAndNum({ slugNorm, num }) {
+  async function findSavedGiftBySlugAndNum({ slugNorm, num, pageLimit = SAVED_GIFTS_PAGE_LIMIT, maxPages = SAVED_GIFTS_MAX_PAGES }) {
     const targetSlug = normalizeGiftSlugForCompare(slugNorm);
     const targetNum = Number(num);
-    if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) return null;
+    if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) {
+      return { gift: null, scanned: 0, pages: 0 };
+    }
 
+    const limit = Math.max(1, Math.min(200, Number(pageLimit) || SAVED_GIFTS_PAGE_LIMIT));
+    const pagesMax = Math.max(1, Math.min(50, Number(maxPages) || SAVED_GIFTS_MAX_PAGES));
     let offset = "";
-    for (let page = 0; page < SAVED_GIFTS_MAX_PAGES; page++) {
+    let scanned = 0;
+    let pages = 0;
+    for (let page = 0; page < pagesMax; page++) {
+      pages += 1;
       const res = await client.invoke(new Api.payments.GetSavedStarGifts({
         peer: "me",
         offset,
-        limit: SAVED_GIFTS_PAGE_LIMIT
+        limit
       }));
 
       const gifts = Array.isArray(res?.gifts) ? res.gifts : [];
       if (!gifts.length) break;
+      scanned += gifts.length;
 
       for (const savedGift of gifts) {
         const gift = savedGift?.gift || null;
         const savedSlug = normalizeGiftSlugForCompare(gift?.slug || "");
         const savedNum = Number(gift?.num ?? gift?.number ?? NaN);
         if (savedSlug && savedSlug === targetSlug && Number.isInteger(savedNum) && savedNum === targetNum) {
-          return savedGift;
+          return { gift: savedGift, scanned, pages };
         }
       }
 
@@ -1179,7 +1200,7 @@ async function run({ mode = "run" } = {}) {
       if (!nextOffset || nextOffset === offset) break;
       offset = nextOffset;
     }
-    return null;
+    return { gift: null, scanned, pages };
   }
 
   function buildMarketItemFromSavedGift(savedGift) {
@@ -1250,14 +1271,25 @@ async function run({ mode = "run" } = {}) {
     }
 
     let savedGift = null;
+    let scanned = 0;
+    let pages = 0;
     try {
-      savedGift = await findSavedGiftBySlugAndNum({ slugNorm: parsed.slugNorm, num: parsed.num });
+      const search = await findSavedGiftBySlugAndNum({
+        slugNorm: parsed.slugNorm,
+        num: parsed.num,
+        pageLimit: IMPORT_SAVED_GIFTS_PAGE_LIMIT,
+        maxPages: IMPORT_SAVED_GIFTS_MAX_PAGES
+      });
+      savedGift = search?.gift || null;
+      scanned = Number(search?.scanned || 0);
+      pages = Number(search?.pages || 0);
     } catch (e) {
       return { ok: false, code: "SAVED_GIFTS_FETCH_FAILED", error: e?.message || "Failed to query Saved Gifts" };
     }
 
     if (!savedGift) {
-      return { ok: false, code: "GIFT_NOT_FOUND", error: "Gift not found in relayer Saved Gifts" };
+      const hint = `Gift not found in relayer Saved Gifts (scanned ${scanned} item(s), ${pages} page(s)).`;
+      return { ok: false, code: "GIFT_NOT_FOUND", error: hint };
     }
 
     let built = null;
