@@ -2050,7 +2050,15 @@ let giftsCatalog = [
         "Pet Snake",
         "Xmas Stocking",
           "Pool Float",
-          "Mood Pack"
+          "Mood Pack",
+          "B-Day Candle",
+          "Snake Box",
+          "Lunar Snake",
+          "Happy Brownie",
+          "Ginger Cookie",
+          "Whip Cupcake",
+          "Desk Calendar",
+          "Fresh Socks"
 
 ];
   
