@@ -1,6 +1,7 @@
 // /js/features/tasks/tasks.js
 (function () {
   const TASK_SUBSCRIBE_ID = "subscribe_channel";
+  const TASK_TOP_UP_ID = "top_up_05";
   const TASK_SUBSCRIBE_STATUS_URL = "/api/tasks/channel-subscription/status";
   const TASK_SUBSCRIBE_CLAIM_URL = "/api/tasks/channel-subscription/claim";
   const TASK_SUBSCRIBE_DEFAULT_URL = "https://t.me/wildgift_channel";
@@ -26,10 +27,9 @@
       button: { type: "start", text: "Start" }
     },
     {
-      id: "top_up_05",
+      id: TASK_TOP_UP_ID,
       section: "daily",
       title: "Top up 0.5 TON",
-      subtitle: "or equivalent in Stars",
       rewardStars: 10,
       icon: "/images/tasks/ton.png",
       iconBg: "#39b8ff",
@@ -142,6 +142,13 @@
       return formatTon(starsToTonAmount(task.rewardStars));
     }
     return String(Math.max(0, Math.round(Number(task.rewardStars || 0))));
+  }
+
+  function buildTaskTitle(task, currency) {
+    if (task.id === TASK_TOP_UP_ID) {
+      return currency === "ton" ? "Top up 0.5 TON" : "Top up 50 Stars";
+    }
+    return task.title;
   }
 
   function getSubscribeButtonConfig() {
@@ -347,7 +354,7 @@
     icon.appendChild(img);
 
     const meta = el("div", "trow__meta");
-    meta.appendChild(el("div", "trow__title", task.title));
+    meta.appendChild(el("div", "trow__title", buildTaskTitle(task, currency)));
     if (task.subtitle) meta.appendChild(el("div", "trow__sub", task.subtitle));
 
     const reward = el("div", "trow__reward");

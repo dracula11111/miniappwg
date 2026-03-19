@@ -3545,6 +3545,8 @@ function getMultiplier(type) {
       hasBet,
       durationSec,
       remainingSec: opts?.remainingSec || null,
+      bonusId,
+      sessionKey,
       outcome: opts?.outcome || null,
 
       onComplete: (result) => {

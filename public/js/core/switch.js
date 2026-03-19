@@ -1,6 +1,6 @@
-/**
+﻿/**
  * switch.js - Currency Switch System (TON / Telegram Stars)
- * ИСПРАВЛЕННАЯ ВЕРСИЯ - Убраны дубликаты, добавлен watchProfilePageActive
+ * РРЎРџР РђР’Р›Р•РќРќРђРЇ Р’Р•Р РЎРРЇ - РЈР±СЂР°РЅС‹ РґСѓР±Р»РёРєР°С‚С‹, РґРѕР±Р°РІР»РµРЅ watchProfilePageActive
  */
 
 (function() {
@@ -135,7 +135,7 @@
 
 
   // =========================
-  // TON ↔ Stars dynamic rate
+  // TON в†” Stars dynamic rate
   // =========================
   // Source of truth: server endpoint /api/rates/ton-stars
   // Fallback: cached localStorage value or legacy constant.
@@ -273,7 +273,7 @@
 
   // ================== INIT ==================
   function init() {
-    console.log('[Switch] 🚀 Initializing currency system...');
+    console.log('[Switch] рџљЂ Initializing currency system...');
     
     loadCurrency();
     applyCurrencyTheme();
@@ -284,11 +284,11 @@
       onDOMReady();
     }
     
-    console.log('[Switch] ✅ Currency system initialized. Current:', currentCurrency);
+    console.log('[Switch] вњ… Currency system initialized. Current:', currentCurrency);
   }
 
   async function onDOMReady() {
-    console.log('[Switch] 🔄 DOM ready, setting up UI...');
+    console.log('[Switch] рџ”„ DOM ready, setting up UI...');
     
     try {
       const isBanned = await window.WTBanGuard?.ensureChecked?.();
@@ -308,7 +308,7 @@
     
     setTimeout(() => {
       syncAmountButtons();
-      // Попытка создать иконки при загрузке
+      // РџРѕРїС‹С‚РєР° СЃРѕР·РґР°С‚СЊ РёРєРѕРЅРєРё РїСЂРё Р·Р°РіСЂСѓР·РєРµ
       createFloatingIcons();
     }, 300);
     
@@ -319,7 +319,7 @@
   
   // ================== UI SETUP ==================
   function initUI() {
-    console.log('[Switch] 🎨 Initializing UI...');
+    console.log('[Switch] рџЋЁ Initializing UI...');
     
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
@@ -334,7 +334,7 @@
     updateTopbarIcon();
     applyCurrencyTheme();
     
-    console.log('[Switch] ✅ UI initialized');
+    console.log('[Switch] вњ… UI initialized');
   }
 
   // ================== EVENT LISTENERS ==================
@@ -350,7 +350,7 @@
           return;
         }
         const currency = btn.dataset.currency;
-        console.log('[Switch] 📘 Currency button clicked:', currency);
+        console.log('[Switch] рџ“ Currency button clicked:', currency);
         switchCurrency(currency, btn);
       });
       
@@ -374,7 +374,7 @@
             if (window.WildTimeTonConnect?.connect) return await window.WildTimeTonConnect.connect();
             if (window.tonConnectUI?.openModal) return await window.tonConnectUI.openModal();
           } catch (err) {
-            console.error('[Switch] ❌ Connect modal failed:', err);
+            console.error('[Switch] вќЊ Connect modal failed:', err);
           }
           // fallback: open deposit popup (it has Connect button inside)
           return openDepositPopup();
@@ -402,19 +402,19 @@
     
     window.addEventListener('balance:loaded', (e) => {
       if (e.detail) {
-        console.log('[Switch] 🔥 Balance loaded event:', e.detail);
+        console.log('[Switch] рџ”Ґ Balance loaded event:', e.detail);
         updateBalance(e.detail);
       }
     });
 
     window.addEventListener('balance:live-update', (e) => {
       if (e.detail) {
-        console.log('[Switch] 📡 Live balance update:', e.detail);
+        console.log('[Switch] рџ“Ў Live balance update:', e.detail);
         updateBalance(e.detail);
       }
     });
 
-    // 🔥 НОВОЕ: Слушаем событие смены страницы
+    // рџ”Ґ РќРћР’РћР•: РЎР»СѓС€Р°РµРј СЃРѕР±С‹С‚РёРµ СЃРјРµРЅС‹ СЃС‚СЂР°РЅРёС†С‹
     const handlePageChange = (pageId) => {
       console.log('[Switch] Page changed to:', pageId);
       try { updateTonPillState(); } catch {}
@@ -444,12 +444,12 @@
     const profilePage = document.getElementById('profilePage');
     if (!profilePage) return;
 
-    // Создаем наблюдатель за изменением классов
+    // РЎРѕР·РґР°РµРј РЅР°Р±Р»СЋРґР°С‚РµР»СЊ Р·Р° РёР·РјРµРЅРµРЅРёРµРј РєР»Р°СЃСЃРѕРІ
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
           const isActive = profilePage.classList.contains('page-active');
-          console.log('[Switch] 👀 Profile page active:', isActive);
+          console.log('[Switch] рџ‘Ђ Profile page active:', isActive);
           
           if (isActive) {
             scheduleFloatingIconsRefresh(180);
@@ -467,7 +467,7 @@
       attributeFilter: ['class']
     });
 
-    // Проверяем текущее состояние
+    // РџСЂРѕРІРµСЂСЏРµРј С‚РµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ
     if (profilePage.classList.contains('page-active')) {
       scheduleFloatingIconsRefresh(180);
     }
@@ -535,12 +535,12 @@
 
   // ================== FLOATING ICONS ==================
   function createFloatingIcons() {
-    console.log('[Switch] ✨ createFloatingIcons called');
+    console.log('[Switch] вњЁ createFloatingIcons called');
     
     const profilePage = document.getElementById('profilePage');
 
     if (!profilePage || !profilePage.classList.contains('page-active')) {
-      console.log('[Switch] ⭐️ Profile page not visible, skipping icons');
+      console.log('[Switch] в­ђпёЏ Profile page not visible, skipping icons');
       return;
     }
 
@@ -548,7 +548,7 @@
                    document.querySelector('#profilePage .profile-ava');
     
     if (!avatar) {
-      console.warn('[Switch] 🔍 Avatar not found for floating icons');
+      console.warn('[Switch] рџ”Ќ Avatar not found for floating icons');
       return;
     }
 
@@ -596,7 +596,7 @@
       iconItem.style.setProperty('--end-y', `${config.yEnd}px`);
       iconItem.style.setProperty('--distance', `${config.distance}px`);
       iconItem.style.setProperty('--rotation', `${config.rotation}deg`);
-      iconItem.style.setProperty('--start-x', `${config.xStart || 0}px`); // 🔥 НОВОЕ: стартовая позиция справа
+      iconItem.style.setProperty('--start-x', `${config.xStart || 0}px`); // рџ”Ґ РќРћР’РћР•: СЃС‚Р°СЂС‚РѕРІР°СЏ РїРѕР·РёС†РёСЏ СЃРїСЂР°РІР°
       
       const img = document.createElement('img');
       img.src = iconSrc;
@@ -610,7 +610,7 @@
     wrapper.appendChild(container);
     wrapper.dataset.currencyIcons = currentCurrency;
 
-    console.log(`[Switch] ✨ Created ${iconConfigs.length} flying icons around avatar`);
+    console.log(`[Switch] вњЁ Created ${iconConfigs.length} flying icons around avatar`);
   }
 
   function clearFloatingIcons() {
@@ -618,7 +618,7 @@
     containers.forEach(c => c.remove());
     const wrappers = document.querySelectorAll('.profile-avatar-wrapper');
     wrappers.forEach(w => { delete w.dataset.currencyIcons; });
-    console.log('[Switch] 🧹 Cleared floating icons');
+    console.log('[Switch] рџ§№ Cleared floating icons');
   }
 
   // ================== CURRENCY SWITCHING ==================
@@ -637,7 +637,7 @@
     }
 
     if (isCurrencyChangeLocked()) {
-      console.log('[Switch] ⛔ Currency switch blocked - active bet detected');
+      console.log('[Switch] в›” Currency switch blocked - active bet detected');
       showCurrencyLockNotification();
       triggerCurrencySwitchError(sourceBtn);
       if (tg?.HapticFeedback?.notificationOccurred) {
@@ -646,7 +646,7 @@
       return;
     }
     
-    console.log(`[Switch] 🔄 Switching from ${currentCurrency} to ${currency}`);
+    console.log(`[Switch] рџ”„ Switching from ${currentCurrency} to ${currency}`);
     
     closeAllPopups();
     
@@ -681,7 +681,7 @@
   }
 
   function updateCurrencyUI() {
-    console.log('[Switch] 🎨 Updating UI for currency:', currentCurrency);
+    console.log('[Switch] рџЋЁ Updating UI for currency:', currentCurrency);
     
     const currencyBtns = document.querySelectorAll('.curr-btn');
     currencyBtns.forEach(btn => {
@@ -701,14 +701,14 @@
     const pillIcon = document.getElementById('pillCurrencyIcon');
     
     if (!pillIcon) {
-      console.warn('[Switch] ⚠️ pillCurrencyIcon not found');
+      console.warn('[Switch] вљ пёЏ pillCurrencyIcon not found');
       return;
     }
 
     const iconPath = WT_PILL_ICONS[currentCurrency] || WT_PILL_ICONS.ton;
     preloadIcon(iconPath);
     
-    console.log('[Switch] 🎨 Changing icon to:', currentCurrency);
+    console.log('[Switch] рџЋЁ Changing icon to:', currentCurrency);
 
     const currentSrc = pillIcon.getAttribute('src') || '';
     const alreadyApplied = (pillIcon.dataset.currency || '') === currentCurrency
@@ -740,11 +740,11 @@
   function syncAmountButtons() {
     const amountBtns = document.querySelectorAll('.amount-btn');
     if (amountBtns.length === 0) {
-      console.log('[Switch] ⭐️ No amount buttons found, skipping');
+      console.log('[Switch] в­ђпёЏ No amount buttons found, skipping');
       return;
     }
 
-    console.log('[Switch] 🔄 Syncing amount buttons for:', currentCurrency);
+    console.log('[Switch] рџ”„ Syncing amount buttons for:', currentCurrency);
     
     clearTimeout(__wtAmountSyncTimer);
     clearTimeout(__wtAmountActivateTimer);
@@ -798,12 +798,12 @@
       });
     }, 300);
     
-    console.log('[Switch] ✅ Amount buttons synced');
+    console.log('[Switch] вњ… Amount buttons synced');
   }
 
   // ================== POPUP MANAGEMENT ==================
   function openDepositPopup() {
-    console.log('[Switch] 📂 Opening deposit popup for:', currentCurrency);
+    console.log('[Switch] рџ“‚ Opening deposit popup for:', currentCurrency);
     
     closeAllPopups();
     
@@ -812,13 +812,13 @@
         if (window.WTTonDeposit?.open) {
           window.WTTonDeposit.open();
         } else {
-          console.error('[Switch] ❌ TON module not loaded!');
+          console.error('[Switch] вќЊ TON module not loaded!');
         }
       } else {
         if (window.WTStarsDeposit?.open) {
           window.WTStarsDeposit.open();
         } else {
-          console.error('[Switch] ❌ Stars module not loaded!');
+          console.error('[Switch] вќЊ Stars module not loaded!');
         }
       }
       
@@ -843,7 +843,7 @@
 
   // ================== BALANCE MANAGEMENT ==================
   function updateBalance(balances) {
-    console.log('[Switch] 💰 Updating balance:', balances);
+    console.log('[Switch] рџ’° Updating balance:', balances);
     
     if (balances.ton !== undefined) {
       userBalance.ton = parseFloat(balances.ton) || 0;
@@ -956,31 +956,37 @@
   // ================== SERVER SYNC ==================
   async function loadBalanceFromServer() {
     if (isGlobalTestMode()) {
-      console.log('[Switch] 🧪 TEST_MODE active: skip server balance load');
+      console.log('[Switch] рџ§Є TEST_MODE active: skip server balance load');
       return;
     }
 
     const userId = tg?.initDataUnsafe?.user?.id;
+    const initData = String(tg?.initData || "");
     if (!userId) {
-      console.warn('[Switch] ⚠️ No user ID, skipping balance load');
+      console.warn('[Switch] вљ пёЏ No user ID, skipping balance load');
+      return;
+    }
+    if (!initData) {
+      console.warn('[Switch] No initData, skipping secure balance load');
       return;
     }
 
     try {
-      console.log('[Switch] 📡 Loading balance from server...');
+      console.log('[Switch] рџ“Ў Loading balance from server...');
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const res = await fetch(`/api/balance?userId=${userId}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: { 'x-telegram-init-data': initData }
       });
       
       clearTimeout(timeoutId);
       
       if (res.ok) {
         const data = await res.json();
-        console.log('[Switch] 📊 Balance received:', data);
+        console.log('[Switch] рџ“Љ Balance received:', data);
         
         if (data.ok && (data.ton !== undefined || data.stars !== undefined)) {
           updateBalance({
@@ -996,13 +1002,13 @@
           }));
         }
       } else {
-        console.error('[Switch] ❌ Balance load failed:', res.status);
+        console.error('[Switch] вќЊ Balance load failed:', res.status);
       }
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.error('[Switch] ⏱️ Balance load timeout');
+        console.error('[Switch] вЏ±пёЏ Balance load timeout');
       } else {
-        console.error('[Switch] ❌ Balance load error:', err);
+        console.error('[Switch] вќЊ Balance load error:', err);
       }
     }
   }
@@ -1013,7 +1019,7 @@
       const saved = localStorage.getItem('wt-currency');
       if (saved && (saved === 'ton' || saved === 'stars')) {
         currentCurrency = saved;
-        console.log('[Switch] 🔥 Loaded currency from storage:', currentCurrency);
+        console.log('[Switch] рџ”Ґ Loaded currency from storage:', currentCurrency);
       }
     } catch (e) {
       console.warn('[Switch] Failed to load currency:', e);
@@ -1023,7 +1029,7 @@
   function saveCurrency() {
     try {
       localStorage.setItem('wt-currency', currentCurrency);
-      console.log('[Switch] 💾 Saved currency to storage:', currentCurrency);
+      console.log('[Switch] рџ’ѕ Saved currency to storage:', currentCurrency);
     } catch (e) {
       console.warn('[Switch] Failed to save currency:', e);
     }
@@ -1047,13 +1053,13 @@
     closeAllPopups: closeAllPopups,
     
     reloadBalance: () => {
-      console.log('[Switch] 🔄 Manual balance reload');
+      console.log('[Switch] рџ”„ Manual balance reload');
       return loadBalanceFromServer();
     },
     
     syncButtons: syncAmountButtons,
     
-    // 🔥 НОВОЕ: API для ручного управления иконками
+    // рџ”Ґ РќРћР’РћР•: API РґР»СЏ СЂСѓС‡РЅРѕРіРѕ СѓРїСЂР°РІР»РµРЅРёСЏ РёРєРѕРЅРєР°РјРё
     createIcons: createFloatingIcons,
     clearIcons: clearFloatingIcons,
     
@@ -1064,13 +1070,13 @@
         iconSrc: document.getElementById('pillCurrencyIcon')?.src
       }),
       forceSync: () => {
-        console.log('[Switch] 🔧 Force sync');
+        console.log('[Switch] рџ”§ Force sync');
         updateTopbarIcon();
         syncAmountButtons();
       },
-      // 🔥 Отладочная функция
+      // рџ”Ґ РћС‚Р»Р°РґРѕС‡РЅР°СЏ С„СѓРЅРєС†РёСЏ
       testIcons: () => {
-        console.log('[Switch] 🧪 Testing icons...');
+        console.log('[Switch] рџ§Є Testing icons...');
         clearFloatingIcons();
         setTimeout(createFloatingIcons, 100);
       }
@@ -1143,7 +1149,7 @@
   content: none;
 }
 
-/* Анимированный индикатор выбора */
+/* РђРЅРёРјРёСЂРѕРІР°РЅРЅС‹Р№ РёРЅРґРёРєР°С‚РѕСЂ РІС‹Р±РѕСЂР° */
 .currency-switch::before {
   content: "";
   position: absolute;
@@ -1168,7 +1174,7 @@
   transform: translateX(var(--wt-indicator-x));
 }
 
-/* Индикатор для Stars */
+/* РРЅРґРёРєР°С‚РѕСЂ РґР»СЏ Stars */
 .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
   background: linear-gradient(
     135deg, 
@@ -1185,7 +1191,7 @@
   --wt-indicator-x: calc(100% + 4px);
 }
 
-/* Кнопки валют */
+/* РљРЅРѕРїРєРё РІР°Р»СЋС‚ */
 .curr-btn {
   flex: 1;
   display: flex;
@@ -1218,19 +1224,19 @@
   transform: scale(0.99);
 }
 
-/* Активная кнопка TON */
+/* РђРєС‚РёРІРЅР°СЏ РєРЅРѕРїРєР° TON */
 .curr-btn--active {
   color: #fff;
   text-shadow: 0 2px 8px rgba(0, 166, 255, 0.4);
 }
 
-/* Активная кнопка Stars */
+/* РђРєС‚РёРІРЅР°СЏ РєРЅРѕРїРєР° Stars */
 .curr-btn[data-currency="stars"].curr-btn--active {
   color: #fff;
   text-shadow: 0 2px 8px rgba(255, 193, 7, 0.5);
 }
 
-/* Иконки */
+/* РРєРѕРЅРєРё */
 .curr-icon {
   width: 22px;
   height: 22px;
@@ -1250,20 +1256,20 @@
   transform: translateZ(0) scale(0.98);
 }
 
-/* Активная иконка TON */
+/* РђРєС‚РёРІРЅР°СЏ РёРєРѕРЅРєР° TON */
 .curr-btn--active .curr-icon {
   opacity: 1;
   filter: drop-shadow(0 0 8px rgba(0, 166, 255, 0.6));
   transform: translateZ(0) scale(1);
 }
 
-/* Активная иконка Stars */
+/* РђРєС‚РёРІРЅР°СЏ РёРєРѕРЅРєР° Stars */
 .curr-btn[data-currency="stars"].curr-btn--active .curr-icon {
   filter: drop-shadow(0 0 8px rgba(255, 193, 7, 0.7));
 }
 
 /* ============================================
-   ERROR STATES (когда блокировка)
+   ERROR STATES (РєРѕРіРґР° Р±Р»РѕРєРёСЂРѕРІРєР°)
    ============================================ */
 
 @keyframes wtSwitchShake {
@@ -1444,6 +1450,7 @@
     loadBalanceFromServer();
   }, 30000);
 
-  console.log('[Switch] 📦 Module loaded');
+  console.log('[Switch] рџ“¦ Module loaded');
 
 })();
+

@@ -333,9 +333,10 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
   display: grid;
   place-items: center;
-  contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: 280px;
+  contain: none;
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
+  overflow: visible;
 }
 
 
@@ -345,6 +346,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
    - Price pill stays above everything
    ---------------------------- */
 #casesPage .case-path-item::after{
+  display: none !important;
   content: "";
   position: absolute;
   left: 50%;
@@ -412,19 +414,16 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
   isolation: isolate;
 
   background:
-    url('/images/cases/clouds/cloud1.webp') 50% 55% / min(560px, 92%) auto no-repeat,
-    radial-gradient(280px 180px at 18% 30%, rgba(255,255,255,0.10) 0%, transparent 70%),
-    radial-gradient(260px 180px at 82% 70%, rgba(255,255,255,0.08) 0%, transparent 72%),
-    rgba(255,255,255,0.06);
-  background-blend-mode: soft-light, normal, normal, normal;
+    radial-gradient(280px 180px at 18% 30%, rgba(255,255,255,0.08) 0%, transparent 70%),
+    radial-gradient(260px 180px at 82% 70%, rgba(255,255,255,0.06) 0%, transparent 72%),
+    rgba(255,255,255,0.045);
+  background-blend-mode: normal, normal, normal;
 
 
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 0;
 
   box-shadow:
-    0 22px 52px rgba(0,0,0,0.52),
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    inset 0 -1px 0 rgba(0,0,0,0.36);
+    0 18px 44px rgba(0,0,0,0.46);
 
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -435,6 +434,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
 /* Inner “groove” line where gifts ride */
 #casesPage .case-path-track::before{
+  display: none !important;
   content: "";
   position: absolute;
   left: 18px;
@@ -458,6 +458,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
 /* Slight highlight border */
 #casesPage .case-path-track::after{
+  display: none !important;
   content: "";
   position: absolute;
   inset: 0;
@@ -590,12 +591,12 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 /* Glow stays (case-specific colors) */
 #casesPage .case-path-glow{
   position: absolute;
-  inset: -42%;
+  inset: -48%;
   border-radius: 999px;
   filter: blur(46px);
   opacity: 0.72;
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
   transform: translateZ(0);
 }
 
@@ -1093,11 +1094,81 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
       justify-content: center;
     }
     
-    .case-carousel-item img{
+    .case-carousel-item .case-carousel-item__img{
       width: 80%;
       height: 80%;
       object-fit: contain;
       display: block;
+    }
+
+    .case-carousel-item-pill{
+      position: absolute;
+      left: 50%;
+      bottom: 6px;
+      transform: translate(-50%, 8px) scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 12;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 4px 9px 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(18, 22, 36, 0.38);
+      overflow: hidden;
+      max-width: calc(100% - 6px);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.14);
+      transition: opacity .28s ease, transform .32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .case-carousel-item-pill__amount{
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 900;
+      color: rgba(255,255,255,0.98);
+      letter-spacing: .01em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .case-carousel-item-pill__icon{
+      width: 11px;
+      height: 11px;
+      flex: 0 0 11px;
+      display: block;
+      object-fit: contain;
+      transform: translateZ(0);
+    }
+
+    .case-carousel.cases-finished .case-carousel-item.winning.case-carousel-item--show-pill .case-carousel-item-pill{
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .case-carousel--compact .case-carousel-item-pill{
+      bottom: 4px;
+      gap: 0;
+      padding: 3px 6px;
+      max-width: calc(100% - 2px);
+    }
+
+    .case-carousel--compact .case-carousel-item-pill__amount{
+      font-size: 9px;
+      letter-spacing: 0;
+    }
+
+    .case-carousel--compact .case-carousel-item-pill__icon{
+      display: none;
+    }
+
+    .case-carousel--compact.cases-finished .case-carousel-item.winning.case-carousel-item--show-pill .case-carousel-item-pill{
+      transform: translate(-50%, 0) scale(0.97);
     }
     
     
@@ -1883,7 +1954,7 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   }
     
     /* PNG внутри приза чуть крупнее */
-    .case-carousel.cases-finished .case-carousel-item.winning img{
+    .case-carousel.cases-finished .case-carousel-item.winning .case-carousel-item__img{
       transform: scale(1.06);
       transition: transform .18s ease;
     }
@@ -1891,6 +1962,15 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     /* ===== CASES: Claim bar under carousels ===== */
     .case-claim-bar{
       padding: 10px 14px 6px;
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+      transition: opacity .28s ease, transform .32s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: opacity, transform;
+    }
+
+    .case-claim-bar.is-visible{
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
     
     .case-claim-btn{
@@ -2874,8 +2954,19 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     pointer-events: auto;
   }
 
+  :root {
+    --case-sheet-ui-left: 0px;
+    --case-sheet-ui-width: 100vw;
+    --case-sheet-top-offset: calc(env(safe-area-inset-top, 0px) + 118px);
+  }
+
   /* Keep top controls visible while case sheet is open */
   body.case-sheet-open .topbar {
+    position: fixed;
+    top: 0;
+    left: var(--case-sheet-ui-left);
+    width: var(--case-sheet-ui-width);
+    margin: 0;
     pointer-events: none;
     z-index: 2305;
   }
@@ -2886,11 +2977,11 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     pointer-events: none;
   }
 
-  /* Hide currency switch while case sheet is open */
+  /* Keep currency switch visible while case sheet is open, but locked */
   body.case-sheet-open .topbar > .cases-topbar-switch {
-    display: none !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
     pointer-events: none !important;
   }
 
@@ -2909,8 +3000,25 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   }
 
   body.case-sheet-open .logo-header {
+    position: fixed;
+    left: calc(var(--case-sheet-ui-left) + (var(--case-sheet-ui-width) / 2));
+    top: calc(env(safe-area-inset-top, 0px) + 22px);
+    width: min(var(--case-sheet-ui-width), 100vw);
+    margin-top: 0;
+    transform: translateX(-50%);
     pointer-events: none;
     z-index: 2306;
+  }
+
+  body.case-sheet-open .case-sheet-panel {
+    max-height: min(88dvh, calc(100dvh - var(--case-sheet-top-offset)));
+  }
+
+  /* Compact devices */
+  @media (max-height: 760px) {
+    body.case-sheet-open .case-sheet-panel {
+      max-height: calc(100dvh - var(--case-sheet-top-offset));
+    }
   }
 
   /* Hard lock background interactions while sheet is open */

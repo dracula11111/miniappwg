@@ -16,6 +16,10 @@
     return String(id);
   }
 
+  function getInitData() {
+    return String(tg?.initData || "");
+  }
+
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement("style");
@@ -154,7 +158,12 @@
     checked = true;
 
     const userId = getTelegramUserId();
+    const initData = getInitData();
     if (!userId) {
+      banned = false;
+      return banned;
+    }
+    if (!initData) {
       banned = false;
       return banned;
     }
@@ -162,7 +171,10 @@
     try {
       const response = await fetch(`/api/user/profile?userId=${encodeURIComponent(userId)}`, {
         cache: "no-store",
-        headers: { Accept: "application/json" }
+        headers: {
+          Accept: "application/json",
+          "x-telegram-init-data": initData
+        }
       });
 
       if (response.status === 404) {

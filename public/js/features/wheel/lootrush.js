@@ -43,6 +43,10 @@ class LootRush {
     this._rowBagSrcs = [[], [], [], [], []];
     this._forcedPickIndex = null;
     this._forcedMultiplier = null;
+    this._sharedWinnerIndex = 0;
+    this._seedBase = String(this.options?.bonusId || this.options?.sessionKey || 'lootrush');
+    this._layoutRand = Math.random;
+    this._bagRand = Math.random;
     this._lastNoBetToastAt = 0;
     this._noBetOverlayTimer = null;
   }
@@ -54,6 +58,38 @@ class LootRush {
     if (!Number.isFinite(num)) return '1.1x';
     const isInt = Math.abs(num - Math.round(num)) < 1e-9;
     return (isInt ? String(Math.round(num)) : num.toFixed(1)) + 'x';
+  }
+
+  _hashSeed(value) {
+    const str = String(value || 'lootrush');
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  _makeRng(seedInt) {
+    let a = (seedInt >>> 0) || 0x9e3779b9;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  _buildDeterministicRandom(scope = 'default') {
+    const seed = this._hashSeed(`${this._seedBase}:${scope}`);
+    return this._makeRng(seed);
+  }
+
+  _pickSharedWinnerIndex(totalTiles = 24) {
+    const max = Math.max(1, Number(totalTiles) || 24);
+    const pickRand = this._buildDeterministicRandom('winner');
+    return Math.floor(pickRand() * max);
   }
 
   _overlayEl() { 
@@ -212,9 +248,10 @@ class LootRush {
     return pool.slice(0, 24);
   }
 
-  _shuffleArray(arr) {
+  _shuffleArray(arr, randFn = this._layoutRand) {
+    const rnd = (typeof randFn === 'function') ? randFn : Math.random;
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rnd() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
@@ -228,7 +265,7 @@ class LootRush {
   // 🔥 Get random bag from pool (4x4 = 16 bags)
   _getRandomBagSrc() {
     if (this._allBagSrcs.length === 0) return this._getBagSrc(0);
-    const idx = Math.floor(Math.random() * this._allBagSrcs.length);
+    const idx = Math.floor(this._bagRand() * this._allBagSrcs.length);
     return this._allBagSrcs[idx];
   }
 
@@ -263,7 +300,7 @@ class LootRush {
         <div class="lr-grid" id="lrGrid">
           ${this._multipliers.map((mult, i) => `
             <button type="button" class="lr-tile" data-index="${i}">
-              <div class="lr-mult">${this._fmtX(mult)}</div>
+              <div class="lr-mult"></div>
               <img class="lr-bag" src="${bagSrcs[i]}" alt="" draggable="false" />
             </button>
           `).join('')}
@@ -423,24 +460,6 @@ class LootRush {
       }
     }
 
-    
-    //  Shift multipliers to match (also randomize for effect)
-    const base = row * 4;
-    const rowMults = this._multipliers.slice(base, base + 4);
-    
-    // Shift multipliers in opposite direction from direction for effect
-    if (direction > 0) {
-      rowMults.unshift(rowMults.pop());
-    } else {
-      rowMults.push(rowMults.shift());
-    }
-
-    for (let c = 0; c < 4; c++) {
-      this._multipliers[base + c] = rowMults[c];
-      const tile = this._tiles[base + c];
-      const multEl = tile?.querySelector('.lr-mult');
-      if (multEl) multEl.textContent = this._fmtX(rowMults[c]);
-    }
   }
 
   _enableSelection() {
@@ -504,7 +523,7 @@ class LootRush {
     return this._selectedIndex;
   }
 
-  async _revealSequence(pickedIdx) {
+  async _revealSequence(winnerIdx) {
     if (!this._running) return;
     this._selectEnabled = false;
     
@@ -512,12 +531,16 @@ class LootRush {
     this._tiles.forEach((tile, idx) => {
       if (tile) {
         // Убираем сумку (поднимаем вверх) и показываем множитель
+        const multEl = tile.querySelector('.lr-mult');
+        if (multEl) multEl.textContent = this._fmtX(this._multipliers[idx]);
         tile.classList.remove('lr-covered');
         tile.classList.add('lr-reveal');
         
         // Помечаем выбранную сумку
-        if (idx === pickedIdx) {
+        if (idx === winnerIdx) {
           tile.classList.add('lr-picked', 'lr-winner');
+        } else {
+          tile.classList.remove('lr-picked', 'lr-winner');
         }
       }
     });
@@ -559,11 +582,21 @@ class LootRush {
     let chosenMult = 1.1;
 
     try {
+      this._seedBase = String(this.options?.bonusId || this.options?.sessionKey || 'lootrush');
+      this._layoutRand = this._buildDeterministicRandom('layout');
+      this._bagRand = this._buildDeterministicRandom('bags');
+
       this._multipliers = this._buildMultipliersPool();
-      this._shuffleArray(this._multipliers);
+      this._shuffleArray(this._multipliers, this._layoutRand);
+
+      const deterministicWinner = this._pickSharedWinnerIndex(this._multipliers.length);
+      const winnerIndex = Number.isInteger(this._forcedPickIndex)
+        ? this._forcedPickIndex
+        : deterministicWinner;
+      this._sharedWinnerIndex = winnerIndex;
 
       if (Number.isFinite(this._forcedMultiplier)) {
-        const targetIndex = Number.isInteger(this._forcedPickIndex) ? this._forcedPickIndex : 0;
+        const targetIndex = this._sharedWinnerIndex;
         const srcIndex = this._multipliers.findIndex((v) => Number(v) === Number(this._forcedMultiplier));
         if (srcIndex >= 0 && srcIndex !== targetIndex) {
           const tmp = this._multipliers[targetIndex];
@@ -572,7 +605,7 @@ class LootRush {
         } else if (srcIndex < 0) {
           this._multipliers[targetIndex] = Number(this._forcedMultiplier);
         }
-        this._forcedPickIndex = targetIndex;
+        this._sharedWinnerIndex = targetIndex;
       }
 
       const bagSrcs = Array.from({ length: 24 }, (_, i) => this._getBagSrc(i));
@@ -609,19 +642,19 @@ class LootRush {
         pickedIdx = null;
       }
 
-      if (Number.isFinite(this._forcedMultiplier) && Number.isInteger(pickedIdx)) {
-        this._multipliers[pickedIdx] = Number(this._forcedMultiplier);
-      }
+      const serverPayoutMode = window.__wheelPayoutMode === 'server';
+      const revealIndex = serverPayoutMode
+        ? this._sharedWinnerIndex
+        : (Number.isInteger(pickedIdx) ? pickedIdx : this._sharedWinnerIndex);
+
       if (this._aborted) return;
 
-      await this._revealSequence(pickedIdx);
+      await this._revealSequence(revealIndex);
       if (this._aborted) return;
 
 
-      chosenMult = Number.isInteger(pickedIdx)
-        ? (Number.isFinite(this._forcedMultiplier)
-          ? Number(this._forcedMultiplier)
-          : (this._multipliers[pickedIdx] || 1.1))
+      chosenMult = Number.isInteger(revealIndex)
+        ? Number(this._multipliers[revealIndex] || 1.1)
         : NaN;
 
       await this._wait(Math.max(200, 800 / speedupFactor));  // Сокращено с 1500
@@ -647,6 +680,7 @@ class LootRush {
       this._clearGlobalBackHandler();
       this._forcedPickIndex = null;
       this._forcedMultiplier = null;
+      this._sharedWinnerIndex = 0;
 
       if (this._aborted) {
         this.options.onComplete('cancelled', NaN);
@@ -724,6 +758,8 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
       durationSec: durationSec,
       remainingSec: remainingSec,
       hasBet,
+      bonusId: bonusId,
+      sessionKey: sessionKey,
       outcome: opts?.outcome || null,
 
       bagFolder: '/images/lootrush/',

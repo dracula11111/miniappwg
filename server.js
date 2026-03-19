@@ -31,6 +31,24 @@ const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
 
+const RUSSIAN_UI_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
+const RUSSIAN_UI_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
+
+function normalizeUiLanguageCode(localeValue) {
+  const raw = String(localeValue || "").trim();
+  if (!raw) return null;
+
+  const parts = raw.replace(/_/g, "-").split("-").filter(Boolean);
+  const lang = String(parts[0] || "").toLowerCase();
+  const region = String(parts[1] || "").toUpperCase();
+
+  if (region) {
+    return RUSSIAN_UI_REGION_CODES.has(region) ? "ru" : "en";
+  }
+  if (RUSSIAN_UI_LANGUAGE_CODES.has(lang)) return "ru";
+  return "en";
+}
+
 // ---- Memory DB (per-process; resets on restart). Used only when IS_TEST === true ----
 function createMemoryDb() {
   const users = new Map();    // telegram_id(string) -> user
@@ -40,6 +58,7 @@ function createMemoryDb() {
   const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
+  const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   let txId = 1;
   let betId = 1;
 
@@ -104,17 +123,18 @@ function createMemoryDb() {
 
   return {
     async initDatabase() {
-      console.log("[DB] 🧪 Memory DB enabled (TEST_MODE=1). Nothing will be persisted.");
+      console.log("[DB] рџ§Є Memory DB enabled (TEST_MODE=1). Nothing will be persisted.");
     },
     async saveUser(userData) {
       const k = ensure(userData?.id ?? userData?.telegram_id ?? userData);
       const u = users.get(k);
+      const preferredLanguageCode = normalizeUiLanguageCode(userData?.language_code);
       users.set(k, {
         ...u,
         username: userData?.username ?? u.username,
         first_name: userData?.first_name ?? u.first_name,
         last_name: userData?.last_name ?? u.last_name,
-        language_code: userData?.language_code ?? u.language_code,
+        language_code: u.language_code ?? preferredLanguageCode ?? null,
         is_premium: !!userData?.is_premium,
         ban: Number(userData?.ban) === 1 ? 1 : (u?.ban === 1 ? 1 : 0),
         last_seen: nowSec(),
@@ -361,6 +381,21 @@ function createMemoryDb() {
         starsBalance: Number(bal.stars_balance || 0)
       };
     },
+    async claimWebhookEvent(eventKey, payload = null) {
+      const keyRaw = String(eventKey || "").trim();
+      if (!keyRaw) return false;
+      if (webhookEvents.has(keyRaw)) return false;
+      webhookEvents.set(keyRaw, {
+        createdAt: nowSec(),
+        payload: payload && typeof payload === "object" ? { ...payload } : payload
+      });
+      return true;
+    },
+    async releaseWebhookEvent(eventKey) {
+      const keyRaw = String(eventKey || "").trim();
+      if (!keyRaw) return false;
+      return webhookEvents.delete(keyRaw);
+    },
 
 // ===== Inventory (TEST_MODE memory) =====
 async getUserInventory(telegramId) {
@@ -448,7 +483,7 @@ async deleteInventoryItemByLookup(telegramId, lookup = {}) {
 
 const dbMem = createMemoryDb();
 
-// Real DB init (Postgres) — load only after dotenv has run.
+// Real DB init (Postgres) вЂ” load only after dotenv has run.
 if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
   await dbReal.initDatabase();
@@ -511,6 +546,104 @@ const TICK_MS = 100; // send multiplier updates 10 times per second (clients int
 const HEARTBEAT_MS = 30000;
 const WS_MAX_BUFFERED = 2 * 1024 * 1024;      // 2MB -> skip non-critical sends
 const WS_HARD_CLOSE_BUFFERED = 8 * 1024 * 1024; // 8MB -> terminate the socket
+const crashBetCredits = new Map(); // "<crashRoundId>|<userId>|<currency>" -> remaining amount
+
+function normalizeCrashCurrency(currency) {
+  return String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+}
+
+function normalizeCrashRoundIdForUser(roundId, userId) {
+  const uid = String(userId || "").trim();
+  const raw = String(roundId || "").trim();
+  if (!uid || !raw) return "";
+
+  const strictMatch = /^crash_(\d+)_(.+)$/.exec(raw);
+  if (strictMatch) {
+    const roundNum = Number(strictMatch[1]);
+    const suffixUserId = String(strictMatch[2] || "");
+    if (!Number.isInteger(roundNum) || roundNum <= 0) return "";
+    if (suffixUserId !== uid) return "";
+    return `crash_${roundNum}_${uid}`;
+  }
+
+  const numericRound = Number(raw);
+  if (Number.isInteger(numericRound) && numericRound > 0) {
+    return `crash_${numericRound}_${uid}`;
+  }
+
+  return "";
+}
+
+function getCurrentCrashRoundIdForUser(userId) {
+  return normalizeCrashRoundIdForUser(`crash_${crashGame.roundId}_${String(userId || "").trim()}`, userId);
+}
+
+function roundCrashAmountByCurrency(amount, currency) {
+  const n = Number(amount || 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (normalizeCrashCurrency(currency) === "stars") {
+    return Math.max(1, Math.round(n));
+  }
+  return Math.round(n * 100) / 100;
+}
+
+function crashBetCreditKey(roundId, userId, currency) {
+  const uid = String(userId || "").trim();
+  const rid = normalizeCrashRoundIdForUser(roundId, uid);
+  const cur = normalizeCrashCurrency(currency);
+  if (!rid || !uid) return "";
+  return `${rid}|${uid}|${cur}`;
+}
+
+function registerCrashBetCredit(roundId, userId, currency, amount) {
+  const key = crashBetCreditKey(roundId, userId, currency);
+  const delta = Number(amount || 0);
+  if (!key || !Number.isFinite(delta) || delta <= 0) return false;
+  const cur = key.endsWith("|stars") ? "stars" : "ton";
+  const prev = Number(crashBetCredits.get(key) || 0);
+  const nextRaw = prev + delta;
+  const next = cur === "stars"
+    ? Math.max(0, Math.round(nextRaw))
+    : Math.max(0, Math.round(nextRaw * 100) / 100);
+  crashBetCredits.set(key, next);
+  return true;
+}
+
+function consumeCrashBetCredit(roundId, userId, currency, amount) {
+  const key = crashBetCreditKey(roundId, userId, currency);
+  const needRaw = Number(amount || 0);
+  if (!key || !Number.isFinite(needRaw) || needRaw <= 0) return false;
+  const cur = key.endsWith("|stars") ? "stars" : "ton";
+  const need = cur === "stars"
+    ? Math.max(1, Math.round(needRaw))
+    : Math.round(needRaw * 100) / 100;
+
+  const available = Number(crashBetCredits.get(key) || 0);
+  const epsilon = cur === "stars" ? 0 : 0.0000001;
+  if (!Number.isFinite(available) || available + epsilon < need) {
+    return false;
+  }
+
+  const leftRaw = available - need;
+  const left = cur === "stars"
+    ? Math.max(0, Math.round(leftRaw))
+    : Math.max(0, Math.round(leftRaw * 100) / 100);
+  if (left <= epsilon) crashBetCredits.delete(key);
+  else crashBetCredits.set(key, left);
+  return true;
+}
+
+function pruneCrashBetCredits(activeRoundId) {
+  const round = Number(activeRoundId || 0);
+  if (!Number.isInteger(round) || round <= 0) return;
+  const roundPrefix = `crash_${round}_`;
+  for (const key of crashBetCredits.keys()) {
+    const rid = String(key).split("|")[0] || "";
+    if (!rid.startsWith(roundPrefix)) {
+      crashBetCredits.delete(key);
+    }
+  }
+}
 
 function wsSendSafe(ws, data) {
   try {
@@ -581,7 +714,7 @@ function getXFromSeeds(serverSeed, clientSeed, nonce) {
     .update(`${clientSeed}:${nonce}`)
     .digest();
 
-  // берём первые 8 байт → число
+  // Р±РµСЂС‘Рј РїРµСЂРІС‹Рµ 8 Р±Р°Р№С‚ в†’ С‡РёСЃР»Рѕ
   let r = 0;
   for (let i = 0; i < 8; i++) {
     r += hmac[i] / Math.pow(256, i + 1);
@@ -642,6 +775,7 @@ function startBetting() {
   crashGame.phase = 'betting';
   crashGame.phaseStart = Date.now();
   crashGame.roundId++;
+  pruneCrashBetCredits(crashGame.roundId);
   crashGame.currentMult = 1.0;
   crashGame.crashPoint = generateCrashPoint();
   crashGame.players = [];
@@ -739,6 +873,38 @@ function crash() {
 }
 
 // WebSocket connection handler
+function resolveCrashWsUser(msg) {
+  const initData = String(msg?.initData || "").trim();
+  if (!initData || !process.env.BOT_TOKEN) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const maxAgeSec = getTelegramInitDataMaxAgeSec();
+  const initCheck = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
+  if (!initCheck.ok) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  let wsUser = null;
+  try {
+    wsUser = JSON.parse(initCheck.params.user || "null");
+  } catch {
+    wsUser = null;
+  }
+
+  const wsUserId = String(wsUser?.id || "").trim();
+  if (!wsUserId) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  const requestedUserId = String(msg?.userId || "").trim();
+  if (requestedUserId && requestedUserId !== wsUserId) {
+    return { ok: false, error: "Unauthorized" };
+  }
+
+  return { ok: true, userId: wsUserId, user: wsUser };
+}
+
 wss.on('connection', (ws) => {
   console.log('[Crash WS] Client connected');
   ws.isAlive = true;
@@ -747,7 +913,7 @@ wss.on('connection', (ws) => {
   // Send current state immediately
   wsSendSafe(ws, JSON.stringify(buildGameState()));
 
-ws.on('message', (data) => {
+ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data);
       
@@ -756,26 +922,59 @@ ws.on('message', (data) => {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
         }
-        
-        const existing = crashGame.players.find(p => p.userId === msg.userId);
+
+        const auth = resolveCrashWsUser(msg);
+        if (!auth.ok) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: auth.error || 'Unauthorized' }));
+          return;
+        }
+
+        const userId = auth.userId;
+        const existing = crashGame.players.find(p => String(p.userId) === userId);
         if (existing) {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Already placed bet' }));
           return;
         }
-        
+
+        const currency = normalizeCrashCurrency(msg.currency);
+        const amount = roundCrashAmountByCurrency(msg.amount, currency);
+        if (!Number.isFinite(amount) || amount <= 0) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Invalid bet amount' }));
+          return;
+        }
+
+        const expectedRoundId = getCurrentCrashRoundIdForUser(userId);
+        const requestedRoundId = normalizeCrashRoundIdForUser(msg.roundId || expectedRoundId, userId);
+        if (!requestedRoundId || requestedRoundId !== expectedRoundId) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Round mismatch' }));
+          return;
+        }
+
+        // Bet must be pre-authorized by a successful crash bet debit for this round.
+        if (!consumeCrashBetCredit(requestedRoundId, userId, currency, amount)) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Bet not authorized' }));
+          return;
+        }
+
+        const name = safeShortText(
+          auth.user?.first_name || auth.user?.username || msg.userName || "Player",
+          64
+        ) || "Player";
+        const avatar = msg.userAvatar ? String(msg.userAvatar).slice(0, 500) : null;
+
         crashGame.players.push({
-          userId: msg.userId,
-          name: msg.userName || 'Player',
-          avatar: msg.userAvatar || null,
-          amount: msg.amount,
-          currency: msg.currency,
+          userId,
+          name,
+          avatar,
+          amount,
+          currency,
           claimed: false,
           claimMult: null
         });
         
-        console.log(`[Crash] ${msg.userName} bet ${msg.amount} ${msg.currency}`);
+        console.log(`[Crash] ${name} bet ${amount} ${currency}`);
         
-        wsSendSafe(ws, JSON.stringify({ type: 'betPlaced', userId: msg.userId }));
+        wsSendSafe(ws, JSON.stringify({ type: 'betPlaced', userId }));
         broadcastGameState();
       }
       
@@ -784,8 +983,15 @@ ws.on('message', (data) => {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Cannot claim now' }));
           return;
         }
-        
-        const player = crashGame.players.find(p => p.userId === msg.userId);
+
+        const auth = resolveCrashWsUser(msg);
+        if (!auth.ok) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: auth.error || 'Unauthorized' }));
+          return;
+        }
+
+        const userId = auth.userId;
+        const player = crashGame.players.find(p => String(p.userId) === userId);
         if (!player) {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'No active bet' }));
           return;
@@ -795,14 +1001,49 @@ ws.on('message', (data) => {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Already claimed' }));
           return;
         }
-        
-        player.claimed = true;
-        player.claimMult = crashGame.currentMult;
-        
-        console.log(`[Crash] ${player.name} claimed at ${crashGame.currentMult.toFixed(2)}x`);
-        
-        wsSendSafe(ws, JSON.stringify({ type: 'claimed', userId: msg.userId, mult: crashGame.currentMult }));
-        broadcastGameState();
+
+        if (player.claiming) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Claim in progress' }));
+          return;
+        }
+
+        const claimMult = Number.isFinite(Number(crashGame.currentMult))
+          ? Math.max(CRASH_MIN, Number(crashGame.currentMult))
+          : CRASH_MIN;
+        const currency = normalizeCrashCurrency(player.currency);
+        const payout = roundCrashAmountByCurrency(Number(player.amount || 0) * claimMult, currency);
+        if (!Number.isFinite(payout) || payout <= 0) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Invalid payout' }));
+          return;
+        }
+
+        const roundId = getCurrentCrashRoundIdForUser(userId);
+        player.claiming = true;
+
+        try {
+          await db.updateBalance(
+            userId,
+            currency,
+            payout,
+            'crash_win',
+            `Crash win (${roundId})`,
+            { roundId, multiplier: claimMult }
+          );
+
+          player.claimed = true;
+          player.claimMult = claimMult;
+          player.claiming = false;
+
+          broadcastBalanceUpdate(userId);
+          console.log(`[Crash] ${player.name} claimed at ${claimMult.toFixed(2)}x, payout: ${payout} ${currency}`);
+
+          wsSendSafe(ws, JSON.stringify({ type: 'claimed', userId, mult: claimMult, payout, currency }));
+          broadcastGameState();
+        } catch (claimError) {
+          player.claiming = false;
+          console.error(`[Crash] Claim settlement failed for user ${userId}:`, claimError);
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Claim failed' }));
+        }
       }
       
     } catch (e) {
@@ -964,6 +1205,56 @@ function roundWheelAmount(amount, currency) {
   if (!Number.isFinite(n) || n <= 0) return 0;
   if (currency === 'stars') return Math.max(0, Math.round(n));
   return Math.max(0, Math.round(n * 100) / 100);
+}
+
+// Bonus outcome data sent to clients should not reveal private pick indices.
+// Server keeps full outcome internally for settlement integrity.
+function wheelBuildClientBonusOutcome(outcome) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  const t = normWheelSeg(outcome.type);
+  if (!t) return null;
+
+  if (t === '50&50') {
+    const goodX = Number(outcome.goodX);
+    const badX = Number(outcome.badX);
+    const multiplier = Number(outcome.multiplier);
+    return {
+      type: t,
+      goodX: Number.isFinite(goodX) && goodX > 0 ? goodX : null,
+      badX: Number.isFinite(badX) && badX > 0 ? badX : null,
+      multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null
+    };
+  }
+
+  if (t === 'Loot Rush') {
+    const multiplier = Number(outcome.multiplier);
+    return {
+      type: t,
+      multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null
+    };
+  }
+
+  if (t === 'Wild Time') {
+    const centerIdxRaw = Number(outcome.centerIdx);
+    const centerIdx = Number.isInteger(centerIdxRaw) && centerIdxRaw >= 0 ? centerIdxRaw : null;
+    const triSrc = (outcome.tri && typeof outcome.tri === 'object') ? outcome.tri : null;
+    const tri = triSrc
+      ? {
+          left: Number.isFinite(Number(triSrc.left)) ? Number(triSrc.left) : null,
+          center: Number.isFinite(Number(triSrc.center)) ? Number(triSrc.center) : null,
+          right: Number.isFinite(Number(triSrc.right)) ? Number(triSrc.right) : null
+        }
+      : null;
+    const multiplier = Number(outcome.multiplier);
+    return {
+      type: t,
+      centerIdx,
+      tri,
+      multiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null
+    };
+  }
+
+  return { type: t };
 }
 
 function wheelPickBonusOutcome(type) {
@@ -1182,7 +1473,7 @@ function buildWheelState(now = Date.now()) {
       endsAt: wheelGame.bonus.endsAt,
       elapsedMs: elapsed,
       remainingMs: remaining,
-      outcome: wheelGame.bonus.outcome || null
+      outcome: wheelBuildClientBonusOutcome(wheelGame.bonus.outcome)
     };
   }
 
@@ -1718,7 +2009,10 @@ let giftsCatalog = [
         "Snoop Dogg",
         "Neko Helmet",
         "Pet Snake",
-        "Xmas Stocking"
+        "Xmas Stocking",
+          "Pool Float",
+          "Mood Pack"
+
 ];
   
  // tracked gift collection names (strings)
@@ -2047,7 +2341,7 @@ async function fetchGiftAssetPriceList(force = false) {
   const url = `${GIFTASSET_BASE}/api/v1/gifts/get_gifts_price_list`;
   const res = await fetchWithTimeout(url, { headers: giftAssetHeaders() }, GIFTASSET_TIMEOUT_MS);
   if (!res.ok) {
-    // try to read a small body snippet for debugging (don’t blow logs)
+    // try to read a small body snippet for debugging (donвЂ™t blow logs)
     let body = "";
     try { body = (await res.text()).slice(0, 250); } catch {}
     blockGiftSource("giftasset", `GiftAsset status ${res.status}`, res.status);
@@ -2177,14 +2471,14 @@ async function refreshTonUsdRate(force = false) {
       source: r.source,
       error: ""
     };
-    console.log(`[rates] ✅ TON/USD updated: ${r.tonUsd} (${r.source})`);
+    console.log(`[rates] вњ… TON/USD updated: ${r.tonUsd} (${r.source})`);
   } catch (e) {
     tonUsdCache = {
       ...tonUsdCache,
       lastAttemptAt: now,
       error: String(e?.message || e)
     };
-    console.warn("[rates] ⚠️ TON/USD update failed:", tonUsdCache.error);
+    console.warn("[rates] вљ пёЏ TON/USD update failed:", tonUsdCache.error);
   } finally {
     tonUsdRefreshPromise = null;
   }
@@ -2244,19 +2538,19 @@ function starsPerTon(tonUsd = tonUsdCache.tonUsd) {
 })();
 
 
-// (A) Каталог:
-// В Portals есть открытый endpoint для поиска коллекций, но полноценный "лист всех коллекций"
-// обычно завязан на mini-app/auth. Поэтому в MVP держим список отслеживаемых подарков вручную
-// (см. giftsCatalog выше). Если захочешь мониторить вообще ВСЕ подарки — добавим отдельный каталог.
+// (A) РљР°С‚Р°Р»РѕРі:
+// Р’ Portals РµСЃС‚СЊ РѕС‚РєСЂС‹С‚С‹Р№ endpoint РґР»СЏ РїРѕРёСЃРєР° РєРѕР»Р»РµРєС†РёР№, РЅРѕ РїРѕР»РЅРѕС†РµРЅРЅС‹Р№ "Р»РёСЃС‚ РІСЃРµС… РєРѕР»Р»РµРєС†РёР№"
+// РѕР±С‹С‡РЅРѕ Р·Р°РІСЏР·Р°РЅ РЅР° mini-app/auth. РџРѕСЌС‚РѕРјСѓ РІ MVP РґРµСЂР¶РёРј СЃРїРёСЃРѕРє РѕС‚СЃР»РµР¶РёРІР°РµРјС‹С… РїРѕРґР°СЂРєРѕРІ РІСЂСѓС‡РЅСѓСЋ
+// (СЃРј. giftsCatalog РІС‹С€Рµ). Р•СЃР»Рё Р·Р°С…РѕС‡РµС€СЊ РјРѕРЅРёС‚РѕСЂРёС‚СЊ РІРѕРѕР±С‰Рµ Р’РЎР• РїРѕРґР°СЂРєРё вЂ” РґРѕР±Р°РІРёРј РѕС‚РґРµР»СЊРЅС‹Р№ РєР°С‚Р°Р»РѕРі.
 async function refreshGiftsCatalogStatic() {
   giftsCatalog = (Array.isArray(giftsCatalog) ? giftsCatalog : []).map(normalizeGiftName).filter(Boolean);
   giftsCatalogLastUpdate = Date.now();
   return giftsCatalog.length;
 }
 
-// (B) Цены: Portals collections endpoint (без auth) — берём floor_price по поиску.
-// Источник: пример использования /api/collections?search=...&limit=10 -> collections[0].floor_price
-// Фоллбэк: если портал недоступен, используем market.tonnel.network
+// (B) Р¦РµРЅС‹: Portals collections endpoint (Р±РµР· auth) вЂ” Р±РµСЂС‘Рј floor_price РїРѕ РїРѕРёСЃРєСѓ.
+// РСЃС‚РѕС‡РЅРёРє: РїСЂРёРјРµСЂ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ /api/collections?search=...&limit=10 -> collections[0].floor_price
+// Р¤РѕР»Р»Р±СЌРє: РµСЃР»Рё РїРѕСЂС‚Р°Р» РЅРµРґРѕСЃС‚СѓРїРµРЅ, РёСЃРїРѕР»СЊР·СѓРµРј market.tonnel.network
 async function refreshGiftsPricesFromPortalsLegacy() {
   if (!giftsCatalog.length) {
     await refreshGiftsCatalogStatic();
@@ -2346,7 +2640,7 @@ async function refreshGiftsPricesFromPortalsLegacy() {
         updatedCount++;
         priceFound = true;
         // Keep logs compact in production
-        if (!IS_PROD) console.log(`[gifts] ✅ Updated ${giftName} from ${source.name}: ${price} TON`);
+        if (!IS_PROD) console.log(`[gifts] вњ… Updated ${giftName} from ${source.name}: ${price} TON`);
       } catch (e) {
         console.warn(`[gifts] ${source.name} fetch failed for ${q} -`, e?.message || e);
       }
@@ -2378,13 +2672,13 @@ if (!priceFound && GIFT_RELAYER_FALLBACK) {
       });
       updatedCount++;
       priceFound = true;
-      if (!IS_PROD) console.log(`[gifts] ✅ Updated ${giftName} from relayer fallback: ${relTon} TON`);
+      if (!IS_PROD) console.log(`[gifts] вњ… Updated ${giftName} from relayer fallback: ${relTon} TON`);
     }
   }
 }
 
 if (!priceFound) {
-  console.warn(`[gifts] ⚠️  All sources failed for ${giftName}`);
+  console.warn(`[gifts] вљ пёЏ  All sources failed for ${giftName}`);
 }
 
     // small pause (w/ jitter) to avoid bursts
@@ -2596,7 +2890,7 @@ async function refreshGiftsPricesFromPortals() {
 
 async function refreshGiftsAll() {
   giftsLastAttemptAt = Date.now();
-  // каталог — реже (но у нас он статический, это просто "sanity" + метка времени)
+  // РєР°С‚Р°Р»РѕРі вЂ” СЂРµР¶Рµ (РЅРѕ Сѓ РЅР°СЃ РѕРЅ СЃС‚Р°С‚РёС‡РµСЃРєРёР№, СЌС‚Рѕ РїСЂРѕСЃС‚Рѕ "sanity" + РјРµС‚РєР° РІСЂРµРјРµРЅРё)
   if (!giftsCatalogLastUpdate || Date.now() - giftsCatalogLastUpdate > GIFT_CATALOG_REFRESH_MS) {
     try {
       await refreshGiftsCatalogStatic();
@@ -2606,7 +2900,7 @@ async function refreshGiftsAll() {
     }
   }
 
-  // цены — раз в час (provider: auto -> try GiftAsset first, then direct markets)
+  // С†РµРЅС‹ вЂ” СЂР°Р· РІ С‡Р°СЃ (provider: auto -> try GiftAsset first, then direct markets)
   let updated = 0;
   let usedProvider = "";
 
@@ -2639,7 +2933,7 @@ async function refreshGiftsAll() {
     if (giftsPrices.size > 0) {
       console.log(`[gifts] No fresh prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Reusing ${giftsPrices.size} cached records.`);
     } else {
-    console.warn(`[gifts] ⚠️ No prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Keeping old cache.`);
+    console.warn(`[gifts] вљ пёЏ No prices updated (provider=${GIFT_PRICE_PROVIDER || "auto"}). Keeping old cache.`);
     }
   } else {
     giftsLastUpdate = Date.now();
@@ -2791,7 +3085,7 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
 
 
 // Add won NFTs to inventory (idempotent via claimId)
-// Add inventory items (NFTs/Gifts) — Telegram user OR relayer secret.
+// Add inventory items (NFTs/Gifts) вЂ” Telegram user OR relayer secret.
 // IMPORTANT: never trust userId from browser; for Telegram users we take id from initData.
 async function handleInventoryAdd(req, res) {
   try {
@@ -3586,10 +3880,7 @@ app.post("/api/ton/deposit/confirm", async (req, res) => {
       return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
     }
 
-    const maxAgeSec = Math.max(
-      60,
-      Math.min(30 * 24 * 60 * 60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400)
-    );
+    const maxAgeSec = getTelegramInitDataMaxAgeSec();
     const check = verifyInitData(initData, process.env.BOT_TOKEN, maxAgeSec);
     if (!check.ok) {
       return res.status(403).json({ ok: false, error: "Bad initData" });
@@ -3726,7 +4017,7 @@ app.post("/api/ton/deposit/confirm", async (req, res) => {
     broadcastBalanceUpdate(userId);
 
     if (!claimRes?.duplicate && process.env.BOT_TOKEN) {
-      await sendTelegramMessage(userId, `✅ Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`);
+      await sendTelegramMessage(userId, `вњ… Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`);
     }
 
     return res.json({
@@ -3819,28 +4110,9 @@ app.post("/api/deposit-notification", async (req, res) => {
       }
     }
 
-    const allowUntrustedGameFlows = String(process.env.ALLOW_UNTRUSTED_GAME_FLOWS || "1").trim() !== "0";
     const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
-    const allowedUntrustedCreditTypes = new Set(["crash_win", "case_gift_claim", "case_nft_sell", "wheel_win"]);
-
-    const isAllowedUntrustedDebit =
-      !isRelayer &&
-      allowUntrustedGameFlows &&
-      amountNum < 0 &&
-      allowedUntrustedDebitTypes.has(typeNorm);
-
-    const isAllowedUntrustedCredit =
-      !isRelayer &&
-      allowUntrustedGameFlows &&
-      amountNum > 0 &&
-      allowedUntrustedCreditTypes.has(typeNorm);
-
-    // Keep direct client top-ups blocked; allow only explicit game-flow credit types.
-    const isBlockedUntrustedCredit =
-      !isRelayer &&
-      amountNum > 0 &&
-      !isAllowedUntrustedCredit;
-    if (isBlockedUntrustedCredit) {
+    const isUntrustedClientCredit = !isRelayer && amountNum > 0;
+    if (isUntrustedClientCredit) {
       console.warn("[Deposit][SECURITY] Rejected untrusted positive credit:", {
         userId,
         amount: amountNum,
@@ -3850,21 +4122,36 @@ app.post("/api/deposit-notification", async (req, res) => {
       });
       return res.status(403).json({
         ok: false,
-        error: "Untrusted positive credit is disabled"
+        error: "Client-originated positive credits are forbidden"
       });
     }
 
-    // When game flows are disabled, keep legacy maintenance lock for these debits.
     const isBlockedUntrustedDebit =
       !isRelayer &&
       amountNum < 0 &&
-      !isAllowedUntrustedDebit &&
-      (typeNorm === "bet" || typeNorm === "case_open");
+      !allowedUntrustedDebitTypes.has(typeNorm);
     if (isBlockedUntrustedDebit) {
-      return res.status(503).json({
+      return res.status(403).json({
         ok: false,
-        error: "This game flow is temporarily disabled for security maintenance"
+        error: "Untrusted debit type is forbidden"
       });
+    }
+
+    let crashRoundCreditId = "";
+    if (typeNorm === "bet" && amountNum < 0) {
+      crashRoundCreditId = normalizeCrashRoundIdForUser(roundId, userId);
+      if (!crashRoundCreditId) {
+        return res.status(400).json({ ok: false, error: "Invalid crash roundId" });
+      }
+
+      const expectedRoundId = getCurrentCrashRoundIdForUser(userId);
+      if (
+        crashGame.phase !== "betting" ||
+        !expectedRoundId ||
+        crashRoundCreditId !== expectedRoundId
+      ) {
+        return res.status(409).json({ ok: false, error: "Crash round is closed" });
+      }
     }
 
     const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amountNum)}_${timestamp}`;
@@ -3950,6 +4237,9 @@ app.post("/api/deposit-notification", async (req, res) => {
         if (typeNorm === "wheel_bet" && amountNum < 0) {
           registerWheelBetCredit(roundId, userId, "ton", Math.abs(amountNum));
         }
+        if (typeNorm === "bet" && amountNum < 0 && crashRoundCreditId) {
+          registerCrashBetCredit(crashRoundCreditId, userId, "ton", Math.abs(amountNum));
+        }
 
         console.log("[Deposit] TON balance updated:", { userId, amount: amountNum, newBalance });
 
@@ -3982,6 +4272,9 @@ app.post("/api/deposit-notification", async (req, res) => {
         if (typeNorm === "wheel_bet" && amountNum < 0) {
           registerWheelBetCredit(roundId, userId, "stars", Math.abs(amountNum));
         }
+        if (typeNorm === "bet" && amountNum < 0 && crashRoundCreditId) {
+          registerCrashBetCredit(crashRoundCreditId, userId, "stars", Math.abs(amountNum));
+        }
 
         console.log("[Deposit] Stars balance updated:", { userId, amount: amountNum, newBalance });
 
@@ -4005,7 +4298,7 @@ app.post("/api/deposit-notification", async (req, res) => {
     } catch (err) {
       console.error("[Deposit] Error updating balance:", err);
       // Remove from processed if failed
-      if (amountNum > 0) {
+      if (shouldDedupe) {
         processedDeposits.delete(depositId);
       }
 
@@ -4049,14 +4342,19 @@ function generateDescription(type, amount, txHash, roundId) {
       return amount > 0 ? 'Deposit' : 'Withdrawal';
   }
 }
-// ====== SSE для автообновления баланса ======
+// ====== SSE РґР»СЏ Р°РІС‚РѕРѕР±РЅРѕРІР»РµРЅРёСЏ Р±Р°Р»Р°РЅСЃР° ======
 const balanceClients = new Map(); // userId -> Set of response objects
 
-app.get("/api/balance/stream", async (req, res) => {
-  const { userId } = req.query;
-  
+app.get("/api/balance/stream", requireTelegramUser, async (req, res) => {
+  const tgUserId = String(req.tg?.user?.id || "").trim();
+  const requestedUserId = String(req.query?.userId || "").trim();
+  const userId = requestedUserId || tgUserId;
+
   if (!userId) {
-    return res.status(400).json({ error: 'User ID required' });
+    return res.status(400).json({ ok: false, error: "User ID required" });
+  }
+  if (userId !== tgUserId) {
+    return res.status(403).json({ ok: false, error: "Forbidden userId" });
   }
 
   // SSE headers
@@ -4075,7 +4373,7 @@ app.get("/api/balance/stream", async (req, res) => {
   
   // Send initial balance
   try {
-    const balance = await db.getUserBalance(parseInt(userId));
+    const balance = await db.getUserBalance(parseInt(userId, 10));
     res.write(`data: ${JSON.stringify({
       type: 'balance',
       ton: parseFloat(balance.ton_balance) || 0,
@@ -4140,6 +4438,7 @@ async function broadcastBalanceUpdate(userId) {
 
 // ====== DEPOSIT TRACKING (prevent duplicates) ======
 const processedDeposits = new Map(); // invoiceId/txHash -> timestamp
+const processedWebhookEvents = new Map(); // webhook event key -> timestamp
 
 function isDepositProcessed(identifier) {
   if (!identifier) return false;
@@ -4161,46 +4460,101 @@ function markDepositProcessed(identifier) {
   }
 }
 
-// ====== BALANCE API ======
-app.get("/api/balance", async (req, res) => {
+function cleanupProcessedWebhookEvents() {
+  const now = Date.now();
+  for (const [key, ts] of processedWebhookEvents.entries()) {
+    if (!key || !Number.isFinite(ts) || now - ts > 7 * 24 * 60 * 60 * 1000) {
+      processedWebhookEvents.delete(key);
+    }
+  }
+}
+
+function getConfiguredWebhookSecret() {
+  return String(
+    process.env.TELEGRAM_WEBHOOK_SECRET ||
+    process.env.TG_WEBHOOK_SECRET ||
+    ""
+  ).trim();
+}
+
+function secureStringEqual(left, right) {
+  const a = String(left || "");
+  const b = String(right || "");
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
   try {
-    const { userId } = req.query;
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
 
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
+function isTelegramWebhookSecretOk(req) {
+  const configured = getConfiguredWebhookSecret();
+  if (!configured) return process.env.NODE_ENV !== "production";
+  const headerToken = String(req.headers?.["x-telegram-bot-api-secret-token"] || "").trim();
+  return secureStringEqual(headerToken, configured);
+}
+
+async function claimWebhookEvent(eventKey, payload = null) {
+  const key = String(eventKey || "").trim();
+  if (!key) return false;
+
+  if (typeof db?.claimWebhookEvent === "function") {
+    return !!(await db.claimWebhookEvent(key, payload));
+  }
+
+  cleanupProcessedWebhookEvents();
+  if (processedWebhookEvents.has(key)) return false;
+  processedWebhookEvents.set(key, Date.now());
+  return true;
+}
+
+async function releaseWebhookEvent(eventKey) {
+  const key = String(eventKey || "").trim();
+  if (!key) return false;
+
+  if (typeof db?.releaseWebhookEvent === "function") {
+    return !!(await db.releaseWebhookEvent(key));
+  }
+
+  return processedWebhookEvents.delete(key);
+}
+
+// ====== BALANCE API ======
+app.get("/api/balance", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userIdFromQuery = String(req.query?.userId || "").trim();
+
+    if (userIdFromQuery && userIdFromQuery !== tgUserId) {
+      return res.status(403).json({ ok: false, error: "Forbidden userId" });
+    }
+    if (!tgUserId) {
+      return res.status(400).json({ ok: false, error: "User ID is required" });
     }
 
-    console.log('[Balance] Request for user:', userId);
-
-    // 🔥 FIX: Handle guest users
-    if (userId === 'guest' || isNaN(parseInt(userId))) {
-      console.log('[Balance] Guest user, returning zero balance');
-      return res.json({
-        ok: true,
-        userId: userId,
-        ton: 0,
-        stars: 0,
-        updatedAt: Math.floor(Date.now() / 1000)
-      });
+    const numericUserId = Number(tgUserId);
+    if (!Number.isFinite(numericUserId)) {
+      return res.status(400).json({ ok: false, error: "Invalid user ID" });
     }
 
-    const balance = await db.getUserBalance(parseInt(userId));
+    console.log('[Balance] Request for user:', numericUserId);
 
-    console.log('[Balance] ✅ Retrieved:', balance);
+    const balance = await db.getUserBalance(numericUserId);
+
+    console.log('[Balance] вњ… Retrieved:', balance);
 
     res.json({
       ok: true,
-      userId: parseInt(userId),
+      userId: numericUserId,
       ton: parseFloat(balance.ton_balance) || 0,
       stars: parseInt(balance.stars_balance) || 0,
       updatedAt: balance.updated_at
     });
 
   } catch (error) {
-    console.error('[Balance] ❌ Error:', error);
+    console.error('[Balance] вќЊ Error:', error);
     res.status(500).json({
       ok: false,
       error: error.message || 'Failed to get balance'
@@ -4295,7 +4649,18 @@ app.post("/api/stars/create-invoice", async (req, res) => {
 // ====== STARS WEBHOOK ======
 app.post("/api/stars/webhook", async (req, res) => {
   try {
-    const update = req.body;
+    const configuredWebhookSecret = getConfiguredWebhookSecret();
+    if (!isTelegramWebhookSecretOk(req)) {
+      console.warn("[Stars Webhook] Rejected request: invalid webhook secret token");
+      const missingSecretInProd =
+        process.env.NODE_ENV === "production" && !configuredWebhookSecret;
+      return res.status(403).json({
+        ok: false,
+        error: missingSecretInProd ? "webhook secret is not configured" : "forbidden"
+      });
+    }
+
+    const update = (req.body && typeof req.body === "object") ? req.body : {};
 
     console.log('[Stars Webhook] Received update:', JSON.stringify(update, null, 2));
 
@@ -4303,6 +4668,9 @@ app.post("/api/stars/webhook", async (req, res) => {
     if (update.pre_checkout_query) {
       const query = update.pre_checkout_query;
       const BOT_TOKEN = process.env.BOT_TOKEN;
+      if (!BOT_TOKEN) {
+        return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+      }
 
       console.log('[Stars Webhook] Pre-checkout query:', query.id);
 
@@ -4324,61 +4692,83 @@ app.post("/api/stars/webhook", async (req, res) => {
     // Handle successful_payment
     if (update.message?.successful_payment) {
       const payment = update.message.successful_payment;
-      const userId = update.message.from.id;
+      const userId = update.message.from?.id;
       const userFrom = update.message.from;
+      const chargeId = String(payment.telegram_payment_charge_id || "").trim();
+      const amountStars = Number(payment.total_amount || 0);
+      const invoicePayload = String(payment.invoice_payload || "").trim();
+      const eventKey = `telegram:stars:${chargeId}`;
+      const txInvoiceId = `tgpay:${chargeId}`;
+
+      if (!userId) {
+        return res.status(400).json({ ok: false, error: "user id missing in payment update" });
+      }
+      if (!chargeId) {
+        return res.status(400).json({ ok: false, error: "telegram_payment_charge_id missing" });
+      }
+      if (!Number.isFinite(amountStars) || amountStars <= 0) {
+        return res.status(400).json({ ok: false, error: "Invalid payment amount" });
+      }
 
       console.log('[Stars Webhook] Successful payment:', {
         userId,
-        amount: payment.total_amount,
-        payload: payment.invoice_payload,
-        telegramPaymentChargeId: payment.telegram_payment_charge_id
+        amount: amountStars,
+        payload: invoicePayload,
+        telegramPaymentChargeId: chargeId
       });
 
-      await db.saveUser(userFrom);
+      const claimed = await claimWebhookEvent(eventKey, {
+        chargeId,
+        userId: String(userId || ""),
+        amount: amountStars,
+        payload: invoicePayload || null
+      });
+      if (!claimed) {
+        console.log("[Stars Webhook] Duplicate event ignored:", chargeId);
+        return res.json({ ok: true, duplicate: true });
+      }
+
+      try { await db.saveUser(userFrom); } catch {}
 
       try {
         const newBalance = await db.updateBalance(
           userId,
           'stars',
-          payment.total_amount,
+          amountStars,
           'deposit',
-          `Stars payment ${payment.telegram_payment_charge_id}`,
-          { invoiceId: payment.invoice_payload }
+          `Stars payment ${chargeId}`,
+          { invoiceId: txInvoiceId, txHash: chargeId }
         );
 
         console.log('[Stars Webhook] Balance updated:', { userId, newBalance });
-        
-        await sendTelegramMessage(
-          userId, 
-          `✅ Payment successful!\n\nYou received ${payment.total_amount} ⭐ Stars`
-        );
-        
-      } catch (err) {
-        console.error('[Stars Webhook] Error updating balance:', err);
-      }
 
-      res.json({ ok: true });
-    } else {
-      res.json({ ok: true, message: 'Not a payment update' });
+        await sendTelegramMessage(
+          userId,
+          `Payment successful!\n\nYou received ${amountStars} Stars`
+        );
+
+        return res.json({ ok: true, duplicate: false });
+      } catch (err) {
+        await releaseWebhookEvent(eventKey).catch(() => {});
+        console.error('[Stars Webhook] Error updating balance:', err);
+        return res.status(500).json({ ok: false, error: "Failed to apply stars payment" });
+      }
     }
+
+    return res.json({ ok: true, message: 'Not a payment update' });
 
   } catch (error) {
     console.error('[Stars Webhook] Error processing webhook:', error);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
-
 // ====== USER PROFILE API ======
-app.get("/api/user/profile", async (req, res) => {
+app.get("/api/user/profile", requireTelegramUser, async (req, res) => {
   try {
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
-    }
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userId = String(req.query?.userId || "").trim() || tgUserId;
+    if (!userId) return res.status(400).json({ ok: false, error: 'User ID is required' });
+    if (userId !== tgUserId) return res.status(403).json({ ok: false, error: "Forbidden userId" });
 
     const user = await db.getUserById(userId);
     
@@ -4415,16 +4805,12 @@ app.get("/api/user/profile", async (req, res) => {
 });
 
 // ====== USER STATS API ======
-app.get("/api/user/stats", async (req, res) => {
+app.get("/api/user/stats", requireTelegramUser, async (req, res) => {
   try {
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
-    }
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userId = String(req.query?.userId || "").trim() || tgUserId;
+    if (!userId) return res.status(400).json({ ok: false, error: 'User ID is required' });
+    if (userId !== tgUserId) return res.status(403).json({ ok: false, error: "Forbidden userId" });
 
     const stats = await db.getUserStats(userId);
 
@@ -4450,16 +4836,13 @@ app.get("/api/user/stats", async (req, res) => {
 });
 
 // ====== TRANSACTION HISTORY API ======
-app.get("/api/user/transactions", async (req, res) => {
+app.get("/api/user/transactions", requireTelegramUser, async (req, res) => {
   try {
-    const { userId, limit } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'User ID is required'
-      });
-    }
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userId = String(req.query?.userId || "").trim() || tgUserId;
+    const { limit } = req.query;
+    if (!userId) return res.status(400).json({ ok: false, error: 'User ID is required' });
+    if (userId !== tgUserId) return res.status(403).json({ ok: false, error: "Forbidden userId" });
 
     const transactions = await db.getTransactionHistory(userId, parseInt(limit) || 50);
 
@@ -4598,7 +4981,7 @@ app.post("/api/round/place-bet", async (req, res) => {
 
 
 // ============================================
-// 🧪 TEST BALANCE SYSTEM
+// рџ§Є TEST BALANCE SYSTEM
 //  "
 
 // ====== MARKET STORE (Relayer -> Server) ======
@@ -4969,7 +5352,7 @@ app.post("/api/market/items/add", async (req, res) => {
     const saved = await withMarketLock(async () => {
       const items = await readMarketItems();
     
-      // дедуп: если такой id уже есть — убираем старую запись
+      // РґРµРґСѓРї: РµСЃР»Рё С‚Р°РєРѕР№ id СѓР¶Рµ РµСЃС‚СЊ вЂ” СѓР±РёСЂР°РµРј СЃС‚Р°СЂСѓСЋ Р·Р°РїРёСЃСЊ
       const filtered = items.filter(x => String(x?.id) !== String(out.id));
       filtered.unshift(out);
     
@@ -5125,7 +5508,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
 // ====== SPA fallback ======"
 // ============================================
 
-// 🎁 ДАТЬ ТЕСТОВЫЕ ДЕНЬГИ (только в development)
+// рџЋЃ Р”РђРўР¬ РўР•РЎРўРћР’Р«Р• Р”Р•РќР¬Р“Р (С‚РѕР»СЊРєРѕ РІ development)
 app.post("/api/test/give-balance", async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
@@ -5149,9 +5532,9 @@ app.post("/api/test/give-balance", async (req, res) => {
         language_code: 'en',
         is_premium: false
       });
-    } catch (e) { /* ok: уже есть */ }
+    } catch (e) { /* ok: СѓР¶Рµ РµСЃС‚СЊ */ }
 
-    console.log('[TEST] 🎁 Giving test balance:', { userId: uid, ton, stars });
+    console.log('[TEST] рџЋЃ Giving test balance:', { userId: uid, ton, stars });
 
     let results = {};
 
@@ -5161,11 +5544,11 @@ app.post("/api/test/give-balance", async (req, res) => {
         'ton',
         parseFloat(ton),
         'test',
-        '🧪 Test TON deposit',
+        'рџ§Є Test TON deposit',
         { test: true }
       );
       results.ton = newTonBalance;
-      console.log('[TEST] ✅ Added TON:', newTonBalance);
+      console.log('[TEST] вњ… Added TON:', newTonBalance);
     }
 
     if (stars && stars > 0) {
@@ -5174,11 +5557,11 @@ app.post("/api/test/give-balance", async (req, res) => {
         'stars',
         parseInt(stars, 10),
         'test',
-        '🧪 Test Stars deposit',
+        'рџ§Є Test Stars deposit',
         { test: true }
       );
       results.stars = newStarsBalance;
-      console.log('[TEST] ✅ Added Stars:', newStarsBalance);
+      console.log('[TEST] вњ… Added Stars:', newStarsBalance);
     }
 
     if (ton || stars) {
@@ -5206,7 +5589,7 @@ app.post("/api/test/give-balance", async (req, res) => {
   }
 });
 
-// 🔄 СБРОСИТЬ БАЛАНС (только в development)
+// рџ”„ РЎР‘Р РћРЎРРўР¬ Р‘РђР›РђРќРЎ (С‚РѕР»СЊРєРѕ РІ development)
 app.post("/api/test/reset-balance", async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
@@ -5219,7 +5602,7 @@ app.post("/api/test/reset-balance", async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Numeric user ID is required' });
     }
 
-    // ensure user exists (на случай чистой БД)
+    // ensure user exists (РЅР° СЃР»СѓС‡Р°Р№ С‡РёСЃС‚РѕР№ Р‘Р”)
     try {
       await db.saveUser({
         id: uid,
@@ -5232,7 +5615,7 @@ app.post("/api/test/reset-balance", async (req, res) => {
       });
     } catch (e) {}
 
-    console.log('[TEST] 🔄 Resetting balance for user:', uid);
+    console.log('[TEST] рџ”„ Resetting balance for user:', uid);
 
     // Reset to zero via deltas (updateBalance adds, so we subtract current)
     const current = await db.getUserBalance(uid);
@@ -5240,10 +5623,10 @@ app.post("/api/test/reset-balance", async (req, res) => {
     const curStars = parseInt(current.stars_balance) || 0;
 
     if (curTon !== 0) {
-      await db.updateBalance(uid, 'ton', -curTon, 'test', '🧪 Balance reset (TON→0)', { test: true, reset: true });
+      await db.updateBalance(uid, 'ton', -curTon, 'test', 'рџ§Є Balance reset (TONв†’0)', { test: true, reset: true });
     }
     if (curStars !== 0) {
-      await db.updateBalance(uid, 'stars', -curStars, 'test', '🧪 Balance reset (Stars→0)', { test: true, reset: true });
+      await db.updateBalance(uid, 'stars', -curStars, 'test', 'рџ§Є Balance reset (Starsв†’0)', { test: true, reset: true });
     }
 
     broadcastBalanceUpdate(uid);
@@ -5264,7 +5647,7 @@ app.post("/api/test/reset-balance", async (req, res) => {
 });
 
 
-// 💰 УСТАНОВИТЬ ТОЧНЫЙ БАЛАНС (только в development)
+// рџ’° РЈРЎРўРђРќРћР’РРўР¬ РўРћР§РќР«Р™ Р‘РђР›РђРќРЎ (С‚РѕР»СЊРєРѕ РІ development)
 app.post("/api/test/set-balance", async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {
@@ -5277,7 +5660,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Numeric user ID is required' });
     }
 
-    // ensure user exists (для FK)
+    // ensure user exists (РґР»СЏ FK)
     try {
       await db.saveUser({
         id: uid,
@@ -5290,7 +5673,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       });
     } catch (e) {}
 
-    console.log('[TEST] 💰 Setting exact balance:', { userId: uid, ton, stars });
+    console.log('[TEST] рџ’° Setting exact balance:', { userId: uid, ton, stars });
 
     const currentBalance = await db.getUserBalance(uid);
     let results = {};
@@ -5300,7 +5683,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       const diff = parseFloat(ton) - currentTon;
       if (diff !== 0) {
         results.ton = await db.updateBalance(
-          uid, 'ton', diff, 'test', `🧪 Set TON balance to ${ton}`, { test: true, setBalance: true }
+          uid, 'ton', diff, 'test', `рџ§Є Set TON balance to ${ton}`, { test: true, setBalance: true }
         );
       } else {
         results.ton = currentTon;
@@ -5312,7 +5695,7 @@ app.post("/api/test/set-balance", async (req, res) => {
       const diff = parseInt(stars, 10) - currentStars;
       if (diff !== 0) {
         results.stars = await db.updateBalance(
-          uid, 'stars', diff, 'test', `🧪 Set Stars balance to ${stars}`, { test: true, setBalance: true }
+          uid, 'stars', diff, 'test', `рџ§Є Set Stars balance to ${stars}`, { test: true, setBalance: true }
         );
       } else {
         results.stars = currentStars;
@@ -5337,7 +5720,7 @@ app.post("/api/test/set-balance", async (req, res) => {
 });
 
 
-// 📊 ПОЛУЧИТЬ ИНФОРМАЦИЮ О ТЕСТОВОМ РЕЖИМЕ
+// рџ“Љ РџРћР›РЈР§РРўР¬ РРќР¤РћР РњРђР¦РР® Рћ РўР•РЎРўРћР’РћРњ Р Р•Р–РРњР•
 app.get("/api/test/info", async (req, res) => {
   res.json({
     ok: true,
@@ -5709,20 +6092,20 @@ try {
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`
-╔═══════════════════════════════════════╗
-║   🎮 WildGift Server Running          ║
-║   Host: ${HOST}                          ║
-║   Port: ${PORT}                           ║
-║   Environment: ${process.env.NODE_ENV || 'development'}      ║
-║   🎲 Crash WebSocket: /ws/crash       ║
-╚═══════════════════════════════════════╝
+в•”в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•—
+в•‘   рџЋ® WildGift Server Running          в•‘
+в•‘   Host: ${HOST}                          в•‘
+в•‘   Port: ${PORT}                           в•‘
+в•‘   Environment: ${process.env.NODE_ENV || 'development'}      в•‘
+в•‘   рџЋІ Crash WebSocket: /ws/crash       в•‘
+в•љв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ќ
   `);
   
   if (!process.env.BOT_TOKEN) {
-    console.warn('⚠️  WARNING: BOT_TOKEN not set in .env');
+    console.warn('вљ пёЏ  WARNING: BOT_TOKEN not set in .env');
   }
   
-  console.log(`✅ Crash game running`);
+  console.log(`вњ… Crash game running`);
 });
 
 
@@ -5752,7 +6135,7 @@ httpServer.listen(PORT, HOST, () => {
     }
   };
 
-  // стартуем вскоре после запуска, но не синхронно с поднятием сервера
+  // СЃС‚Р°СЂС‚СѓРµРј РІСЃРєРѕСЂРµ РїРѕСЃР»Рµ Р·Р°РїСѓСЃРєР°, РЅРѕ РЅРµ СЃРёРЅС…СЂРѕРЅРЅРѕ СЃ РїРѕРґРЅСЏС‚РёРµРј СЃРµСЂРІРµСЂР°
   const firstDelay = 1000 + Math.floor(Math.random() * 4000);
 
   setTimeout(() => {
@@ -5855,13 +6238,20 @@ function getInitDataFromReq(req) {
   );
 }
 
+function getTelegramInitDataMaxAgeSec() {
+  return Math.max(
+    60,
+    Math.min(30 * 24 * 60 * 60, Number(process.env.TG_INITDATA_MAX_AGE_SEC || 86400) || 86400)
+  );
+}
+
 async function requireTelegramUser(req, res, next) {
   try {
     const initData = getInitDataFromReq(req);
     if (!initData) return res.status(401).json({ ok: false, error: "initData required" });
     if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
 
-    const check = verifyInitData(initData, process.env.BOT_TOKEN, 300);
+    const check = verifyInitData(initData, process.env.BOT_TOKEN, getTelegramInitDataMaxAgeSec());
     if (!check.ok) return res.status(403).json({ ok: false, error: "Bad initData" });
 
     let user = null;
@@ -5944,4 +6334,5 @@ async function sendTelegramMessage(chatId, text) {
     console.error('[Telegram] Failed to send message:', err);
   }
 }
+
 

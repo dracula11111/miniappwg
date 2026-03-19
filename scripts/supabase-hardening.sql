@@ -16,6 +16,7 @@ ALTER TABLE public.market_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.promo_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.promo_redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_task_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.users FROM anon, authenticated;
 REVOKE ALL ON TABLE public.balances FROM anon, authenticated;
@@ -28,6 +29,7 @@ REVOKE ALL ON TABLE public.market_items FROM anon, authenticated;
 REVOKE ALL ON TABLE public.promo_codes FROM anon, authenticated;
 REVOKE ALL ON TABLE public.promo_redemptions FROM anon, authenticated;
 REVOKE ALL ON TABLE public.user_task_claims FROM anon, authenticated;
+REVOKE ALL ON TABLE public.webhook_events FROM anon, authenticated;
 
 DROP POLICY IF EXISTS service_role_full_access ON public.users;
 DROP POLICY IF EXISTS service_role_full_access ON public.balances;
@@ -40,6 +42,7 @@ DROP POLICY IF EXISTS service_role_full_access ON public.market_items;
 DROP POLICY IF EXISTS service_role_full_access ON public.promo_codes;
 DROP POLICY IF EXISTS service_role_full_access ON public.promo_redemptions;
 DROP POLICY IF EXISTS service_role_full_access ON public.user_task_claims;
+DROP POLICY IF EXISTS service_role_full_access ON public.webhook_events;
 
 CREATE POLICY service_role_full_access ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON public.balances FOR ALL TO service_role USING (true) WITH CHECK (true);
@@ -52,3 +55,4 @@ CREATE POLICY service_role_full_access ON public.market_items FOR ALL TO service
 CREATE POLICY service_role_full_access ON public.promo_codes FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON public.promo_redemptions FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY service_role_full_access ON public.user_task_claims FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY service_role_full_access ON public.webhook_events FOR ALL TO service_role USING (true) WITH CHECK (true);

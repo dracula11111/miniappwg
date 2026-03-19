@@ -32,6 +32,27 @@ class Bonus5050 {
   _fmtX(v) { return `${Number.isInteger(v) ? v : String(v)}x`; }
   _overlayEl() { return document.getElementById('bonus5050Overlay'); }
 
+  _hashSeed(value) {
+    const str = String(value || 'bonus5050');
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  _makeRng(seedInt) {
+    let a = (seedInt >>> 0) || 0x9e3779b9;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
   _lockScroll() {
     const wheelPage = document.getElementById('wheelPage');
     const isWheelActive = !!(wheelPage && wheelPage.classList.contains('page-active'));
@@ -437,15 +458,17 @@ class Bonus5050 {
     const forcedBadX = Number(forced?.badX);
     const forcedPickGood = (typeof forced?.pickGood === 'boolean') ? forced.pickGood : null;
     const forcedMultiplier = Number(forced?.multiplier);
+    const seedBase = String(this.options?.bonusId || this.options?.sessionKey || 'bonus5050');
+    const rnd = this._makeRng(this._hashSeed(`${seedBase}:result`));
 
     const goodX = Number.isFinite(forcedGoodX)
       ? forcedGoodX
-      : this.GOOD_XS[Math.floor(Math.random() * this.GOOD_XS.length)];
+      : this.GOOD_XS[Math.floor(rnd() * this.GOOD_XS.length)];
     const badX = Number.isFinite(forcedBadX)
       ? forcedBadX
-      : this.BAD_XS[Math.floor(Math.random() * this.BAD_XS.length)];
+      : this.BAD_XS[Math.floor(rnd() * this.BAD_XS.length)];
 
-    let pickGood = (forcedPickGood !== null) ? forcedPickGood : (Math.random() < 0.5);
+    let pickGood = (forcedPickGood !== null) ? forcedPickGood : (rnd() < 0.5);
     if (Number.isFinite(forcedMultiplier)) {
       if (forcedMultiplier === goodX) pickGood = true;
       else if (forcedMultiplier === badX) pickGood = false;

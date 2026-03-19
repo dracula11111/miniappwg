@@ -151,6 +151,7 @@
   let caseSheetPrevBodyTop = '';
   let casesPerfResizeRaf = 0;
   let casesPathObserver = null;
+  let caseSheetUiMetricsRaf = 0;
 
   function detectCasesLowMotion() {
     try {
@@ -408,6 +409,20 @@ const DEFAULT_GIFT_CHANCE_BY_RARITY = {
   common: 0.71
 };
 
+// TON economy profile:
+// keep expected return below 1x while still allowing occasional near-breakeven rounds.
+const TON_PAYOUT_PROFILE = {
+  targetMin: 0.58,          // usual return floor (58% of case price)
+  targetMax: 0.90,          // usual return ceiling (90% of case price)
+  nearBreakEvenChance: 0.22, // more rounds can land near break-even
+  nearBreakEvenMin: 0.97,
+  nearBreakEvenMax: 1.05,
+  softCap: 1.02,            // allow around-zero outcomes in normal rounds
+  hardCap: 1.25,            // soft ceiling in near-break-even rounds
+  overshootPenalty: 3.2,
+  nftChanceScale: 0.34      // slightly higher jackpot lane for TON paid opens
+};
+
 function getGiftWeight(gift) {
   const explicit = Number(gift?.giftChance ?? gift?.chance);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
@@ -438,6 +453,88 @@ function pickWeightedGift(gifts) {
   return gifts[gifts.length - 1] || null;
 }
 
+function randomInRange(min, max) {
+  const a = Number(min);
+  const b = Number(max);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  if (b <= a) return a;
+  return a + (Math.random() * (b - a));
+}
+
+function pickByDynamicWeight(items, getWeight) {
+  if (!Array.isArray(items) || !items.length || typeof getWeight !== 'function') return null;
+
+  const weights = [];
+  let totalWeight = 0;
+
+  for (const item of items) {
+    const wRaw = Number(getWeight(item));
+    const w = (Number.isFinite(wRaw) && wRaw > 0) ? wRaw : 0;
+    weights.push(w);
+    totalWeight += w;
+  }
+
+  if (!(totalWeight > 0)) return null;
+
+  let roll = Math.random() * totalWeight;
+  for (let i = 0; i < items.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return items[i];
+  }
+
+  return items[items.length - 1] || null;
+}
+
+function pickTonBalancedWinningItem(caseData, pools, demoMode) {
+  if (demoMode) return null;
+
+  const casePriceTon = Number(caseData?.price?.ton);
+  if (!(casePriceTon > 0)) return null;
+
+  // Rare jackpot lane: keep excitement, but with strongly reduced NFT chance.
+  if (Array.isArray(pools?.nfts) && pools.nfts.length) {
+    const tonedNftChance = Math.max(0.0025, getNftWinChance(false, 'ton') * TON_PAYOUT_PROFILE.nftChanceScale);
+    if (Math.random() < tonedNftChance) {
+      return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
+    }
+  }
+
+  const nearBreakEvenRoll = Math.random() < TON_PAYOUT_PROFILE.nearBreakEvenChance;
+  const targetRatio = nearBreakEvenRoll
+    ? randomInRange(TON_PAYOUT_PROFILE.nearBreakEvenMin, TON_PAYOUT_PROFILE.nearBreakEvenMax)
+    : randomInRange(TON_PAYOUT_PROFILE.targetMin, TON_PAYOUT_PROFILE.targetMax);
+
+  const capRatio = nearBreakEvenRoll ? TON_PAYOUT_PROFILE.hardCap : TON_PAYOUT_PROFILE.softCap;
+  const targetTon = casePriceTon * targetRatio;
+  const capTon = casePriceTon * capRatio;
+
+  const source = (Array.isArray(pools?.items) && pools.items.length) ? pools.items : [];
+  const picked = pickByDynamicWeight(source, (item) => {
+    const valueTon = prizeValue(item, 'ton');
+    if (!(valueTon > 0)) return 0;
+
+    const baseWeight = (itemType(item) === 'nft')
+      ? Math.max(0.0001, Number(item?.nftChance) || 0)
+      : getGiftWeight(item);
+
+    if (!(baseWeight > 0)) return 0;
+
+    const relativeDelta = Math.abs(valueTon - targetTon) / Math.max(targetTon, 0.01);
+    let weight = baseWeight / (1 + relativeDelta * 3.8);
+
+    // Values above the cap are still possible, but become much less likely.
+    if (valueTon > capTon) {
+      const relativeOvershoot = (valueTon - capTon) / Math.max(capTon, 0.01);
+      weight /= (1 + (relativeOvershoot * TON_PAYOUT_PROFILE.overshootPenalty));
+    }
+
+    return weight;
+  });
+
+  if (picked) return picked;
+  return pickWeightedGift(pools?.gifts) || pickRandom(pools?.gifts) || pickRandom(pools?.items);
+}
+
 function getNftWinChance(demoMode, currency) {
   if (demoMode) return NFT_DROP_RATES.demo;
   return (currency === 'ton') ? NFT_DROP_RATES.ton : NFT_DROP_RATES.stars;
@@ -446,6 +543,12 @@ function getNftWinChance(demoMode, currency) {
 function pickWinningItem(caseData, demoMode, currency) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
+
+  // TON paid mode: controlled return profile (soft negative EV).
+  if (!demoMode && currency === 'ton') {
+    const tonBalanced = pickTonBalancedWinningItem(caseData, pools, demoMode);
+    if (tonBalanced) return tonBalanced;
+  }
 
   // Р•СЃР»Рё NFT РІ РєРµР№СЃРµ РЅРµС‚ вЂ” РІС‹Р±РёСЂР°РµРј РєР°Рє РѕР±С‹С‡РЅРѕ
   if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
@@ -1001,8 +1104,19 @@ function getBalanceSafe(currency) {
             renderContents(window.WildTimeCurrency?.current || 'ton');
           }
         }
+        if (document.body.classList.contains('case-sheet-open')) {
+          scheduleCaseSheetUiMetricsUpdate();
+        }
       });
     }, { passive: true });
+    if (window.visualViewport) {
+      const syncOpenCaseLayout = () => {
+        if (!document.body.classList.contains('case-sheet-open')) return;
+        scheduleCaseSheetUiMetricsUpdate();
+      };
+      window.visualViewport.addEventListener('resize', syncOpenCaseLayout, { passive: true });
+      window.visualViewport.addEventListener('scroll', syncOpenCaseLayout, { passive: true });
+    }
     setupCasesPageBodyFlag();
 
     // Poster + global history (Cases page)
@@ -1314,6 +1428,56 @@ function getBalanceSafe(currency) {
 
 
   // ====== OPEN BOTTOM SHEET ======
+  function updateCaseSheetUiMetrics() {
+    if (!document.body.classList.contains('case-sheet-open')) return;
+
+    const root = document.documentElement;
+    const appEl = document.querySelector('.app');
+    const topbarEl = document.querySelector('.topbar');
+    const logoEl = document.querySelector('.logo-header');
+
+    if (appEl) {
+      const appRect = appEl.getBoundingClientRect();
+      const left = Number.isFinite(appRect.left) ? Math.round(appRect.left) : 0;
+      const width = (Number.isFinite(appRect.width) && appRect.width > 0)
+        ? Math.round(appRect.width)
+        : Math.max(0, Math.round(window.innerWidth || 0));
+      root.style.setProperty('--case-sheet-ui-left', `${Math.max(0, left)}px`);
+      root.style.setProperty('--case-sheet-ui-width', `${Math.max(0, width)}px`);
+    } else {
+      root.style.setProperty('--case-sheet-ui-left', '0px');
+      root.style.setProperty('--case-sheet-ui-width', `${Math.max(0, Math.round(window.innerWidth || 0))}px`);
+    }
+
+    let maxBottom = 0;
+    if (topbarEl) {
+      const r = topbarEl.getBoundingClientRect();
+      if (Number.isFinite(r.bottom)) maxBottom = Math.max(maxBottom, r.bottom);
+    }
+    if (logoEl) {
+      const r = logoEl.getBoundingClientRect();
+      if (Number.isFinite(r.bottom)) maxBottom = Math.max(maxBottom, r.bottom);
+    }
+
+    const reserveTop = Math.max(96, Math.ceil(maxBottom + 10));
+    root.style.setProperty('--case-sheet-top-offset', `${reserveTop}px`);
+  }
+
+  function scheduleCaseSheetUiMetricsUpdate() {
+    if (caseSheetUiMetricsRaf) cancelAnimationFrame(caseSheetUiMetricsRaf);
+    caseSheetUiMetricsRaf = requestAnimationFrame(() => {
+      caseSheetUiMetricsRaf = 0;
+      updateCaseSheetUiMetrics();
+    });
+  }
+
+  function clearCaseSheetUiMetrics() {
+    const root = document.documentElement;
+    root.style.removeProperty('--case-sheet-ui-left');
+    root.style.removeProperty('--case-sheet-ui-width');
+    root.style.removeProperty('--case-sheet-top-offset');
+  }
+
   function lockCaseSheetScreen() {
     if (document.body.classList.contains('case-sheet-open')) return;
 
@@ -1323,6 +1487,10 @@ function getBalanceSafe(currency) {
     document.documentElement.classList.add('case-sheet-open');
     document.body.classList.add('case-sheet-open');
     document.body.style.top = `-${caseSheetLockedScrollY}px`;
+
+    scheduleCaseSheetUiMetricsUpdate();
+    setTimeout(() => scheduleCaseSheetUiMetricsUpdate(), 80);
+    setTimeout(() => scheduleCaseSheetUiMetricsUpdate(), 180);
   }
 
   function unlockCaseSheetScreen() {
@@ -1333,6 +1501,12 @@ function getBalanceSafe(currency) {
     document.documentElement.classList.remove('case-sheet-open');
     document.body.classList.remove('case-sheet-open');
     document.body.style.top = caseSheetPrevBodyTop || '';
+
+    if (caseSheetUiMetricsRaf) {
+      cancelAnimationFrame(caseSheetUiMetricsRaf);
+      caseSheetUiMetricsRaf = 0;
+    }
+    clearCaseSheetUiMetrics();
 
     caseSheetPrevBodyTop = '';
     caseSheetLockedScrollY = 0;
@@ -1460,6 +1634,108 @@ function getBalanceSafe(currency) {
     openBtn.classList.toggle('demo-mode', demoActive);
   }
 
+  function getCaseCurrencyIcon(currency) {
+    return currency === 'stars' ? assetUrl('icons/stars.svg') : assetUrl('icons/ton.svg');
+  }
+
+  function getCarouselValuePillData(item, currency) {
+    if (!item || itemType(item) === 'nft') return null;
+    const amount = prizeValue(item, currency);
+    if (!(Number.isFinite(amount) && amount > 0)) return null;
+    return {
+      amount: formatAmount(currency, amount),
+      icon: getCaseCurrencyIcon(currency),
+      currency
+    };
+  }
+
+  function createCarouselItemMarkup(item, currency) {
+    const id = (item && item.id != null) ? String(item.id) : '';
+    const type = itemType(item);
+    const rarity = (item && item.rarity) ? String(item.rarity) : 'common';
+    const pill = getCarouselValuePillData(item, currency);
+    const pillHtml = pill
+      ? `
+        <span class="case-carousel-item-pill" aria-hidden="true">
+          <span class="case-carousel-item-pill__amount">${pill.amount}</span>
+          <img class="case-carousel-item-pill__icon" src="${pill.icon}" alt="">
+        </span>`
+      : '';
+
+    return `<div class="case-carousel-item${pill ? ' case-carousel-item--has-value-pill' : ''}" data-item-id="${id}" data-item-type="${type}" data-rarity="${rarity}">
+      <img class="case-carousel-item__img" src="${itemIconPath(item)}" alt="${id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+      ${pillHtml}
+    </div>`;
+  }
+
+  function syncCarouselItemNode(node, dataItem, currency) {
+    if (!node || !dataItem) return;
+
+    const id = (dataItem && dataItem.id != null) ? String(dataItem.id) : '';
+    node.dataset.itemId = id;
+    node.dataset.itemType = itemType(dataItem);
+    node.dataset.rarity = dataItem.rarity || 'common';
+    node.classList.remove('case-carousel-item--show-pill');
+
+    let mainImg = node.querySelector('.case-carousel-item__img');
+    if (!mainImg) {
+      mainImg = document.createElement('img');
+      mainImg.className = 'case-carousel-item__img';
+      node.prepend(mainImg);
+    }
+
+    mainImg.onerror = null;
+    mainImg.src = itemIconPath(dataItem);
+    mainImg.alt = id;
+    mainImg.onerror = function () { this.onerror = null; this.src = ITEM_ICON_FALLBACK; };
+
+    const pillData = getCarouselValuePillData(dataItem, currency);
+    let pillEl = node.querySelector('.case-carousel-item-pill');
+
+    if (pillData) {
+      node.classList.add('case-carousel-item--has-value-pill');
+      if (!pillEl) {
+        pillEl = document.createElement('span');
+        pillEl.className = 'case-carousel-item-pill';
+        pillEl.setAttribute('aria-hidden', 'true');
+        pillEl.innerHTML = `
+          <span class="case-carousel-item-pill__amount"></span>
+          <img class="case-carousel-item-pill__icon" src="" alt="">
+        `;
+        node.appendChild(pillEl);
+      }
+
+      const amountEl = pillEl.querySelector('.case-carousel-item-pill__amount');
+      const iconEl = pillEl.querySelector('.case-carousel-item-pill__icon');
+      if (amountEl) amountEl.textContent = pillData.amount;
+      if (iconEl) iconEl.src = pillData.icon;
+    } else {
+      node.classList.remove('case-carousel-item--has-value-pill');
+      if (pillEl) pillEl.remove();
+    }
+  }
+
+  function setWinningGiftPillsVisible(visible) {
+    const shouldShow = !!visible;
+    for (const carousel of carousels) {
+      const cont = carousel?.itemsContainer;
+      if (!cont) continue;
+
+      cont.querySelectorAll('.case-carousel-item--show-pill').forEach((el) => {
+        el.classList.remove('case-carousel-item--show-pill');
+      });
+      if (!shouldShow) continue;
+
+      const winIndex = Number(carousel?.winningStripIndex);
+      const winEl = (Number.isFinite(winIndex) && cont.children) ? cont.children[winIndex] : null;
+      if (!winEl) continue;
+      if (String(winEl.dataset.itemType || '') === 'nft') continue;
+      if (!winEl.classList.contains('case-carousel-item--has-value-pill')) continue;
+
+      winEl.classList.add('case-carousel-item--show-pill');
+    }
+  }
+
   // ====== RENDER CAROUSELS ======
   function renderCarousels(count, currency) {
     if (!carouselsWrapper || !currentCase) return;
@@ -1484,6 +1760,7 @@ function getBalanceSafe(currency) {
   function createCarousel(height, _idx, currency) {
     const container = document.createElement('div');
     container.className = 'case-carousel';
+    if (height <= 72) container.classList.add('case-carousel--compact');
     container.style.height = `${height}px`;
 
     const itemsContainer = document.createElement('div');
@@ -1500,11 +1777,7 @@ function getBalanceSafe(currency) {
     // Р”РµР»Р°РµРј 2 РєРѕРїРёРё, С‡С‚РѕР±С‹ Р»РµРЅС‚Р° СЂРµР°Р»СЊРЅРѕ Р±С‹Р»Р° Р±РµСЃРєРѕРЅРµС‡РЅРѕР№
     const items = baseItems.concat(baseItems);
 
-    itemsContainer.innerHTML = items.map(item => (
-      `<div class="case-carousel-item" data-item-id="${item.id}" data-item-type="${itemType(item)}">
-        <img src="${itemIconPath(item)}" alt="${item.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
-      </div>`
-    )).join('');
+    itemsContainer.innerHTML = items.map(item => createCarouselItemMarkup(item, currency)).join('');
 
     container.appendChild(itemsContainer);
 
@@ -1547,11 +1820,8 @@ function getBalanceSafe(currency) {
   }
 
   function renderCarouselItems(itemsContainer, items) {
-    itemsContainer.innerHTML = items.map(it => (
-      `<div class="case-carousel-item" data-item-id="${it.id}" data-item-type="${itemType(it)}">
-        <img src="${itemIconPath(it)}" alt="${it.id}" onerror="this.onerror=null;this.src=\'${ITEM_ICON_FALLBACK}\'">
-      </div>`
-    )).join('');
+    const currency = window.WildTimeCurrency?.current || 'ton';
+    itemsContainer.innerHTML = items.map(it => createCarouselItemMarkup(it, currency)).join('');
   }
 
   function resetCarouselToIdleFromCurrent(carousel) {
@@ -1916,12 +2186,12 @@ function getBalanceSafe(currency) {
               activeSpin.initData = '';
             }
             if (r.status === 401 || r.status === 403) {
-              showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџСЂРѕРґРѕР»Р¶Р°РµРј РІ Р»РѕРєР°Р»СЊРЅРѕРј СЂРµР¶РёРјРµ.');
+              showToast('Сессия Telegram устарела. Продолжаем в локальном режиме.');
             } else {
-              showToast('РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РџСЂРѕРґРѕР»Р¶Р°РµРј РІ Р»РѕРєР°Р»СЊРЅРѕРј СЂРµР¶РёРјРµ.');
+              showToast('Сервер недоступен. Продолжаем в локальном режиме.');
             }
           } else {
-            showToast('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ СЃС‚РѕРёРјРѕСЃС‚СЊ РєРµР№СЃР°. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+            showToast('Не удалось списать стоимость кейса. Попробуй еще раз.');
             safeHaptic('notification', 'error');
             return;
           }
@@ -2031,9 +2301,9 @@ function getBalanceSafe(currency) {
       }
 
       if (isLocalRuntime()) {
-        showToast(`РћС€РёР±РєР° РѕС‚РєСЂС‹С‚РёСЏ РєРµР№СЃР° (${openStep})`);
+        showToast(`Ошибка открытия кейса (${openStep})`);
       } else {
-        showToast('РћС€РёР±РєР° РѕС‚РєСЂС‹С‚РёСЏ РєРµР№СЃР°');
+        showToast('Ошибка открытия кейса');
       }
       safeHaptic('notification', 'error');
     } finally {
@@ -2056,6 +2326,7 @@ function getBalanceSafe(currency) {
   // ====== SPIN CAROUSELS (РїР»Р°РІРЅС‹Р№ СЃРїРёРЅ, С‚РѕС‡РЅР°СЏ РѕСЃС‚Р°РЅРѕРІРєР° РїРѕ Р»РёРЅРёРё) ======
   async function spinCarousels(currency, spinCtx) {
     stopAllAnimations();
+    setWinningGiftPillsVisible(false);
 
     const MIN_STRIP_LENGTH = casesLowMotion ? 128 : 170;
     const TAIL_AFTER_WIN = casesLowMotion ? 24 : 32;
@@ -2124,25 +2395,12 @@ function getBalanceSafe(currency) {
 
           if (i < existingNodes.length) {
             const node = existingNodes[i];
-            node.dataset.itemId = dataItem.id;
-            node.dataset.itemType = itemType(dataItem);
-            node.dataset.rarity = dataItem.rarity || "common";
-
-            const img = node.querySelector('img');
-            if (img) {
-              img.onerror = null;
-              img.src = itemIconPath(dataItem);
-              img.alt = dataItem.id;
-              img.onerror = function () { this.onerror = null; this.src = ITEM_ICON_FALLBACK; };
-            }
+            syncCarouselItemNode(node, dataItem, currency);
           } else {
             const node = document.createElement('div');
-            node.className = 'case-carousel-item';
-            node.dataset.itemId = dataItem.id;
-            node.dataset.itemType = itemType(dataItem);
-            node.dataset.rarity = dataItem.rarity || "common";
-            node.innerHTML = `<img src="${itemIconPath(dataItem)}" alt="${dataItem.id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">`;
-            cont.appendChild(node);
+            node.innerHTML = createCarouselItemMarkup(dataItem, currency);
+            const actualNode = node.firstElementChild;
+            if (actualNode) cont.appendChild(actualNode);
           }
         }
 
@@ -2291,7 +2549,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
       );
     } catch (showResultError) {
       console.error('[Cases] showResult error:', showResultError);
-      showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РѕР±СЂР°Р·РёС‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+      showToast('Не удалось отобразить результат. Попробуй еще раз.');
       safeHaptic('notification', 'error');
 
       // Fail-safe UI reset
@@ -2458,6 +2716,8 @@ function hideClaimBar() {
   const bar = document.getElementById('caseClaimBar');
   if (!bar) return;
 
+  bar.classList.remove('is-visible');
+  setWinningGiftPillsVisible(false);
   bar.hidden = true;
 
   // gifts (left)
@@ -2696,7 +2956,7 @@ const claimAllNfts = async (queue) => {
   const items = queue.map(q => q.item);
 
   if (demoModeForRound) {
-    showToast('Demo: NFT РЅРµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ');
+    showToast('Demo: NFT не сохраняются');
     return true;
   }
 
@@ -2704,7 +2964,7 @@ const claimAllNfts = async (queue) => {
   if (!serverEnabled) {
     addToLocalInventory(tgUserId, items);
     try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-    showToast(items.length > 1 ? 'NFT СЃРѕС…СЂР°РЅРµРЅС‹ Р»РѕРєР°Р»СЊРЅРѕ вњ…' : 'NFT СЃРѕС…СЂР°РЅРµРЅРѕ Р»РѕРєР°Р»СЊРЅРѕ вњ…');
+    showToast(items.length > 1 ? 'NFT сохранены локально' : 'NFT сохранено локально');
     return true;
   }
 
@@ -2723,9 +2983,9 @@ const claimAllNfts = async (queue) => {
 
   if (!r.ok) {
     if (r.status === 401 || r.status === 403) {
-      showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџРµСЂРµР·Р°РїСѓСЃС‚Рё РјРёРЅРёвЂ‘Р°РїРї Рё РїРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+      showToast('Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.');
     } else {
-      showToast(r.json?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+      showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй еще раз.');
     }
     return false;
   }
@@ -2740,7 +3000,7 @@ const claimAllNfts = async (queue) => {
   try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
 
   safeHaptic('notification', 'success');
-  showToast(items.length > 1 ? 'NFT СЃРѕС…СЂР°РЅРµРЅС‹ вњ…' : 'NFT СЃРѕС…СЂР°РЅРµРЅРѕ вњ…');
+  showToast(items.length > 1 ? 'NFT сохранены' : 'NFT сохранено');
 
   return true;
 };
@@ -2849,11 +3109,10 @@ function renderPendingClaimBar() {
     const nftSellBtn = bar.querySelector('#caseNftSellBtn');
 
     if (!pendingRound) {
+      setWinningGiftPillsVisible(false);
       hideClaimBar();
       return;
     }
-
-    bar.hidden = false;
 
     const row = bar.querySelector('.case-claim-row');
     const hasGifts = !!pendingRound.giftsPending;
@@ -2907,7 +3166,26 @@ function renderPendingClaimBar() {
     }
 
     // РЎРєСЂС‹РІР°РµРј РїР°РЅРµР»СЊ С‚РѕР»СЊРєРѕ РµСЃР»Рё РЅРµС‡РµРіРѕ РєР»РµР№РјРёС‚СЊ/РїСЂРѕРґР°РІР°С‚СЊ
-    bar.hidden = !(hasGifts || hasNfts);
+    const shouldShowBar = !!(hasGifts || hasNfts);
+    setWinningGiftPillsVisible(shouldShowBar && hasGifts);
+
+    if (!shouldShowBar) {
+      bar.classList.remove('is-visible');
+      bar.hidden = true;
+      return;
+    }
+
+    if (bar.hidden) {
+      bar.hidden = false;
+      bar.classList.remove('is-visible');
+      requestAnimationFrame(() => {
+        const currentBar = document.getElementById('caseClaimBar');
+        if (!currentBar || currentBar.hidden) return;
+        currentBar.classList.add('is-visible');
+      });
+    } else {
+      bar.classList.add('is-visible');
+    }
   } catch (e) {
     console.error('[Cases] renderPendingClaimBar error:', e);
     // Fail-safe: don't freeze the UI
@@ -2964,7 +3242,7 @@ async function onGiftClaimClick() {
     }
 
     if (pr.demo) {
-      showToast('Demo: РЅР°РіСЂР°РґР° РЅРµ РЅР°С‡РёСЃР»СЏРµС‚СЃСЏ');
+      showToast('Demo: награда не начисляется');
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, pr.giftsAmount);
     } else {
@@ -2987,7 +3265,6 @@ async function onGiftClaimClick() {
         const canFallbackToLocal =
           r.status === 0 ||
           r.status === 401 ||
-          r.status === 403 ||
           r.status === 409 ||
           r.status === 429 ||
           r.status === 500 ||
@@ -3001,13 +3278,13 @@ async function onGiftClaimClick() {
           });
           applyBalanceDelta(pr.currency, pr.giftsAmount);
           pr.serverEnabled = false;
-          if (r.status === 401 || r.status === 403) {
-            showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РќР°РіСЂР°РґР° РЅР°С‡РёСЃР»РµРЅР° Р»РѕРєР°Р»СЊРЅРѕ.');
+          if (r.status === 401) {
+            showToast('Сессия Telegram устарела. Награда начислена локально.');
           } else {
-            showToast('РЎРµСЂРІРµСЂ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РќР°РіСЂР°РґР° РЅР°С‡РёСЃР»РµРЅР° Р»РѕРєР°Р»СЊРЅРѕ.');
+            showToast('Сервер недоступен. Награда начислена локально.');
           }
         } else {
-          showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РЅР°С‡РёСЃР»РёС‚СЊ РЅР°РіСЂР°РґСѓ. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+          showToast('Не удалось начислить награду. Попробуй еще раз.');
           return;
         }
       }
@@ -3030,7 +3307,7 @@ async function onGiftClaimClick() {
     maybeFinishPendingRound();
   } catch (e) {
     console.error('[Cases] Gift claim click failed:', e);
-    showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ РєР»РµР№Рј. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+    showToast('Не удалось обработать клейм. Попробуй еще раз.');
   } finally {
     pr._giftClaimInFlight = false;
     setBtnLoading(btn, false);
@@ -3054,7 +3331,7 @@ async function onNftClaimClick() {
     const item = entry.item;
 
     if (pr.demo) {
-      showToast('Demo: NFT РЅРµ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ');
+      showToast('Demo: NFT не сохраняются');
     } else if (!pr.serverEnabled) {
       addToLocalInventory(pr.userId, [item]);
     } else {
@@ -3071,9 +3348,9 @@ async function onNftClaimClick() {
       }, 6500);
       if (!r.ok) {
         if (r.status === 401 || r.status === 403) {
-        showToast('РЎРµСЃСЃРёСЏ Telegram СѓСЃС‚Р°СЂРµР»Р°. РџРµСЂРµР·Р°РїСѓСЃС‚Рё РјРёРЅРёвЂ‘Р°РїРї Рё РїРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+        showToast('Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.');
       } else {
-        showToast(r.json?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+        showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй еще раз.');
       }
         return;
       }
@@ -3088,7 +3365,7 @@ async function onNftClaimClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT СЃРѕС…СЂР°РЅРµРЅРѕ вњ…');
+    if (!pr.demo) showToast('NFT сохранено');
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);
@@ -3122,7 +3399,7 @@ async function onNftSellClick() {
     const amount = entry.amount;
 
     if (pr.demo) {
-      showToast('Demo: РїСЂРѕРґР°Р¶Р° РѕС‚РєР»СЋС‡РµРЅР°');
+      showToast('Demo: продажа отключена');
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, amount);
     } else {
@@ -3142,7 +3419,7 @@ async function onNftSellClick() {
       }, 6500);
 
       if (!r.ok) {
-        showToast('РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРґР°С‚СЊ NFT. РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.');
+        showToast('Не удалось продать NFT. Попробуй еще раз.');
         return;
       }
       if (r.json && typeof r.json.newBalance !== 'undefined') {
@@ -3151,7 +3428,7 @@ async function onNftSellClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT РїСЂРѕРґР°РЅРѕ вњ…');
+    if (!pr.demo) showToast('NFT продано');
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);

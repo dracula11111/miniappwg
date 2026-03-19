@@ -24,7 +24,8 @@ const RLS_PROTECTED_TABLES = [
   "market_items",
   "promo_codes",
   "promo_redemptions",
-  "user_task_claims"
+  "user_task_claims",
+  "webhook_events"
 ];
 
 async function query(text, params) {
@@ -69,6 +70,24 @@ function normalizeUsername(value) {
   if (!base) return null;
   const cleaned = base.replace(/^@+/, "");
   return cleaned || null;
+}
+
+const RUSSIAN_UI_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
+const RUSSIAN_UI_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
+
+function normalizeUiLanguageCode(localeValue) {
+  const raw = normalizeOptionalText(localeValue, 32);
+  if (!raw) return null;
+
+  const parts = raw.replace(/_/g, "-").split("-").filter(Boolean);
+  const lang = String(parts[0] || "").toLowerCase();
+  const region = String(parts[1] || "").toUpperCase();
+
+  if (region) {
+    return RUSSIAN_UI_REGION_CODES.has(region) ? "ru" : "en";
+  }
+  if (RUSSIAN_UI_LANGUAGE_CODES.has(lang)) return "ru";
+  return "en";
 }
 
 function normalizeHash(value) {
@@ -243,6 +262,13 @@ export async function initDatabase() {
       UNIQUE (telegram_id, task_key)
     );
     CREATE INDEX IF NOT EXISTS idx_user_task_claims_user ON user_task_claims(telegram_id);
+
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      event_key TEXT PRIMARY KEY,
+      payload_json JSONB,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON webhook_events(created_at DESC);
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -311,6 +337,29 @@ export async function initDatabase() {
   console.log("[DB] ✅ Postgres schema ready");
 }
 
+export async function claimWebhookEvent(eventKey, payload = null) {
+  const key = normalizeOptionalText(eventKey, 256);
+  if (!key) return false;
+  const now = Math.floor(Date.now() / 1000);
+  const payloadJson = (payload && typeof payload === "object" && !Array.isArray(payload))
+    ? payload
+    : null;
+
+  const r = await query(
+    `INSERT INTO webhook_events (event_key, payload_json, created_at)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (event_key) DO NOTHING`,
+    [key, payloadJson, now]
+  );
+  return Number(r.rowCount || 0) > 0;
+}
+
+export async function releaseWebhookEvent(eventKey) {
+  const key = normalizeOptionalText(eventKey, 256);
+  if (!key) return false;
+  const r = await query(`DELETE FROM webhook_events WHERE event_key = $1`, [key]);
+  return Number(r.rowCount || 0) > 0;
+}
 
 export async function getMarketItems(limit = 200) {
   const r = await query(
@@ -358,7 +407,7 @@ export async function saveUser(userData) {
   const username = normalizeUsername(userData?.username);
   const firstName = normalizeOptionalText(userData?.first_name, 128);
   const lastName = normalizeOptionalText(userData?.last_name, 128);
-  const languageCode = normalizeOptionalText(userData?.language_code, 16);
+  const languageCode = normalizeUiLanguageCode(userData?.language_code);
 
   await query(
     `
@@ -368,7 +417,7 @@ export async function saveUser(userData) {
       username = COALESCE($2, users.username),
       first_name = COALESCE($3, users.first_name),
       last_name = COALESCE($4, users.last_name),
-      language_code = COALESCE($5, users.language_code),
+      language_code = COALESCE(users.language_code, $5),
       is_premium = COALESCE($6, users.is_premium),
       last_seen = $8
     `,

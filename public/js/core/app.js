@@ -96,8 +96,8 @@
   const I18N_STORAGE_KEY = "wt-language";
   const I18N_ATTRS = ["placeholder", "title", "aria-label", "alt"];
   const I18N_SUPPORTED = new Set(["en", "ru"]);
-  const RUSSIAN_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk", "ky", "tg", "uz", "hy", "az"]);
-  const RUSSIAN_REGION_CODES = new Set(["RU", "BY", "KZ", "KG", "TJ", "UZ", "AM", "AZ", "MD", "TM", "UA"]);
+  const RUSSIAN_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
+  const RUSSIAN_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
 
   const I18N_KEYS = {
     language_english: { en: "English", ru: "Английский" },
@@ -399,10 +399,11 @@
     const lang = String(parts[0] || "").toLowerCase();
     const region = String(parts[1] || "").toUpperCase();
 
-    if (lang === "en") return "en";
-    if (lang === "ru") return "ru";
+    if (region) {
+      return RUSSIAN_REGION_CODES.has(region) ? "ru" : "en";
+    }
     if (RUSSIAN_LANGUAGE_CODES.has(lang)) return "ru";
-    if (region && RUSSIAN_REGION_CODES.has(region)) return "ru";
+    if (lang) return "en";
     return "";
   }
 

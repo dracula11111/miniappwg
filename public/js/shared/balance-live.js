@@ -18,9 +18,14 @@
   }
 
   const tgUserId = await getUserIdWithRetry();
+  const tgInitData = String(tg?.initData || "");
 
   if (!tgUserId) {
     console.log('[Balance Live] No user ID, skipping SSE');
+    return;
+  }
+  if (!tgInitData) {
+    console.log('[Balance Live] No initData, skipping secure balance sync');
     return;
   }
 
@@ -90,7 +95,11 @@
     console.log('[Balance Live] 📡 Connecting to SSE...');
 
     try {
-      eventSource = new EventSource(`/api/balance/stream?userId=${tgUserId}`);
+      const params = new URLSearchParams({
+        userId: String(tgUserId),
+        initData: tgInitData
+      });
+      eventSource = new EventSource(`/api/balance/stream?${params.toString()}`);
 
       eventSource.onopen = () => {
         console.log('[Balance Live] ✅ SSE Connected');
@@ -210,7 +219,10 @@
       
       const r = await fetch(`/api/balance?userId=${tgUserId}`, { 
         cache: 'no-store',
-        headers: { 'Accept': 'application/json' }
+        headers: {
+          'Accept': 'application/json',
+          'x-telegram-init-data': tgInitData
+        }
       });
       
       if (!r.ok) {
@@ -235,7 +247,10 @@
       
       const response = await fetch(`/api/balance?userId=${tgUserId}`, {
         cache: 'no-store',
-        headers: { 'Accept': 'application/json' }
+        headers: {
+          'Accept': 'application/json',
+          'x-telegram-init-data': tgInitData
+        }
       });
 
       if (!response.ok) {

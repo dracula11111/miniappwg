@@ -76,7 +76,42 @@
   let resolve_ = null;
   let aborted = false;
 
-  const randInt = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  let sessionSeed_ = "wildtime";
+  let rng_ = Math.random;
+
+  function hashSeed(value) {
+    const str = String(value || "wildtime");
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function makeRng(seedInt) {
+    let a = (seedInt >>> 0) || 0x9e3779b9;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function setSessionRng(seedLabel) {
+    sessionSeed_ = String(seedLabel || "wildtime");
+    rng_ = makeRng(hashSeed(sessionSeed_));
+  }
+
+  function scopedRand(scope = "default") {
+    const local = makeRng(hashSeed(`${sessionSeed_}:${scope}`));
+    return () => local();
+  }
+
+  const rand = () => rng_();
+  const randInt = (a, b) => Math.floor(rand() * (b - a + 1)) + a;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const mod = (n, m) => ((n % m) + m) % m;
 
@@ -708,7 +743,7 @@
   function pickUniqueJars() {
     const arr = Array.from({ length: CFG.jarPool }, (_, i) => i + 1);
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = (Math.random() * (i + 1)) | 0;
+      const j = (rand() * (i + 1)) | 0;
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr.slice(0, CFG.jarPickCount);
@@ -753,7 +788,7 @@
 
   function shuffleArray(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = (Math.random() * (i + 1)) | 0;
+      const j = (rand() * (i + 1)) | 0;
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
@@ -774,20 +809,20 @@
     game.setAttribute("aria-hidden", "false");
     game.classList.remove("wt-jarGame--reveal");
 
-    // Left/Center/Right results initially visible
+    // Real multipliers stay hidden until reveal (anti-peek).
     const base = [tri.left.mult, tri.center.mult, tri.right.mult];
-    setMults(game, base);
+    setMults(game, ["?", "?", "?"]);
 
     // remove old jars
     row.querySelectorAll(".wt-jarBtn").forEach((n) => n.remove());
 
-    // PRE-SHOW Xs (visible)
+    // Keep placeholders hidden so players cannot inspect values before pick.
     hint.textContent = "";
     countdownEl.textContent = "";
     countdownEl.classList.remove("wt-countdown--show");
-    setMultsHidden(game, false);
+    setMultsHidden(game, true);
 
-    await sleep(CFG.preShowXsMs);
+    await sleep(Math.max(40, CFG.jarCoverDelayMs));
     if (aborted) return "aborted";
 
     // capture exact centers/bottoms of the visible multipliers (so jars land perfectly over them)
@@ -802,9 +837,7 @@
     });
     const slotXs = multRects.map((m) => m.cx);
 
-    // AFTER PRE-SHOW: cover (hide mults) + drop jars
-    await sleep(CFG.jarCoverDelayMs);
-    setMultsHidden(game, true);
+    // Multipliers remain hidden until timer ends.
 
     const jarNum = randInt(1, CFG.jarPool);
     const jars = [];
@@ -894,13 +927,13 @@
       const perm = shuffleArray([0, 1, 2]); // which slot each jar goes to
       jars.forEach((j, idx) => { j.pos = perm[idx]; });
 
-      const kick = (Math.random() * 2 - 1) * clamp(jarH * 0.08, 10, 18);
+      const kick = (rand() * 2 - 1) * clamp(jarH * 0.08, 10, 18);
 
       await Promise.all(
         jars.map((j, idx) => {
           const x = slotXs[j.pos] - jarW / 2;
           const y = slotYs[j.pos] + kick * (idx - 1) * 0.55;
-          const rot = (Math.random() * 34 - 17);
+          const rot = (rand() * 34 - 17);
           return tweenJar(j.el, x, y, rot, ms);
         })
       );
@@ -944,25 +977,39 @@
 
       const forcedChoiceIndex = Number(forcedOutcome_?.choiceIndex);
       const forcedMultiplier = Number(forcedOutcome_?.multiplier);
+      const serverPayoutMode = window.__wheelPayoutMode === "server";
+
+      let sharedJar = null;
 
       if (Number.isInteger(forcedChoiceIndex) && forcedChoiceIndex >= 0 && forcedChoiceIndex < 3) {
-        const forcedJarByOrigin = jars.find((jj) => jj.origin === forcedChoiceIndex);
-        if (forcedJarByOrigin) {
-          selectedJar = forcedJarByOrigin;
-        }
+        sharedJar = jars.find((jj) => jj.origin === forcedChoiceIndex) || null;
       }
 
-      if (!selectedJar && Number.isFinite(forcedMultiplier)) {
-        const forcedJarByMult = jars.find((jj) => Number(jj.mult) === forcedMultiplier);
-        if (forcedJarByMult) selectedJar = forcedJarByMult;
+      if (!sharedJar && Number.isFinite(forcedMultiplier)) {
+        const sameMult = jars
+          .filter((jj) => Number(jj.mult) === forcedMultiplier)
+          .sort((a, b) => a.origin - b.origin);
+        if (sameMult.length) sharedJar = sameMult[0];
+      }
+
+      if (!sharedJar) {
+        const sharedPickRand = scopedRand("jar-shared-pick");
+        sharedJar = jars[Math.floor(sharedPickRand() * jars.length)] || jars[0];
+      }
+
+      if (serverPayoutMode) {
+        selectedJar = sharedJar;
+      } else if (!selectedJar && sharedJar && Number.isFinite(forcedMultiplier)) {
+        selectedJar = sharedJar;
       }
 
       // auto-pick if user didn't choose
       if (!selectedJar) {
-        selectedJar = jars[(Math.random() * jars.length) | 0];
-        jars.forEach((x) => x.el.classList.remove("wt-jarBtn--picked"));
-        selectedJar.el.classList.add("wt-jarBtn--picked");
+        selectedJar = jars[(rand() * jars.length) | 0];
       }
+
+      jars.forEach((x) => x.el.classList.remove("wt-jarBtn--picked"));
+      selectedJar.el.classList.add("wt-jarBtn--picked");
 
       countdownEl.classList.remove("wt-countdown--show");
 
@@ -1086,6 +1133,8 @@
       window.__bonusIsRunning = () => !!(window.__wildTimeSession && window.__wildTimeSession.promise);
       return await sess.promise;
     }
+
+    setSessionRng(`WildTime:${bonusId || sessionKey}`);
 
     const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 15;
     const remainingSec = Number.isFinite(opts?.remainingSec) ? Math.max(1, Math.ceil(opts.remainingSec)) : null;

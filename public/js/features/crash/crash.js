@@ -153,7 +153,11 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     if (!elAmount) return;
 
     try {
-      const res = await fetch(`/api/balance?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
+      const initData = getInitData();
+      const res = await fetch(`/api/balance?userId=${encodeURIComponent(userId)}`, {
+        cache: "no-store",
+        headers: initData ? { "x-telegram-init-data": initData } : undefined
+      });
       const data = await res.json().catch(() => null);
       if (!data?.ok) return;
 
@@ -2003,7 +2007,13 @@ function showToast(text, opts = {}) {
           return;
         }
     
-        const roundId = `crash_${state.roundId}_${getUserId()}`;
+        const userId = getUserId();
+        const initData = getInitData();
+        if (!initData) {
+          throw new Error("Telegram auth required");
+        }
+
+        const roundId = `crash_${state.roundId}_${userId}`;
     
         // Deduct balance
         await apiDeposit({
@@ -2017,7 +2027,9 @@ function showToast(text, opts = {}) {
         // Send bet to server
         sendWS({
           type: 'placeBet',
-          userId: getUserId(),
+          userId,
+          initData,
+          roundId,
           amount: rounded,
           currency,
           userName: getUserName(),
@@ -2068,22 +2080,19 @@ function showToast(text, opts = {}) {
           return;
         }
     
-        // Credit balance
-        await apiDeposit({
-          amount: payout,
-          currency,
-          type: "crash_win",
-          roundId: `crash_${state.roundId}_${getUserId()}`,
-          depositId: `crash_win_${getUserId()}_${state.roundId}_${Date.now()}`
-        });
-    
+        const userId = getUserId();
+        const initData = getInitData();
+        if (!initData) {
+          throw new Error("Telegram auth required");
+        }
+
         // Send claim to server
         sendWS({
           type: 'claim',
-          userId: getUserId()
+          userId,
+          initData,
+          roundId: `crash_${state.roundId}_${userId}`
         });
-    
-        await refreshTopBalance();
     
       } catch (e) {
         setStatus(`Claim failed: ${e.message}`);
