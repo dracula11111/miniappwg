@@ -3988,6 +3988,64 @@ app.get("/api/relayer/rpc-health", async (req, res) => {
   }
 });
 
+// Admin: import gift from relayer Saved Gifts to market by public link (no transfer needed).
+app.post("/api/admin/relayer/import-market-gift", requireAdminKey, async (req, res) => {
+  try {
+    const giftLink = String(req.body?.giftLink || req.body?.link || req.body?.url || "").trim();
+    if (!giftLink) {
+      return res.status(400).json({ ok: false, code: "BAD_LINK", error: "giftLink required" });
+    }
+
+    const rpcPort = Math.max(1, Math.min(65535, Number(process.env.RELAYER_RPC_PORT || 3300) || 3300));
+    const rpcUrl = String(
+      process.env.RELAYER_RPC_URL ||
+      process.env.RELAYER_SERVER ||
+      `http://127.0.0.1:${rpcPort}`
+    ).replace(/\/+$/, "");
+    const secret = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "").trim();
+    if (!secret) {
+      return res.status(500).json({ ok: false, code: "RELAYER_NOT_CONFIGURED", error: "Relayer secret is not configured" });
+    }
+
+    let rpcResponse = null;
+    try {
+      rpcResponse = await fetch(`${rpcUrl}/rpc/market/import-by-link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${secret}`
+        },
+        body: JSON.stringify({ giftLink })
+      });
+    } catch (e) {
+      return res.status(502).json({
+        ok: false,
+        code: "RELAYER_UNREACHABLE",
+        error: e?.message || "Relayer RPC unreachable"
+      });
+    }
+
+    const body = await rpcResponse.json().catch(() => null);
+    if (!rpcResponse.ok || !body?.ok) {
+      return res.status(rpcResponse.status || 502).json({
+        ok: false,
+        code: String(body?.code || "RELAYER_IMPORT_FAILED"),
+        error: String(body?.error || `Relayer RPC error (${rpcResponse.status})`)
+      });
+    }
+
+    return res.json({
+      ok: true,
+      code: String(body.code || "IMPORTED"),
+      relisted: !!body.relisted,
+      parsed: body.parsed || null,
+      item: body.item || null
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, code: "IMPORT_FAILED", error: e?.message || "import failed" });
+  }
+});
+
 // Admin: add gifts to inventory (optional). If ADMIN_KEY is set, require header x-admin-key.
 app.post("/api/admin/inventory/add", async (req, res) => {
   try {

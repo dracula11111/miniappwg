@@ -218,6 +218,73 @@ function safeFileBase(s) {
     .slice(0, 48) || "gift";
 }
 
+function normalizeGiftSlugForCompare(slug) {
+  return String(slug || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .trim();
+}
+
+function parseNftGiftSlugAndNum(raw) {
+  const source = String(raw || "")
+    .replace(/[#?].*$/, "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  if (!source) return null;
+
+  const match = source.match(/^([a-zA-Z0-9_-]+)-(\d+)$/);
+  if (!match) return null;
+
+  const slug = String(match[1] || "").trim();
+  const num = Number(match[2]);
+  if (!slug || !Number.isInteger(num) || num <= 0) return null;
+
+  const slugNorm = normalizeGiftSlugForCompare(slug);
+  if (!slugNorm) return null;
+
+  return { slug, slugNorm, num };
+}
+
+function parseNftGiftLink(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+
+  const direct = parseNftGiftSlugAndNum(raw);
+  if (direct) return direct;
+
+  try {
+    const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const u = new URL(withProto);
+    const host = String(u.hostname || "").toLowerCase();
+    if (host !== "t.me") return null;
+    const parts = String(u.pathname || "").split("/").filter(Boolean);
+    if (parts.length < 2 || String(parts[0]).toLowerCase() !== "nft") return null;
+    return parseNftGiftSlugAndNum(parts[1]);
+  } catch {
+    return null;
+  }
+}
+
+function firstNftGiftLinkFromText(rawText) {
+  const text = String(rawText || "").trim();
+  if (!text) return null;
+
+  const regex = /(?:https?:\/\/)?t\.me\/nft\/[a-zA-Z0-9_-]+-\d+(?:[?#][^\s]*)?/gi;
+  const matches = text.match(regex) || [];
+  for (const candidateRaw of matches) {
+    const candidate = String(candidateRaw || "").trim().replace(/[),.;!?]+$/g, "");
+    if (!candidate) continue;
+    const parsed = parseNftGiftLink(candidate);
+    if (parsed) return { raw: candidate, parsed };
+  }
+  return null;
+}
+
+function canonicalNftGiftLink(parsed) {
+  if (!parsed || !parsed.slug || !parsed.num) return "";
+  return `https://t.me/nft/${parsed.slug}-${parsed.num}`;
+}
+
 
 function fragmentMediumPreviewUrlFromSlug(slug) {
   const s = String(slug || "").trim();
@@ -826,8 +893,8 @@ async function run({ mode = "run" } = {}) {
   const client = await makeClient(SESSION_STR);
   await client.connect();
 
-  // RPC server: allows backend to request withdrawals (transfer gifts)
-  if (mode !== "sync") startRpcServer(client);
+  // RPC server: allows backend to request withdrawals and manual market imports.
+  if (mode !== "sync") startRpcServer(client, { importMarketGiftByLink });
 
   console.log("[Relayer] ✅ Connected. Listening gifts...");
   console.log("[Relayer] SERVER:", SERVER);
@@ -855,6 +922,8 @@ async function run({ mode = "run" } = {}) {
 
   const processed = new Set();
   const processing = new Set();
+  const processedTextImports = new Set();
+  const processingTextImports = new Set();
   const seenSavedGiftKeys = new Set();
 
   async function handleGiftMessage(msg, origin = "RAW", { notify = true } = {}) {
@@ -1078,6 +1147,217 @@ async function run({ mode = "run" } = {}) {
       console.log("[Relayer] ❌ handler error:", e?.message || e);
     } finally {
       processing.delete(key);
+    }
+  }
+
+  async function findSavedGiftBySlugAndNum({ slugNorm, num }) {
+    const targetSlug = normalizeGiftSlugForCompare(slugNorm);
+    const targetNum = Number(num);
+    if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) return null;
+
+    let offset = "";
+    for (let page = 0; page < SAVED_GIFTS_MAX_PAGES; page++) {
+      const res = await client.invoke(new Api.payments.GetSavedStarGifts({
+        peer: "me",
+        offset,
+        limit: SAVED_GIFTS_PAGE_LIMIT
+      }));
+
+      const gifts = Array.isArray(res?.gifts) ? res.gifts : [];
+      if (!gifts.length) break;
+
+      for (const savedGift of gifts) {
+        const gift = savedGift?.gift || null;
+        const savedSlug = normalizeGiftSlugForCompare(gift?.slug || "");
+        const savedNum = Number(gift?.num ?? gift?.number ?? NaN);
+        if (savedSlug && savedSlug === targetSlug && Number.isInteger(savedNum) && savedNum === targetNum) {
+          return savedGift;
+        }
+      }
+
+      const nextOffset = String(res?.nextOffset ?? res?.next_offset ?? "").trim();
+      if (!nextOffset || nextOffset === offset) break;
+      offset = nextOffset;
+    }
+    return null;
+  }
+
+  function buildMarketItemFromSavedGift(savedGift) {
+    const rawMsgId = Number(savedGift?.msgId ?? savedGift?.msg_id);
+    if (!Number.isInteger(rawMsgId) || rawMsgId <= 0) {
+      throw new Error("MESSAGE_ID_MISSING");
+    }
+
+    const gift = savedGift?.gift || null;
+    if (!gift || typeof gift !== "object") {
+      throw new Error("GIFT_PAYLOAD_INVALID");
+    }
+    if (!isNftGift(gift)) {
+      throw new Error("NOT_NFT");
+    }
+
+    const title = String(gift?.title || gift?.name || "Gift").trim() || "Gift";
+    const slug = String(gift?.slug || "").trim();
+    const giftId = gift?.id ?? gift?.giftId ?? null;
+    const numRaw = Number(gift?.num ?? gift?.number ?? NaN);
+    const num = Number.isInteger(numRaw) && numRaw > 0 ? numRaw : null;
+    const numberText = num != null ? formatNum(num) : "";
+    const msgId = String(rawMsgId);
+
+    const fromPeer = savedGift?.fromId || savedGift?.from_id || null;
+    const peerK = peerKey(fromPeer) || "saved";
+    const eventKey = `tg_saved_${msgId}`;
+    const assets = extractGiftAssets(gift);
+
+    const tgPayload = {
+      kind: "star_gift",
+      giftId: giftId != null ? String(giftId) : null,
+      slug: slug || null,
+      num,
+      collectible: !!assets.backdrop,
+      model: {
+        name: assets.modelName || null,
+        image: ""
+      },
+      pattern: assets.patternName
+        ? { name: assets.patternName || null, image: "" }
+        : null,
+      backdrop: assets.backdrop || null,
+      peerKey: peerK,
+      messageId: msgId,
+      eventKey
+    };
+
+    const marketItem = {
+      id: `m_${slug || giftId || "gift"}_${String(num ?? "n")}_${peerK}_${msgId}`,
+      sourceKey: eventKey,
+      name: title,
+      number: numberText,
+      image: "",
+      previewUrl: fragmentMediumPreviewUrlFromSlug(slug),
+      priceTon: null,
+      createdAt: Date.now(),
+      tg: tgPayload
+    };
+
+    return { marketItem, title, numberText, msgId, slug, num };
+  }
+
+  async function importMarketGiftByLink(giftLinkRaw) {
+    const parsed = parseNftGiftLink(giftLinkRaw);
+    if (!parsed) {
+      return { ok: false, code: "BAD_LINK", error: "Invalid gift link. Expected https://t.me/nft/<Slug>-<Number>" };
+    }
+
+    let savedGift = null;
+    try {
+      savedGift = await findSavedGiftBySlugAndNum({ slugNorm: parsed.slugNorm, num: parsed.num });
+    } catch (e) {
+      return { ok: false, code: "SAVED_GIFTS_FETCH_FAILED", error: e?.message || "Failed to query Saved Gifts" };
+    }
+
+    if (!savedGift) {
+      return { ok: false, code: "GIFT_NOT_FOUND", error: "Gift not found in relayer Saved Gifts" };
+    }
+
+    let built = null;
+    try {
+      built = buildMarketItemFromSavedGift(savedGift);
+    } catch (e) {
+      const code = String(e?.message || "BUILD_FAILED");
+      if (code === "NOT_NFT") {
+        return { ok: false, code, error: "Gift is not NFT/collectible" };
+      }
+      if (code === "MESSAGE_ID_MISSING") {
+        return { ok: false, code, error: "Gift has no messageId in Saved Gifts" };
+      }
+      return { ok: false, code: "BUILD_FAILED", error: code };
+    }
+
+    const addRes = await addToMarket({ item: built.marketItem });
+    if (!addRes?.ok) {
+      return {
+        ok: false,
+        code: "MARKET_ADD_FAILED",
+        error: shortErrorText(addRes?.json?.error || addRes?.text || `HTTP ${addRes?.status || 0}`)
+      };
+    }
+
+    const marketItem = addRes?.json?.item || built.marketItem;
+    return {
+      ok: true,
+      code: "IMPORTED",
+      relisted: !!addRes?.json?.relisted,
+      parsed: { slug: parsed.slug, num: parsed.num },
+      item: marketItem
+    };
+  }
+
+  async function sendCommandReply(msg, fromId, message) {
+    const targets = [
+      msg?.peerId || msg?.peer_id || null,
+      fromId || null
+    ].filter(Boolean);
+    const used = new Set();
+    for (const target of targets) {
+      const key = String(target);
+      if (used.has(key)) continue;
+      used.add(key);
+      try {
+        await client.sendMessage(target, { message });
+        return true;
+      } catch {}
+    }
+    return false;
+  }
+
+  async function handleAdminImportTextMessage(msg, origin = "NewMessage") {
+    if (!msg || msg.id == null || msg.action) return false;
+
+    const found = firstNftGiftLinkFromText(msg.message);
+    if (!found?.parsed) return false;
+
+    const peerK = peerKey(msg.peerId);
+    const msgId = String(msg.id);
+    const cmdKey = `${peerK}:${msgId}`;
+    if (processedTextImports.has(cmdKey) || processingTextImports.has(cmdKey)) return true;
+    processingTextImports.add(cmdKey);
+
+    try {
+      const fromId = resolveMessageFromId(msg) || "";
+      const isFromAdmin = isAdmin(fromId);
+      const giftLink = canonicalNftGiftLink(found.parsed) || found.raw;
+      if (!isFromAdmin) {
+        console.log(`[Relayer][CMD] rejected non-admin import request from=${fromId || "unknown"} msgId=${msgId} origin=${origin} link="${giftLink}"`);
+        await sendCommandReply(msg, fromId, "Forbidden: only admin can import market gifts by link.");
+        processedTextImports.add(cmdKey);
+        return true;
+      }
+
+      console.log(`[Relayer][CMD] admin import request from=${fromId} msgId=${msgId} origin=${origin} link="${giftLink}"`);
+      const result = await importMarketGiftByLink(giftLink);
+      if (!result?.ok) {
+        const reason = shortErrorText(result?.error || result?.code || "import failed");
+        await sendCommandReply(msg, fromId, `Import failed: ${reason}`);
+        processedTextImports.add(cmdKey);
+        return true;
+      }
+
+      const name = String(result?.item?.name || "Gift");
+      const numberText = String(result?.item?.number || "").trim();
+      const label = numberText ? `${name} #${numberText}` : name;
+      const relisted = result?.relisted ? " (relisted)" : "";
+      await sendCommandReply(msg, fromId, `Added to market: ${label}${relisted}`);
+      processedTextImports.add(cmdKey);
+      return true;
+    } catch (e) {
+      const errText = shortErrorText(e?.message || e || "command failed");
+      const fromId = resolveMessageFromId(msg) || "";
+      console.log(`[Relayer][CMD] import handler error msgId=${String(msg.id)}:`, errText);
+      await sendCommandReply(msg, fromId, `Import failed: ${errText}`);
+      return true;
+    } finally {
+      processingTextImports.delete(cmdKey);
     }
   }
 
@@ -1385,6 +1665,7 @@ async function run({ mode = "run" } = {}) {
       const unamePart = meta?.username ? ` username=@${meta.username}` : "";
       const idPart = meta?.id ? ` id=${meta.id}` : "";
       console.log(`[Relayer][USER_MSG] from="${meta?.label || "unknown"}"${unamePart}${idPart} msgId=${String(msg.id)} text="${text}"`);
+      await handleAdminImportTextMessage(msg, "NewMessage");
       return;
     }
 
@@ -1575,7 +1856,7 @@ async function doTransferStarGift(client, { msgId, toPeer }) {
 }
 
 let rpcStarted = false;
-function startRpcServer(client) {
+function startRpcServer(client, hooks = {}) {
   if (rpcStarted) return;
   rpcStarted = true;
 
@@ -1607,6 +1888,50 @@ function startRpcServer(client) {
       }
 
       return res.json({ ok: true, paid: !!result.paid });
+    } catch (e) {
+      return res.status(500).json({ ok: false, code: "RELAYER_ERROR", error: e?.message || "error" });
+    }
+  });
+
+  app.post("/rpc/market/import-by-link", async (req, res) => {
+    try {
+      if (!rpcAuthOk(req)) return res.status(403).json({ ok: false, code: "FORBIDDEN", error: "forbidden" });
+
+      const giftLink = String(req.body?.giftLink || req.body?.link || req.body?.url || "").trim();
+      if (!giftLink) {
+        return res.status(400).json({ ok: false, code: "BAD_LINK", error: "giftLink required" });
+      }
+
+      const importer = hooks?.importMarketGiftByLink;
+      if (typeof importer !== "function") {
+        return res.status(503).json({ ok: false, code: "IMPORT_NOT_READY", error: "import handler not ready" });
+      }
+
+      const result = await importer(giftLink);
+      if (!result?.ok) {
+        const code = String(result?.code || "IMPORT_FAILED");
+        const status = (
+          code === "BAD_LINK" ? 400 :
+          code === "GIFT_NOT_FOUND" ? 404 :
+          code === "NOT_NFT" ? 409 :
+          code === "MESSAGE_ID_MISSING" ? 422 :
+          code === "SAVED_GIFTS_FETCH_FAILED" ? 502 :
+          500
+        );
+        return res.status(status).json({
+          ok: false,
+          code,
+          error: String(result?.error || code)
+        });
+      }
+
+      return res.json({
+        ok: true,
+        code: String(result.code || "IMPORTED"),
+        relisted: !!result.relisted,
+        parsed: result.parsed || null,
+        item: result.item || null
+      });
     } catch (e) {
       return res.status(500).json({ ok: false, code: "RELAYER_ERROR", error: e?.message || "error" });
     }

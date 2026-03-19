@@ -259,6 +259,16 @@
         </div>
 
         <div class="ap-card">
+          <div class="ap-label">Relayer Import</div>
+          <div class="ap-sub" style="margin-top:-4px; opacity:.85">Import gift to Market from relayer Saved Gifts via link</div>
+
+          <div class="ap-row" style="margin-top:10px">
+            <input class="ap-input" id="apRelayerGiftLink" placeholder="https://t.me/nft/PoolFloat-117217" />
+            <button class="ap-btn primary" id="apRelayerImportBtn">Import</button>
+          </div>
+        </div>
+
+        <div class="ap-card">
           <div class="ap-label">Logs</div>
           <div class="ap-log" id="apLog"></div>
         </div>
@@ -274,6 +284,8 @@
     const invNameEl = $('#apInvName', panel);
     const invCountEl = $('#apInvCount', panel);
     const invAddBtn = $('#apInvAdd', panel);
+    const relayerGiftLinkEl = $('#apRelayerGiftLink', panel);
+    const relayerImportBtn = $('#apRelayerImportBtn', panel);
 
     // try to auto-fill userId from Telegram WebApp
     try {
@@ -302,6 +314,24 @@
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || j.ok !== true) {
         throw new Error((j && j.error) ? j.error : `HTTP ${r.status}`);
+      }
+      return j;
+    }
+
+    async function adminImportRelayerGift(giftLink) {
+      const headers = { 'Content-Type': 'application/json' };
+      const adminKey = localStorage.getItem('ADMIN_KEY');
+      if (adminKey) headers['x-admin-key'] = adminKey;
+
+      const r = await fetch('/api/admin/relayer/import-market-gift', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ giftLink }),
+      });
+
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok !== true) {
+        throw new Error((j && (j.error || j.code)) ? (j.error || j.code) : `HTTP ${r.status}`);
       }
       return j;
     }
@@ -346,6 +376,30 @@
       } finally {
         invAddBtn.disabled = false;
         invAddBtn.textContent = 'Add';
+      }
+    });
+
+    relayerImportBtn.addEventListener('click', async () => {
+      const link = String(relayerGiftLinkEl?.value || '').trim();
+      if (!link) {
+        log('Relayer import: gift link required', 'warn');
+        return;
+      }
+
+      try {
+        relayerImportBtn.disabled = true;
+        relayerImportBtn.textContent = 'Importing...';
+        const result = await adminImportRelayerGift(link);
+        const itemName = String(result?.item?.name || 'Gift');
+        const itemNumber = String(result?.item?.number || '').trim();
+        const suffix = itemNumber ? ` #${itemNumber}` : '';
+        const relisted = result?.relisted ? ' (relisted)' : '';
+        log(`Relayer import: added to market <b>${itemName}${suffix}</b>${relisted}`, 'ok');
+      } catch (e) {
+        log(`Relayer import error: ${e?.message || e}`, 'err');
+      } finally {
+        relayerImportBtn.disabled = false;
+        relayerImportBtn.textContent = 'Import';
       }
     });
 
