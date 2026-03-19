@@ -1169,7 +1169,7 @@ async function run({ mode = "run" } = {}) {
     const targetSlug = normalizeGiftSlugForCompare(slugNorm);
     const targetNum = Number(num);
     if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) {
-      return { gift: null, scanned: 0, pages: 0 };
+      return { gift: null, scanned: 0, pages: 0, matchMode: "", candidates: [] };
     }
 
     const limit = Math.max(1, Math.min(200, Number(pageLimit) || SAVED_GIFTS_PAGE_LIMIT));
@@ -1177,6 +1177,11 @@ async function run({ mode = "run" } = {}) {
     let offset = "";
     let scanned = 0;
     let pages = 0;
+    const candidates = [];
+    const candidateSet = new Set();
+    let numberOnlyGift = null;
+    let numberOnlyKey = "";
+    let numberOnlyAmbiguous = false;
     for (let page = 0; page < pagesMax; page++) {
       pages += 1;
       const res = await client.invoke(new Api.payments.GetSavedStarGifts({
@@ -1192,9 +1197,27 @@ async function run({ mode = "run" } = {}) {
       for (const savedGift of gifts) {
         const gift = savedGift?.gift || null;
         const savedSlug = normalizeGiftSlugForCompare(gift?.slug || "");
+        const savedSlugRaw = String(gift?.slug || "").trim();
         const savedNum = Number(gift?.num ?? gift?.number ?? NaN);
+        if (savedSlugRaw && Number.isInteger(savedNum) && savedNum > 0 && candidates.length < 8) {
+          const key = `${savedSlugRaw}-${savedNum}`;
+          if (!candidateSet.has(key)) {
+            candidateSet.add(key);
+            candidates.push(key);
+          }
+        }
         if (savedSlug && savedSlug === targetSlug && Number.isInteger(savedNum) && savedNum === targetNum) {
-          return { gift: savedGift, scanned, pages };
+          return { gift: savedGift, scanned, pages, matchMode: "exact", candidates };
+        }
+
+        if (Number.isInteger(savedNum) && savedNum === targetNum) {
+          const currentKey = `${savedSlug || "no_slug"}:${savedNum}`;
+          if (!numberOnlyGift) {
+            numberOnlyGift = savedGift;
+            numberOnlyKey = currentKey;
+          } else if (numberOnlyKey !== currentKey) {
+            numberOnlyAmbiguous = true;
+          }
         }
       }
 
@@ -1202,7 +1225,10 @@ async function run({ mode = "run" } = {}) {
       if (!nextOffset || nextOffset === offset) break;
       offset = nextOffset;
     }
-    return { gift: null, scanned, pages };
+    if (numberOnlyGift && !numberOnlyAmbiguous) {
+      return { gift: numberOnlyGift, scanned, pages, matchMode: "number_only", candidates };
+    }
+    return { gift: null, scanned, pages, matchMode: "", candidates };
   }
 
   async function findGiftActionMessageBySlugAndNum({
@@ -1214,7 +1240,7 @@ async function run({ mode = "run" } = {}) {
     const targetSlug = normalizeGiftSlugForCompare(slugNorm);
     const targetNum = Number(num);
     if (!targetSlug || !Number.isInteger(targetNum) || targetNum <= 0) {
-      return { message: null, scannedMessages: 0, scannedActions: 0, dialogsScanned: 0 };
+      return { message: null, scannedMessages: 0, scannedActions: 0, dialogsScanned: 0, matchMode: "", candidates: [] };
     }
 
     const dl = Math.max(1, Math.min(200, Number(dialogsLimit) || IMPORT_DIALOGS_LIMIT));
@@ -1236,6 +1262,11 @@ async function run({ mode = "run" } = {}) {
     let scannedMessages = 0;
     let scannedActions = 0;
     let dialogsScanned = 0;
+    const candidates = [];
+    const candidateSet = new Set();
+    let numberOnlyMessage = null;
+    let numberOnlyKey = "";
+    let numberOnlyAmbiguous = false;
 
     for (const d of dialogs) {
       const entity = d?.entity || d;
@@ -1258,14 +1289,35 @@ async function run({ mode = "run" } = {}) {
         if (!gift || !isNftGift(gift, action)) continue;
 
         const foundSlug = normalizeGiftSlugForCompare(gift?.slug || "");
+        const foundSlugRaw = String(gift?.slug || "").trim();
         const foundNum = Number(gift?.num ?? gift?.number ?? NaN);
+        if (foundSlugRaw && Number.isInteger(foundNum) && foundNum > 0 && candidates.length < 8) {
+          const key = `${foundSlugRaw}-${foundNum}`;
+          if (!candidateSet.has(key)) {
+            candidateSet.add(key);
+            candidates.push(key);
+          }
+        }
         if (foundSlug && foundSlug === targetSlug && Number.isInteger(foundNum) && foundNum === targetNum) {
-          return { message: m, scannedMessages, scannedActions, dialogsScanned };
+          return { message: m, scannedMessages, scannedActions, dialogsScanned, matchMode: "exact", candidates };
+        }
+
+        if (Number.isInteger(foundNum) && foundNum === targetNum) {
+          const currentKey = `${foundSlug || "no_slug"}:${foundNum}`;
+          if (!numberOnlyMessage) {
+            numberOnlyMessage = m;
+            numberOnlyKey = currentKey;
+          } else if (numberOnlyKey !== currentKey) {
+            numberOnlyAmbiguous = true;
+          }
         }
       }
     }
 
-    return { message: null, scannedMessages, scannedActions, dialogsScanned };
+    if (numberOnlyMessage && !numberOnlyAmbiguous) {
+      return { message: numberOnlyMessage, scannedMessages, scannedActions, dialogsScanned, matchMode: "number_only", candidates };
+    }
+    return { message: null, scannedMessages, scannedActions, dialogsScanned, matchMode: "", candidates };
   }
 
   function buildMarketItemFromGiftActionMessage(msg) {
@@ -1402,11 +1454,14 @@ async function run({ mode = "run" } = {}) {
 
     let built = null;
     let source = "";
+    let matchMode = "";
     let diagMsgScanned = 0;
     let diagActionScanned = 0;
     let diagDialogsScanned = 0;
     let diagSavedScanned = 0;
     let diagSavedPages = 0;
+    let diagHistoryCandidates = [];
+    let diagSavedCandidates = [];
 
     // Primary path for admin text import: search collectible gift actions in message history.
     // This avoids strict dependency on Saved Gifts state and uses real messageId for withdraw.
@@ -1420,9 +1475,11 @@ async function run({ mode = "run" } = {}) {
       diagMsgScanned = Number(fromMessages?.scannedMessages || 0);
       diagActionScanned = Number(fromMessages?.scannedActions || 0);
       diagDialogsScanned = Number(fromMessages?.dialogsScanned || 0);
+      diagHistoryCandidates = Array.isArray(fromMessages?.candidates) ? fromMessages.candidates : [];
       if (fromMessages?.message) {
         built = buildMarketItemFromGiftActionMessage(fromMessages.message);
         source = "history";
+        matchMode = String(fromMessages?.matchMode || "exact");
       }
     } catch (e) {
       console.log("[Relayer][ImportByLink] history lookup failed:", e?.message || e);
@@ -1441,6 +1498,7 @@ async function run({ mode = "run" } = {}) {
         savedGift = search?.gift || null;
         diagSavedScanned = Number(search?.scanned || 0);
         diagSavedPages = Number(search?.pages || 0);
+        diagSavedCandidates = Array.isArray(search?.candidates) ? search.candidates : [];
       } catch (e) {
         return { ok: false, code: "SAVED_GIFTS_FETCH_FAILED", error: e?.message || "Failed to query Saved Gifts" };
       }
@@ -1449,6 +1507,7 @@ async function run({ mode = "run" } = {}) {
         try {
           built = buildMarketItemFromSavedGift(savedGift);
           source = "saved";
+          matchMode = String(search?.matchMode || "exact");
         } catch (e) {
           const code = String(e?.message || "BUILD_FAILED");
           if (code === "NOT_NFT") {
@@ -1463,7 +1522,13 @@ async function run({ mode = "run" } = {}) {
     }
 
     if (!built) {
-      const hint = `Gift not found. history: dialogs=${diagDialogsScanned}, messages=${diagMsgScanned}, giftActions=${diagActionScanned}; saved: items=${diagSavedScanned}, pages=${diagSavedPages}.`;
+      const historyRefs = diagHistoryCandidates.slice(0, 5).join(", ");
+      const savedRefs = diagSavedCandidates.slice(0, 5).join(", ");
+      const refsTail = [
+        historyRefs ? `historyRefs=${historyRefs}` : "",
+        savedRefs ? `savedRefs=${savedRefs}` : ""
+      ].filter(Boolean).join("; ");
+      const hint = `Gift not found. history: dialogs=${diagDialogsScanned}, messages=${diagMsgScanned}, giftActions=${diagActionScanned}; saved: items=${diagSavedScanned}, pages=${diagSavedPages}${refsTail ? `; ${refsTail}` : ""}.`;
       return { ok: false, code: "GIFT_NOT_FOUND", error: hint };
     }
 
@@ -1481,6 +1546,7 @@ async function run({ mode = "run" } = {}) {
       ok: true,
       code: "IMPORTED",
       source,
+      matchMode,
       relisted: !!addRes?.json?.relisted,
       parsed: { slug: parsed.slug, num: parsed.num },
       item: marketItem
@@ -1541,8 +1607,9 @@ async function run({ mode = "run" } = {}) {
       const numberText = String(result?.item?.number || "").trim();
       const label = numberText ? `${name} #${numberText}` : name;
       const relisted = result?.relisted ? " (relisted)" : "";
+      const matchText = result?.matchMode === "number_only" ? " [num-only]" : "";
       const sourceText = result?.source ? ` [${String(result.source)}]` : "";
-      await sendCommandReply(msg, fromId, `Added to market: ${label}${relisted}${sourceText}`);
+      await sendCommandReply(msg, fromId, `Added to market: ${label}${relisted}${sourceText}${matchText}`);
       processedTextImports.add(cmdKey);
       return true;
     } catch (e) {
