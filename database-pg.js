@@ -843,6 +843,41 @@ export async function getUserStats(telegramId) {
   };
 }
 
+export async function getTaskProgressSignals(telegramId, options = {}) {
+  const id = BigInt(telegramId);
+  const minTonRaw = Number(options?.topUpMinTon ?? 0.5);
+  const minStarsRaw = Number(options?.topUpMinStars ?? 50);
+  const topUpMinTon = Number.isFinite(minTonRaw) && minTonRaw > 0 ? minTonRaw : 0.5;
+  const topUpMinStars = Number.isFinite(minStarsRaw) && minStarsRaw > 0 ? Math.max(1, Math.round(minStarsRaw)) : 50;
+
+  const r = await query(
+    `
+    SELECT
+      COALESCE(MAX(CASE WHEN type = 'deposit' AND currency = 'ton' AND amount > 0 THEN amount END), 0) AS max_ton_deposit,
+      COALESCE(MAX(CASE WHEN type = 'deposit' AND currency = 'stars' AND amount > 0 THEN amount END), 0) AS max_stars_deposit,
+      COUNT(*) FILTER (WHERE type IN ('wheel_win', 'crash_win') AND amount > 0) AS game_wins
+    FROM transactions
+    WHERE telegram_id = $1
+    `,
+    [id]
+  );
+
+  const row = r.rows[0] || {};
+  const maxTonDeposit = Number(row.max_ton_deposit || 0);
+  const maxStarsDeposit = Number(row.max_stars_deposit || 0);
+  const gameWins = Math.max(0, Math.trunc(Number(row.game_wins || 0)));
+
+  return {
+    topUpMinTon,
+    topUpMinStars,
+    maxTonDeposit,
+    maxStarsDeposit,
+    topUpCompleted: maxTonDeposit >= topUpMinTon || maxStarsDeposit >= topUpMinStars,
+    gameWins,
+    gameWinCompleted: gameWins > 0
+  };
+}
+
 
 // =====================
 // INVENTORY (Postgres)

@@ -1428,13 +1428,14 @@ function getBalanceSafe(currency) {
 
 
   // ====== OPEN BOTTOM SHEET ======
-  function updateCaseSheetUiMetrics() {
-    if (!document.body.classList.contains('case-sheet-open')) return;
+  function updateCaseSheetUiMetrics(force) {
+    if (!force && !document.body.classList.contains('case-sheet-open')) return;
 
     const root = document.documentElement;
     const appEl = document.querySelector('.app');
     const topbarEl = document.querySelector('.topbar');
     const logoEl = document.querySelector('.logo-header');
+    const balanceEl = document.querySelector('.topbar > .balance');
 
     if (appEl) {
       const appRect = appEl.getBoundingClientRect();
@@ -1449,6 +1450,20 @@ function getBalanceSafe(currency) {
       root.style.setProperty('--case-sheet-ui-width', `${Math.max(0, Math.round(window.innerWidth || 0))}px`);
     }
 
+    if (balanceEl) {
+      const br = balanceEl.getBoundingClientRect();
+      const bLeft = Number.isFinite(br.left) ? br.left : 0;
+      const bTop = Number.isFinite(br.top) ? br.top : 0;
+      const bWidth = (Number.isFinite(br.width) && br.width > 0) ? br.width : 0;
+      const bRight = Number.isFinite(br.right) ? br.right : 0;
+      const viewportW = Math.max(0, Number(window.innerWidth || 0));
+
+      root.style.setProperty('--case-sheet-balance-left', `${Math.max(0, bLeft).toFixed(2)}px`);
+      root.style.setProperty('--case-sheet-balance-top', `${Math.max(0, bTop).toFixed(2)}px`);
+      root.style.setProperty('--case-sheet-balance-width', `${Math.max(0, bWidth).toFixed(2)}px`);
+      root.style.setProperty('--case-sheet-balance-right', `${Math.max(0, viewportW - bRight).toFixed(2)}px`);
+    }
+
     let maxBottom = 0;
     if (topbarEl) {
       const r = topbarEl.getBoundingClientRect();
@@ -1458,8 +1473,12 @@ function getBalanceSafe(currency) {
       const r = logoEl.getBoundingClientRect();
       if (Number.isFinite(r.bottom)) maxBottom = Math.max(maxBottom, r.bottom);
     }
+    if (balanceEl) {
+      const r = balanceEl.getBoundingClientRect();
+      if (Number.isFinite(r.bottom)) maxBottom = Math.max(maxBottom, r.bottom);
+    }
 
-    const reserveTop = Math.max(96, Math.ceil(maxBottom + 10));
+    const reserveTop = Math.max(88, Math.ceil(maxBottom + 12));
     root.style.setProperty('--case-sheet-top-offset', `${reserveTop}px`);
   }
 
@@ -1475,6 +1494,10 @@ function getBalanceSafe(currency) {
     const root = document.documentElement;
     root.style.removeProperty('--case-sheet-ui-left');
     root.style.removeProperty('--case-sheet-ui-width');
+    root.style.removeProperty('--case-sheet-balance-left');
+    root.style.removeProperty('--case-sheet-balance-top');
+    root.style.removeProperty('--case-sheet-balance-width');
+    root.style.removeProperty('--case-sheet-balance-right');
     root.style.removeProperty('--case-sheet-top-offset');
   }
 
@@ -1483,6 +1506,9 @@ function getBalanceSafe(currency) {
 
     caseSheetLockedScrollY = window.scrollY || window.pageYOffset || 0;
     caseSheetPrevBodyTop = document.body.style.top || '';
+
+    // Capture current top UI geometry before any sheet-open styles are applied.
+    updateCaseSheetUiMetrics(true);
 
     document.documentElement.classList.add('case-sheet-open');
     document.body.classList.add('case-sheet-open');

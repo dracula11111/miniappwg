@@ -1,4 +1,4 @@
-// server.js - CLEAN VERSION
+// server.js 
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
 
 import "dotenv/config";
@@ -252,6 +252,44 @@ function createMemoryDb() {
         total_won,
         total_wagered,
         total_bets
+      };
+    },
+    async getTaskProgressSignals(telegramId, options = {}) {
+      const k = ensure(telegramId);
+      const list = txs.get(k) || [];
+      const minTonRaw = Number(options?.topUpMinTon ?? 0.5);
+      const minStarsRaw = Number(options?.topUpMinStars ?? 50);
+      const topUpMinTon = Number.isFinite(minTonRaw) && minTonRaw > 0 ? minTonRaw : 0.5;
+      const topUpMinStars = Number.isFinite(minStarsRaw) && minStarsRaw > 0 ? Math.max(1, Math.round(minStarsRaw)) : 50;
+
+      let maxTonDeposit = 0;
+      let maxStarsDeposit = 0;
+      let gameWins = 0;
+
+      for (const tx of list) {
+        const type = String(tx?.type || "").toLowerCase();
+        const cur = String(tx?.currency || "").toLowerCase();
+        const amount = Number(tx?.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+
+        if (type === "deposit") {
+          if (cur === "ton") maxTonDeposit = Math.max(maxTonDeposit, amount);
+          if (cur === "stars") maxStarsDeposit = Math.max(maxStarsDeposit, amount);
+        }
+
+        if (type === "wheel_win" || type === "crash_win") {
+          gameWins += 1;
+        }
+      }
+
+      return {
+        topUpMinTon,
+        topUpMinStars,
+        maxTonDeposit,
+        maxStarsDeposit,
+        topUpCompleted: maxTonDeposit >= topUpMinTon || maxStarsDeposit >= topUpMinStars,
+        gameWins,
+        gameWinCompleted: gameWins > 0
       };
     },
     async ensurePromoSeed() {
@@ -3215,6 +3253,12 @@ app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
 
 const TASK_SUBSCRIBE_KEY = "subscribe_wildgift_channel_v1";
 const TASK_SUBSCRIBE_REWARD_STARS = 1;
+const TASK_TOP_UP_KEY = "top_up_05_v1";
+const TASK_TOP_UP_REWARD_STARS = 10;
+const TASK_TOP_UP_MIN_TON = 0.5;
+const TASK_TOP_UP_MIN_STARS = 50;
+const TASK_WIN_ONCE_KEY = "win_once_wheel_crash_v1";
+const TASK_WIN_ONCE_REWARD_STARS = 10;
 const TASK_SUBSCRIBE_CHANNEL_DEFAULT = "@wildgift_channel";
 const TASK_SUBSCRIBE_CHANNEL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL || TASK_SUBSCRIBE_CHANNEL_DEFAULT).trim() || TASK_SUBSCRIBE_CHANNEL_DEFAULT;
 const TASK_SUBSCRIBE_CHANNEL_URL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL_URL || "").trim();
@@ -3584,6 +3628,227 @@ app.post("/api/tasks/channel-subscription/claim", requireTelegramUser, async (re
     });
   } catch (error) {
     console.error("[Tasks] claim error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to claim reward" });
+  }
+});
+
+app.get("/api/tasks/top-up/status", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const claimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_TOP_UP_KEY))
+      : false;
+    const signals = claimed
+      ? {
+          topUpMinTon: TASK_TOP_UP_MIN_TON,
+          topUpMinStars: TASK_TOP_UP_MIN_STARS,
+          maxTonDeposit: 0,
+          maxStarsDeposit: 0,
+          topUpCompleted: true
+        }
+      : await getTaskProgressSignalsForUser(userId);
+
+    const completed = claimed ? true : !!signals.topUpCompleted;
+
+    return res.json({
+      ok: true,
+      taskKey: TASK_TOP_UP_KEY,
+      claimed,
+      completed,
+      canClaim: completed && !claimed,
+      requirement: {
+        tonMin: Number(signals.topUpMinTon || TASK_TOP_UP_MIN_TON),
+        starsMin: Number(signals.topUpMinStars || TASK_TOP_UP_MIN_STARS)
+      },
+      progress: {
+        maxTonDeposit: Number(signals.maxTonDeposit || 0),
+        maxStarsDeposit: Number(signals.maxStarsDeposit || 0)
+      }
+    });
+  } catch (error) {
+    console.error("[Tasks] top-up status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load task status" });
+  }
+});
+
+app.post("/api/tasks/top-up/claim", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const preferredCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+    const alreadyClaimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_TOP_UP_KEY))
+      : false;
+
+    if (alreadyClaimed) {
+      const balance = await db.getUserBalance(userId).catch(() => null);
+      const newBalance = preferredCurrency === "ton"
+        ? Number(balance?.ton_balance || 0)
+        : Number(balance?.stars_balance || 0);
+      return res.json({
+        ok: true,
+        claimed: true,
+        alreadyClaimed: true,
+        currency: preferredCurrency,
+        added: 0,
+        newBalance,
+        tonBalance: Number(balance?.ton_balance || 0),
+        starsBalance: Number(balance?.stars_balance || 0)
+      });
+    }
+
+    const signals = await getTaskProgressSignalsForUser(userId);
+    if (!signals.topUpCompleted) {
+      return res.status(409).json({
+        ok: false,
+        code: "TASK_NOT_COMPLETED",
+        error: `Top up at least ${signals.topUpMinTon} TON or ${signals.topUpMinStars} Stars first`
+      });
+    }
+
+    if (typeof db.awardTaskReward !== "function") {
+      return res.status(503).json({ ok: false, code: "TASK_DB_NOT_READY", error: "Task rewards are not configured" });
+    }
+
+    const reward = await resolveTaskRewardForCurrency(TASK_TOP_UP_REWARD_STARS, preferredCurrency);
+    const claimResult = await db.awardTaskReward(
+      userId,
+      TASK_TOP_UP_KEY,
+      reward.currency,
+      reward.amount,
+      "Task reward: top up",
+      {
+        task: TASK_TOP_UP_KEY,
+        baseRewardStars: reward.baseStars,
+        requirement: {
+          tonMin: Number(signals.topUpMinTon || TASK_TOP_UP_MIN_TON),
+          starsMin: Number(signals.topUpMinStars || TASK_TOP_UP_MIN_STARS)
+        },
+        progress: {
+          maxTonDeposit: Number(signals.maxTonDeposit || 0),
+          maxStarsDeposit: Number(signals.maxStarsDeposit || 0)
+        }
+      }
+    );
+
+    try { broadcastBalanceUpdate(userId); } catch {}
+
+    return res.json({
+      ok: true,
+      claimed: true,
+      alreadyClaimed: !!claimResult?.alreadyClaimed,
+      currency: String(claimResult?.currency || reward.currency),
+      added: Number(claimResult?.added || 0),
+      newBalance: Number(claimResult?.newBalance || 0),
+      tonBalance: Number(claimResult?.tonBalance || 0),
+      starsBalance: Number(claimResult?.starsBalance || 0)
+    });
+  } catch (error) {
+    console.error("[Tasks] top-up claim error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to claim reward" });
+  }
+});
+
+app.get("/api/tasks/game-win/status", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const claimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_WIN_ONCE_KEY))
+      : false;
+    const signals = claimed
+      ? { gameWins: 1, gameWinCompleted: true }
+      : await getTaskProgressSignalsForUser(userId);
+
+    const completed = claimed ? true : !!signals.gameWinCompleted;
+
+    return res.json({
+      ok: true,
+      taskKey: TASK_WIN_ONCE_KEY,
+      claimed,
+      completed,
+      canClaim: completed && !claimed,
+      requirement: { winsMin: 1 },
+      progress: { wins: Math.max(0, Math.trunc(Number(signals.gameWins || 0))) }
+    });
+  } catch (error) {
+    console.error("[Tasks] game-win status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load task status" });
+  }
+});
+
+app.post("/api/tasks/game-win/claim", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const preferredCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+    const alreadyClaimed = typeof db.hasTaskClaim === "function"
+      ? !!(await db.hasTaskClaim(userId, TASK_WIN_ONCE_KEY))
+      : false;
+
+    if (alreadyClaimed) {
+      const balance = await db.getUserBalance(userId).catch(() => null);
+      const newBalance = preferredCurrency === "ton"
+        ? Number(balance?.ton_balance || 0)
+        : Number(balance?.stars_balance || 0);
+      return res.json({
+        ok: true,
+        claimed: true,
+        alreadyClaimed: true,
+        currency: preferredCurrency,
+        added: 0,
+        newBalance,
+        tonBalance: Number(balance?.ton_balance || 0),
+        starsBalance: Number(balance?.stars_balance || 0)
+      });
+    }
+
+    const signals = await getTaskProgressSignalsForUser(userId);
+    if (!signals.gameWinCompleted) {
+      return res.status(409).json({
+        ok: false,
+        code: "TASK_NOT_COMPLETED",
+        error: "Win once in Wheel or Crash first"
+      });
+    }
+
+    if (typeof db.awardTaskReward !== "function") {
+      return res.status(503).json({ ok: false, code: "TASK_DB_NOT_READY", error: "Task rewards are not configured" });
+    }
+
+    const reward = await resolveTaskRewardForCurrency(TASK_WIN_ONCE_REWARD_STARS, preferredCurrency);
+    const claimResult = await db.awardTaskReward(
+      userId,
+      TASK_WIN_ONCE_KEY,
+      reward.currency,
+      reward.amount,
+      "Task reward: win once in Wheel/Crash",
+      {
+        task: TASK_WIN_ONCE_KEY,
+        baseRewardStars: reward.baseStars,
+        wins: Math.max(0, Math.trunc(Number(signals.gameWins || 0)))
+      }
+    );
+
+    try { broadcastBalanceUpdate(userId); } catch {}
+
+    return res.json({
+      ok: true,
+      claimed: true,
+      alreadyClaimed: !!claimResult?.alreadyClaimed,
+      currency: String(claimResult?.currency || reward.currency),
+      added: Number(claimResult?.added || 0),
+      newBalance: Number(claimResult?.newBalance || 0),
+      tonBalance: Number(claimResult?.tonBalance || 0),
+      starsBalance: Number(claimResult?.starsBalance || 0)
+    });
+  } catch (error) {
+    console.error("[Tasks] game-win claim error:", error);
     return res.status(500).json({ ok: false, error: "Failed to claim reward" });
   }
 });
@@ -4458,6 +4723,56 @@ function markDepositProcessed(identifier) {
   if (identifier) {
     processedDeposits.set(identifier, Date.now());
   }
+}
+
+async function getTaskProgressSignalsForUser(userId) {
+  const topUpMinTon = TASK_TOP_UP_MIN_TON;
+  const topUpMinStars = TASK_TOP_UP_MIN_STARS;
+
+  if (typeof db.getTaskProgressSignals === "function") {
+    const direct = await db.getTaskProgressSignals(userId, { topUpMinTon, topUpMinStars });
+    return {
+      topUpMinTon,
+      topUpMinStars,
+      maxTonDeposit: Number(direct?.maxTonDeposit || 0),
+      maxStarsDeposit: Number(direct?.maxStarsDeposit || 0),
+      topUpCompleted: !!direct?.topUpCompleted,
+      gameWins: Math.max(0, Math.trunc(Number(direct?.gameWins || 0))),
+      gameWinCompleted: !!direct?.gameWinCompleted
+    };
+  }
+
+  // Fallback for DB drivers that don't implement task signals.
+  const tx = typeof db.getTransactionHistory === "function"
+    ? await db.getTransactionHistory(userId, 500).catch(() => [])
+    : [];
+
+  let maxTonDeposit = 0;
+  let maxStarsDeposit = 0;
+  let gameWins = 0;
+
+  for (const row of Array.isArray(tx) ? tx : []) {
+    const type = String(row?.type || "").toLowerCase();
+    const currency = String(row?.currency || "").toLowerCase();
+    const amount = Number(row?.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    if (type === "deposit") {
+      if (currency === "ton") maxTonDeposit = Math.max(maxTonDeposit, amount);
+      if (currency === "stars") maxStarsDeposit = Math.max(maxStarsDeposit, amount);
+    }
+    if (type === "wheel_win" || type === "crash_win") gameWins += 1;
+  }
+
+  return {
+    topUpMinTon,
+    topUpMinStars,
+    maxTonDeposit,
+    maxStarsDeposit,
+    topUpCompleted: maxTonDeposit >= topUpMinTon || maxStarsDeposit >= topUpMinStars,
+    gameWins,
+    gameWinCompleted: gameWins > 0
+  };
 }
 
 function cleanupProcessedWebhookEvents() {

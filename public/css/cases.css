@@ -2957,57 +2957,44 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   :root {
     --case-sheet-ui-left: 0px;
     --case-sheet-ui-width: 100vw;
+    --case-sheet-balance-left: auto;
+    --case-sheet-balance-top: calc(env(safe-area-inset-top, 0px) + 72px);
+    --case-sheet-balance-width: auto;
+    --case-sheet-balance-right: 14px;
     --case-sheet-top-offset: calc(env(safe-area-inset-top, 0px) + 118px);
   }
 
-  /* Keep top controls visible while case sheet is open */
+  /* Keep only balance pill visible while case sheet is open */
   body.case-sheet-open .topbar {
-    position: fixed;
-    top: 0;
-    left: var(--case-sheet-ui-left);
-    width: var(--case-sheet-ui-width);
-    margin: 0;
     pointer-events: none;
-    z-index: 2305;
   }
 
   body.case-sheet-open .topbar > .topbar__left,
   body.case-sheet-open .topbar > .cases-topbar-switch,
-  body.case-sheet-open .topbar > .balance {
-    pointer-events: none;
-  }
-
-  /* Keep currency switch visible while case sheet is open, but locked */
-  body.case-sheet-open .topbar > .cases-topbar-switch {
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: none !important;
-  }
-
-  /* Hard-stop currency switch interactions while case sheet is open */
-  body.case-sheet-open .topbar > .cases-topbar-switch,
-  body.case-sheet-open .topbar > .cases-topbar-switch .currency-switch,
-  body.case-sheet-open .topbar > .cases-topbar-switch .curr-btn {
-    pointer-events: none !important;
-  }
-
   body.case-sheet-open .topbar > .crash-topThemeSwitch {
     display: none !important;
     opacity: 0 !important;
     visibility: hidden !important;
+    pointer-events: none;
+  }
+
+  body.case-sheet-open .topbar > .balance {
+    position: fixed;
+    top: var(--case-sheet-balance-top);
+    left: var(--case-sheet-balance-left);
+    right: var(--case-sheet-balance-right);
+    width: var(--case-sheet-balance-width);
+    margin: 0;
+    transform: none !important;
+    z-index: 2308;
     pointer-events: none !important;
+    justify-self: auto;
+    align-self: auto;
   }
 
   body.case-sheet-open .logo-header {
-    position: fixed;
-    left: calc(var(--case-sheet-ui-left) + (var(--case-sheet-ui-width) / 2));
-    top: calc(env(safe-area-inset-top, 0px) + 22px);
-    width: min(var(--case-sheet-ui-width), 100vw);
-    margin-top: 0;
-    transform: translateX(-50%);
+    display: none !important;
     pointer-events: none;
-    z-index: 2306;
   }
 
   body.case-sheet-open .case-sheet-panel {
