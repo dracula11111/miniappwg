@@ -31,6 +31,8 @@ const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
+// Temporary safety lock: allow market buy/withdraw only for relayer admins.
+const ADMIN_ONLY_TRADING_MODE = !/^(0|false|no)$/i.test(String(process.env.ADMIN_ONLY_TRADING_MODE || "1"));
 
 const RUSSIAN_UI_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
 const RUSSIAN_UI_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
@@ -3867,6 +3869,13 @@ app.post("/api/tasks/game-win/claim", requireTelegramUser, async (req, res) => {
 app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
+    if (ADMIN_ONLY_TRADING_MODE && !isRelayerAdminUserId(userId)) {
+      return res.status(403).json({
+        ok: false,
+        code: "ADMIN_ONLY_TRADING",
+        error: "Withdraw is temporarily available only for admins"
+      });
+    }
     const { currency } = req.body || {};
     const lookup = buildInventoryLookup(req.body || {});
 
@@ -5789,6 +5798,13 @@ app.post("/api/market/items/clear", async (req, res) => {
 app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
+    if (ADMIN_ONLY_TRADING_MODE && !isRelayerAdminUserId(userId)) {
+      return res.status(403).json({
+        ok: false,
+        code: "ADMIN_ONLY_TRADING",
+        error: "Market buy is temporarily available only for admins"
+      });
+    }
     const { id, currency } = req.body || {};
     const itemId = safeMarketString(id, 128);
     if (!itemId) return res.status(400).json({ ok: false, error: "id required" });
