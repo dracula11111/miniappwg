@@ -938,6 +938,7 @@ const LABELS = {
 
 /* ===== DOM refs ===== */
 let canvas, ctx, DPR = 1;
+const wheelRootEl = document.documentElement;
 let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
@@ -947,6 +948,12 @@ let wheelPlayersPanel, wheelPlayersList;
 let currentAngle = 0;
 let rafId = 0;
 let lastTs = 0;
+let lastDrawAt = 0;
+
+document.addEventListener('visibilitychange', () => {
+  lastTs = 0;
+  lastDrawAt = 0;
+}, { passive: true });
 
 const SLICE_COUNT   = WHEEL_ORDER.length;
 const SLICE_ANGLE   = (2*Math.PI)/SLICE_COUNT;
@@ -1611,6 +1618,7 @@ function prepareCanvas(){
   canvas.height = Math.round(cssH * DPR);
   ctx = canvas.getContext('2d');
   ctx.setTransform(DPR,0,0,DPR,0,0);
+  lastDrawAt = 0;
 }
 
 
@@ -1766,6 +1774,16 @@ const alpha = (typeof style.alpha === 'number')
 
 
 /* ===== Animation loop ===== */
+function isWheelLiteRuntime() {
+  return !!(wheelRootEl?.classList?.contains('wt-lite') || wheelRootEl?.classList?.contains('wt-reduced-motion'));
+}
+
+function getWheelFrameIntervalMs(isVisibleWheel, isAnimating) {
+  if (isVisibleWheel) return isWheelLiteRuntime() ? (1000 / 36) : (1000 / 55);
+  if (isAnimating) return 1000 / 12;
+  return 1000 / 4;
+}
+
 function tick(ts){
   if (!lastTs) lastTs = ts;
   const dt = Math.min(0.033, (ts - lastTs)/1000);
@@ -1929,7 +1947,13 @@ function tick(ts){
     // Do nothing - wheel stays at current angle
   }
 
-  drawWheel(currentAngle);
+  const isVisibleWheel = !document.hidden && isWheelPageActive();
+  const isAnimating = phase === 'decelerate' || phase === 'accelerate';
+  const frameInterval = getWheelFrameIntervalMs(isVisibleWheel, isAnimating);
+  if (!lastDrawAt || (ts - lastDrawAt) >= frameInterval) {
+    drawWheel(currentAngle);
+    lastDrawAt = ts;
+  }
   rafId = requestAnimationFrame(tick);
 }
 

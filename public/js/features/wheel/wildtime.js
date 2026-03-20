@@ -61,6 +61,7 @@
   // state
   let overlay, canvas, ctx, DPR = 1;
   let raf = 0, lastTs = 0;
+  let lastDrawAt = 0;
 
   let angle = 0;
   let omega = CFG.idleOmega;
@@ -340,11 +341,13 @@
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     lastTs = 0;
+    lastDrawAt = 0;
   }
 
   function startLoop() {
     if (raf) cancelAnimationFrame(raf);
     lastTs = 0;
+    lastDrawAt = 0;
     raf = requestAnimationFrame(tick);
   }
 
@@ -595,6 +598,15 @@
   }
 
   // ---- animation loop ----
+  function getWildTimeFrameIntervalMs() {
+    const liteRuntime = document.documentElement.classList.contains("wt-lite") ||
+      document.documentElement.classList.contains("wt-reduced-motion");
+    const overlayVisible = !!(overlay && overlay.classList.contains("wt-active") && !document.hidden);
+    if (overlayVisible) return liteRuntime ? (1000 / 34) : (1000 / 55);
+    if (phase === "decel") return 1000 / 12;
+    return 1000 / 4;
+  }
+
   function tick(ts) {
     if (!lastTs) lastTs = ts;
     const dt = Math.min(0.033, (ts - lastTs) / 1000);
@@ -618,7 +630,11 @@
       angle += omega * dt;
     }
 
-    drawWheel();
+    const frameInterval = getWildTimeFrameIntervalMs();
+    if (!lastDrawAt || (ts - lastDrawAt) >= frameInterval) {
+      drawWheel();
+      lastDrawAt = ts;
+    }
     raf = requestAnimationFrame(tick);
   }
 

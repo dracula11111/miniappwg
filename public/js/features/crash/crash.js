@@ -188,8 +188,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
           <canvas id="crashSpaceCanvas" class="crash-spaceCanvas"></canvas>
           <div class="crash-spaceClouds" id="crashSpaceClouds"></div>
           <div class="crash-spaceGrass"></div>
-          <div class="crash-planet crash-planet--1"></div>
-          <div class="crash-planet crash-planet--2"></div>
           <div class="rocket" id="crashRocket"></div>
           <div class="crash-boomFx" id="crashRocketBoom"></div>
         </div>
@@ -272,7 +270,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     const spaceCloudsEl = document.getElementById("crashSpaceClouds");
     const rocketEl = document.getElementById("crashRocket");
     const boomEl = document.getElementById("crashRocketBoom");
-    const planetEls = Array.from(page?.querySelectorAll(".crash-planet") || []);
+    const timerEl = document.getElementById("crashTimer");
+    const rootEl = document.documentElement;
     const ROCKET_SPRITES = Object.freeze([
       "/images/crash/rocketSpaceTheme1.webp",
       "/images/crash/rocketSpaceTheme2.webp",
@@ -391,14 +390,28 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       cloudLayoutRoundId: -1,
       cloudFlow: [],
       cloudFlowLastAt: 0,
-      planets: [
-        { baseX: 0.24, baseY: 0.30, speed: 0.75, scale: 0.92, wobbleX: 0.08, wobbleY: 0.05 },
-        { baseX: 0.73, baseY: 0.58, speed: 0.95, scale: 1.14, wobbleX: 0.10, wobbleY: 0.06 }
-      ]
+      lastRenderAt: 0
 
     };
     function isRunPhase(phase) {
       return phase === "run" || phase === "running" || phase === "inGame";
+    }
+
+    function isCrashPageVisible() {
+      if (document.hidden) return false;
+      const pageActive = page?.classList?.contains("page-active");
+      return !!(pageActive || document.body?.classList?.contains("page-crash"));
+    }
+
+    function isLiteRuntime() {
+      return !!(rootEl?.classList?.contains("wt-lite") || rootEl?.classList?.contains("wt-reduced-motion"));
+    }
+
+    function getTargetFrameIntervalMs() {
+      if (isCrashPageVisible()) {
+        return isLiteRuntime() ? (1000 / 36) : (1000 / 55);
+      }
+      return hasActiveCrashBet() ? (1000 / 10) : (1000 / 4);
     }
 
     function makeStarPool(count = 96) {
@@ -807,7 +820,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
       const w = spaceCanvas.width;
       const h = spaceCanvas.height;
-      const maxCount = Math.min(68, state.stars.length);
+      const liteMode = isLiteRuntime();
+      const maxCount = Math.min(liteMode ? 38 : 68, state.stars.length);
       const count = Math.max(4, Math.round(6 + maxCount * Math.pow(intensity, 1.05)));
       const t = now * 0.001;
       const inRun = isRunPhase(state.phase);
@@ -845,12 +859,15 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         const x2 = x - tx * tailLen;
         const y2 = y - ty * tailLen;
 
-        const grad = spaceCtx.createLinearGradient(x, y, x2, y2);
-        grad.addColorStop(0, `rgba(255,255,255,${(alpha * 0.90).toFixed(3)})`);
-        grad.addColorStop(0.32, `rgba(188,222,255,${(alpha * 0.58).toFixed(3)})`);
-        grad.addColorStop(1, "rgba(140,190,255,0)");
-
-        spaceCtx.strokeStyle = grad;
+        if (liteMode) {
+          spaceCtx.strokeStyle = `rgba(214,234,255,${(alpha * 0.68).toFixed(3)})`;
+        } else {
+          const grad = spaceCtx.createLinearGradient(x, y, x2, y2);
+          grad.addColorStop(0, `rgba(255,255,255,${(alpha * 0.90).toFixed(3)})`);
+          grad.addColorStop(0.32, `rgba(188,222,255,${(alpha * 0.58).toFixed(3)})`);
+          grad.addColorStop(1, "rgba(140,190,255,0)");
+          spaceCtx.strokeStyle = grad;
+        }
         spaceCtx.lineWidth = 0.8 + intensity * 1.3;
         spaceCtx.beginPath();
         spaceCtx.moveTo(x, y);
@@ -862,36 +879,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         spaceCtx.arc(x, y, 0.9 + intensity * 1.1, 0, Math.PI * 2);
         spaceCtx.fill();
       }
-    }
-
-    function updatePlanets(now, mult) {
-      if (!planetEls.length) return;
-      const visible = state.theme === "space" && mult >= 10;
-      if (!visible) {
-        planetEls.forEach((el) => el.classList.remove("is-visible"));
-        return;
-      }
-
-      const boost = clamp((mult - 10) / 10, 0, 1);
-      const angleRad = (state.rocketAngleDeg * Math.PI) / 180;
-      const vx = -Math.sin(angleRad);
-      const vy = Math.cos(angleRad);
-
-      planetEls.forEach((el, idx) => {
-        const p = state.planets[idx] || state.planets[0];
-        const travel = ((now * 0.00012 * p.speed) % 1.65) - 0.35;
-        const wobbleX = Math.sin(now * 0.0004 + idx * 2.1) * p.wobbleX;
-        const wobbleY = Math.cos(now * 0.00033 + idx * 1.4) * p.wobbleY;
-        const drift = travel * (0.52 + boost * 0.32);
-        const x = p.baseX + vx * drift + wobbleX;
-        const y = p.baseY + vy * drift + wobbleY;
-        const scale = p.scale + boost * 0.28;
-
-        el.classList.add("is-visible");
-        el.style.left = `${(x * 100).toFixed(2)}%`;
-        el.style.top = `${(y * 100).toFixed(2)}%`;
-        el.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
-      });
     }
 
     function updateRocket(now) {
@@ -956,7 +943,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     function updateSpaceScene(now) {
       if (state.theme !== "space") {
         clearSpaceCanvas();
-        planetEls.forEach((el) => el.classList.remove("is-visible"));
         if (rocketEl) rocketEl.classList.add("is-hidden");
         return;
       }
@@ -975,7 +961,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
       updateCloudFlow(now);
       renderSpaceStars(now, mult);
-      updatePlanets(now, mult);
       updateExplosion(now);
     }
 
@@ -1002,7 +987,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         try { document.documentElement.style.setProperty("--crash-space-progress", "0"); } catch (_) {}
         resetSpaceRoundVisuals();
         clearSpaceCanvas();
-        planetEls.forEach((el) => el.classList.remove("is-visible"));
       } else {
         randomizeCloudLayout();
         resetSpaceRoundVisuals();
@@ -1363,7 +1347,6 @@ function handleTestCrash() {
           const seconds = getBettingSeconds() ?? 0;
           setTimer(seconds, true);
           
-          const timerEl = document.getElementById('crashTimer');
           if (timerEl) {
             timerEl.classList.toggle('is-urgent', seconds <= 3);
           }
@@ -1555,12 +1538,13 @@ function showToast(text, opts = {}) {
     }
 
     function setTimer(seconds, show) {
-      const timerEl = document.getElementById('crashTimer');
       if (!timerEl) return;
 
       if (show) {
         timerEl.textContent = seconds;
-        timerEl.style.display = 'block';
+        // Safari/iOS can mis-center absolutely-positioned block elements.
+        // Keep countdown as shrink-to-content so left:50% + translateX(-50%) stays exact.
+        timerEl.style.display = 'inline-block';
       } else {
         timerEl.style.display = 'none';
       }
@@ -1828,84 +1812,68 @@ function showToast(text, opts = {}) {
 
     
     function setActivePill(btn) {
+      if (!btn) return;
       amountRow?.querySelectorAll(".crash-pill").forEach(b => b.classList.remove("is-active"));
       btn.classList.add("is-active");
       const amt = uiBetAmount();
-      if (betTextEl) betTextEl.textContent = `Bet: ${amt}`;
+      if (betTextEl) {
+        const cur = detectCurrency();
+        const formatted = cur === "stars" ? String(Math.floor(amt)) : amt.toFixed(2);
+        betTextEl.textContent = `Bet: ${formatted}`;
+      }
+    }
+
+    const betInput = document.getElementById("crashBetInput");
+    if (betInput) {
+      betInput.addEventListener("input", () => {
+        if (state.myBet && !state.myBet.claimed) {
+          setStatus("Bet already placed");
+          return;
+        }
+        const cur = detectCurrency();
+        const val = parseNumber(betInput.value);
+        if (val <= 0) return;
+        const formatted = cur === "stars" ? Math.floor(val).toString() : val.toFixed(2);
+        if (betTextEl) betTextEl.textContent = `Bet: ${formatted}`;
+      });
+
+      betInput.addEventListener("blur", () => {
+        const cur = detectCurrency();
+        const val = parseNumber(betInput.value);
+        if (val > 0) {
+          if (cur === "stars") {
+            betInput.value = Math.max(10, Math.floor(val)).toString();
+          } else {
+            betInput.value = Math.max(0.1, Math.round(val * 100) / 100).toFixed(2);
+          }
+        } else if (betInput.value.trim() !== "") {
+          betInput.value = cur === "stars" ? "10" : "0.1";
+        }
+        renderPills();
+      });
     }
 
     amountRow?.addEventListener("click", (e) => {
-      // Обработка input изменений
-        const betInput = document.getElementById("crashBetInput");
-        if (betInput) {
-          betInput.addEventListener("input", () => {
-            if (state.myBet && !state.myBet.claimed) {
-              setStatus("Bet already placed");
-              return;
-            }
-            
-            const currency = detectCurrency();
-            const val = parseNumber(betInput.value);
-            
-            // Форматирование в реальном времени
-            if (val > 0) {
-              const formatted = currency === "stars" 
-                ? Math.floor(val).toString()
-                : val.toFixed(2);
-              
-              if (betTextEl) {
-                betTextEl.textContent = `Bet: ${formatted}`;
-              }
-            }
-          });
-          
-          // Обработка потери фокуса - применяем минимум
-          betInput.addEventListener("blur", () => {
-            const currency = detectCurrency();
-            const val = parseNumber(betInput.value);
-            
-            if (val > 0) {
-              if (currency === "stars") {
-                betInput.value = Math.max(10, Math.floor(val)).toString();
-              } else {
-                betInput.value = Math.max(0.1, Math.round(val * 100) / 100).toFixed(2);
-              }
-            } else if (betInput.value.trim() !== "") {
-              // Если введено что-то некорректное
-              betInput.value = currency === "stars" ? "10" : "0.1";
-            }
-            
-            renderPills();
-          });
+      const btn = e.target?.closest?.("button[data-amt='max']");
+      if (!btn) return;
+
+      if (state.myBet && !state.myBet.claimed) {
+        setStatus("Bet already placed");
+        return;
+      }
+
+      const top = qs("#tonAmount");
+      const cur = detectCurrency();
+      const bal = parseNumber(top?.textContent || "0");
+      if (betInput) {
+        if (cur === "stars") {
+          betInput.value = Math.max(10, Math.floor(bal)).toString();
+        } else {
+          betInput.value = Math.max(0.1, bal).toFixed(2);
         }
+      }
 
-        // Обработка кнопки Max
-        amountRow?.addEventListener("click", (e) => {
-          const btn = e.target?.closest?.("button[data-amt='max']");
-          if (!btn) return;
-          
-          if (state.myBet && !state.myBet.claimed) {
-            setStatus("Bet already placed");
-            return;
-          }
-          
-          const input = document.getElementById("crashBetInput");
-          const top = qs("#tonAmount");
-          const cur = detectCurrency();
-          const bal = parseNumber(top?.textContent || "0");
-          
-          if (input) {
-            if (cur === "stars") {
-              input.value = Math.max(10, Math.floor(bal)).toString();
-            } else {
-              input.value = Math.max(0.1, bal).toFixed(2);
-            }
-            renderPills();
-          }
-        }, { passive: true });
-
-
-
+      renderPills();
       setActivePill(btn);
     }, { passive: true });
 
@@ -2532,14 +2500,25 @@ const yOf = (v) => {
       currencyPollTimer = 0;
     }
 
-    let raf = 0;
+    let rafId = 0;
     let running = false;
+    const onVisibilityChange = () => {
+      state.lastFrameAt = 0;
+      state.lastRenderAt = 0;
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange, { passive: true });
 
     function loop(now) {
       if (!now) now = performance.now();
-    
+
+      const frameInterval = getTargetFrameIntervalMs();
+      if (state.lastRenderAt && (now - state.lastRenderAt) < frameInterval) {
+        rafId = requestAnimationFrame(loop);
+        return;
+      }
+      state.lastRenderAt = now;
+
       if (!state.lastFrameAt) state.lastFrameAt = now;
-      const dt = Math.min(50, now - state.lastFrameAt);
       state.lastFrameAt = now;
     
       // --- BETTING: обновление таймера ---
@@ -2551,7 +2530,6 @@ const yOf = (v) => {
           state.lastTimerSeconds = seconds;
           setTimer(seconds, true);
           
-          const timerEl = document.getElementById('crashTimer');
           if (timerEl) {
             timerEl.classList.toggle('is-urgent', seconds <= 3);
           }
@@ -2664,13 +2642,14 @@ const yOf = (v) => {
       // --- render ---
       draw();
     
-      raf = requestAnimationFrame(loop);
+      rafId = requestAnimationFrame(loop);
 
     }
     
     function startLoop() {
       if (rafId) cancelAnimationFrame(rafId);
       state.lastFrameAt = 0;
+      state.lastRenderAt = 0;
       rafId = requestAnimationFrame(loop);
     }
     
@@ -2687,14 +2666,14 @@ const yOf = (v) => {
       renderPills();
       startCurrencyPolling();
       connectWebSocket();
-      raf = requestAnimationFrame(loop);
+      startLoop();
     }
 
     function stop() {
       running = false;
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
+      stopLoop();
       stopCurrencyPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       if (ws) ws.close();
     }
 

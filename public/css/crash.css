@@ -1118,7 +1118,7 @@
 /* small phones */
 @media (max-width: 360px){
   .crash-mult{ font-size: 32px; }
-  .crash-canvasWrap{ height: 250px; } /* было 330px */
+  .crash-canvasWrap{ height: 250px; } /* Р±С‹Р»Рѕ 330px */
 }
 
 
@@ -1179,7 +1179,7 @@
 }
 
 
-/* Красный градиент при краше */
+/* РљСЂР°СЃРЅС‹Р№ РіСЂР°РґРёРµРЅС‚ РїСЂРё РєСЂР°С€Рµ */
 .crash-card.is-crashed {
   background:
     radial-gradient(circle 600px at 50% 0%, rgba(255,59,78,0.25), transparent 65%),
@@ -1189,18 +1189,22 @@
   transition: background 0.4s ease-out;
 }
 
-/* Плавный переход обратно к синему */
+/* РџР»Р°РІРЅС‹Р№ РїРµСЂРµС…РѕРґ РѕР±СЂР°С‚РЅРѕ Рє СЃРёРЅРµРјСѓ */
 .crash-card {
   transition: background 0.6s ease-in;
 }
 
 
-/* Таймер обратного отсчёта */
+/* РўР°Р№РјРµСЂ РѕР±СЂР°С‚РЅРѕРіРѕ РѕС‚СЃС‡С‘С‚Р° */
 .crash-timer {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  width: max-content;
+  min-width: 1ch;
+  text-align: center;
+  white-space: nowrap;
   font-size: 70px;
   font-weight: 900;
   color: rgba(255,255,255,0.95);
@@ -1215,7 +1219,7 @@
   letter-spacing: -0.02em;
 }
 
-/* Пульсация таймера */
+/* РџСѓР»СЊСЃР°С†РёСЏ С‚Р°Р№РјРµСЂР° */
 @keyframes timerPulse {
   0%, 100% { 
     transform: translate(-50%, -50%) scale(1); 
@@ -1231,7 +1235,7 @@
   animation: timerPulse 1s ease-in-out infinite;
 }
 
-/* Последние 3 секунды - красный и быстрее пульсирует */
+/* РџРѕСЃР»РµРґРЅРёРµ 3 СЃРµРєСѓРЅРґС‹ - РєСЂР°СЃРЅС‹Р№ Рё Р±С‹СЃС‚СЂРµРµ РїСѓР»СЊСЃРёСЂСѓРµС‚ */
 .crash-timer.is-urgent {
   color: rgba(255,59,78,1);
   text-shadow: 
@@ -1249,7 +1253,7 @@
 }
 
 
-/* История раундов - компактная версия внизу карты */
+/* РСЃС‚РѕСЂРёСЏ СЂР°СѓРЅРґРѕРІ - РєРѕРјРїР°РєС‚РЅР°СЏ РІРµСЂСЃРёСЏ РІРЅРёР·Сѓ РєР°СЂС‚С‹ */
 .crash-history {
   display: flex;
   gap: 6px;
@@ -1287,11 +1291,11 @@
   transform: translateY(-1px);
 }
 
-/* Цветовая схема */
+/* Р¦РІРµС‚РѕРІР°СЏ СЃС…РµРјР° */
 .crash-history__item.is-new {
   animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
- /* Цветовая схема */
+ /* Р¦РІРµС‚РѕРІР°СЏ СЃС…РµРјР° */
  .crash-history__item.color-1 {
   background: linear-gradient(135deg, #001881 0%, #764ba2 100%);
   box-shadow: 0 4px 12px rgba(102,126,234,0.3);
@@ -1312,7 +1316,7 @@
   box-shadow: 0 4px 12px rgba(79,172,254,0.4);
 }
 
-/* Замените на: */
+/* Р—Р°РјРµРЅРёС‚Рµ РЅР°: */
   .crash-history__item.color-5 {
     background: linear-gradient(135deg, #825000 0%, #ff6b6b 100%);
     box-shadow: 0 4px 12px rgba(255,216,155,0.4);
@@ -1336,7 +1340,7 @@
   }
 }
 
-/* Анимация появления нового элемента */
+/* РђРЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ РЅРѕРІРѕРіРѕ СЌР»РµРјРµРЅС‚Р° */
 @keyframes historySlideIn {
   from {
     opacity: 0;
@@ -1430,7 +1434,7 @@ border: 1px solid rgba(255,255,255,0.06);
 }
 
 
-/* Ввод ставки */
+/* Р’РІРѕРґ СЃС‚Р°РІРєРё */
 .crash-inputWrap {
 flex: 1;
 position: relative;
@@ -1470,17 +1474,17 @@ box-shadow:
   0 0 0 2px rgba(100,149,237,0.15);
 }
 
-/* Кнопка Max */
+/* РљРЅРѕРїРєР° Max */
 .crash-maxBtn {
 flex: 0 0 auto;
 min-width: 90px;
 }
 
-/* Адаптация для маленьких экранов */
+/* РђРґР°РїС‚Р°С†РёСЏ РґР»СЏ РјР°Р»РµРЅСЊРєРёС… СЌРєСЂР°РЅРѕРІ */
 @media (max-width: 360px) {
 .crash-betInput {
   height: 40px;
-  font-size: 15px;
+  font-size: 16px;
   padding: 0 12px;
 }
 
@@ -1489,14 +1493,14 @@ min-width: 90px;
 }
 }
 
-/* Убираем стрелки у числового input в разных браузерах */
+/* РЈР±РёСЂР°РµРј СЃС‚СЂРµР»РєРё Сѓ С‡РёСЃР»РѕРІРѕРіРѕ input РІ СЂР°Р·РЅС‹С… Р±СЂР°СѓР·РµСЂР°С… */
 .crash-betInput::-webkit-outer-spin-button,
 .crash-betInput::-webkit-inner-spin-button {
 -webkit-appearance: none;
 margin: 0;
 }
 
-/* Убираем стрелки у числового input в разных браузерах */
+/* РЈР±РёСЂР°РµРј СЃС‚СЂРµР»РєРё Сѓ С‡РёСЃР»РѕРІРѕРіРѕ input РІ СЂР°Р·РЅС‹С… Р±СЂР°СѓР·РµСЂР°С… */
 .crash-betInput::-webkit-outer-spin-button,
 .crash-betInput::-webkit-inner-spin-button {
 -webkit-appearance: none;
@@ -1505,7 +1509,7 @@ margin: 0;
 
 .crash-betInput[type=number] {
 appearance: textfield;
--moz-appearance: textfield; /* Для старых Firefox */
+-moz-appearance: textfield; /* Р”Р»СЏ СЃС‚Р°СЂС‹С… Firefox */
 }
 
 
@@ -1609,42 +1613,42 @@ filter: blur(2px);
 }
 
 
-/* iPhone 12/13 mini (375x812) + похожие компактные */
+/* iPhone 12/13 mini (375x812) + РїРѕС…РѕР¶РёРµ РєРѕРјРїР°РєС‚РЅС‹Рµ */
 @media (max-width: 375px) and (max-height: 820px) {
-  /* сама панель: меньше внутренних отступов */
+  /* СЃР°РјР° РїР°РЅРµР»СЊ: РјРµРЅСЊС€Рµ РІРЅСѓС‚СЂРµРЅРЅРёС… РѕС‚СЃС‚СѓРїРѕРІ */
   .crash-controls__bar{
     padding: 10px 12px 10px !important;
   }
 
-  /* строка с инпутом и Max: чуть ниже по высоте */
+  /* СЃС‚СЂРѕРєР° СЃ РёРЅРїСѓС‚РѕРј Рё Max: С‡СѓС‚СЊ РЅРёР¶Рµ РїРѕ РІС‹СЃРѕС‚Рµ */
   .crash-betInput{
-    height: 40px;          /* было 44px */
-    font-size: 15px;
+    height: 40px;          /* Р±С‹Р»Рѕ 44px */
+    font-size: 16px;
   }
 
   .crash-maxBtn{
-    min-width: 78px;       /* было 90px */
-    height: 40px;          /* чтобы совпало с input */
+    min-width: 78px;       /* Р±С‹Р»Рѕ 90px */
+    height: 40px;          /* С‡С‚РѕР±С‹ СЃРѕРІРїР°Р»Рѕ СЃ input */
     padding: 0 10px;
   }
 
-  /* кнопки действий */
+  /* РєРЅРѕРїРєРё РґРµР№СЃС‚РІРёР№ */
   .crash-buy{
-    height: 48px;          /* сделаем ниже */
+    height: 48px;          /* СЃРґРµР»Р°РµРј РЅРёР¶Рµ */
     border-radius: 16px;
     font-size: 16px;
   }
 
   .crash-plus{
-    width: 48px;           /* было 54 */
-    height: 48px;          /* было 54 */
+    width: 48px;           /* Р±С‹Р»Рѕ 54 */
+    height: 48px;          /* Р±С‹Р»Рѕ 54 */
     border-radius: 16px;
     font-size: 24px;
   }
 
-  /* нижняя строка (Bet / статус) — меньше отступы */
+  /* РЅРёР¶РЅСЏСЏ СЃС‚СЂРѕРєР° (Bet / СЃС‚Р°С‚СѓСЃ) вЂ” РјРµРЅСЊС€Рµ РѕС‚СЃС‚СѓРїС‹ */
   .crash-helpRow{
-    padding-top: 6px;      /* было 10px */
+    padding-top: 6px;      /* Р±С‹Р»Рѕ 10px */
     font-size: 11px;
   }
 }
@@ -1696,43 +1700,43 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
 }
 
 /* ====================================
-   ДОПОЛНИТЕЛЬНЫЕ УЛУЧШЕНИЯ ДЛЯ МОЛОТОЧКОВ
+   Р”РћРџРћР›РќРРўР•Р›Р¬РќР«Р• РЈР›РЈР§РЁР•РќРРЇ Р”Р›РЇ РњРћР›РћРўРћР§РљРћР’
    ==================================== */
 
 /*
-  ВАЖНО ДЛЯ РАЗРАБОТЧИКА JAVASCRIPT:
+  Р’РђР–РќРћ Р”Р›РЇ Р РђР—Р РђР‘РћРўР§РРљРђ JAVASCRIPT:
   
-  Чтобы молоточки (hammers) выглядели максимально красиво в canvas,
-  рекомендуется применить следующие улучшения в JavaScript коде:
+  Р§С‚РѕР±С‹ РјРѕР»РѕС‚РѕС‡РєРё (hammers) РІС‹РіР»СЏРґРµР»Рё РјР°РєСЃРёРјР°Р»СЊРЅРѕ РєСЂР°СЃРёРІРѕ РІ canvas,
+  СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РїСЂРёРјРµРЅРёС‚СЊ СЃР»РµРґСѓСЋС‰РёРµ СѓР»СѓС‡С€РµРЅРёСЏ РІ JavaScript РєРѕРґРµ:
   
-  1. Добавить тень (shadow) для каждого молоточка:
+  1. Р”РѕР±Р°РІРёС‚СЊ С‚РµРЅСЊ (shadow) РґР»СЏ РєР°Р¶РґРѕРіРѕ РјРѕР»РѕС‚РѕС‡РєР°:
      ctx.shadowColor = 'rgba(0, 212, 255, 0.6)';
      ctx.shadowBlur = 15;
      ctx.shadowOffsetX = 0;
      ctx.shadowOffsetY = 5;
   
-  2. Использовать градиентную заливку вместо однотонной:
+  2. РСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РіСЂР°РґРёРµРЅС‚РЅСѓСЋ Р·Р°Р»РёРІРєСѓ РІРјРµСЃС‚Рѕ РѕРґРЅРѕС‚РѕРЅРЅРѕР№:
      const gradient = ctx.createLinearGradient(x, y, x, y + height);
      gradient.addColorStop(0, '#00d4ff');
      gradient.addColorStop(0.5, '#b084ff');
      gradient.addColorStop(1, '#00ff88');
      ctx.fillStyle = gradient;
   
-  3. Добавить эффект свечения при движении:
-     - При высокой скорости: усилить shadowBlur до 25
-     - Добавить светящийся след (trail effect)
+  3. Р”РѕР±Р°РІРёС‚СЊ СЌС„С„РµРєС‚ СЃРІРµС‡РµРЅРёСЏ РїСЂРё РґРІРёР¶РµРЅРёРё:
+     - РџСЂРё РІС‹СЃРѕРєРѕР№ СЃРєРѕСЂРѕСЃС‚Рё: СѓСЃРёР»РёС‚СЊ shadowBlur РґРѕ 25
+     - Р”РѕР±Р°РІРёС‚СЊ СЃРІРµС‚СЏС‰РёР№СЃСЏ СЃР»РµРґ (trail effect)
   
-  4. Добавить небольшую ротацию при движении:
+  4. Р”РѕР±Р°РІРёС‚СЊ РЅРµР±РѕР»СЊС€СѓСЋ СЂРѕС‚Р°С†РёСЋ РїСЂРё РґРІРёР¶РµРЅРёРё:
      ctx.rotate(speed * 0.1);
   
-  5. Масштабировать при приближении к краю:
+  5. РњР°СЃС€С‚Р°Р±РёСЂРѕРІР°С‚СЊ РїСЂРё РїСЂРёР±Р»РёР¶РµРЅРёРё Рє РєСЂР°СЋ:
      const scale = 1 + (progress * 0.2);
      ctx.scale(scale, scale);
   
-  6. Добавить частицы за молоточком для визуального эффекта скорости
+  6. Р”РѕР±Р°РІРёС‚СЊ С‡Р°СЃС‚РёС†С‹ Р·Р° РјРѕР»РѕС‚РѕС‡РєРѕРј РґР»СЏ РІРёР·СѓР°Р»СЊРЅРѕРіРѕ СЌС„С„РµРєС‚Р° СЃРєРѕСЂРѕСЃС‚Рё
 */
 
-/* Улучшенная анимация появления карточки */
+/* РЈР»СѓС‡С€РµРЅРЅР°СЏ Р°РЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ РєР°СЂС‚РѕС‡РєРё */
 .crash-card {
   animation: cardAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -1750,7 +1754,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   }
 }
 
-/* Улучшенная анимация crashed состояния */
+/* РЈР»СѓС‡С€РµРЅРЅР°СЏ Р°РЅРёРјР°С†РёСЏ crashed СЃРѕСЃС‚РѕСЏРЅРёСЏ */
 .crash-card.is-crashed {
   animation: 
     cardAppear 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
@@ -1765,7 +1769,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   75% { transform: translateX(-5px) scale(1.01); }
 }
 
-/* Дополнительное свечение для активной игры */
+/* Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕРµ СЃРІРµС‡РµРЅРёРµ РґР»СЏ Р°РєС‚РёРІРЅРѕР№ РёРіСЂС‹ */
 .crash-canvasWrap.is-active {
   animation: canvasActiveGlow 2s ease-in-out infinite;
 }
@@ -1783,7 +1787,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   }
 }
 
-/* Smooth transitions для всех интерактивных элементов */
+/* Smooth transitions РґР»СЏ РІСЃРµС… РёРЅС‚РµСЂР°РєС‚РёРІРЅС‹С… СЌР»РµРјРµРЅС‚РѕРІ */
 .crash-history__item,
 .crash-maxBtn,
 .crash-buy,
@@ -1791,7 +1795,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   will-change: transform, box-shadow;
 }
 
-/* Анимация для кнопки Plus */
+/* РђРЅРёРјР°С†РёСЏ РґР»СЏ РєРЅРѕРїРєРё Plus */
 .crash-plus {
   position: relative;
   overflow: hidden;
@@ -1815,7 +1819,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   height: 100px;
 }
 
-/* Улучшенное состояние disabled для кнопок */
+/* РЈР»СѓС‡С€РµРЅРЅРѕРµ СЃРѕСЃС‚РѕСЏРЅРёРµ disabled РґР»СЏ РєРЅРѕРїРѕРє */
 .crash-buy:disabled,
 .crash-maxBtn:disabled,
 .crash-plus:disabled {
@@ -1846,7 +1850,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   }
 }
 
-/* Дополнительные цветовые вариации для истории (для большего разнообразия) */
+/* Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ С†РІРµС‚РѕРІС‹Рµ РІР°СЂРёР°С†РёРё РґР»СЏ РёСЃС‚РѕСЂРёРё (РґР»СЏ Р±РѕР»СЊС€РµРіРѕ СЂР°Р·РЅРѕРѕР±СЂР°Р·РёСЏ) */
 .crash-history__item.color-6 {
   background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);
   box-shadow: 
@@ -1878,16 +1882,16 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
 }
 
 /* ====================================
-   CONTROLS BAR — BET PLACED STATE
-   Скрываем лишнее, оставляем Claim
+   CONTROLS BAR вЂ” BET PLACED STATE
+   РЎРєСЂС‹РІР°РµРј Р»РёС€РЅРµРµ, РѕСЃС‚Р°РІР»СЏРµРј Claim
    ==================================== */
 
-/* Плавный переход для всей панели */
+/* РџР»Р°РІРЅС‹Р№ РїРµСЂРµС…РѕРґ РґР»СЏ РІСЃРµР№ РїР°РЅРµР»Рё */
 .crash-controls__bar {
   transition: padding 0.35s ease;
 }
 
-/* Элементы которые прячем */
+/* Р­Р»РµРјРµРЅС‚С‹ РєРѕС‚РѕСЂС‹Рµ РїСЂСЏС‡РµРј */
 .crash-controls__bar .crash-amountRow,
 .crash-controls__bar .crash-plus,
 .crash-controls__bar .crash-helpRow {
@@ -1900,7 +1904,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   overflow: hidden;
 }
 
-/* === Ставка сделана, идёт обратный отсчёт === */
+/* === РЎС‚Р°РІРєР° СЃРґРµР»Р°РЅР°, РёРґС‘С‚ РѕР±СЂР°С‚РЅС‹Р№ РѕС‚СЃС‡С‘С‚ === */
 .crash-controls__bar.is-bet-placed .crash-amountRow,
 .crash-controls__bar.is-bet-placed .crash-helpRow {
   opacity: 0;
@@ -1910,7 +1914,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   transform: translateY(-6px);
 }
 
-/* Кнопка + тоже прячем */
+/* РљРЅРѕРїРєР° + С‚РѕР¶Рµ РїСЂСЏС‡РµРј */
 .crash-controls__bar.is-bet-placed .crash-actions {
   margin-bottom: 0 !important;
 }
@@ -1932,7 +1936,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
     padding 0.35s ease;
 }
 
-/* Place Bet → растягивается на всю ширину, тусклый */
+/* Place Bet в†’ СЂР°СЃС‚СЏРіРёРІР°РµС‚СЃСЏ РЅР° РІСЃСЋ С€РёСЂРёРЅСѓ, С‚СѓСЃРєР»С‹Р№ */
 .crash-controls__bar.is-bet-placed .crash-buy {
   opacity: 0.45;
   filter: grayscale(0.4) brightness(0.8);
@@ -1944,13 +1948,13 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
     transform 0.3s ease;
 }
 
-/* Убираем gap у actions когда + скрыт */
+/* РЈР±РёСЂР°РµРј gap Сѓ actions РєРѕРіРґР° + СЃРєСЂС‹С‚ */
 .crash-controls__bar.is-bet-placed .crash-actions {
   gap: 0 !important;
 }
 
 
-/* === Раунд идёт — Claim яркий, один во всей панели === */
+/* === Р Р°СѓРЅРґ РёРґС‘С‚ вЂ” Claim СЏСЂРєРёР№, РѕРґРёРЅ РІРѕ РІСЃРµР№ РїР°РЅРµР»Рё === */
 .crash-controls__bar.is-running .crash-amountRow,
 .crash-controls__bar.is-running .crash-helpRow {
   opacity: 0;
@@ -1977,7 +1981,7 @@ body.page-crash:not(.crash-space-ui) .app:has(#crashPage.page-active) #crashPage
   gap: 0 !important;
 }
 
-/* Claim — полная ширина, яркий, пульсирует */
+/* Claim вЂ” РїРѕР»РЅР°СЏ С€РёСЂРёРЅР°, СЏСЂРєРёР№, РїСѓР»СЊСЃРёСЂСѓРµС‚ */
 .crash-controls__bar.is-running .crash-buy.is-claim {
   opacity: 1 !important;
   filter: none !important;
@@ -2226,35 +2230,6 @@ body.page-crash .crash-topThemeSwitch {
   background:
     url("/images/crash/grass.svg") bottom center / cover no-repeat,
     linear-gradient(180deg, rgba(74,165,65,0) 0%, rgba(33,118,46,0.82) 65%, rgba(17,77,31,0.95) 100%);
-}
-
-.crash-planet {
-  position: absolute;
-  width: 96px;
-  height: 96px;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.22s ease;
-  filter: drop-shadow(0 0 18px rgba(124,162,255,0.30));
-  background-position: center;
-  background-size: contain;
-  background-repeat: no-repeat;
-}
-
-.crash-planet--1 {
-  background-image:
-    url("/images/crash/planet1.svg"),
-    radial-gradient(circle at 34% 32%, #ffd8a9 0%, #ca7d3c 62%, #7f3d12 100%);
-}
-
-.crash-planet--2 {
-  background-image:
-    url("/images/crash/planet2.svg"),
-    radial-gradient(circle at 32% 32%, #b6fff1 0%, #44a4c8 58%, #235274 100%);
-}
-
-.crash-planet.is-visible {
-  opacity: 1;
 }
 
 .rocket {
@@ -2515,5 +2490,25 @@ body.page-crash.crash-space-ui .crash-mult {
     width: 23px;
     height: 23px;
   }
+}
+
+html.wt-lite .crash-card::before,
+html.wt-lite .crash-canvasWrap::before,
+html.wt-lite .crash-canvasWrap::after,
+html.wt-lite .crash-history::before,
+html.wt-lite .crash-mult,
+html.wt-lite .crash-timer,
+html.wt-reduced-motion .crash-card::before,
+html.wt-reduced-motion .crash-canvasWrap::before,
+html.wt-reduced-motion .crash-canvasWrap::after,
+html.wt-reduced-motion .crash-history::before,
+html.wt-reduced-motion .crash-mult,
+html.wt-reduced-motion .crash-timer {
+  animation: none !important;
+}
+
+html.wt-lite .crash-canvasWrap::after,
+html.wt-reduced-motion .crash-canvasWrap::after {
+  opacity: 0.05;
 }
 
