@@ -465,6 +465,33 @@ export async function getUserById(telegramId) {
   return r.rows[0] || null;
 }
 
+export async function listTelegramRecipientsForBroadcast(options = {}) {
+  const rawLimit = Number(options?.limit);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.max(1, Math.min(20000, Math.trunc(rawLimit)))
+    : 5000;
+
+  const includeBanned = options?.includeBanned === true;
+  const activeAfterSecRaw = Number(options?.activeAfterSec || 0);
+  const activeAfterSec = Number.isFinite(activeAfterSecRaw) && activeAfterSecRaw > 0
+    ? Math.trunc(activeAfterSecRaw)
+    : 0;
+
+  const r = await query(
+    `
+    SELECT telegram_id, username, first_name, last_name, ban, last_seen
+    FROM users
+    WHERE ($1::boolean = true OR COALESCE(ban, 0) <> 1)
+      AND ($2::bigint <= 0 OR COALESCE(last_seen, 0) >= $2::bigint)
+    ORDER BY COALESCE(last_seen, 0) DESC, telegram_id DESC
+    LIMIT $3
+    `,
+    [includeBanned, activeAfterSec, limit]
+  );
+
+  return r.rows || [];
+}
+
 export async function getUserBalance(telegramId) {
   const id = BigInt(telegramId);
   const now = Math.floor(Date.now() / 1000);

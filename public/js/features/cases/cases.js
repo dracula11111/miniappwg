@@ -147,8 +147,6 @@
 
   let carousels = [];
   let animationFrames = [];
-  let caseSheetLockedScrollY = 0;
-  let caseSheetPrevBodyTop = '';
   let casesPerfResizeRaf = 0;
   let casesPathObserver = null;
   let caseSheetUiMetricsRaf = 0;
@@ -1504,15 +1502,11 @@ function getBalanceSafe(currency) {
   function lockCaseSheetScreen() {
     if (document.body.classList.contains('case-sheet-open')) return;
 
-    caseSheetLockedScrollY = window.scrollY || window.pageYOffset || 0;
-    caseSheetPrevBodyTop = document.body.style.top || '';
-
     // Capture current top UI geometry before any sheet-open styles are applied.
     updateCaseSheetUiMetrics(true);
 
     document.documentElement.classList.add('case-sheet-open');
     document.body.classList.add('case-sheet-open');
-    document.body.style.top = `-${caseSheetLockedScrollY}px`;
 
     scheduleCaseSheetUiMetricsUpdate();
     setTimeout(() => scheduleCaseSheetUiMetricsUpdate(), 80);
@@ -1522,22 +1516,14 @@ function getBalanceSafe(currency) {
   function unlockCaseSheetScreen() {
     if (!document.body.classList.contains('case-sheet-open')) return;
 
-    const restoreY = caseSheetLockedScrollY || 0;
-
     document.documentElement.classList.remove('case-sheet-open');
     document.body.classList.remove('case-sheet-open');
-    document.body.style.top = caseSheetPrevBodyTop || '';
 
     if (caseSheetUiMetricsRaf) {
       cancelAnimationFrame(caseSheetUiMetricsRaf);
       caseSheetUiMetricsRaf = 0;
     }
     clearCaseSheetUiMetrics();
-
-    caseSheetPrevBodyTop = '';
-    caseSheetLockedScrollY = 0;
-
-    window.scrollTo(0, restoreY);
   }
 
   function openBottomSheet(caseId) {

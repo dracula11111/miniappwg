@@ -31,8 +31,26 @@ const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
+const DEFAULT_NOTIFY_EMOJI_ID_TON = "5392938561909386575";
+const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6006619569318509975";
 // Temporary safety lock: allow market buy/withdraw only for relayer admins.
 const ADMIN_ONLY_TRADING_MODE = !/^(0|false|no)$/i.test(String(process.env.ADMIN_ONLY_TRADING_MODE || "1"));
+
+function getTonDepositNotifyCustomEmojiId() {
+  return String(
+    process.env.TG_NOTIFY_DEPOSIT_EMOJI_ID ||
+    process.env.TG_NOTIFY_EMOJI_ID ||
+    DEFAULT_NOTIFY_EMOJI_ID_TON
+  ).trim();
+}
+
+function getStarsDepositNotifyCustomEmojiId() {
+  return String(
+    process.env.TG_NOTIFY_STARS_EMOJI_ID ||
+    process.env.TG_NOTIFY_EMOJI_ID ||
+    DEFAULT_NOTIFY_EMOJI_ID_STARS
+  ).trim();
+}
 
 const RUSSIAN_UI_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
 const RUSSIAN_UI_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
@@ -149,6 +167,45 @@ function createMemoryDb() {
       const u = users.get(k);
       const b = balances.get(k);
       return { ...u, ...b };
+    },
+    async listTelegramRecipientsForBroadcast(options = {}) {
+      const rawLimit = Number(options?.limit);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.max(1, Math.min(20000, Math.trunc(rawLimit)))
+        : 5000;
+
+      const includeBanned = options?.includeBanned === true;
+      const activeAfterSecRaw = Number(options?.activeAfterSec || 0);
+      const activeAfterSec = Number.isFinite(activeAfterSecRaw) && activeAfterSecRaw > 0
+        ? Math.trunc(activeAfterSecRaw)
+        : 0;
+
+      const rows = [];
+      for (const [telegramId, user] of users.entries()) {
+        const ban = Number(user?.ban || 0);
+        if (!includeBanned && ban === 1) continue;
+
+        const lastSeen = Number(user?.last_seen || 0);
+        if (activeAfterSec > 0 && (!Number.isFinite(lastSeen) || lastSeen < activeAfterSec)) continue;
+
+        rows.push({
+          telegram_id: telegramId,
+          username: user?.username || null,
+          first_name: user?.first_name || null,
+          last_name: user?.last_name || null,
+          ban,
+          last_seen: Number.isFinite(lastSeen) ? lastSeen : 0
+        });
+      }
+
+      rows.sort((a, b) => {
+        const lsA = Number(a?.last_seen || 0);
+        const lsB = Number(b?.last_seen || 0);
+        if (lsB !== lsA) return lsB - lsA;
+        return String(b?.telegram_id || "").localeCompare(String(a?.telegram_id || ""));
+      });
+
+      return rows.slice(0, limit);
     },
     async getUserBalance(telegramId) {
       const k = ensure(telegramId);
@@ -4123,6 +4180,220 @@ app.post("/api/admin/inventory/add", requireAdminKey, async (req, res) => {
   }
 });
 
+// Admin: send custom Telegram message to users saved in DB (or explicit userIds).
+app.post("/api/admin/telegram/broadcast", requireAdminKey, async (req, res) => {
+  try {
+    const rawText = String(req.body?.text ?? req.body?.message ?? "").trim();
+    const rawCaption = String(req.body?.caption ?? "").trim();
+    const text = rawCaption || rawText;
+    const photo = normalizeTelegramMediaRef(req.body?.photo ?? req.body?.photoUrl ?? req.body?.image ?? "");
+    if (!photo && !text) return res.status(400).json({ ok: false, error: "text or photo required" });
+    if (!photo && text.length > 4096) return res.status(400).json({ ok: false, error: "text is too long (max 4096 chars)" });
+    if (photo && text.length > 1024) return res.status(400).json({ ok: false, error: "caption is too long (max 1024 chars)" });
+    if (!process.env.BOT_TOKEN) return res.status(500).json({ ok: false, error: "BOT_TOKEN not set" });
+
+    const dryRun = req.body?.dryRun === true;
+    const includeBanned = req.body?.includeBanned === true;
+    const allowPaidBroadcast = req.body?.allowPaidBroadcast === true;
+    const parseMode = normalizeTelegramParseMode(req.body?.parseMode, "HTML");
+    const customEmojiId = normalizeTelegramCustomEmojiId(
+      req.body?.customEmojiId ||
+      process.env.TG_BROADCAST_EMOJI_ID ||
+      process.env.TELEGRAM_BROADCAST_EMOJI_ID ||
+      ""
+    );
+    const buttonText = normalizeTelegramButtonText(
+      req.body?.buttonText ||
+      req.body?.ctaText ||
+      req.body?.buttonLabel ||
+      "Play!"
+    );
+    const buttonUrl = normalizeTelegramButtonUrl(req.body?.buttonUrl || req.body?.url || "");
+    const miniAppUrl = normalizeTelegramButtonUrl(req.body?.miniAppUrl || req.body?.webAppUrl || req.body?.appUrl || "");
+    const replyMarkup = buildTelegramReplyMarkup({ buttonText, buttonUrl, miniAppUrl });
+
+    const rawLimit = Number(req.body?.limit);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(20000, Math.trunc(rawLimit)))
+      : 5000;
+
+    const rawDays = Number(req.body?.onlyActiveDays ?? req.body?.activeDays ?? req.body?.recentDays);
+    const activeDays = Number.isFinite(rawDays) && rawDays > 0
+      ? Math.max(1, Math.min(3650, Math.trunc(rawDays)))
+      : 0;
+    const activeAfterSec = activeDays > 0
+      ? Math.floor(Date.now() / 1000) - activeDays * 24 * 60 * 60
+      : 0;
+
+    const rawThrottleMs = Number(req.body?.throttleMs);
+    const throttleMs = Number.isFinite(rawThrottleMs)
+      ? Math.max(0, Math.min(2000, Math.trunc(rawThrottleMs)))
+      : 60;
+
+    const requestedUserIds = Array.isArray(req.body?.userIds) ? req.body.userIds : null;
+    let recipients = [];
+
+    if (requestedUserIds && requestedUserIds.length) {
+      const unique = new Set();
+      for (const value of requestedUserIds) {
+        const id = String(value ?? "").trim();
+        if (!id) continue;
+        if (!/^-?\d+$/.test(id)) continue;
+        unique.add(id);
+      }
+      recipients = Array.from(unique).slice(0, limit).map((id) => ({
+        telegram_id: id,
+        username: null,
+        first_name: null,
+        last_name: null,
+        last_seen: null,
+        ban: null
+      }));
+    } else {
+      if (typeof db.listTelegramRecipientsForBroadcast !== "function") {
+        return res.status(500).json({ ok: false, error: "DB adapter does not support broadcast audience listing" });
+      }
+      recipients = await db.listTelegramRecipientsForBroadcast({ limit, activeAfterSec, includeBanned });
+    }
+
+    const audience = recipients
+      .map((row) => ({
+        chatId: String(row?.telegram_id ?? row?.id ?? "").trim(),
+        username: row?.username || null,
+        firstName: row?.first_name || null,
+        lastName: row?.last_name || null,
+        lastSeen: row?.last_seen ?? null,
+        ban: row?.ban ?? null
+      }))
+      .filter((row) => row.chatId);
+
+    if (!audience.length) {
+      return res.json({
+        ok: true,
+        dryRun,
+        message: "No recipients found",
+        total: 0,
+        sent: 0,
+        failed: 0
+      });
+    }
+
+    if (dryRun) {
+      return res.json({
+        ok: true,
+        dryRun: true,
+        total: audience.length,
+        parseMode,
+        hasPhoto: !!photo,
+        hasButton: !!replyMarkup,
+        isMiniAppButton: !!(replyMarkup && miniAppUrl),
+        hasCustomEmoji: !!customEmojiId,
+        allowPaidBroadcast,
+        throttleMs,
+        sample: audience.slice(0, 20)
+      });
+    }
+
+    const stats = {
+      total: audience.length,
+      sent: 0,
+      failed: 0,
+      blocked: 0,
+      deactivated: 0,
+      chatNotFound: 0,
+      forbidden: 0,
+      rateLimited: 0,
+      other: 0
+    };
+    const errors = [];
+
+    for (let i = 0; i < audience.length; i += 1) {
+      const row = audience[i];
+
+      try {
+        await sendTelegramBroadcastContent(row.chatId, {
+          text,
+          photo,
+          replyMarkup
+        }, {
+          parseMode,
+          customEmojiId,
+          allowPaidBroadcast,
+          throwOnError: true
+        });
+        stats.sent += 1;
+      } catch (error) {
+        const firstErrorText = String(error?.description || error?.message || error || "");
+        const shouldRetryWithoutCustomEmoji =
+          !!customEmojiId &&
+          /ENTITY_TEXT_INVALID|custom_emoji|can't parse entities/i.test(firstErrorText);
+
+        if (shouldRetryWithoutCustomEmoji) {
+          try {
+            await sendTelegramBroadcastContent(row.chatId, {
+              text,
+              photo,
+              replyMarkup
+            }, {
+              parseMode,
+              allowPaidBroadcast,
+              throwOnError: true
+            });
+            stats.sent += 1;
+            continue;
+          } catch (retryErr) {
+            error = retryErr;
+          }
+        }
+
+        stats.failed += 1;
+        const reason = classifyTelegramSendError(error);
+        if (reason === "blocked") stats.blocked += 1;
+        else if (reason === "deactivated") stats.deactivated += 1;
+        else if (reason === "chat_not_found") stats.chatNotFound += 1;
+        else if (reason === "forbidden") stats.forbidden += 1;
+        else if (reason === "rate_limited") stats.rateLimited += 1;
+        else stats.other += 1;
+
+        if (errors.length < 25) {
+          errors.push({
+            chatId: row.chatId,
+            username: row.username,
+            reason,
+            error: String(error?.description || error?.message || error || "send failed")
+          });
+        }
+
+        const retryAfterSec = Number(error?.retryAfter || 0);
+        if (Number.isFinite(retryAfterSec) && retryAfterSec > 0) {
+          await sleep(Math.min(20000, Math.max(1000, Math.trunc(retryAfterSec * 1000))));
+        }
+      }
+
+      if (throttleMs > 0 && i < audience.length - 1) {
+        await sleep(throttleMs);
+      }
+    }
+
+    return res.json({
+      ok: true,
+      dryRun: false,
+      parseMode,
+      hasPhoto: !!photo,
+      hasButton: !!replyMarkup,
+      isMiniAppButton: !!(replyMarkup && miniAppUrl),
+      hasCustomEmoji: !!customEmojiId,
+      allowPaidBroadcast,
+      throttleMs,
+      ...stats,
+      errors
+    });
+  } catch (error) {
+    console.error("[Admin Broadcast] failed:", error);
+    return res.status(500).json({ ok: false, error: error?.message || "broadcast failed" });
+  }
+});
+
 // Admin: return gift from inventory back to market.
 app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (req, res) => {
   try {
@@ -4375,7 +4646,11 @@ app.post("/api/ton/deposit/confirm", async (req, res) => {
     broadcastBalanceUpdate(userId);
 
     if (!claimRes?.duplicate && process.env.BOT_TOKEN) {
-      await sendTelegramMessage(userId, `вњ… Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`);
+      await sendTelegramMessage(
+        userId,
+        `Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`,
+        { customEmojiId: getTonDepositNotifyCustomEmojiId() }
+      );
     }
 
     return res.json({
@@ -4606,7 +4881,11 @@ app.post("/api/deposit-notification", async (req, res) => {
 
         // Send notification only for real deposits
         if (shouldSendDepositMessage) {
-          await sendTelegramMessage(userId, `Deposit confirmed!\n\nYou received ${amountNum} TON`);
+          await sendTelegramMessage(
+            userId,
+            `Deposit confirmed!\n\nYou received ${amountNum} TON`,
+            { customEmojiId: getTonDepositNotifyCustomEmojiId() }
+          );
         }
 
         return res.json({
@@ -4641,7 +4920,11 @@ app.post("/api/deposit-notification", async (req, res) => {
 
         // Send notification only for real deposits
         if (shouldSendDepositMessage) {
-          await sendTelegramMessage(userId, `Payment successful!\n\nYou received ${amountNum} Stars`);
+          await sendTelegramMessage(
+            userId,
+            `Payment successful!\n\nYou received ${amountNum} Stars`,
+            { customEmojiId: getStarsDepositNotifyCustomEmojiId() }
+          );
         }
 
         return res.json({
@@ -5152,7 +5435,8 @@ app.post("/api/stars/webhook", async (req, res) => {
 
         await sendTelegramMessage(
           userId,
-          `Payment successful!\n\nYou received ${amountStars} Stars`
+          `Payment successful!\n\nYou received ${amountStars} Stars`,
+          { customEmojiId: getStarsDepositNotifyCustomEmojiId() }
         );
 
         return res.json({ ok: true, duplicate: false });
@@ -6742,23 +7026,217 @@ function requireRelayerOrTelegramUser(req, res, next) {
 }
 
 
-// Send Telegram message
-async function sendTelegramMessage(chatId, text) {
-  if (!process.env.BOT_TOKEN) return;
-  
+function normalizeTelegramParseMode(value, fallback = "HTML") {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  if (raw === "HTML" || raw === "Markdown" || raw === "MarkdownV2") return raw;
+  return fallback;
+}
+
+function normalizeTelegramCustomEmojiId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^\d{5,64}$/.test(raw) ? raw : "";
+}
+
+function normalizeTelegramMediaRef(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.length > 4096) return "";
+  return raw;
+}
+
+function normalizeTelegramButtonText(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.length > 64 ? raw.slice(0, 64) : raw;
+}
+
+function normalizeTelegramButtonUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (!/^https?:\/\//i.test(raw)) return "";
+  return raw.length > 2048 ? raw.slice(0, 2048) : raw;
+}
+
+function buildTelegramReplyMarkup(options = {}) {
+  const text = normalizeTelegramButtonText(options?.buttonText || "");
+  const miniAppUrl = normalizeTelegramButtonUrl(options?.miniAppUrl || "");
+  const buttonUrl = normalizeTelegramButtonUrl(options?.buttonUrl || "");
+  if (!text) return null;
+  if (!miniAppUrl && !buttonUrl) return null;
+
+  const button = miniAppUrl
+    ? { text, web_app: { url: miniAppUrl } }
+    : { text, url: buttonUrl };
+
+  return { inline_keyboard: [[button]] };
+}
+
+function escapeTelegramHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function buildTelegramMessagePayload(text, options = {}) {
+  const sourceText = String(text ?? "");
+  const parseMode = normalizeTelegramParseMode(options?.parseMode, "HTML");
+  const customEmojiId = normalizeTelegramCustomEmojiId(options?.customEmojiId);
+  const customEmojiFallback = String(options?.customEmojiFallback || "*");
+
+  if (!customEmojiId) {
+    return { text: sourceText, entities: null, forceParseMode: null };
+  }
+
+  if (!Array.isArray(options?.entities) && parseMode === "HTML") {
+    const fallbackSafe = escapeTelegramHtml(customEmojiFallback);
+    return {
+      text: `<tg-emoji emoji-id="${customEmojiId}">${fallbackSafe}</tg-emoji> ${sourceText}`,
+      entities: null,
+      forceParseMode: "HTML"
+    };
+  }
+
+  const decoratedText = `${customEmojiFallback} ${sourceText}`;
+  return {
+    text: decoratedText,
+    entities: [
+      {
+        offset: 0,
+        length: customEmojiFallback.length,
+        type: "custom_emoji",
+        custom_emoji_id: customEmojiId
+      }
+    ],
+    forceParseMode: null
+  };
+}
+
+function classifyTelegramSendError(error) {
+  const description = String(error?.description || error?.message || error || "").toLowerCase();
+  if (!description) return "other";
+  if (description.includes("too many requests")) return "rate_limited";
+  if (description.includes("bot was blocked by the user")) return "blocked";
+  if (description.includes("user is deactivated")) return "deactivated";
+  if (description.includes("chat not found")) return "chat_not_found";
+  if (description.includes("forbidden")) return "forbidden";
+  return "other";
+}
+
+async function callTelegramBotApi(method, body, options = {}) {
+  if (!process.env.BOT_TOKEN) {
+    const err = new Error("BOT_TOKEN not set");
+    err.description = "BOT_TOKEN not set";
+    if (options?.throwOnError) throw err;
+    return { ok: false, error: err.description };
+  }
+
   try {
-    await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-        parse_mode: 'HTML'
-      })
+    const response = await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/${method}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
     });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.ok) {
+      const description = String(payload?.description || `HTTP ${response.status}`);
+      const err = new Error(description);
+      err.status = response.status;
+      err.description = description;
+      err.retryAfter = Number(payload?.parameters?.retry_after || 0);
+      err.telegram = payload;
+      if (options?.throwOnError) throw err;
+      return { ok: false, error: description, status: response.status, payload };
+    }
+
+    return { ok: true, result: payload.result || null };
   } catch (err) {
-    console.error('[Telegram] Failed to send message:', err);
+    if (options?.throwOnError) throw err;
+    return { ok: false, error: String(err?.message || err || "request failed") };
   }
 }
+
+async function sendTelegramPhoto(chatId, caption = "", options = {}) {
+  const body = {
+    chat_id: chatId,
+    photo: String(options?.photo || "")
+  };
+  if (!body.photo) {
+    const err = new Error("photo required");
+    err.description = "photo required";
+    if (options?.throwOnError) throw err;
+    return { ok: false, error: err.description };
+  }
+
+  const captionText = String(caption ?? "");
+  if (captionText) {
+    const prepared = buildTelegramMessagePayload(captionText, options);
+    body.caption = prepared.text;
+    if (Array.isArray(options?.entities) && options.entities.length) {
+      body.caption_entities = options.entities;
+    } else if (Array.isArray(prepared.entities) && prepared.entities.length) {
+      body.caption_entities = prepared.entities;
+    } else {
+      body.parse_mode = prepared.forceParseMode || normalizeTelegramParseMode(options?.parseMode, "HTML");
+    }
+  }
+
+  if (options?.replyMarkup && typeof options.replyMarkup === "object") body.reply_markup = options.replyMarkup;
+  if (options?.disableNotification === true) body.disable_notification = true;
+  if (options?.allowPaidBroadcast === true) body.allow_paid_broadcast = true;
+
+  return callTelegramBotApi("sendPhoto", body, options);
+}
+
+async function sendTelegramBroadcastContent(chatId, content = {}, options = {}) {
+  const text = String(content?.text ?? "");
+  const photo = String(content?.photo || "").trim();
+  const replyMarkup = content?.replyMarkup && typeof content.replyMarkup === "object"
+    ? content.replyMarkup
+    : null;
+
+  if (photo) {
+    return sendTelegramPhoto(chatId, text, {
+      ...options,
+      photo,
+      replyMarkup
+    });
+  }
+
+  return sendTelegramMessage(chatId, text, {
+    ...options,
+    replyMarkup
+  });
+}
+
+// Send Telegram message
+async function sendTelegramMessage(chatId, text, options = {}) {
+  const prepared = buildTelegramMessagePayload(text, options);
+  const body = {
+    chat_id: chatId,
+    text: prepared.text
+  };
+
+  if (Array.isArray(options?.entities) && options.entities.length) {
+    body.entities = options.entities;
+  } else if (Array.isArray(prepared.entities) && prepared.entities.length) {
+    body.entities = prepared.entities;
+  } else {
+    body.parse_mode = prepared.forceParseMode || normalizeTelegramParseMode(options?.parseMode, "HTML");
+  }
+
+  if (options?.replyMarkup && typeof options.replyMarkup === "object") body.reply_markup = options.replyMarkup;
+  if (options?.disableNotification === true) body.disable_notification = true;
+  if (options?.disableWebPagePreview === true) body.disable_web_page_preview = true;
+  if (options?.allowPaidBroadcast === true) body.allow_paid_broadcast = true;
+
+  return callTelegramBotApi("sendMessage", body, options);
+}
+
+
+
 
 

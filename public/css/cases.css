@@ -145,17 +145,23 @@ body.page-cases .topbar > .crash-topThemeSwitch{
 }
 
 /* Keep left controls and balance on one line while cases page is active */
-body:has(.page-active#casesPage) .topbar{
+body:has(.page-active#casesPage) .topbar,
+body.page-cases .topbar{
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: start;
+  position: sticky;
+  top: 0;
+  z-index: 180;
 }
 
-body:has(.page-active#casesPage) .topbar > .topbar__left{
+body:has(.page-active#casesPage) .topbar > .topbar__left,
+body.page-cases .topbar > .topbar__left{
   grid-column: 1;
 }
 
-body:has(.page-active#casesPage) .topbar > .balance{
+body:has(.page-active#casesPage) .topbar > .balance,
+body.page-cases .topbar > .balance{
   grid-column: 3;
   justify-self: end;
   align-self: start;
@@ -2938,16 +2944,7 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   /* Фиксируем баланс при открытой панели кейсов */
   html.case-sheet-open,
   body.case-sheet-open {
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
-
-  body.case-sheet-open {
-    position: fixed;
-    left: 0;
-    right: 0;
-    width: 100%;
+    overscroll-behavior-y: contain;
   }
 
   body.case-sheet-open .case-bottom-sheet {
@@ -2964,9 +2961,10 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     --case-sheet-top-offset: calc(env(safe-area-inset-top, 0px) + 118px);
   }
 
-  /* Keep only balance pill visible while case sheet is open */
+  /* Keep topbar visible above case overlay while sheet is open */
   body.case-sheet-open .topbar {
     pointer-events: none;
+    z-index: 2400;
   }
 
   body.case-sheet-open .topbar > .topbar__left,
@@ -2975,21 +2973,35 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
     display: none !important;
     opacity: 0 !important;
     visibility: hidden !important;
-    pointer-events: none;
+    pointer-events: none !important;
   }
 
   body.case-sheet-open .topbar > .balance {
-    position: fixed;
-    top: var(--case-sheet-balance-top);
-    left: var(--case-sheet-balance-left);
-    right: var(--case-sheet-balance-right);
-    width: var(--case-sheet-balance-width);
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 74px) !important;
+    right: 14px !important;
+    left: auto !important;
+    width: auto !important;
     margin: 0;
-    transform: none !important;
-    z-index: 2308;
+    transform: translateY(0) !important;
     pointer-events: none !important;
     justify-self: auto;
     align-self: auto;
+    z-index: 2410 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  body.case-sheet-open .topbar > .balance .pill,
+  body.case-sheet-open .topbar > .balance .pill * {
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 
   body.case-sheet-open .logo-header {
@@ -3019,10 +3031,6 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   body.case-sheet-open .case-bottom-sheet,
   body.case-sheet-open .case-bottom-sheet * {
     pointer-events: auto;
-  }
-
-  body.case-sheet-open {
-    touch-action: none;
   }
 
   body.case-sheet-open .case-sheet-panel,

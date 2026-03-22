@@ -24,6 +24,49 @@
     '#a54b46'
   ];
 
+  const MARKET_NAMED_FALLBACKS = [
+    {
+      path: '/images/market/lolpopFallback.svg',
+      tokens: ['lol pop', 'lolpop', 'lol-pop']
+    },
+    {
+      path: '/images/market/poolfloatFallback.svg',
+      tokens: ['pool float', 'poolfloat', 'pool-float']
+    },
+    {
+      path: '/images/market/snoopdoggFallback.svg',
+      tokens: ['snoop dogg', 'snoopdogg', 'snoop-dogg']
+    },
+    {
+      path: '/images/market/xmasstockingFallback.svg',
+      tokens: ['xmas stocking', 'xmasstocking', 'xmas-stocking']
+    },
+    {
+      path: '/images/market/moodpackFallback.svg',
+      tokens: ['mood pack', 'moodpack', 'mood-pack', 'mood0ack']
+    },
+    {
+      path: '/images/market/instantramenFallback.svg',
+      tokens: ['instant ramen', 'instantramen', 'instant-ramen']
+    },
+    {
+      path: '/images/market/petsnakeFallback.svg',
+      tokens: ['pet snake', 'petsnake', 'pet-snake']
+    },
+    {
+      path: '/images/market/icecreamFallback.svg',
+      tokens: ['ice cream', 'icecream', 'ice-cream']
+    },
+    {
+      path: '/images/market/stellarrocketFallback.svg',
+      tokens: ['stellar rocket', 'stellarrocket', 'stellar-rocket']
+    },
+    {
+      path: '/images/market/gingercookieFallback.svg',
+      tokens: ['ginger cookie', 'gingercookie', 'ginger-cookie']
+    }
+  ];
+
   // Telegram Stars conversion (fallback charged rate). You can override via localStorage key 'starsPerTon'.
   const STARS_PER_TON_DEFAULT = 115 * 1.25;
 
@@ -270,8 +313,9 @@ try { window.state = state; } catch {}
   // Fallbacks (if preview missing)
   const modelImg = safeImg(tg?.model?.image);
   const giftImg  = safeImg(gift?.image);
+  const namedFallbackImg = marketFallbackImageByGift(gift);
 
-  const imgSrc = previewSrc || modelImg || giftImg || PLACEHOLDER_IMG;
+  const imgSrc = previewSrc || modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
 
   if (previewSrc) btn.classList.add('has-preview');
   if (imgSrc && imgSrc !== PLACEHOLDER_IMG) btn.classList.add('has-image');
@@ -289,15 +333,29 @@ try { window.state = state; } catch {}
     </div>
   `;
 
-  // If Fragment uses .jpg but sometimes .jpeg exists: auto-fallback once
-  if (previewSrc) {
-    const img = btn.querySelector('.market-card__img');
-    img?.addEventListener('error', () => {
-      const src = String(img.getAttribute('src') || '');
-      if (/\.medium\.jpg$/i.test(src)) {
-        img.setAttribute('src', src.replace(/\.medium\.jpg$/i, '.medium.jpeg'));
+  const img = btn.querySelector('.market-card__img');
+  if (img) {
+    const fallbackQueue = [];
+    if (previewSrc) {
+      const nextPreview = nextFragmentPreviewFallback(previewSrc);
+      if (nextPreview) fallbackQueue.push(nextPreview);
+    }
+    if (modelImg) fallbackQueue.push(modelImg);
+    if (giftImg) fallbackQueue.push(giftImg);
+    if (namedFallbackImg) fallbackQueue.push(namedFallbackImg);
+    fallbackQueue.push(PLACEHOLDER_IMG);
+
+    let fallbackIdx = 0;
+    img.addEventListener('error', () => {
+      const currentSrc = String(img.getAttribute('src') || '');
+      while (fallbackIdx < fallbackQueue.length) {
+        const nextSrc = fallbackQueue[fallbackIdx++];
+        if (!nextSrc || nextSrc === currentSrc) continue;
+        img.setAttribute('src', nextSrc);
+        return;
       }
-    }, { once: true });
+      img.onerror = null;
+    });
   }
 
   btn.addEventListener('click', () => {
@@ -884,7 +942,8 @@ function openGiftDrawer(gift) {
     '';
   const modelImg = safeImg(tg?.model?.image);
   const giftImg  = safeImg(gift?.image);
-  const imgSrc = previewSrc || modelImg || giftImg || PLACEHOLDER_IMG;
+  const namedFallbackImg = marketFallbackImageByGift(gift);
+  const imgSrc = previewSrc || modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
 
   // Text
   const name = safeText(gift?.name, 64) || 'Gift';
@@ -908,7 +967,7 @@ function openGiftDrawer(gift) {
           heroImgEl.setAttribute('src', nextPreviewSrc);
         } else {
           heroImgEl.onerror = null;
-          heroImgEl.setAttribute('src', modelImg || giftImg || PLACEHOLDER_IMG);
+          heroImgEl.setAttribute('src', modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG);
         }
       };
     }
@@ -1132,6 +1191,7 @@ function loadGiftsLocal() {
     const tg = (g.tg && typeof g.tg === 'object') ? g.tg : null;
 
     const previewUrl = safeText(g.previewUrl, 220000) || safeText(tg?.previewUrl, 220000) || '';
+    const namedFallbackImg = marketFallbackImageByGift({ id, name, number, tg });
 
     // image can be:
     //  - data:image/... (from relayer when INLINE_IMAGES=1)
@@ -1139,6 +1199,7 @@ function loadGiftsLocal() {
     //  - fallback placeholder
     const image = safeText(g.image, 220000) ||
       safeText(tg?.model?.image, 220000) ||
+      namedFallbackImg ||
       PLACEHOLDER_IMG;
 
     const priceTon = toFiniteNumber(g.priceTon);
@@ -1386,6 +1447,31 @@ function nextFragmentPreviewFallback(url) {
   return '';
 }
 
+function marketFallbackImageByGift(gift) {
+  const tg = gift?.tg && typeof gift.tg === 'object' ? gift.tg : null;
+  const sample = [
+    String(gift?.name || '').toLowerCase(),
+    String(gift?.id || '').toLowerCase(),
+    String(tg?.slug || '').toLowerCase()
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  if (!sample) return '';
+
+  for (let i = 0; i < MARKET_NAMED_FALLBACKS.length; i++) {
+    const rule = MARKET_NAMED_FALLBACKS[i];
+    if (!rule || !rule.path || !Array.isArray(rule.tokens)) continue;
+    for (let j = 0; j < rule.tokens.length; j++) {
+      const token = String(rule.tokens[j] || '').trim().toLowerCase();
+      if (token && sample.includes(token)) return rule.path;
+    }
+  }
+
+  return '';
+}
+
 function safeImg(v, maxUrl = 4096) {
     const s = String(v ?? '').trim();
     if (!s) return '';
@@ -1563,7 +1649,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
   // =========================
   const filterState = {
     selectedKeys: new Set(),   // normalized gift name keys
-    allTypes: []               // { key, name, previewSrc, floorTon, count }
+    allTypes: []               // { key, name, previewSrc, fallbackPreviewSrc, floorTon, count }
   };
 
   // =========================
@@ -1678,9 +1764,15 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
       const key = normalizeKey(name);
       if (!key) continue;
 
-      // choose best preview/icon for type
+      // For configured gifts, force dedicated fallback icon in filter list.
       const tg = g?.tg || null;
-      const previewSrc = safeText(g?.previewUrl, 220000) || safeText(tg?.previewUrl, 220000) || safeText(g?.image, 220000) || '/icons/market.webp';
+      const fallbackPreviewSrc =
+        safeText(g?.previewUrl, 220000) ||
+        safeText(tg?.previewUrl, 220000) ||
+        safeText(g?.image, 220000) ||
+        '/icons/market.webp';
+      const namedFallbackSrc = marketFallbackImageByGift(g);
+      const previewSrc = namedFallbackSrc || fallbackPreviewSrc;
 
       const priceTon = toFiniteNumber(g?.priceTon);
       const cur = map.get(key);
@@ -1690,6 +1782,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
           id: key,
           name,
           previewSrc,
+          fallbackPreviewSrc,
           floorTon: (Number.isFinite(priceTon) && priceTon > 0) ? priceTon : null,
           count: 1
         });
@@ -1742,6 +1835,25 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
       </div>
       <div class="market-filter-item__checkbox"></div>
     `;
+
+    const iconEl = item.querySelector('.market-filter-item__icon');
+    if (iconEl) {
+      const backupSrc = safeText(t?.fallbackPreviewSrc, 220000) || '/icons/market.webp';
+      let usedBackup = false;
+      iconEl.addEventListener('error', () => {
+        const currentSrc = String(iconEl.getAttribute('src') || '');
+        if (!usedBackup && backupSrc && currentSrc !== backupSrc) {
+          usedBackup = true;
+          iconEl.setAttribute('src', backupSrc);
+          return;
+        }
+        if (currentSrc !== '/icons/market.webp') {
+          iconEl.setAttribute('src', '/icons/market.webp');
+          return;
+        }
+        iconEl.onerror = null;
+      });
+    }
 
     item.addEventListener('click', () => {
       if (filterState.selectedKeys.has(key)) {
