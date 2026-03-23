@@ -2000,7 +2000,18 @@ function rpcAuthOk(req) {
   const m = h.match(/^Bearer\s+(.+)$/i);
   const token = m ? String(m[1] || "").trim() : "";
   const alt = String(req.headers?.["x-relayer-secret"] || req.headers?.["x-relay-secret"] || "").trim();
-  return token === secret || alt === secret;
+  return safeTextEqual(token, secret) || safeTextEqual(alt, secret);
+}
+
+function safeTextEqual(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
+  if (left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeToFields(body) {

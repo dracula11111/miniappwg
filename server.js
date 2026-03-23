@@ -4676,6 +4676,7 @@ app.post("/api/ton/deposit/confirm", async (req, res) => {
 
 // ====== DEPOSIT NOTIFICATION ======
 app.post("/api/deposit-notification", async (req, res) => {
+  let claimedDepositEventKey = "";
   try {
     const {
       amount,
@@ -4788,6 +4789,13 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amountNum)}_${timestamp}`;
+    const shouldPersistentCreditDedupe =
+      amountNum > 0 &&
+      typeNorm === "deposit";
+
+    if (shouldPersistentCreditDedupe && !String(depositId || "").trim()) {
+      return res.status(400).json({ ok: false, error: "depositId/invoiceId/txHash required for deposit credit" });
+    }
 
     console.log("[Deposit] Notification received:", {
       amount: amountNum,
@@ -4814,6 +4822,30 @@ app.post("/api/deposit-notification", async (req, res) => {
         message: "Already processed",
         duplicate: true
       });
+    }
+
+    if (shouldPersistentCreditDedupe) {
+      claimedDepositEventKey = buildDepositDedupeEventKey({
+        userId,
+        currency,
+        type: typeNorm,
+        depositId
+      });
+      const claimed = await claimWebhookEvent(claimedDepositEventKey, {
+        userId: String(userId || ""),
+        currency: String(currency || ""),
+        type: typeNorm,
+        amount: amountNum,
+        depositId: String(depositId || "").slice(0, 128)
+      });
+      if (!claimed) {
+        console.log("[Deposit] Duplicate credit event ignored:", claimedDepositEventKey);
+        return res.json({
+          ok: true,
+          message: "Already processed",
+          duplicate: true
+        });
+      }
     }
 
     if (user) {
@@ -4850,7 +4882,6 @@ app.post("/api/deposit-notification", async (req, res) => {
 
     // Send Telegram message only for trusted real deposits.
     const shouldSendDepositMessage =
-      notify !== false &&
       amountNum > 0 &&
       process.env.BOT_TOKEN &&
       typeNorm === "deposit";
@@ -4942,6 +4973,9 @@ app.post("/api/deposit-notification", async (req, res) => {
       if (shouldDedupe) {
         processedDeposits.delete(depositId);
       }
+      if (claimedDepositEventKey) {
+        await releaseWebhookEvent(claimedDepositEventKey).catch(() => {});
+      }
 
       return res.status(500).json({
         ok: false,
@@ -4950,6 +4984,9 @@ app.post("/api/deposit-notification", async (req, res) => {
       });
     }
   } catch (error) {
+    if (claimedDepositEventKey) {
+      await releaseWebhookEvent(claimedDepositEventKey).catch(() => {});
+    }
     console.error("[Deposit] Error:", error);
     return res.status(500).json({
       ok: false,
@@ -5099,6 +5136,12 @@ function markDepositProcessed(identifier) {
   if (identifier) {
     processedDeposits.set(identifier, Date.now());
   }
+}
+
+function buildDepositDedupeEventKey({ userId, currency, type, depositId }) {
+  const base = `${String(userId || "").trim()}|${String(currency || "").trim()}|${String(type || "").trim()}|${String(depositId || "").trim()}`;
+  const hash = crypto.createHash("sha256").update(base).digest("hex");
+  return `deposit:${hash}`;
 }
 
 async function getTaskProgressSignalsForUser(userId) {
@@ -5768,7 +5811,7 @@ function isRelayerSecretOk(req) {
   if (!secret) return false;
   const token = getBearerToken(req);
   const alt = String(req.headers?.["x-relayer-secret"] || req.headers?.["x-relay-secret"] || "").trim();
-  return token === secret || alt === secret;
+  return safeTextEqual(token, secret) || safeTextEqual(alt, secret);
 }
 
 async function ensureMarketDir() {
@@ -7125,6 +7168,20 @@ function classifyTelegramSendError(error) {
   return "other";
 }
 
+function isCustomEmojiEntityError(text) {
+  const raw = String(text || "");
+  return /ENTITY_TEXT_INVALID|custom_emoji|can't parse entities/i.test(raw);
+}
+
+function buildTelegramResultError(result) {
+  const err = new Error(String(result?.error || "Telegram request failed"));
+  err.description = String(result?.error || err.message);
+  err.status = Number(result?.status || 0);
+  err.retryAfter = Number(result?.payload?.parameters?.retry_after || 0);
+  err.telegram = result?.payload || null;
+  return err;
+}
+
 async function callTelegramBotApi(method, body, options = {}) {
   if (!process.env.BOT_TOKEN) {
     const err = new Error("BOT_TOKEN not set");
@@ -7188,7 +7245,28 @@ async function sendTelegramPhoto(chatId, caption = "", options = {}) {
   if (options?.disableNotification === true) body.disable_notification = true;
   if (options?.allowPaidBroadcast === true) body.allow_paid_broadcast = true;
 
-  return callTelegramBotApi("sendPhoto", body, options);
+  const apiOptions = { ...options, throwOnError: false };
+  let result = await callTelegramBotApi("sendPhoto", body, apiOptions);
+
+  if (!result?.ok && options?.customEmojiId && isCustomEmojiEntityError(result?.error)) {
+    const retryBody = { ...body };
+    const retryPrepared = buildTelegramMessagePayload(captionText, { ...options, customEmojiId: "" });
+    retryBody.caption = retryPrepared.text;
+    delete retryBody.caption_entities;
+    retryBody.parse_mode = retryPrepared.forceParseMode || normalizeTelegramParseMode(options?.parseMode, "HTML");
+    result = await callTelegramBotApi("sendPhoto", retryBody, apiOptions);
+  }
+
+  if (!result?.ok) {
+    console.error("[Telegram] sendPhoto failed:", {
+      chatId,
+      status: result?.status || 0,
+      description: result?.error || "sendPhoto failed"
+    });
+    if (options?.throwOnError) throw buildTelegramResultError(result);
+  }
+
+  return result;
 }
 
 async function sendTelegramBroadcastContent(chatId, content = {}, options = {}) {
@@ -7233,7 +7311,39 @@ async function sendTelegramMessage(chatId, text, options = {}) {
   if (options?.disableWebPagePreview === true) body.disable_web_page_preview = true;
   if (options?.allowPaidBroadcast === true) body.allow_paid_broadcast = true;
 
-  return callTelegramBotApi("sendMessage", body, options);
+  const apiOptions = { ...options, throwOnError: false };
+  let result = await callTelegramBotApi("sendMessage", body, apiOptions);
+
+  if (!result?.ok && options?.customEmojiId && isCustomEmojiEntityError(result?.error)) {
+    const retryPrepared = buildTelegramMessagePayload(text, { ...options, customEmojiId: "" });
+    const retryBody = {
+      chat_id: chatId,
+      text: retryPrepared.text
+    };
+    if (Array.isArray(options?.entities) && options.entities.length) {
+      retryBody.entities = options.entities;
+    } else if (Array.isArray(retryPrepared.entities) && retryPrepared.entities.length) {
+      retryBody.entities = retryPrepared.entities;
+    } else {
+      retryBody.parse_mode = retryPrepared.forceParseMode || normalizeTelegramParseMode(options?.parseMode, "HTML");
+    }
+    if (options?.replyMarkup && typeof options.replyMarkup === "object") retryBody.reply_markup = options.replyMarkup;
+    if (options?.disableNotification === true) retryBody.disable_notification = true;
+    if (options?.disableWebPagePreview === true) retryBody.disable_web_page_preview = true;
+    if (options?.allowPaidBroadcast === true) retryBody.allow_paid_broadcast = true;
+    result = await callTelegramBotApi("sendMessage", retryBody, apiOptions);
+  }
+
+  if (!result?.ok) {
+    console.error("[Telegram] sendMessage failed:", {
+      chatId,
+      status: result?.status || 0,
+      description: result?.error || "sendMessage failed"
+    });
+    if (options?.throwOnError) throw buildTelegramResultError(result);
+  }
+
+  return result;
 }
 
 

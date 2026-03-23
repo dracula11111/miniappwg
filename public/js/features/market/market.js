@@ -26,44 +26,52 @@
 
   const MARKET_NAMED_FALLBACKS = [
     {
-      path: '/images/market/lolpopFallback.svg',
+      path: '/images/gifts/marketFilters/lolpopFallback.svg',
       tokens: ['lol pop', 'lolpop', 'lol-pop']
     },
     {
-      path: '/images/market/poolfloatFallback.svg',
+      path: '/images/gifts/marketFilters/poolfloatFallback.svg',
       tokens: ['pool float', 'poolfloat', 'pool-float']
     },
     {
-      path: '/images/market/snoopdoggFallback.svg',
+      path: '/images/gifts/marketFilters/snoopdoggFallback.svg',
       tokens: ['snoop dogg', 'snoopdogg', 'snoop-dogg']
     },
     {
-      path: '/images/market/xmasstockingFallback.svg',
+      path: '/images/gifts/marketFilters/xmasstockingFallback.svg',
       tokens: ['xmas stocking', 'xmasstocking', 'xmas-stocking']
     },
     {
-      path: '/images/market/moodpackFallback.svg',
+      path: '/images/gifts/marketFilters/moodpackFallback.svg',
       tokens: ['mood pack', 'moodpack', 'mood-pack', 'mood0ack']
     },
     {
-      path: '/images/market/instantramenFallback.svg',
+      path: '/images/gifts/marketFilters/instantramenFallback.svg',
       tokens: ['instant ramen', 'instantramen', 'instant-ramen']
     },
     {
-      path: '/images/market/petsnakeFallback.svg',
+      path: '/images/gifts/marketFilters/petsnakeFallback.svg',
       tokens: ['pet snake', 'petsnake', 'pet-snake']
     },
     {
-      path: '/images/market/icecreamFallback.svg',
+      path: '/images/gifts/marketFilters/icecreamFallback.svg',
       tokens: ['ice cream', 'icecream', 'ice-cream']
     },
     {
-      path: '/images/market/stellarrocketFallback.svg',
+      path: '/images/gifts/marketFilters/stellarrocketFallback.svg',
       tokens: ['stellar rocket', 'stellarrocket', 'stellar-rocket']
     },
     {
-      path: '/images/market/gingercookieFallback.svg',
+      path: '/images/gifts/marketFilters/gingercookieFallback.svg',
       tokens: ['ginger cookie', 'gingercookie', 'ginger-cookie']
+    },
+    {
+      path: '/images/gifts/marketFilters/freshsocksFallback.svg',
+      tokens: ['fresh socks', 'freshsocks', 'fresh-socks']
+    },
+    {
+      path: '/images/gifts/marketFilters/winterwreathFallback.svg',
+      tokens: ['winter wreath', 'winterwreath', 'winter-wreath']
     }
   ];
 
