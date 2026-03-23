@@ -26,7 +26,8 @@ const RLS_PROTECTED_TABLES = [
   "promo_codes",
   "promo_redemptions",
   "user_task_claims",
-  "webhook_events"
+  "webhook_events",
+  "tech_pause_control"
 ];
 
 async function query(text, params) {
@@ -519,6 +520,12 @@ export async function initDatabase() {
       created_at BIGINT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON webhook_events(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS tech_pause_control (
+      id SMALLINT PRIMARY KEY CHECK (id = 1),
+      is_enabled SMALLINT NOT NULL DEFAULT 0 CHECK (is_enabled IN (0, 1)),
+      updated_at BIGINT NOT NULL
+    );
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -579,6 +586,12 @@ export async function initDatabase() {
     WHERE r.telegram_id = u.telegram_id
       AND (r.telegram_username IS NULL OR r.telegram_username = '')
   `);
+  await query(
+    `INSERT INTO tech_pause_control (id, is_enabled, updated_at)
+     VALUES (1, 0, $1)
+     ON CONFLICT (id) DO NOTHING`,
+    [Date.now()]
+  );
   await rebuildGiftReadableSnapshot();
   try {
     await hardenPublicSchemaAccess();
@@ -610,6 +623,39 @@ export async function releaseWebhookEvent(eventKey) {
   if (!key) return false;
   const r = await query(`DELETE FROM webhook_events WHERE event_key = $1`, [key]);
   return Number(r.rowCount || 0) > 0;
+}
+
+export async function getTechPauseFlag() {
+  const r = await query(
+    `SELECT is_enabled, updated_at
+     FROM tech_pause_control
+     WHERE id = 1
+     LIMIT 1`
+  );
+
+  const row = r.rows?.[0] || null;
+  if (!row) {
+    return { enabled: false, updatedAt: 0 };
+  }
+
+  return {
+    enabled: Number(row.is_enabled) === 1,
+    updatedAt: Number(row.updated_at) || 0
+  };
+}
+
+export async function setTechPauseFlag(enabled) {
+  const on = Number(enabled) === 1 ? 1 : 0;
+  const now = Date.now();
+  await query(
+    `INSERT INTO tech_pause_control (id, is_enabled, updated_at)
+     VALUES (1, $1, $2)
+     ON CONFLICT (id)
+     DO UPDATE SET is_enabled = EXCLUDED.is_enabled,
+                   updated_at = EXCLUDED.updated_at`,
+    [on, now]
+  );
+  return { enabled: on === 1, updatedAt: now };
 }
 
 export async function getMarketItems(limit = 200) {

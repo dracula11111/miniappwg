@@ -149,6 +149,16 @@
                 timestamp: data.timestamp 
               } 
             }));
+          } else if (data.type === 'tech_pause') {
+            const payload = {
+              enabled: data.enabled === true || Number(data.enabled) === 1,
+              mode: String(data.mode || "off"),
+              isDraining: data.isDraining === true || String(data.mode || "") === "draining",
+              isActive: data.isActive === true || String(data.mode || "") === "active",
+              blocking: data.blocking === true,
+              updatedAt: Number(data.updatedAt || data.timestamp || Date.now())
+            };
+            window.dispatchEvent(new CustomEvent('techpause:update', { detail: payload }));
           }
         } catch (err) {
           console.error('[Balance Live] Error parsing message:', err);
@@ -234,6 +244,9 @@
       
       if (j && j.ok && typeof j.ton !== 'undefined' && typeof j.stars !== 'undefined') {
         updateBalanceSafely(j.ton, j.stars);
+        if (j.techPause && typeof j.techPause === "object") {
+          window.dispatchEvent(new CustomEvent('techpause:update', { detail: j.techPause }));
+        }
       }
     } catch (e) {
       console.error('[Balance Live] Polling error:', e);
@@ -262,6 +275,9 @@
       if (data && data.ok && typeof data.ton !== 'undefined' && typeof data.stars !== 'undefined') {
         console.log('[Balance Live] ✅ Initial balance loaded:', data);
         updateBalanceSafely(data.ton, data.stars);
+        if (data.techPause && typeof data.techPause === "object") {
+          window.dispatchEvent(new CustomEvent('techpause:update', { detail: data.techPause }));
+        }
       } else {
         console.warn('[Balance Live] ⚠️ Invalid initial balance response:', data);
       }

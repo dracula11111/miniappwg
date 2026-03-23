@@ -80,6 +80,8 @@ function createMemoryDb() {
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
+  let techPauseEnabled = 0;
+  let techPauseUpdatedAt = Date.now();
   let txId = 1;
   let betId = 1;
 
@@ -494,6 +496,20 @@ function createMemoryDb() {
       if (!keyRaw) return false;
       return webhookEvents.delete(keyRaw);
     },
+    async getTechPauseFlag() {
+      return {
+        enabled: Number(techPauseEnabled) === 1,
+        updatedAt: Number(techPauseUpdatedAt) || 0
+      };
+    },
+    async setTechPauseFlag(enabled) {
+      techPauseEnabled = Number(enabled) === 1 ? 1 : 0;
+      techPauseUpdatedAt = Date.now();
+      return {
+        enabled: techPauseEnabled === 1,
+        updatedAt: techPauseUpdatedAt
+      };
+    },
 
 // ===== Inventory (TEST_MODE memory) =====
 async getUserInventory(telegramId) {
@@ -597,6 +613,32 @@ if (!IS_TEST) {
 
 // Select DB
 const db = IS_TEST ? dbMem : dbReal;
+
+// SSE clients: userId -> Set(response)
+const balanceClients = new Map();
+
+const TECH_PAUSE_MODE_OFF = "off";
+const TECH_PAUSE_MODE_DRAINING = "draining";
+const TECH_PAUSE_MODE_ACTIVE = "active";
+const TECH_PAUSE_ERROR_CODE = "TECH_PAUSE";
+const TECH_PAUSE_DB_POLL_MS = Math.max(
+  1000,
+  Math.min(30000, Number(process.env.TECH_PAUSE_DB_POLL_MS || 3000) || 3000)
+);
+const TECH_PAUSE_DRAINING_MIN_MS = Math.max(
+  1000,
+  Math.min(120000, Number(process.env.TECH_PAUSE_DRAINING_MIN_MS || 6000) || 6000)
+);
+
+const techPauseState = {
+  mode: TECH_PAUSE_MODE_OFF,
+  flagEnabled: false,
+  updatedAt: Date.now(),
+  drainingStartedAt: 0,
+  activatedAt: 0
+};
+
+let techPauseSyncPromise = null;
 
 
 const app = express();
@@ -782,7 +824,8 @@ function buildGameState(now = Date.now()) {
     crashPoint: (crashGame.phase === 'crash' || crashGame.phase === 'wait') ? crashGame.crashPoint : null,
     currentMult: crashGame.currentMult,
     players: crashGame.players,
-    history: crashGame.history.slice(0, 15)
+    history: crashGame.history.slice(0, 15),
+    techPause: getPublicTechPauseState()
   };
 }
 
@@ -1016,6 +1059,16 @@ ws.on('message', async (data) => {
       const msg = JSON.parse(data);
       
       if (msg.type === 'placeBet') {
+        if (isTechPauseBlockingActions()) {
+          wsSendSafe(ws, JSON.stringify({
+            type: 'error',
+            code: TECH_PAUSE_ERROR_CODE,
+            message: 'Technical pause is active',
+            techPause: getPublicTechPauseState()
+          }));
+          return;
+        }
+
         if (crashGame.phase !== 'betting') {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
@@ -1599,7 +1652,8 @@ function buildWheelState(now = Date.now()) {
       paidStars: settlement.paidStars
     } : null,
     players: buildWheelPlayersArray(),
-    history: wheelGame.history.slice(0, 20)
+    history: wheelGame.history.slice(0, 20),
+    techPause: getPublicTechPauseState()
   };
 }
 
@@ -1761,6 +1815,16 @@ wheelWss.on('connection', (ws) => {
       const msg = JSON.parse(data);
 
       if (msg.type === 'placeBet') {
+        if (isTechPauseBlockingActions()) {
+          wsSendSafe(ws, JSON.stringify({
+            type: 'error',
+            code: TECH_PAUSE_ERROR_CODE,
+            message: 'Technical pause is active',
+            techPause: getPublicTechPauseState()
+          }));
+          return;
+        }
+
         if (wheelGame.phase !== 'betting') {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
@@ -1846,6 +1910,177 @@ wheelWss.on('connection', (ws) => {
 
 // Start shared loop
 wheelStartBetting();
+
+function hasUnresolvedCrashBetsForTechPause() {
+  const playersCount = Array.isArray(crashGame?.players) ? crashGame.players.length : 0;
+  if (!playersCount) return false;
+  return crashGame.phase === "betting" || crashGame.phase === "run";
+}
+
+function hasUnresolvedWheelBetsForTechPause() {
+  const playersCount = wheelGame?.players?.size || 0;
+  if (!playersCount) return false;
+  return wheelGame.phase === "betting" || wheelGame.phase === "spin" || wheelGame.phase === "bonus";
+}
+
+function resolveTechPauseMode(flagEnabled) {
+  if (!flagEnabled) return TECH_PAUSE_MODE_OFF;
+  if (hasUnresolvedCrashBetsForTechPause() || hasUnresolvedWheelBetsForTechPause()) {
+    return TECH_PAUSE_MODE_DRAINING;
+  }
+  return TECH_PAUSE_MODE_ACTIVE;
+}
+
+function getPublicTechPauseState() {
+  return {
+    enabled: techPauseState.flagEnabled === true,
+    mode: techPauseState.mode,
+    isDraining: techPauseState.mode === TECH_PAUSE_MODE_DRAINING,
+    isActive: techPauseState.mode === TECH_PAUSE_MODE_ACTIVE,
+    blocking: techPauseState.mode === TECH_PAUSE_MODE_DRAINING || techPauseState.mode === TECH_PAUSE_MODE_ACTIVE,
+    updatedAt: techPauseState.updatedAt,
+    drainingStartedAt: techPauseState.drainingStartedAt || null,
+    activatedAt: techPauseState.activatedAt || null
+  };
+}
+
+function isTechPauseBlockingActions() {
+  return techPauseState.mode === TECH_PAUSE_MODE_DRAINING || techPauseState.mode === TECH_PAUSE_MODE_ACTIVE;
+}
+
+function buildTechPauseApiErrorPayload() {
+  const state = getPublicTechPauseState();
+  return {
+    ok: false,
+    code: TECH_PAUSE_ERROR_CODE,
+    error: state.isDraining
+      ? "Technical pause is preparing. Please finish active rounds and try again later."
+      : "Technical pause is active. Actions are temporarily disabled.",
+    techPause: state
+  };
+}
+
+function sendTechPauseToSseClient(client) {
+  if (!client || typeof client.write !== "function") return false;
+  try {
+    const payload = JSON.stringify({
+      type: "tech_pause",
+      ...getPublicTechPauseState(),
+      timestamp: Date.now()
+    });
+    client.write(`data: ${payload}\n\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function broadcastTechPauseState() {
+  const payload = JSON.stringify({
+    type: "tech_pause",
+    ...getPublicTechPauseState(),
+    timestamp: Date.now()
+  });
+
+  balanceClients.forEach((clients, userId) => {
+    if (!clients || !clients.size) return;
+    for (const client of clients) {
+      try {
+        client.write(`data: ${payload}\n\n`);
+      } catch {
+        try { clients.delete(client); } catch {}
+      }
+    }
+    if (clients.size === 0) {
+      try { balanceClients.delete(userId); } catch {}
+    }
+  });
+
+  wss.clients.forEach((ws) => wsSendSafe(ws, payload));
+  wheelWss.clients.forEach((ws) => wsSendSafe(ws, payload));
+}
+
+function applyTechPauseState(flagEnabled, source = "sync") {
+  const enabled = flagEnabled === true;
+  const prevMode = techPauseState.mode;
+  const prevEnabled = techPauseState.flagEnabled;
+  const now = Date.now();
+  let nextMode = resolveTechPauseMode(enabled);
+
+  if (enabled && prevMode === TECH_PAUSE_MODE_OFF && nextMode === TECH_PAUSE_MODE_ACTIVE) {
+    nextMode = TECH_PAUSE_MODE_DRAINING;
+  }
+  if (
+    enabled &&
+    prevMode === TECH_PAUSE_MODE_DRAINING &&
+    nextMode === TECH_PAUSE_MODE_ACTIVE &&
+    techPauseState.drainingStartedAt > 0 &&
+    now - techPauseState.drainingStartedAt < TECH_PAUSE_DRAINING_MIN_MS
+  ) {
+    nextMode = TECH_PAUSE_MODE_DRAINING;
+  }
+
+  if (prevMode === nextMode && prevEnabled === enabled) return false;
+
+  techPauseState.flagEnabled = enabled;
+  techPauseState.mode = nextMode;
+  techPauseState.updatedAt = now;
+
+  if (nextMode === TECH_PAUSE_MODE_DRAINING && prevMode !== TECH_PAUSE_MODE_DRAINING) {
+    techPauseState.drainingStartedAt = techPauseState.updatedAt;
+    techPauseState.activatedAt = 0;
+  } else if (nextMode === TECH_PAUSE_MODE_ACTIVE && prevMode !== TECH_PAUSE_MODE_ACTIVE) {
+    techPauseState.activatedAt = techPauseState.updatedAt;
+    if (!techPauseState.drainingStartedAt) {
+      techPauseState.drainingStartedAt = techPauseState.updatedAt;
+    }
+  } else if (nextMode === TECH_PAUSE_MODE_OFF) {
+    techPauseState.drainingStartedAt = 0;
+    techPauseState.activatedAt = 0;
+  }
+
+  console.log(`[TechPause] ${prevMode} -> ${nextMode} (flag=${enabled ? 1 : 0}, source=${source})`);
+  broadcastTechPauseState();
+  try { broadcastGameState(); } catch {}
+  try { broadcastWheelState(); } catch {}
+  return true;
+}
+
+async function syncTechPauseFromDb(source = "poll") {
+  if (techPauseSyncPromise) return techPauseSyncPromise;
+
+  techPauseSyncPromise = (async () => {
+    try {
+      if (typeof db?.getTechPauseFlag === "function") {
+        const snapshot = await db.getTechPauseFlag();
+        const enabled = Number(snapshot?.enabled) === 1 || snapshot?.enabled === true;
+        applyTechPauseState(enabled, source);
+        return;
+      }
+      applyTechPauseState(false, source);
+    } catch (error) {
+      console.error("[TechPause] sync error:", error?.message || error);
+    }
+  })().finally(() => {
+    techPauseSyncPromise = null;
+  });
+
+  return techPauseSyncPromise;
+}
+
+function requireTechPauseActionsAllowed(req, res, next) {
+  if (!isTechPauseBlockingActions()) return next();
+  return res.status(503).json(buildTechPauseApiErrorPayload());
+}
+
+await syncTechPauseFromDb("startup");
+setInterval(() => {
+  syncTechPauseFromDb("poll").catch(() => {});
+}, TECH_PAUSE_DB_POLL_MS);
+setInterval(() => {
+  if (!techPauseState.flagEnabled) return;
+  applyTechPauseState(true, "tick");
+}, 1000);
 
 
 
@@ -3248,7 +3483,7 @@ app.post("/api/inventory/add", requireRelayerOrTelegramUser, handleInventoryAdd)
 
 
 // Sell selected NFTs from inventory -> credit balance
-app.post("/api/inventory/sell", requireTelegramUser, async (req, res) => {
+app.post("/api/inventory/sell", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     const { instanceIds, currency } = req.body || {};
@@ -3266,7 +3501,7 @@ app.post("/api/inventory/sell", requireTelegramUser, async (req, res) => {
 
 
 // Sell ALL NFTs
-app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
+app.post("/api/inventory/sell-all", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     const { currency } = req.body || {};
@@ -3286,7 +3521,7 @@ app.post("/api/inventory/sell-all", requireTelegramUser, async (req, res) => {
 });
 
 // Redeem promo code
-app.post("/api/promocode/redeem", requireTelegramUser, async (req, res) => {
+app.post("/api/promocode/redeem", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg.user.id || "");
     const code = String(req.body?.code || "").trim();
@@ -3605,7 +3840,7 @@ app.get("/api/tasks/channel-subscription/status", requireTelegramUser, async (re
   }
 });
 
-app.post("/api/tasks/channel-subscription/claim", requireTelegramUser, async (req, res) => {
+app.post("/api/tasks/channel-subscription/claim", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg?.user?.id || "");
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
@@ -3741,7 +3976,7 @@ app.get("/api/tasks/top-up/status", requireTelegramUser, async (req, res) => {
   }
 });
 
-app.post("/api/tasks/top-up/claim", requireTelegramUser, async (req, res) => {
+app.post("/api/tasks/top-up/claim", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg?.user?.id || "");
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
@@ -3849,7 +4084,7 @@ app.get("/api/tasks/game-win/status", requireTelegramUser, async (req, res) => {
   }
 });
 
-app.post("/api/tasks/game-win/claim", requireTelegramUser, async (req, res) => {
+app.post("/api/tasks/game-win/claim", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg?.user?.id || "");
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
@@ -3923,7 +4158,7 @@ app.post("/api/tasks/game-win/claim", requireTelegramUser, async (req, res) => {
 
 
 // Withdraw (send gift via relayer): charges fee and removes from inventory on success
-app.post("/api/inventory/withdraw", requireTelegramUser, async (req, res) => {
+app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     if (ADMIN_ONLY_TRADING_MODE && !isRelayerAdminUserId(userId)) {
@@ -4713,6 +4948,14 @@ app.post("/api/deposit-notification", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Invalid currency" });
     }
 
+    const isTechPauseBlockedDebit =
+      isTechPauseBlockingActions() &&
+      amountNum < 0 &&
+      (typeNorm === "bet" || typeNorm === "wheel_bet" || typeNorm === "case_open");
+    if (isTechPauseBlockedDebit) {
+      return res.status(503).json(buildTechPauseApiErrorPayload());
+    }
+
     const isRelayer = isRelayerSecretOk(req);
     const maxAgeSec = Math.max(
       60,
@@ -5033,7 +5276,6 @@ function generateDescription(type, amount, txHash, roundId) {
   }
 }
 // ====== SSE РґР»СЏ Р°РІС‚РѕРѕР±РЅРѕРІР»РµРЅРёСЏ Р±Р°Р»Р°РЅСЃР° ======
-const balanceClients = new Map(); // userId -> Set of response objects
 
 app.get("/api/balance/stream", requireTelegramUser, async (req, res) => {
   const tgUserId = String(req.tg?.user?.id || "").trim();
@@ -5073,6 +5315,7 @@ app.get("/api/balance/stream", requireTelegramUser, async (req, res) => {
   } catch (err) {
     console.error('[SSE] Error sending initial balance:', err);
   }
+  sendTechPauseToSseClient(res);
   
   // Heartbeat to keep connection alive
   const heartbeat = setInterval(() => {
@@ -5296,7 +5539,8 @@ app.get("/api/balance", requireTelegramUser, async (req, res) => {
       userId: numericUserId,
       ton: parseFloat(balance.ton_balance) || 0,
       stars: parseInt(balance.stars_balance) || 0,
-      updatedAt: balance.updated_at
+      updatedAt: balance.updated_at,
+      techPause: getPublicTechPauseState()
     });
 
   } catch (error) {
@@ -5308,11 +5552,36 @@ app.get("/api/balance", requireTelegramUser, async (req, res) => {
   }
 });
 
+app.get("/api/system/state", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userIdFromQuery = String(req.query?.userId || "").trim();
+    if (userIdFromQuery && userIdFromQuery !== tgUserId) {
+      return res.status(403).json({ ok: false, error: "Forbidden userId" });
+    }
+
+    return res.json({
+      ok: true,
+      serverTime: Date.now(),
+      techPause: getPublicTechPauseState()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Failed to fetch system state"
+    });
+  }
+});
+
 
 
 // ====== STARS PAYMENT API ======
 app.post("/api/stars/create-invoice", async (req, res) => {
   try {
+    if (isTechPauseBlockingActions()) {
+      return res.status(503).json(buildTechPauseApiErrorPayload());
+    }
+
     const { amount, userId } = req.body;
 
     console.log('[Stars API] Creating invoice:', { amount, userId });
@@ -5543,7 +5812,8 @@ app.get("/api/user/profile", requireTelegramUser, async (req, res) => {
         ban: Number(user.ban) === 1 ? 1 : 0,
         createdAt: user.created_at,
         lastSeen: user.last_seen
-      }
+      },
+      techPause: getPublicTechPauseState()
     });
 
   } catch (error) {
@@ -5650,6 +5920,10 @@ app.get("/api/round/start", async (req, res) => {
 // ====== PLACE BET ======
 app.post("/api/round/place-bet", async (req, res) => {
   try {
+    if (isTechPauseBlockingActions()) {
+      return res.status(503).json(buildTechPauseApiErrorPayload());
+    }
+
     const { bets, currency, roundId, initData } = req.body || {};
     
     // Check authorization
@@ -6140,7 +6414,7 @@ app.post("/api/market/items/clear", async (req, res) => {
 
 
 // Buy item (Telegram user only): move market -> inventory, charge balance, and mark as sold
-app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
+app.post("/api/market/items/buy", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
     if (ADMIN_ONLY_TRADING_MODE && !isRelayerAdminUserId(userId)) {
@@ -7408,5 +7682,3 @@ async function sendTelegramMessage(chatId, text, options = {}) {
 
   return result;
 }
-
-

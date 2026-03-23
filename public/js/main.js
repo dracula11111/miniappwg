@@ -19,6 +19,7 @@ import "./app-shell.js";
 
 // Bundle app scripts in the same order as legacy <script defer> tags.
 import "./shared/ban-guard.js";
+import "./shared/tech-pause-guard.js";
 import "./shared/splash.js";
 import "./core/app.js";
 import "./features/payments/tondep.js";
