@@ -1,4 +1,4 @@
-// server.js 
+﻿// server.js 
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
 
 import "dotenv/config";
@@ -80,6 +80,7 @@ function createMemoryDb() {
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
+  const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
   let techPauseEnabled = 0;
   let techPauseUpdatedAt = Date.now();
   let txId = 1;
@@ -142,6 +143,41 @@ function createMemoryDb() {
     const s = String(v || "").replace(/^0x/i, "").trim();
     if (!s || !/^[a-fA-F0-9]{32,128}$/.test(s)) return "";
     return s.toUpperCase();
+  }
+
+  function normalizeCaseRoundId(v) {
+    const s = String(v || "").trim();
+    if (!s) return "";
+    if (!/^[A-Za-z0-9:_-]{8,190}$/.test(s)) return "";
+    return s;
+  }
+
+  function normalizeCaseCurrency(v) {
+    return String(v || "").toLowerCase() === "stars" ? "stars" : "ton";
+  }
+
+  function normalizeCaseCostByCurrency(v, currency) {
+    const cur = normalizeCaseCurrency(currency);
+    const raw = Number(v);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    if (cur === "stars") return Math.max(1, Math.round(raw));
+    return Math.max(0.01, Math.round(raw * 100) / 100);
+  }
+
+  function mapPendingCaseRound(row = {}) {
+    return {
+      roundId: String(row.roundId || ""),
+      telegramId: String(row.telegramId || ""),
+      currency: normalizeCaseCurrency(row.currency),
+      caseCost: Number(row.caseCost || 0),
+      openDepositId: row.openDepositId || null,
+      status: String(row.status || "pending"),
+      resolution: row.resolution || null,
+      createdAt: Number(row.createdAt || 0),
+      updatedAt: Number(row.updatedAt || 0),
+      settledAt: row.settledAt ? Number(row.settledAt || 0) : null,
+      refundedAt: row.refundedAt ? Number(row.refundedAt || 0) : null
+    };
   }
 
   return {
@@ -496,6 +532,75 @@ function createMemoryDb() {
       if (!keyRaw) return false;
       return webhookEvents.delete(keyRaw);
     },
+    async registerPendingCaseRound(input = {}) {
+      const roundId = normalizeCaseRoundId(input?.roundId);
+      if (!roundId) return { ok: false, error: "roundId required" };
+
+      const uid = key(input?.telegramId);
+      const currency = normalizeCaseCurrency(input?.currency);
+      const caseCost = normalizeCaseCostByCurrency(input?.caseCost, currency);
+      if (!(caseCost > 0)) return { ok: false, error: "caseCost required" };
+
+      const existing = pendingCaseRounds.get(roundId);
+      if (existing) {
+        return { ok: true, created: false, row: mapPendingCaseRound(existing) };
+      }
+
+      const now = Date.now();
+      const row = {
+        roundId,
+        telegramId: uid,
+        currency,
+        caseCost,
+        openDepositId: String(input?.openDepositId || "").trim() || null,
+        status: "pending",
+        resolution: null,
+        createdAt: now,
+        updatedAt: now,
+        settledAt: null,
+        refundedAt: null
+      };
+      pendingCaseRounds.set(roundId, row);
+      return { ok: true, created: true, row: mapPendingCaseRound(row) };
+    },
+    async resolvePendingCaseRound(roundIdInput, options = {}) {
+      const roundId = normalizeCaseRoundId(roundIdInput);
+      if (!roundId) return { ok: false, error: "roundId required" };
+
+      const row = pendingCaseRounds.get(roundId);
+      if (!row) return { ok: true, updated: false, row: null };
+      if (row.status !== "pending") {
+        return { ok: true, updated: false, row: mapPendingCaseRound(row) };
+      }
+
+      if (options?.telegramId !== undefined && options?.telegramId !== null && String(options.telegramId).trim()) {
+        const expected = key(options.telegramId);
+        if (String(row.telegramId) !== String(expected)) {
+          return { ok: true, updated: false, row: mapPendingCaseRound(row) };
+        }
+      }
+
+      const now = Date.now();
+      const status = String(options?.status || "").toLowerCase() === "refunded" ? "refunded" : "settled";
+      row.status = status;
+      row.resolution = String(options?.resolution || "").trim() || (status === "refunded" ? "tech_pause_refund" : "claimed");
+      row.updatedAt = now;
+      if (status === "refunded") row.refundedAt = row.refundedAt || now;
+      else row.settledAt = row.settledAt || now;
+      pendingCaseRounds.set(roundId, row);
+
+      return { ok: true, updated: true, row: mapPendingCaseRound(row) };
+    },
+    async listPendingCaseRoundsForRefund(limit = 200) {
+      const raw = Number(limit);
+      const lim = Number.isFinite(raw) ? Math.max(1, Math.min(5000, Math.trunc(raw))) : 200;
+      const rows = Array.from(pendingCaseRounds.values())
+        .filter((x) => String(x?.status || "pending") === "pending")
+        .sort((a, b) => Number(a?.createdAt || 0) - Number(b?.createdAt || 0))
+        .slice(0, lim)
+        .map((x) => mapPendingCaseRound(x));
+      return rows;
+    },
     async getTechPauseFlag() {
       return {
         enabled: Number(techPauseEnabled) === 1,
@@ -639,6 +744,164 @@ const techPauseState = {
 };
 
 let techPauseSyncPromise = null;
+let caseRoundRefundSweepPromise = null;
+const CASE_ROUND_REFUND_EVENT_PREFIX = "case_round_refund:";
+const CASE_ROUND_REFUND_SWEEP_LIMIT = Math.max(
+  10,
+  Math.min(5000, Number(process.env.CASE_ROUND_REFUND_SWEEP_LIMIT || 500) || 500)
+);
+const CASE_ROUND_REFUND_MAX_AGE_MS = Math.max(
+  60_000,
+  Math.min(24 * 60 * 60 * 1000, Number(process.env.CASE_ROUND_REFUND_MAX_AGE_MS || (30 * 60 * 1000)) || (30 * 60 * 1000))
+);
+
+function normalizeCaseRoundIdValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (!/^[A-Za-z0-9:_-]{8,190}$/.test(raw)) return "";
+  return raw;
+}
+
+function normalizeCaseRoundCurrency(value) {
+  return String(value || "").toLowerCase() === "stars" ? "stars" : "ton";
+}
+
+function normalizeCaseRoundCost(value, currency) {
+  const cur = normalizeCaseRoundCurrency(currency);
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (cur === "stars") return Math.max(1, Math.round(raw));
+  return Math.max(0.01, Math.round(raw * 100) / 100);
+}
+
+function extractCaseRoundIdFromDepositPayload(typeNorm, roundIdRaw, depositIdRaw) {
+  const direct = normalizeCaseRoundIdValue(roundIdRaw);
+  if (direct) return direct;
+
+  const depositId = String(depositIdRaw || "").trim();
+  if (!depositId) return "";
+
+  if (typeNorm === "case_gift_claim") {
+    const m = depositId.match(/^case_gift_claim_(.+)$/i);
+    return normalizeCaseRoundIdValue(m?.[1] || "");
+  }
+  if (typeNorm === "case_nft_sell") {
+    const m = depositId.match(/^case_nft_sell_(.+)$/i);
+    return normalizeCaseRoundIdValue(m?.[1] || "");
+  }
+  return "";
+}
+
+function extractCaseRoundIdFromClaimId(claimIdRaw) {
+  const claimId = String(claimIdRaw || "").trim();
+  if (!claimId) return "";
+  const m = claimId.match(/^case_nft_claim_(.+)$/i);
+  if (!m) return "";
+  return normalizeCaseRoundIdValue(m[1] || "");
+}
+
+async function registerPendingCaseRound(input = {}) {
+  if (typeof db?.registerPendingCaseRound !== "function") {
+    return { ok: false, error: "registerPendingCaseRound unsupported" };
+  }
+  return db.registerPendingCaseRound(input);
+}
+
+async function resolvePendingCaseRound(roundId, options = {}) {
+  if (typeof db?.resolvePendingCaseRound !== "function") {
+    return { ok: false, error: "resolvePendingCaseRound unsupported" };
+  }
+  return db.resolvePendingCaseRound(roundId, options);
+}
+
+async function listPendingCaseRoundsForRefund(limit = CASE_ROUND_REFUND_SWEEP_LIMIT) {
+  if (typeof db?.listPendingCaseRoundsForRefund !== "function") return [];
+  const rows = await db.listPendingCaseRoundsForRefund(limit);
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function sweepPendingCaseRoundsForTechPause(source = "tech_pause") {
+  if (caseRoundRefundSweepPromise) return caseRoundRefundSweepPromise;
+
+  caseRoundRefundSweepPromise = (async () => {
+    const pendingRows = await listPendingCaseRoundsForRefund(CASE_ROUND_REFUND_SWEEP_LIMIT);
+    if (!pendingRows.length) return { scanned: 0, refunded: 0 };
+
+    let refunded = 0;
+    for (const row of pendingRows) {
+      const roundId = normalizeCaseRoundIdValue(row?.roundId || row?.round_id);
+      const userId = String(row?.telegramId || row?.telegram_id || "").trim();
+      const currency = normalizeCaseRoundCurrency(row?.currency);
+      const amount = normalizeCaseRoundCost(row?.caseCost ?? row?.case_cost, currency);
+      if (!roundId || !userId || !(amount > 0)) continue;
+
+      const createdAt = Number(row?.createdAt ?? row?.created_at ?? 0);
+      const ageMs = createdAt > 0 ? (Date.now() - createdAt) : 0;
+      if (Number.isFinite(ageMs) && ageMs > CASE_ROUND_REFUND_MAX_AGE_MS) {
+        await resolvePendingCaseRound(roundId, {
+          telegramId: userId,
+          status: "settled",
+          resolution: "expired_no_refund"
+        }).catch(() => {});
+        continue;
+      }
+
+      const eventKey = `${CASE_ROUND_REFUND_EVENT_PREFIX}${roundId}`;
+      const claimed = await claimWebhookEvent(eventKey, {
+        roundId,
+        userId,
+        currency,
+        amount,
+        source
+      });
+      if (!claimed) continue;
+
+      try {
+        await db.updateBalance(
+          userId,
+          currency,
+          amount,
+          "case_open_refund",
+          `Case refund (${source})`,
+          { roundId, invoiceId: `case_refund_${roundId}` }
+        );
+
+        await resolvePendingCaseRound(roundId, {
+          telegramId: userId,
+          status: "refunded",
+          resolution: source
+        }).catch(() => {});
+
+        refunded += 1;
+        try { broadcastBalanceUpdate(userId); } catch {}
+      } catch (error) {
+        await releaseWebhookEvent(eventKey).catch(() => {});
+        console.error("[CaseRefund] Failed to refund pending case round:", {
+          roundId,
+          userId,
+          currency,
+          amount,
+          error: error?.message || error
+        });
+      }
+    }
+
+    return { scanned: pendingRows.length, refunded };
+  })()
+    .catch((error) => {
+      console.error("[CaseRefund] Sweep error:", error?.message || error);
+      return { scanned: 0, refunded: 0 };
+    })
+    .finally(() => {
+      caseRoundRefundSweepPromise = null;
+    });
+
+  return caseRoundRefundSweepPromise;
+}
+
+function triggerPendingCaseRoundRefundSweep(source = "tech_pause") {
+  sweepPendingCaseRoundsForTechPause(source).catch(() => {});
+}
 
 
 const app = express();
@@ -2005,6 +2268,7 @@ function applyTechPauseState(flagEnabled, source = "sync") {
   const prevMode = techPauseState.mode;
   const prevEnabled = techPauseState.flagEnabled;
   const now = Date.now();
+  const shouldTriggerCaseRefundSweep = enabled && !prevEnabled;
   let nextMode = resolveTechPauseMode(enabled);
 
   if (enabled && prevMode === TECH_PAUSE_MODE_OFF && nextMode === TECH_PAUSE_MODE_ACTIVE) {
@@ -2040,6 +2304,9 @@ function applyTechPauseState(flagEnabled, source = "sync") {
   }
 
   console.log(`[TechPause] ${prevMode} -> ${nextMode} (flag=${enabled ? 1 : 0}, source=${source})`);
+  if (shouldTriggerCaseRefundSweep) {
+    triggerPendingCaseRoundRefundSweep(`tech_pause:${source}`);
+  }
   broadcastTechPauseState();
   try { broadcastGameState(); } catch {}
   try { broadcastWheelState(); } catch {}
@@ -2352,7 +2619,8 @@ let giftsCatalog = [
           "Ginger Cookie",
           "Whip Cupcake",
           "Desk Calendar",
-          "Fresh Socks"
+          "Fresh Socks",
+          "Jester Hat"
 
 ];
   
@@ -3430,7 +3698,7 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
 // IMPORTANT: never trust userId from browser; for Telegram users we take id from initData.
 async function handleInventoryAdd(req, res) {
   try {
-    const { userId: bodyUserId, items, item, claimId } = req.body || {};
+    const { userId: bodyUserId, items, item, claimId, roundId } = req.body || {};
 
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
@@ -3462,6 +3730,18 @@ async function handleInventoryAdd(req, res) {
     }
 
     const result = await inventoryAdd(uid, list, claimId);
+    const caseRoundId =
+      normalizeCaseRoundIdValue(roundId) ||
+      extractCaseRoundIdFromClaimId(claimId);
+    if (caseRoundId) {
+      await resolvePendingCaseRound(caseRoundId, {
+        telegramId: uid,
+        status: "settled",
+        resolution: "case_nft_claim"
+      }).catch((e) => {
+        console.error("[Cases] Failed to settle case round from NFT claim:", e?.message || e);
+      });
+    }
     return res.json({
       ok: true,
       added: result.added,
@@ -4323,6 +4603,50 @@ app.post("/api/admin/panel/auth", requireTelegramUser, async (req, res) => {
   }
 });
 
+app.get("/api/admin/tech-pause", requireAdminKey, async (req, res) => {
+  try {
+    await syncTechPauseFromDb("admin_get");
+    return res.json({
+      ok: true,
+      techPause: getPublicTechPauseState()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Failed to fetch tech pause state"
+    });
+  }
+});
+
+app.post("/api/admin/tech-pause", requireAdminKey, async (req, res) => {
+  try {
+    const rawEnabled = req.body?.enabled;
+    const enabled = rawEnabled === true ||
+      Number(rawEnabled) === 1 ||
+      /^(1|true|on|yes)$/i.test(String(rawEnabled || "").trim());
+
+    if (typeof db?.setTechPauseFlag !== "function") {
+      return res.status(500).json({
+        ok: false,
+        error: "DB adapter does not support tech pause control"
+      });
+    }
+
+    await db.setTechPauseFlag(enabled ? 1 : 0);
+    applyTechPauseState(enabled, "admin_api");
+
+    return res.json({
+      ok: true,
+      techPause: getPublicTechPauseState()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "Failed to update tech pause state"
+    });
+  }
+});
+
 // Admin: import gift from relayer Saved Gifts to market by public link (no transfer needed).
 app.post("/api/admin/relayer/import-market-gift", requireAdminKey, async (req, res) => {
   try {
@@ -5036,6 +5360,48 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     const depositId = bodyDepositId || invoiceId || txHash || `${userId}_${currency}_${Math.abs(amountNum)}_${timestamp}`;
+    const caseRoundId = extractCaseRoundIdFromDepositPayload(typeNorm, roundId, depositId);
+    const isCaseOpenDebit = typeNorm === "case_open" && amountNum < 0;
+    const isCaseRoundSettleCredit =
+      amountNum > 0 &&
+      (typeNorm === "case_gift_claim" || typeNorm === "case_nft_sell");
+
+    const reconcileCaseRoundState = async () => {
+      if (!caseRoundId) return;
+      if (isCaseOpenDebit) {
+        const caseCost = normalizeCaseRoundCost(Math.abs(amountNum), currency);
+        if (!(caseCost > 0)) return;
+        try {
+          await registerPendingCaseRound({
+            roundId: caseRoundId,
+            telegramId: userId,
+            currency,
+            caseCost,
+            openDepositId: depositId,
+            metadata: {
+              type: typeNorm,
+              source: isRelayer ? "relayer" : "client",
+              createdAt: Date.now()
+            }
+          });
+        } catch (e) {
+          console.error("[Cases] Failed to register pending round:", e?.message || e);
+        }
+        return;
+      }
+
+      if (isCaseRoundSettleCredit) {
+        try {
+          await resolvePendingCaseRound(caseRoundId, {
+            telegramId: userId,
+            status: "settled",
+            resolution: typeNorm
+          });
+        } catch (e) {
+          console.error("[Cases] Failed to settle pending round:", e?.message || e);
+        }
+      }
+    };
     const shouldPersistentCreditDedupe =
       amountNum > 0 &&
       typeNorm === "deposit";
@@ -5049,6 +5415,7 @@ app.post("/api/deposit-notification", async (req, res) => {
       currency,
       userId,
       type: typeNorm,
+      caseRoundId: caseRoundId || null,
       depositId: depositId ? `${String(depositId).substring(0, 20)}...` : null,
       timestamp
     });
@@ -5145,6 +5512,8 @@ app.post("/api/deposit-notification", async (req, res) => {
           { txHash, roundId, bets: bets ? JSON.stringify(bets) : null }
         );
 
+        await reconcileCaseRoundState();
+
         if (typeNorm === "wheel_bet" && amountNum < 0) {
           registerWheelBetCredit(roundId, userId, "ton", Math.abs(amountNum));
         }
@@ -5187,6 +5556,8 @@ app.post("/api/deposit-notification", async (req, res) => {
           generateDescription(typeNorm, amountNum, null, roundId),
           { invoiceId: depositId, roundId, bets: bets ? JSON.stringify(bets) : null }
         );
+
+        await reconcileCaseRoundState();
 
         if (typeNorm === "wheel_bet" && amountNum < 0) {
           registerWheelBetCredit(roundId, userId, "stars", Math.abs(amountNum));

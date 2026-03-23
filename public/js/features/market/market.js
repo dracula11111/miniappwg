@@ -72,6 +72,14 @@
     {
       path: '/images/gifts/marketFilters/winterwreathFallback.svg',
       tokens: ['winter wreath', 'winterwreath', 'winter-wreath']
+    },
+    {
+      path: '/images/gifts/marketFilters/jesterhatFallback.svg',
+      tokens: ['jester hat', 'jesterhat', 'jester-hat']
+    },
+    {
+      path: '/images/gifts/marketFilters/snakeboxFallback.svg',
+      tokens: ['snake box', 'snakebox', 'snake-box']
     }
   ];
 

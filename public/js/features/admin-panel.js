@@ -211,6 +211,24 @@
         font-weight:700;
         font-size:12px;
       }
+      .ap-input{
+        width:100%;
+        border:1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.28);
+        color:#fff;
+        border-radius:14px;
+        padding:9px 10px;
+        font-weight:700;
+        font-size:12px;
+      }
+      .ap-techpause-state{
+        font-size:12px;
+        line-height:1.35;
+        padding:8px 10px;
+        border-radius:12px;
+        border:1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.22);
+      }
       .ap-log{
         font-size:11px;
         line-height:1.25;
@@ -256,6 +274,16 @@
         <div class="ap-card" id="apStateCard">
           <div class="ap-label">State</div>
           <div class="ap-row" id="apStateRow"></div>
+        </div>
+
+        <div class="ap-card" id="apTechPauseCard">
+          <div class="ap-label">Tech Pause</div>
+          <div class="ap-techpause-state" id="apTechPauseState">Loading...</div>
+          <div class="ap-row" style="margin-top:10px">
+            <button class="ap-btn danger" id="apTechPauseOn">Turn ON</button>
+            <button class="ap-btn primary" id="apTechPauseOff">Turn OFF</button>
+            <button class="ap-btn" id="apTechPauseRefresh">Refresh</button>
+          </div>
         </div>
 
         <div class="ap-card">
@@ -346,6 +374,11 @@
     const invAddBtn = $('#apInvAdd', panel);
     const relayerGiftLinkEl = $('#apRelayerGiftLink', panel);
     const relayerImportBtn = $('#apRelayerImportBtn', panel);
+    const techPauseStateEl = $('#apTechPauseState', panel);
+    const techPauseOnBtn = $('#apTechPauseOn', panel);
+    const techPauseOffBtn = $('#apTechPauseOff', panel);
+    const techPauseRefreshBtn = $('#apTechPauseRefresh', panel);
+    let techPauseUiState = null;
 
     // try to auto-fill userId from Telegram WebApp
     try {
@@ -396,6 +429,103 @@
         throw new Error((j && (j.error || j.code)) ? (j.error || j.code) : `HTTP ${r.status}`);
       }
       return j;
+    }
+
+    function normalizeTechPauseState(raw) {
+      const modeRaw = String(raw?.mode || '').trim().toLowerCase();
+      const mode = (modeRaw === 'active' || modeRaw === 'draining') ? modeRaw : 'off';
+      return {
+        enabled: raw?.enabled === true || Number(raw?.enabled) === 1 || mode !== 'off',
+        mode,
+        isDraining: mode === 'draining',
+        isActive: mode === 'active',
+        updatedAt: Number(raw?.updatedAt || 0) || 0
+      };
+    }
+
+    function renderTechPauseState() {
+      if (!techPauseStateEl) return;
+
+      if (panelMode === 'LOCAL_TEST') {
+        techPauseStateEl.innerHTML = '<b>Local test mode</b><br><span style="opacity:.75">Tech Pause switch is available only in secured admin mode.</span>';
+        if (techPauseOnBtn) techPauseOnBtn.disabled = true;
+        if (techPauseOffBtn) techPauseOffBtn.disabled = true;
+        if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = true;
+        return;
+      }
+
+      if (!techPauseUiState) {
+        techPauseStateEl.textContent = 'Unknown';
+        if (techPauseOnBtn) techPauseOnBtn.disabled = false;
+        if (techPauseOffBtn) techPauseOffBtn.disabled = false;
+        if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = false;
+        return;
+      }
+
+      const updatedText = techPauseUiState.updatedAt
+        ? new Date(techPauseUiState.updatedAt).toLocaleString()
+        : 'n/a';
+      const modeLabel = techPauseUiState.mode.toUpperCase();
+      const modeColor = techPauseUiState.isActive
+        ? '#fb7185'
+        : (techPauseUiState.isDraining ? '#fbbf24' : '#34d399');
+
+      techPauseStateEl.innerHTML =
+        `<b style="color:${modeColor}">${modeLabel}</b><br><span style="opacity:.78">Updated: ${updatedText}</span>`;
+
+      if (techPauseOnBtn) techPauseOnBtn.disabled = techPauseUiState.enabled === true;
+      if (techPauseOffBtn) techPauseOffBtn.disabled = techPauseUiState.enabled === false;
+      if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = false;
+    }
+
+    async function adminFetchTechPauseState() {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+        throw new Error('Admin panel is locked');
+      }
+      const headers = buildAuthHeaders(false);
+      const r = await fetch('/api/admin/tech-pause', { method: 'GET', headers });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok !== true) {
+        throw new Error((j && j.error) ? j.error : `HTTP ${r.status}`);
+      }
+      return normalizeTechPauseState(j.techPause || {});
+    }
+
+    async function adminSetTechPause(enabled) {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+        throw new Error('Admin panel is locked');
+      }
+      const headers = buildAuthHeaders(true);
+      const r = await fetch('/api/admin/tech-pause', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ enabled: !!enabled }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok !== true) {
+        throw new Error((j && j.error) ? j.error : `HTTP ${r.status}`);
+      }
+      return normalizeTechPauseState(j.techPause || {});
+    }
+
+    async function refreshTechPauseState(logResult = false) {
+      if (panelMode === 'LOCAL_TEST') {
+        renderTechPauseState();
+        return;
+      }
+      try {
+        if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = true;
+        techPauseUiState = await adminFetchTechPauseState();
+        renderTechPauseState();
+        if (logResult) {
+          log(`Tech Pause state: <b>${String(techPauseUiState.mode || 'off').toUpperCase()}</b>`, 'ok');
+        }
+      } catch (e) {
+        renderTechPauseState();
+        if (logResult) log(`Tech Pause refresh error: ${e?.message || e}`, 'err');
+      } finally {
+        if (techPauseRefreshBtn && panelMode !== 'LOCAL_TEST') techPauseRefreshBtn.disabled = false;
+      }
     }
 
     invAddBtn.addEventListener('click', async () => {
@@ -465,6 +595,48 @@
       }
     });
 
+    if (techPauseOnBtn) {
+      techPauseOnBtn.addEventListener('click', async () => {
+        try {
+          techPauseOnBtn.disabled = true;
+          if (techPauseOffBtn) techPauseOffBtn.disabled = true;
+          if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = true;
+          techPauseUiState = await adminSetTechPause(true);
+          renderTechPauseState();
+          log('Tech Pause switched <b>ON</b>', 'warn');
+        } catch (e) {
+          renderTechPauseState();
+          log(`Tech Pause ON error: ${e?.message || e}`, 'err');
+        } finally {
+          renderTechPauseState();
+        }
+      });
+    }
+
+    if (techPauseOffBtn) {
+      techPauseOffBtn.addEventListener('click', async () => {
+        try {
+          techPauseOffBtn.disabled = true;
+          if (techPauseOnBtn) techPauseOnBtn.disabled = true;
+          if (techPauseRefreshBtn) techPauseRefreshBtn.disabled = true;
+          techPauseUiState = await adminSetTechPause(false);
+          renderTechPauseState();
+          log('Tech Pause switched <b>OFF</b>', 'ok');
+        } catch (e) {
+          renderTechPauseState();
+          log(`Tech Pause OFF error: ${e?.message || e}`, 'err');
+        } finally {
+          renderTechPauseState();
+        }
+      });
+    }
+
+    if (techPauseRefreshBtn) {
+      techPauseRefreshBtn.addEventListener('click', () => {
+        refreshTechPauseState(true);
+      });
+    }
+
 
 
     // fill options
@@ -512,6 +684,10 @@
       }
       panel.classList.toggle('open');
       renderState();
+      renderTechPauseState();
+      if (panel.classList.contains('open')) {
+        refreshTechPauseState(false);
+      }
     });
     $('#apClose', panel).addEventListener('click', () => panel.classList.remove('open'));
 
@@ -535,6 +711,15 @@
       renderState();
     });
     window.addEventListener('balance:update', () => renderState());
+    window.addEventListener('techpause:update', (event) => {
+      try {
+        techPauseUiState = normalizeTechPauseState(event?.detail || {});
+        renderTechPauseState();
+      } catch {}
+    });
+
+    renderTechPauseState();
+    refreshTechPauseState(false);
   }
 
   function log(html, level = 'ok') {

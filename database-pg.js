@@ -27,7 +27,8 @@ const RLS_PROTECTED_TABLES = [
   "promo_redemptions",
   "user_task_claims",
   "webhook_events",
-  "tech_pause_control"
+  "tech_pause_control",
+  "case_rounds_pending"
 ];
 
 async function query(text, params) {
@@ -112,6 +113,25 @@ function normalizeTonAddressRaw(value) {
   const raw = normalizeOptionalText(value, 256);
   if (!raw) return null;
   return raw.toLowerCase();
+}
+
+function normalizeCaseRoundId(value) {
+  const raw = normalizeOptionalText(value, 190);
+  if (!raw) return "";
+  if (!/^[A-Za-z0-9:_-]{8,190}$/.test(raw)) return "";
+  return raw;
+}
+
+function normalizeCaseCurrency(value) {
+  return String(value || "").toLowerCase() === "stars" ? "stars" : "ton";
+}
+
+function normalizeCaseCostByCurrency(value, currency) {
+  const cur = normalizeCaseCurrency(currency);
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  if (cur === "stars") return Math.max(1, Math.round(raw));
+  return Math.max(0.01, Math.round(raw * 100) / 100);
 }
 
 async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
@@ -526,6 +546,25 @@ export async function initDatabase() {
       is_enabled SMALLINT NOT NULL DEFAULT 0 CHECK (is_enabled IN (0, 1)),
       updated_at BIGINT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS case_rounds_pending (
+      round_id TEXT PRIMARY KEY,
+      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      currency TEXT NOT NULL CHECK (currency IN ('ton','stars')),
+      case_cost NUMERIC(20,8) NOT NULL CHECK (case_cost > 0),
+      open_deposit_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','settled','refunded')),
+      resolution TEXT,
+      metadata_json JSONB,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      settled_at BIGINT,
+      refunded_at BIGINT
+    );
+    CREATE INDEX IF NOT EXISTS idx_case_rounds_pending_status_created
+      ON case_rounds_pending(status, created_at ASC);
+    CREATE INDEX IF NOT EXISTS idx_case_rounds_pending_user_status
+      ON case_rounds_pending(telegram_id, status);
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -656,6 +695,144 @@ export async function setTechPauseFlag(enabled) {
     [on, now]
   );
   return { enabled: on === 1, updatedAt: now };
+}
+
+function mapCaseRoundRow(row = {}) {
+  return {
+    roundId: String(row.round_id || ""),
+    telegramId: String(row.telegram_id || ""),
+    currency: normalizeCaseCurrency(row.currency),
+    caseCost: Number(row.case_cost || 0),
+    openDepositId: row.open_deposit_id || null,
+    status: String(row.status || "pending"),
+    resolution: row.resolution || null,
+    createdAt: Number(row.created_at || 0),
+    updatedAt: Number(row.updated_at || 0),
+    settledAt: row.settled_at === null || row.settled_at === undefined ? null : Number(row.settled_at || 0),
+    refundedAt: row.refunded_at === null || row.refunded_at === undefined ? null : Number(row.refunded_at || 0)
+  };
+}
+
+export async function registerPendingCaseRound(input = {}) {
+  const roundId = normalizeCaseRoundId(input?.roundId);
+  if (!roundId) return { ok: false, error: "roundId required" };
+
+  let telegramId;
+  try {
+    telegramId = BigInt(input?.telegramId);
+  } catch {
+    return { ok: false, error: "telegramId required" };
+  }
+
+  const currency = normalizeCaseCurrency(input?.currency);
+  const caseCost = normalizeCaseCostByCurrency(input?.caseCost, currency);
+  if (!(caseCost > 0)) return { ok: false, error: "caseCost required" };
+
+  const openDepositId = normalizeOptionalText(input?.openDepositId, 190);
+  const metadataJson = (input?.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata))
+    ? input.metadata
+    : null;
+  const now = Date.now();
+
+  const inserted = await query(
+    `INSERT INTO case_rounds_pending
+      (round_id, telegram_id, currency, case_cost, open_deposit_id, status, resolution, metadata_json, created_at, updated_at)
+     VALUES
+      ($1, $2, $3, $4, $5, 'pending', NULL, $6, $7, $7)
+     ON CONFLICT (round_id) DO NOTHING
+     RETURNING round_id, telegram_id, currency, case_cost, open_deposit_id, status, resolution, created_at, updated_at, settled_at, refunded_at`,
+    [roundId, telegramId, currency, caseCost, openDepositId, metadataJson, now]
+  );
+
+  if (Number(inserted.rowCount || 0) > 0) {
+    return { ok: true, created: true, row: mapCaseRoundRow(inserted.rows[0]) };
+  }
+
+  const existing = await query(
+    `SELECT round_id, telegram_id, currency, case_cost, open_deposit_id, status, resolution, created_at, updated_at, settled_at, refunded_at
+     FROM case_rounds_pending
+     WHERE round_id = $1
+     LIMIT 1`,
+    [roundId]
+  );
+  if (Number(existing.rowCount || 0) > 0) {
+    return { ok: true, created: false, row: mapCaseRoundRow(existing.rows[0]) };
+  }
+  return { ok: false, error: "failed to upsert case round" };
+}
+
+export async function resolvePendingCaseRound(roundIdInput, options = {}) {
+  const roundId = normalizeCaseRoundId(roundIdInput);
+  if (!roundId) return { ok: false, error: "roundId required" };
+
+  const status = String(options?.status || "").toLowerCase() === "refunded" ? "refunded" : "settled";
+  const resolution = normalizeOptionalText(
+    options?.resolution,
+    64
+  ) || (status === "refunded" ? "tech_pause_refund" : "claimed");
+  const metadataJson = (options?.metadata && typeof options.metadata === "object" && !Array.isArray(options.metadata))
+    ? options.metadata
+    : null;
+  const now = Date.now();
+  const timeColumn = status === "refunded" ? "refunded_at" : "settled_at";
+
+  let telegramId = null;
+  if (options?.telegramId !== null && options?.telegramId !== undefined && String(options.telegramId).trim()) {
+    try {
+      telegramId = BigInt(options.telegramId);
+    } catch {
+      telegramId = null;
+    }
+  }
+
+  const params = [roundId, status, resolution, now, metadataJson];
+  let userFilterSql = "";
+  if (telegramId !== null) {
+    params.push(telegramId);
+    userFilterSql = ` AND telegram_id = $6`;
+  }
+
+  const updated = await query(
+    `UPDATE case_rounds_pending
+     SET status = $2,
+         resolution = $3,
+         updated_at = $4,
+         metadata_json = CASE
+           WHEN $5::jsonb IS NULL THEN metadata_json
+           WHEN metadata_json IS NULL THEN $5::jsonb
+           ELSE metadata_json || $5::jsonb
+         END,
+         ${timeColumn} = COALESCE(${timeColumn}, $4)
+     WHERE round_id = $1
+       AND status = 'pending'
+       ${userFilterSql}
+     RETURNING round_id, telegram_id, currency, case_cost, open_deposit_id, status, resolution, created_at, updated_at, settled_at, refunded_at`,
+    params
+  );
+
+  if (Number(updated.rowCount || 0) > 0) {
+    return { ok: true, updated: true, row: mapCaseRoundRow(updated.rows[0]) };
+  }
+
+  return { ok: true, updated: false, row: null };
+}
+
+export async function listPendingCaseRoundsForRefund(limit = 200) {
+  const limRaw = Number(limit);
+  const lim = Number.isFinite(limRaw)
+    ? Math.max(1, Math.min(5000, Math.trunc(limRaw)))
+    : 200;
+
+  const r = await query(
+    `SELECT round_id, telegram_id, currency, case_cost, open_deposit_id, status, resolution, created_at, updated_at, settled_at, refunded_at
+     FROM case_rounds_pending
+     WHERE status = 'pending'
+     ORDER BY created_at ASC
+     LIMIT $1`,
+    [lim]
+  );
+
+  return (r.rows || []).map(mapCaseRoundRow);
 }
 
 export async function getMarketItems(limit = 200) {

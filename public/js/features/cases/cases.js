@@ -2167,6 +2167,7 @@ function getBalanceSafe(currency) {
             initData,
             timestamp: Date.now(),
             depositId: spendId,
+            roundId: activeSpin?.roundId || null,
             type: 'case_open',
             notify: false
           })
@@ -2176,8 +2177,7 @@ function getBalanceSafe(currency) {
           const canFallbackToLocal =
             r.status === 0 ||
             r.status === 401 ||
-            r.status === 403 ||
-            r.status === 503;
+            r.status === 403;
 
           if (canFallbackToLocal) {
             console.warn('[Cases] Server spend failed, falling back to local mode', {
@@ -2203,7 +2203,11 @@ function getBalanceSafe(currency) {
               showToast('Сервер недоступен. Продолжаем в локальном режиме.');
             }
           } else {
-            showToast('Не удалось списать стоимость кейса. Попробуй еще раз.');
+            if (r.status === 503) {
+              showToast('Техническая пауза активна. Открытие кейсов временно недоступно.');
+            } else {
+              showToast('Не удалось списать стоимость кейса. Попробуй еще раз.');
+            }
             safeHaptic('notification', 'error');
             return;
           }
@@ -2920,7 +2924,8 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
       ...e,
       item,
       amount,
-      claimId: `case_nft_claim_${currentCase?.id || 'case'}_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}_${idx}`
+      claimId: `case_nft_claim_${currentCase?.id || 'case'}_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}_${idx}`,
+      sellDepositId: `case_nft_sell_${roundId}_${idx}_${Date.now()}_${Math.random().toString(16).slice(2)}`
     };
   });
   
@@ -2989,7 +2994,8 @@ const claimAllNfts = async (queue) => {
       userId: tgUserId,
       initData,
       items,
-      claimId
+      claimId,
+      roundId
     })
   }, 6500);
 
@@ -3025,6 +3031,7 @@ const claimAllNfts = async (queue) => {
     }
 
     pendingRound = {
+      roundId,
       userId: tgUserId,
       initData,
       currency,
@@ -3268,6 +3275,7 @@ async function onGiftClaimClick() {
           initData: pr.initData,
           timestamp: Date.now(),
           depositId: pr.depositIds.giftClaim,
+          roundId: pr.roundId || null,
           type: 'case_gift_claim',
           notify: false
         })
@@ -3280,8 +3288,7 @@ async function onGiftClaimClick() {
           r.status === 409 ||
           r.status === 429 ||
           r.status === 500 ||
-          r.status === 502 ||
-          r.status === 503;
+          r.status === 502;
 
         if (canFallbackToLocal) {
           console.warn('[Cases] Gift claim failed on server, falling back to local credit', {
@@ -3296,6 +3303,10 @@ async function onGiftClaimClick() {
             showToast('Сервер недоступен. Награда начислена локально.');
           }
         } else {
+          if (r.status === 503) {
+            showToast('Техническая пауза. Стоимость незабранного кейса будет возвращена.');
+            return;
+          }
           showToast('Не удалось начислить награду. Попробуй еще раз.');
           return;
         }
@@ -3355,7 +3366,8 @@ async function onNftClaimClick() {
           userId: pr.userId,
           initData: pr.initData,
           items: [item],
-          claimId: entry.claimId
+          claimId: entry.claimId,
+          roundId: pr.roundId || null
         })
       }, 6500);
       if (!r.ok) {
@@ -3425,6 +3437,7 @@ async function onNftSellClick() {
           initData: pr.initData,
           timestamp: Date.now(),
           depositId: entry.sellDepositId,
+          roundId: pr.roundId || null,
           type: 'case_nft_sell',
           notify: false
         })
