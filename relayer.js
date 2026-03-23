@@ -1400,7 +1400,21 @@ async function run({ mode = "run" } = {}) {
     return { message: null, scannedMessages, scannedActions, dialogsScanned, matchMode: "", candidates };
   }
 
-  function buildMarketItemFromGiftActionMessage(msg) {
+  async function resolveGiftModelImageDataUrl(assets, context = "") {
+    const doc = assets?.modelDoc || null;
+    if (!doc) return "";
+    try {
+      return await downloadDocAsDataUrl(client, doc);
+    } catch (e) {
+      if (DEBUG) {
+        const reason = e?.message || e;
+        console.log(`[Relayer][ImportByLink] model image download failed${context ? ` (${context})` : ""}:`, reason);
+      }
+      return "";
+    }
+  }
+
+  async function buildMarketItemFromGiftActionMessage(msg) {
     const rawMsgId = Number(msg?.id);
     if (!Number.isInteger(rawMsgId) || rawMsgId <= 0) {
       throw new Error("MESSAGE_ID_MISSING");
@@ -1430,6 +1444,7 @@ async function run({ mode = "run" } = {}) {
     const peerK = peerKey(fromPeer) || "msg";
     const eventKey = `tg_link_${peerK}_${msgId}`;
     const assets = extractGiftAssets(gift);
+    const modelDataUrl = await resolveGiftModelImageDataUrl(assets, `history:${msgId}`);
     const availabilityIssued = Number(gift?.availabilityIssued);
     const availabilityTotal = Number(gift?.availabilityTotal);
 
@@ -1445,7 +1460,7 @@ async function run({ mode = "run" } = {}) {
       collectible: !!assets.backdrop,
       model: {
         name: assets.modelName || null,
-        image: "",
+        image: modelDataUrl || "",
         rarityPermille: Number.isFinite(assets.modelRarityPermille) ? assets.modelRarityPermille : null
       },
       pattern: assets.patternName
@@ -1466,7 +1481,7 @@ async function run({ mode = "run" } = {}) {
       sourceKey: eventKey,
       name: title,
       number: numberText,
-      image: "",
+      image: modelDataUrl || "",
       previewUrl: fragmentMediumPreviewUrlFromSlug(slug),
       priceTon: null,
       createdAt: Date.now(),
@@ -1476,7 +1491,7 @@ async function run({ mode = "run" } = {}) {
     return { marketItem, title, numberText, msgId, slug, num };
   }
 
-  function buildMarketItemFromSavedGift(savedGift) {
+  async function buildMarketItemFromSavedGift(savedGift) {
     const rawMsgId = Number(savedGift?.msgId ?? savedGift?.msg_id);
     if (!Number.isInteger(rawMsgId) || rawMsgId <= 0) {
       throw new Error("MESSAGE_ID_MISSING");
@@ -1502,6 +1517,7 @@ async function run({ mode = "run" } = {}) {
     const peerK = peerKey(fromPeer) || "saved";
     const eventKey = `tg_saved_${msgId}`;
     const assets = extractGiftAssets(gift);
+    const modelDataUrl = await resolveGiftModelImageDataUrl(assets, `saved:${msgId}`);
     const availabilityIssued = Number(gift?.availabilityIssued);
     const availabilityTotal = Number(gift?.availabilityTotal);
 
@@ -1517,7 +1533,7 @@ async function run({ mode = "run" } = {}) {
       collectible: !!assets.backdrop,
       model: {
         name: assets.modelName || null,
-        image: "",
+        image: modelDataUrl || "",
         rarityPermille: Number.isFinite(assets.modelRarityPermille) ? assets.modelRarityPermille : null
       },
       pattern: assets.patternName
@@ -1538,7 +1554,7 @@ async function run({ mode = "run" } = {}) {
       sourceKey: eventKey,
       name: title,
       number: numberText,
-      image: "",
+      image: modelDataUrl || "",
       previewUrl: fragmentMediumPreviewUrlFromSlug(slug),
       priceTon: null,
       createdAt: Date.now(),
@@ -1579,7 +1595,7 @@ async function run({ mode = "run" } = {}) {
       diagDialogsScanned = Number(fromMessages?.dialogsScanned || 0);
       diagHistoryCandidates = Array.isArray(fromMessages?.candidates) ? fromMessages.candidates : [];
       if (fromMessages?.message) {
-        built = buildMarketItemFromGiftActionMessage(fromMessages.message);
+        built = await buildMarketItemFromGiftActionMessage(fromMessages.message);
         source = "history";
         matchMode = String(fromMessages?.matchMode || "exact");
       }
@@ -1607,7 +1623,7 @@ async function run({ mode = "run" } = {}) {
 
       if (savedGift) {
         try {
-          built = buildMarketItemFromSavedGift(savedGift);
+          built = await buildMarketItemFromSavedGift(savedGift);
           source = "saved";
           matchMode = String(search?.matchMode || "exact");
         } catch (e) {

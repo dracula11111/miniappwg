@@ -291,21 +291,135 @@
     );
   }
 
+  const INVENTORY_NAMED_FALLBACKS = [
+    { path: '/images/gifts/marketFilters/lolpopFallback.svg', tokens: ['lol pop', 'lolpop', 'lol-pop'] },
+    { path: '/images/gifts/marketFilters/poolfloatFallback.svg', tokens: ['pool float', 'poolfloat', 'pool-float'] },
+    { path: '/images/gifts/marketFilters/snoopdoggFallback.svg', tokens: ['snoop dogg', 'snoopdogg', 'snoop-dogg'] },
+    { path: '/images/gifts/marketFilters/xmasstockingFallback.svg', tokens: ['xmas stocking', 'xmasstocking', 'xmas-stocking'] },
+    { path: '/images/gifts/marketFilters/moodpackFallback.svg', tokens: ['mood pack', 'moodpack', 'mood-pack', 'mood0ack'] },
+    { path: '/images/gifts/marketFilters/instantramenFallback.svg', tokens: ['instant ramen', 'instantramen', 'instant-ramen'] },
+    { path: '/images/gifts/marketFilters/petsnakeFallback.svg', tokens: ['pet snake', 'petsnake', 'pet-snake'] },
+    { path: '/images/gifts/marketFilters/icecreamFallback.svg', tokens: ['ice cream', 'icecream', 'ice-cream'] },
+    { path: '/images/gifts/marketFilters/stellarrocketFallback.svg', tokens: ['stellar rocket', 'stellarrocket', 'stellar-rocket'] },
+    { path: '/images/gifts/marketFilters/gingercookieFallback.svg', tokens: ['ginger cookie', 'gingercookie', 'ginger-cookie'] },
+    { path: '/images/gifts/marketFilters/freshsocksFallback.svg', tokens: ['fresh socks', 'freshsocks', 'fresh-socks'] },
+    { path: '/images/gifts/marketFilters/winterwreathFallback.svg', tokens: ['winter wreath', 'winterwreath', 'winter-wreath'] }
+  ];
+
+  function safeVisualRef(v, max = 220000) {
+    const s = String(v ?? '').trim();
+    if (!s) return '';
+    if (s.startsWith('data:')) return s;
+    return s.length > max ? s.slice(0, max) : s;
+  }
+
+  function safeHexColor(v) {
+    const s = String(v ?? '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(s) ? s : '';
+  }
+
+  function fragmentPreviewUrlFromSlug(slug, size = 'medium') {
+    const s = String(slug ?? '').trim();
+    if (!s) return '';
+    const base = s.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+    if (!base) return '';
+    const variant = String(size || 'medium').toLowerCase() === 'large' ? 'large' : 'medium';
+    return `https://nft.fragment.com/gift/${base}.${variant}.jpg`;
+  }
+
+  function nextFragmentPreviewFallback(url) {
+    const s = String(url ?? '').trim();
+    if (!s) return '';
+    const m = s.match(/^(https:\/\/nft\.fragment\.com\/gift\/[a-z0-9-]+)\.(small|medium|large)\.(jpg|jpeg)(\?.*)?$/i);
+    if (!m) return '';
+    const base = m[1];
+    const size = String(m[2] || '').toLowerCase();
+    const ext = String(m[3] || '').toLowerCase();
+    const suffix = m[4] || '';
+    if (size === 'large' && ext === 'jpg') return `${base}.large.jpeg${suffix}`;
+    if (size === 'large' && ext === 'jpeg') return `${base}.medium.jpg${suffix}`;
+    if (size === 'medium' && ext === 'jpg') return `${base}.medium.jpeg${suffix}`;
+    return '';
+  }
+
+  function normalizeLegacyIcon(rawIcon, item) {
+    const icon = String(rawIcon ?? '').trim();
+    if (!icon) return '';
+    if (icon.startsWith('data:')) return icon;
+    if (icon.startsWith('http://') || icon.startsWith('https://')) return icon;
+    if (icon.startsWith('/')) return icon;
+    const t = itemType(item);
+    if (t === 'nft') return `/images/gifts/nfts/${icon}`;
+    return `/images/gifts/${icon}`;
+  }
+
+  function inventoryFallbackImageByItem(item) {
+    const tgData = item?.tg && typeof item.tg === 'object' ? item.tg : null;
+    const sample = [
+      String(item?.name || '').toLowerCase(),
+      String(item?.id || '').toLowerCase(),
+      String(tgData?.slug || '').toLowerCase()
+    ]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(' ');
+
+    if (!sample) return '';
+    for (let i = 0; i < INVENTORY_NAMED_FALLBACKS.length; i++) {
+      const rule = INVENTORY_NAMED_FALLBACKS[i];
+      if (!rule || !rule.path || !Array.isArray(rule.tokens)) continue;
+      for (let j = 0; j < rule.tokens.length; j++) {
+        const token = String(rule.tokens[j] || '').trim().toLowerCase();
+        if (token && sample.includes(token)) return rule.path;
+      }
+    }
+    return '';
+  }
+
+  function itemVisual(item) {
+    const tgData = item?.tg && typeof item.tg === 'object' ? item.tg : null;
+    const previewSrc =
+      safeVisualRef(item?.previewUrl) ||
+      safeVisualRef(tgData?.previewUrl) ||
+      safeVisualRef(fragmentPreviewUrlFromSlug(tgData?.slug, 'medium')) ||
+      '';
+    const iconSrc = safeVisualRef(normalizeLegacyIcon(item?.icon, item));
+    const modelImg = safeVisualRef(tgData?.model?.image);
+    const itemImg = safeVisualRef(item?.image || item?.img);
+    const namedFallback = safeVisualRef(inventoryFallbackImageByItem(item));
+
+    const fallbackQueue = [];
+    if (modelImg) fallbackQueue.push(modelImg);
+    if (itemImg) fallbackQueue.push(itemImg);
+    if (iconSrc) fallbackQueue.push(iconSrc);
+    if (previewSrc) {
+      const nextPreview = nextFragmentPreviewFallback(previewSrc);
+      if (nextPreview) fallbackQueue.push(nextPreview);
+    }
+    if (namedFallback) fallbackQueue.push(namedFallback);
+    fallbackQueue.push('/icons/market.webp');
+
+    return {
+      src: previewSrc || iconSrc || modelImg || itemImg || namedFallback || '/icons/market.webp',
+      fallbackQueue
+    };
+  }
+
   function itemIconPath(item) {
-  const raw = item?.icon || item?.previewUrl || item?.image || item?.img || '';
-  const icon = String(raw || '').trim();
-  if (!icon) return '/icons/unknown.png';
+    return itemVisual(item).src;
+  }
 
-  // absolute / data urls are already final
-  if (icon.startsWith('data:')) return icon;
-  if (icon.startsWith('http://') || icon.startsWith('https://')) return icon;
-  if (icon.startsWith('/')) return icon;
-
-  // legacy local filenames
-  const t = itemType(item);
-  if (t === 'nft') return `/images/gifts/nfts/${icon}`;
-  return `/images/gifts/${icon}`;
-}
+  function itemBackdropVisual(item) {
+    const backdrop = (item?.tg && typeof item.tg === 'object') ? item.tg.backdrop : null;
+    if (!backdrop || typeof backdrop !== 'object') return { isCollectible: false, style: '' };
+    const center = safeHexColor(backdrop.center) || '#5f5f5f';
+    const edge = safeHexColor(backdrop.edge) || '#2a2a2a';
+    if (!center && !edge) return { isCollectible: false, style: '' };
+    return {
+      isCollectible: true,
+      style: `--inv-bg-center:${center};--inv-bg-edge:${edge};`
+    };
+  }
 
 
 
@@ -1193,7 +1307,23 @@ async function withdrawContinue() {
 
     modalItemKey = itemKey(item, allItems.findIndex(x => x === item));
 
-    modal.querySelector('#profileModalImg').src = itemIconPath(item);
+    const modalImg = modal.querySelector('#profileModalImg');
+    if (modalImg) {
+      const visual = itemVisual(item);
+      const queue = Array.isArray(visual?.fallbackQueue) ? visual.fallbackQueue.slice() : [];
+      let fallbackIdx = 0;
+      modalImg.onerror = () => {
+        const currentSrc = String(modalImg.getAttribute('src') || '');
+        while (fallbackIdx < queue.length) {
+          const nextSrc = String(queue[fallbackIdx++] || '').trim();
+          if (!nextSrc || nextSrc === currentSrc) continue;
+          modalImg.setAttribute('src', nextSrc);
+          return;
+        }
+        modalImg.onerror = null;
+      };
+      modalImg.setAttribute('src', visual.src || '/icons/market.webp');
+    }
     modal.querySelector('#profileModalTitle').textContent = String(item.baseId || item.id || 'NFT');
     modal.querySelector('#profileModalSub').textContent = `${val} ${currencyIcon(currency)}`;
 
@@ -1255,6 +1385,32 @@ async function withdrawContinue() {
     if (allBtn) allBtn.disabled = items.length === 0;
   }
 
+  function bindInventoryImageFallbacks(grid, items) {
+    if (!grid || !Array.isArray(items)) return;
+    const cards = Array.from(grid.querySelectorAll('.inv-card'));
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const item = items[i];
+      const img = card?.querySelector('.inv-card__imgwrap img');
+      if (!img || !item) continue;
+
+      const visual = itemVisual(item);
+      const queue = Array.isArray(visual?.fallbackQueue) ? visual.fallbackQueue.slice() : [];
+      let fallbackIdx = 0;
+
+      img.addEventListener('error', () => {
+        const currentSrc = String(img.getAttribute('src') || '');
+        while (fallbackIdx < queue.length) {
+          const nextSrc = String(queue[fallbackIdx++] || '').trim();
+          if (!nextSrc || nextSrc === currentSrc) continue;
+          img.setAttribute('src', nextSrc);
+          return;
+        }
+        img.onerror = null;
+      });
+    }
+  }
+
   function renderInventory(items) {
     if (!inventoryPanel) return;
   
@@ -1300,6 +1456,10 @@ async function withdrawContinue() {
       const val = itemValue(it, currency);
       const marketOnlyWithdraw = isMarketGiftItem(it);
       const returnMarket = canReturnToMarket(it);
+      const visual = itemVisual(it);
+      const backdropVisual = itemBackdropVisual(it);
+      const imgWrapClass = `inv-card__imgwrap${backdropVisual.isCollectible ? ' is-collectible' : ''}`;
+      const imgWrapStyle = backdropVisual.style ? ` style="${escapeHtml(backdropVisual.style)}"` : '';
       const sellBtnHtml = marketOnlyWithdraw ? '' : `
           <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
                   data-action="sell" data-key="${key}">
@@ -1317,8 +1477,8 @@ async function withdrawContinue() {
   
       return `
         <div class="inv-card" data-key="${key}">
-          <div class="inv-card__imgwrap">
-            <img src="${itemIconPath(it)}" alt="" />
+          <div class="${imgWrapClass}"${imgWrapStyle}>
+            <img src="${escapeHtml(visual.src)}" alt="" />
           </div>
   
           <div class="inv-card__name">${itemDisplayName(it)}</div>
@@ -1333,6 +1493,7 @@ async function withdrawContinue() {
         </div>
       `;
     }).join('');
+    bindInventoryImageFallbacks(grid, arr);
   }
   
   // ====== SELL FLOW ======

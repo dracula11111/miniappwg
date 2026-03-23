@@ -344,12 +344,12 @@ try { window.state = state; } catch {}
   const img = btn.querySelector('.market-card__img');
   if (img) {
     const fallbackQueue = [];
+    if (modelImg) fallbackQueue.push(modelImg);
+    if (giftImg) fallbackQueue.push(giftImg);
     if (previewSrc) {
       const nextPreview = nextFragmentPreviewFallback(previewSrc);
       if (nextPreview) fallbackQueue.push(nextPreview);
     }
-    if (modelImg) fallbackQueue.push(modelImg);
-    if (giftImg) fallbackQueue.push(giftImg);
     if (namedFallbackImg) fallbackQueue.push(namedFallbackImg);
     fallbackQueue.push(PLACEHOLDER_IMG);
 
@@ -1123,6 +1123,12 @@ function openGiftDrawer(gift) {
     heroImgEl.onerror = null;
     if (previewSrc && /^https:\/\/nft\.fragment\.com\/gift\//i.test(previewSrc)) {
       heroImgEl.onerror = () => {
+        const tgFallbackImg = modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
+        if (tgFallbackImg) {
+          heroImgEl.onerror = null;
+          heroImgEl.setAttribute('src', tgFallbackImg);
+          return;
+        }
         const currentSrc = String(heroImgEl.getAttribute('src') || '');
         const nextPreviewSrc = nextFragmentPreviewFallback(currentSrc);
         if (nextPreviewSrc) {

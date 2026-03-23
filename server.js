@@ -6241,7 +6241,7 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
       id: String(it?.tg?.slug || it?.tg?.giftId || it?.id || "gift"),
       name: it?.name || "Gift",
       displayName: it?.name || "Gift",
-      icon: it?.previewUrl || it?.image || "/images/gifts/stars.webp",
+      icon: it?.previewUrl || it?.image || it?.tg?.model?.image || "/images/gifts/stars.webp",
       instanceId,
       acquiredAt: nowMs,
       price: { ton: priceTon || null, stars: priceStars || null },
@@ -7406,7 +7406,6 @@ async function sendTelegramMessage(chatId, text, options = {}) {
 
   return result;
 }
-
 
 
 
