@@ -352,7 +352,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
    - Price pill stays above everything
    ---------------------------- */
 #casesPage .case-path-item::after{
-  display: none !important;
+  display: block;
   content: "";
   position: absolute;
   left: 50%;
@@ -2963,8 +2963,13 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
 
   /* Keep topbar visible above case overlay while sheet is open */
   body.case-sheet-open .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    left: auto !important;
+    width: auto !important;
+    max-width: none !important;
     pointer-events: none;
-    z-index: 2400;
+    z-index: 2147483000 !important;
   }
 
   body.case-sheet-open .topbar > .topbar__left,
@@ -2977,17 +2982,18 @@ html.currency-stars #casesPage .case-path-item--stars .case-path-price-val{
   }
 
   body.case-sheet-open .topbar > .balance {
-    position: fixed !important;
-    top: calc(env(safe-area-inset-top, 0px) + 74px) !important;
-    right: 14px !important;
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
     left: auto !important;
     width: auto !important;
     margin: 0;
-    transform: translateY(0) !important;
-    pointer-events: none !important;
-    justify-self: auto;
-    align-self: auto;
-    z-index: 2410 !important;
+    transform: none !important;
+    pointer-events: auto !important;
+    justify-self: end !important;
+    align-self: start !important;
+    display: block !important;
+    z-index: 1 !important;
     filter: none !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;

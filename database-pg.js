@@ -22,6 +22,7 @@ const RLS_PROTECTED_TABLES = [
   "inventory_claims",
   "inventory_items",
   "market_items",
+  "gift_readable",
   "promo_codes",
   "promo_redemptions",
   "user_task_claims",
@@ -120,6 +121,242 @@ async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBala
          stars_balance = $2
      WHERE telegram_id = $3`,
     [Number(tonBalance || 0), Math.trunc(Number(starsBalance || 0)), id]
+  );
+}
+
+function normalizeGiftReadableSource(value) {
+  const source = String(value || "").trim().toLowerCase();
+  return source === "market" || source === "inventory" ? source : "";
+}
+
+function normalizeGiftReadableTimestamp(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return Date.now();
+  const t = Math.trunc(raw);
+  // Old rows can be seconds, but the rest of project mostly uses milliseconds.
+  return t < 1000000000000 ? t * 1000 : t;
+}
+
+function normalizeGiftReadableNumber(value) {
+  if (value === null || value === undefined) return null;
+  const raw = (typeof value === "number" && Number.isFinite(value)) ? String(value) : String(value).trim();
+  if (!raw) return null;
+  return raw.length > 64 ? raw.slice(0, 64) : raw;
+}
+
+function normalizeGiftReadableTelegramId(value) {
+  if (value === null || value === undefined || value === "") return null;
+  try {
+    return String(BigInt(value));
+  } catch {
+    return null;
+  }
+}
+
+function giftReadableNameFromItem(item) {
+  const name =
+    normalizeOptionalText(item?.displayName, 160) ||
+    normalizeOptionalText(item?.name, 160) ||
+    normalizeOptionalText(item?.title, 160) ||
+    normalizeOptionalText(item?.tg?.title, 160) ||
+    normalizeOptionalText(item?.tg?.name, 160);
+  return name || "Gift";
+}
+
+function giftReadableNumberFromItem(item) {
+  const candidates = [item?.number, item?.num, item?.tg?.num, item?.tg?.number];
+  for (const candidate of candidates) {
+    const number = normalizeGiftReadableNumber(candidate);
+    if (number) return number;
+  }
+  return null;
+}
+
+function inventoryReadableSourceIdFromRow(row = {}) {
+  const instanceId = normalizeOptionalText(row?.instance_id, 190);
+  if (instanceId) return instanceId;
+  const rowId = Number(row?.id);
+  if (Number.isFinite(rowId) && rowId > 0) return `row_${Math.trunc(rowId)}`;
+  return "";
+}
+
+function buildGiftReadableEntry(input = {}) {
+  const source = normalizeGiftReadableSource(input.source);
+  const sourceId = normalizeOptionalText(input.sourceId, 190);
+  if (!source || !sourceId) return null;
+
+  const createdAt = normalizeGiftReadableTimestamp(input.createdAt);
+  const updatedAt = Date.now();
+  const telegramId = normalizeGiftReadableTelegramId(input.telegramId);
+  const giftName = giftReadableNameFromItem(input.item);
+  const giftNumber = giftReadableNumberFromItem(input.item);
+
+  return {
+    entryKey: `${source}:${sourceId}`,
+    source,
+    sourceId,
+    telegramId,
+    giftName,
+    giftNumber,
+    createdAt,
+    updatedAt
+  };
+}
+
+async function upsertGiftReadableEntry(client, input = {}) {
+  const entry = buildGiftReadableEntry(input);
+  if (!entry) return false;
+
+  await client.query(
+    `INSERT INTO gift_readable
+      (entry_key, source, source_id, telegram_id, gift_name, gift_number, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (entry_key) DO UPDATE SET
+       source = EXCLUDED.source,
+       source_id = EXCLUDED.source_id,
+       telegram_id = EXCLUDED.telegram_id,
+       gift_name = EXCLUDED.gift_name,
+       gift_number = EXCLUDED.gift_number,
+       created_at = EXCLUDED.created_at,
+       updated_at = EXCLUDED.updated_at`,
+    [
+      entry.entryKey,
+      entry.source,
+      entry.sourceId,
+      entry.telegramId,
+      entry.giftName,
+      entry.giftNumber,
+      entry.createdAt,
+      entry.updatedAt
+    ]
+  );
+  return true;
+}
+
+async function deleteGiftReadableEntry(client, source, sourceId) {
+  const s = normalizeGiftReadableSource(source);
+  const sid = normalizeOptionalText(sourceId, 190);
+  if (!s || !sid) return 0;
+  const r = await client.query(`DELETE FROM gift_readable WHERE entry_key = $1`, [`${s}:${sid}`]);
+  return Number(r.rowCount || 0);
+}
+
+async function clearGiftReadableBySource(client, source) {
+  const s = normalizeGiftReadableSource(source);
+  if (!s) return 0;
+  const r = await client.query(`DELETE FROM gift_readable WHERE source = $1`, [s]);
+  return Number(r.rowCount || 0);
+}
+
+async function rebuildGiftReadableSnapshot() {
+  const now = Date.now();
+
+  await query(
+    `
+    INSERT INTO gift_readable
+      (entry_key, source, source_id, telegram_id, gift_name, gift_number, created_at, updated_at)
+    SELECT
+      CONCAT('market:', m.id) AS entry_key,
+      'market' AS source,
+      m.id AS source_id,
+      NULL::BIGINT AS telegram_id,
+      COALESCE(
+        NULLIF(BTRIM(m.item_json->>'displayName'), ''),
+        NULLIF(BTRIM(m.item_json->>'name'), ''),
+        NULLIF(BTRIM(m.item_json->>'title'), ''),
+        'Gift'
+      ) AS gift_name,
+      NULLIF(BTRIM(COALESCE(
+        m.item_json->>'number',
+        m.item_json->>'num',
+        m.item_json #>> '{tg,num}',
+        m.item_json #>> '{tg,number}'
+      )), '') AS gift_number,
+      CASE
+        WHEN m.created_at < 1000000000000 THEN m.created_at * 1000
+        ELSE m.created_at
+      END AS created_at,
+      $1::BIGINT AS updated_at
+    FROM market_items AS m
+    ON CONFLICT (entry_key) DO UPDATE SET
+      source = EXCLUDED.source,
+      source_id = EXCLUDED.source_id,
+      telegram_id = EXCLUDED.telegram_id,
+      gift_name = EXCLUDED.gift_name,
+      gift_number = EXCLUDED.gift_number,
+      created_at = EXCLUDED.created_at,
+      updated_at = EXCLUDED.updated_at
+    `,
+    [now]
+  );
+
+  await query(
+    `
+    INSERT INTO gift_readable
+      (entry_key, source, source_id, telegram_id, gift_name, gift_number, created_at, updated_at)
+    SELECT
+      CONCAT(
+        'inventory:',
+        COALESCE(NULLIF(BTRIM(i.instance_id), ''), CONCAT('row_', i.id::TEXT))
+      ) AS entry_key,
+      'inventory' AS source,
+      COALESCE(NULLIF(BTRIM(i.instance_id), ''), CONCAT('row_', i.id::TEXT)) AS source_id,
+      i.telegram_id,
+      COALESCE(
+        NULLIF(BTRIM(i.item_json->>'displayName'), ''),
+        NULLIF(BTRIM(i.item_json->>'name'), ''),
+        NULLIF(BTRIM(i.item_json->>'title'), ''),
+        'Gift'
+      ) AS gift_name,
+      NULLIF(BTRIM(COALESCE(
+        i.item_json->>'number',
+        i.item_json->>'num',
+        i.item_json #>> '{tg,num}',
+        i.item_json #>> '{tg,number}'
+      )), '') AS gift_number,
+      CASE
+        WHEN i.created_at < 1000000000000 THEN i.created_at * 1000
+        ELSE i.created_at
+      END AS created_at,
+      $1::BIGINT AS updated_at
+    FROM inventory_items AS i
+    ON CONFLICT (entry_key) DO UPDATE SET
+      source = EXCLUDED.source,
+      source_id = EXCLUDED.source_id,
+      telegram_id = EXCLUDED.telegram_id,
+      gift_name = EXCLUDED.gift_name,
+      gift_number = EXCLUDED.gift_number,
+      created_at = EXCLUDED.created_at,
+      updated_at = EXCLUDED.updated_at
+    `,
+    [now]
+  );
+
+  await query(
+    `
+    DELETE FROM gift_readable AS g
+    WHERE g.source = 'market'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM market_items AS m
+        WHERE CONCAT('market:', m.id) = g.entry_key
+      )
+    `
+  );
+
+  await query(
+    `
+    DELETE FROM gift_readable AS g
+    WHERE g.source = 'inventory'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM inventory_items AS i
+        WHERE CONCAT(
+          'inventory:',
+          COALESCE(NULLIF(BTRIM(i.instance_id), ''), CONCAT('row_', i.id::TEXT))
+        ) = g.entry_key
+      )
+    `
   );
 }
 
@@ -233,6 +470,19 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_market_items_created ON market_items(created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS gift_readable (
+      entry_key TEXT PRIMARY KEY,
+      source TEXT NOT NULL CHECK (source IN ('market','inventory')),
+      source_id TEXT NOT NULL,
+      telegram_id BIGINT,
+      gift_name TEXT NOT NULL,
+      gift_number TEXT,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_gift_readable_source_created ON gift_readable(source, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_gift_readable_name ON gift_readable(gift_name);
+
     -- Promocodes (secure, hashed)
     CREATE TABLE IF NOT EXISTS promo_codes (
       code_hash TEXT PRIMARY KEY,
@@ -329,6 +579,7 @@ export async function initDatabase() {
     WHERE r.telegram_id = u.telegram_id
       AND (r.telegram_username IS NULL OR r.telegram_username = '')
   `);
+  await rebuildGiftReadableSnapshot();
   try {
     await hardenPublicSchemaAccess();
   } catch (error) {
@@ -372,30 +623,67 @@ export async function getMarketItems(limit = 200) {
 export async function addMarketItem(item) {
   const id = String(item.id);
   const now = Date.now();
-  await query(
-    `INSERT INTO market_items (id, item_json, created_at)
-     VALUES ($1,$2,$3)
-     ON CONFLICT (id) DO UPDATE SET item_json = EXCLUDED.item_json, created_at = EXCLUDED.created_at`,
-    [id, item, now]
-  );
-  return true;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO market_items (id, item_json, created_at)
+       VALUES ($1,$2,$3)
+       ON CONFLICT (id) DO UPDATE SET item_json = EXCLUDED.item_json, created_at = EXCLUDED.created_at`,
+      [id, item, now]
+    );
+    await upsertGiftReadableEntry(client, {
+      source: "market",
+      sourceId: id,
+      item,
+      createdAt: now
+    });
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function clearMarketItems() {
-  await query(`TRUNCATE market_items`);
-  return true;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`TRUNCATE market_items`);
+    await clearGiftReadableBySource(client, "market");
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function takeMarketItemById(id) {
   const k = String(id || "").trim();
   if (!k) return null;
-
-  const r = await query(
-    `DELETE FROM market_items WHERE id = $1 RETURNING item_json`,
-    [k]
-  );
-
-  return r.rows?.[0]?.item_json || null;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const r = await client.query(
+      `DELETE FROM market_items WHERE id = $1 RETURNING id, item_json`,
+      [k]
+    );
+    const row = r.rows?.[0] || null;
+    if (row?.id) await deleteGiftReadableEntry(client, "market", row.id);
+    await client.query("COMMIT");
+    return row?.item_json || null;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 
@@ -964,12 +1252,25 @@ export async function addInventoryItems(telegramId, items, claimId = null) {
       const instanceId = String(it?.instanceId || `${nowMs}_${crypto.randomBytes(6).toString("hex")}`);
       const enriched = { ...it, type: it?.type || "nft", instanceId, acquiredAt: it?.acquiredAt || nowMs };
 
-      await client.query(
+      const ins = await client.query(
         `INSERT INTO inventory_items (telegram_id, telegram_username, instance_id, item_json, created_at)
          VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4)
-         ON CONFLICT (instance_id) DO NOTHING`,
+         ON CONFLICT (instance_id) DO NOTHING
+         RETURNING id, instance_id, item_json, created_at`,
         [id, instanceId, enriched, nowSec]
       );
+
+      if (ins.rowCount > 0) {
+        const row = ins.rows[0] || {};
+        const readableSourceId = inventoryReadableSourceIdFromRow(row) || instanceId;
+        await upsertGiftReadableEntry(client, {
+          source: "inventory",
+          sourceId: readableSourceId,
+          telegramId: id,
+          item: row.item_json || enriched,
+          createdAt: enriched.acquiredAt || nowMs
+        });
+      }
     }
 
     const inv = await client.query(
@@ -1017,11 +1318,17 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
     const del = await client.query(
       `DELETE FROM inventory_items
        WHERE telegram_id = $1 AND instance_id = ANY($2::text[])
-       RETURNING item_json`,
+       RETURNING id, instance_id, item_json`,
       [id, ids]
     );
 
-    const soldItems = del.rows.map(r => r.item_json);
+    const soldRows = Array.isArray(del.rows) ? del.rows : [];
+    const soldItems = soldRows.map((r) => r.item_json);
+    for (const row of soldRows) {
+      const readableSourceId = inventoryReadableSourceIdFromRow(row);
+      if (!readableSourceId) continue;
+      await deleteGiftReadableEntry(client, "inventory", readableSourceId);
+    }
 
     // Compute total sell value from item.price
     let total = 0;
@@ -1108,9 +1415,16 @@ export async function deleteInventoryItems(telegramId, instanceIds) {
 
     const del = await client.query(
       `DELETE FROM inventory_items
-       WHERE telegram_id = $1 AND instance_id = ANY($2::text[])`,
+       WHERE telegram_id = $1 AND instance_id = ANY($2::text[])
+       RETURNING id, instance_id`,
       [id, ids]
     );
+
+    for (const row of (del.rows || [])) {
+      const readableSourceId = inventoryReadableSourceIdFromRow(row);
+      if (!readableSourceId) continue;
+      await deleteGiftReadableEntry(client, "inventory", readableSourceId);
+    }
 
     await client.query("COMMIT");
     return { deleted: del.rowCount || 0 };
@@ -1138,7 +1452,7 @@ export async function deleteInventoryItemByLookup(telegramId, lookup = {}) {
 
   const client = await pool.connect();
   const deleteByExpr = async (expr, value) => {
-    if (!value) return 0;
+    if (!value) return null;
     const del = await client.query(
       `WITH candidate AS (
          SELECT id
@@ -1150,34 +1464,41 @@ export async function deleteInventoryItemByLookup(telegramId, lookup = {}) {
        DELETE FROM inventory_items AS i
        USING candidate AS c
        WHERE i.id = c.id
-       RETURNING i.id`,
+       RETURNING i.id, i.instance_id`,
       [id, value]
     );
-    return Number(del.rowCount || 0);
+    return del.rows?.[0] || null;
   };
 
   try {
     await client.query("BEGIN");
 
-    let deleted = 0;
+    let deletedRow = null;
     if (instanceId) {
       const del = await client.query(
         `DELETE FROM inventory_items
          WHERE telegram_id = $1 AND instance_id = $2
-         RETURNING id`,
+         RETURNING id, instance_id`,
         [id, instanceId]
       );
-      deleted = Number(del.rowCount || 0);
+      deletedRow = del.rows?.[0] || null;
     }
 
-    if (!deleted) deleted = await deleteByExpr(`item_json->>'marketId'`, marketId);
-    if (!deleted) deleted = await deleteByExpr(`item_json->>'id'`, itemId);
-    if (!deleted) deleted = await deleteByExpr(`item_json->>'baseId'`, itemId);
-    if (!deleted) deleted = await deleteByExpr(`item_json #>> '{tg,messageId}'`, tgMessageId);
-    if (!deleted) deleted = await deleteByExpr(`item_json #>> '{tg,msgId}'`, tgMessageId);
+    if (!deletedRow) deletedRow = await deleteByExpr(`item_json->>'marketId'`, marketId);
+    if (!deletedRow) deletedRow = await deleteByExpr(`item_json->>'id'`, itemId);
+    if (!deletedRow) deletedRow = await deleteByExpr(`item_json->>'baseId'`, itemId);
+    if (!deletedRow) deletedRow = await deleteByExpr(`item_json #>> '{tg,messageId}'`, tgMessageId);
+    if (!deletedRow) deletedRow = await deleteByExpr(`item_json #>> '{tg,msgId}'`, tgMessageId);
+
+    if (deletedRow) {
+      const readableSourceId = inventoryReadableSourceIdFromRow(deletedRow);
+      if (readableSourceId) {
+        await deleteGiftReadableEntry(client, "inventory", readableSourceId);
+      }
+    }
 
     await client.query("COMMIT");
-    return { deleted };
+    return { deleted: deletedRow ? 1 : 0 };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

@@ -4649,7 +4649,10 @@ app.post("/api/ton/deposit/confirm", async (req, res) => {
       await sendTelegramMessage(
         userId,
         `Deposit confirmed!\n\nYou received ${transfer.amountTon} TON`,
-        { customEmojiId: getTonDepositNotifyCustomEmojiId() }
+        {
+          customEmojiId: getTonDepositNotifyCustomEmojiId(),
+          customEmojiFallback: "\uD83D\uDC8E"
+        }
       );
     }
 
@@ -4915,7 +4918,10 @@ app.post("/api/deposit-notification", async (req, res) => {
           await sendTelegramMessage(
             userId,
             `Deposit confirmed!\n\nYou received ${amountNum} TON`,
-            { customEmojiId: getTonDepositNotifyCustomEmojiId() }
+            {
+              customEmojiId: getTonDepositNotifyCustomEmojiId(),
+              customEmojiFallback: "\uD83D\uDC8E"
+            }
           );
         }
 
@@ -4954,7 +4960,10 @@ app.post("/api/deposit-notification", async (req, res) => {
           await sendTelegramMessage(
             userId,
             `Payment successful!\n\nYou received ${amountNum} Stars`,
-            { customEmojiId: getStarsDepositNotifyCustomEmojiId() }
+            {
+              customEmojiId: getStarsDepositNotifyCustomEmojiId(),
+              customEmojiFallback: "\u2B50"
+            }
           );
         }
 
@@ -5479,7 +5488,10 @@ app.post("/api/stars/webhook", async (req, res) => {
         await sendTelegramMessage(
           userId,
           `Payment successful!\n\nYou received ${amountStars} Stars`,
-          { customEmojiId: getStarsDepositNotifyCustomEmojiId() }
+          {
+            customEmojiId: getStarsDepositNotifyCustomEmojiId(),
+            customEmojiFallback: "\u2B50"
+          }
         );
 
         return res.json({ ok: true, duplicate: false });
@@ -7123,11 +7135,19 @@ function escapeTelegramHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
+function prependFallbackEmoji(text, fallbackEmoji) {
+  const sourceText = String(text ?? "");
+  const fallback = String(fallbackEmoji || "").trim();
+  if (!fallback) return sourceText;
+  return sourceText ? `${fallback} ${sourceText}` : fallback;
+}
+
 function buildTelegramMessagePayload(text, options = {}) {
   const sourceText = String(text ?? "");
   const parseMode = normalizeTelegramParseMode(options?.parseMode, "HTML");
   const customEmojiId = normalizeTelegramCustomEmojiId(options?.customEmojiId);
-  const customEmojiFallback = String(options?.customEmojiFallback || "*");
+  const customEmojiFallbackRaw = String(options?.customEmojiFallback || "\u2728").trim();
+  const customEmojiFallback = customEmojiFallbackRaw || "\u2728";
 
   if (!customEmojiId) {
     return { text: sourceText, entities: null, forceParseMode: null };
@@ -7249,8 +7269,14 @@ async function sendTelegramPhoto(chatId, caption = "", options = {}) {
   let result = await callTelegramBotApi("sendPhoto", body, apiOptions);
 
   if (!result?.ok && options?.customEmojiId && isCustomEmojiEntityError(result?.error)) {
+    console.warn("[Telegram] sendPhoto custom emoji rejected, retrying without emoji:", {
+      chatId,
+      customEmojiId: String(options?.customEmojiId || ""),
+      error: String(result?.error || "")
+    });
     const retryBody = { ...body };
-    const retryPrepared = buildTelegramMessagePayload(captionText, { ...options, customEmojiId: "" });
+    const retryText = prependFallbackEmoji(captionText, options?.customEmojiFallback);
+    const retryPrepared = buildTelegramMessagePayload(retryText, { ...options, customEmojiId: "" });
     retryBody.caption = retryPrepared.text;
     delete retryBody.caption_entities;
     retryBody.parse_mode = retryPrepared.forceParseMode || normalizeTelegramParseMode(options?.parseMode, "HTML");
@@ -7315,7 +7341,13 @@ async function sendTelegramMessage(chatId, text, options = {}) {
   let result = await callTelegramBotApi("sendMessage", body, apiOptions);
 
   if (!result?.ok && options?.customEmojiId && isCustomEmojiEntityError(result?.error)) {
-    const retryPrepared = buildTelegramMessagePayload(text, { ...options, customEmojiId: "" });
+    console.warn("[Telegram] sendMessage custom emoji rejected, retrying without emoji:", {
+      chatId,
+      customEmojiId: String(options?.customEmojiId || ""),
+      error: String(result?.error || "")
+    });
+    const retryText = prependFallbackEmoji(text, options?.customEmojiFallback);
+    const retryPrepared = buildTelegramMessagePayload(retryText, { ...options, customEmojiId: "" });
     const retryBody = {
       chat_id: chatId,
       text: retryPrepared.text
