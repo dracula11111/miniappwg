@@ -465,7 +465,10 @@
           display: inline-flex;                            /* Инлайн-флекс */
           align-items: center;                             /* Центрируем по вертикали */
           gap: 8px;                                        /* Расстояние между элементами */
-          background: rgba(18, 24, 35, 0.4);              /* Более прозрачный нейтральный фон */
+          background: rgba(18, 24, 35, 0.34);              /* Более прозрачный нейтральный фон */
+          backdrop-filter: blur(14px) saturate(145%);      /* Liquid glass внутри пилюли */
+          -webkit-backdrop-filter: blur(14px) saturate(145%);
+          isolation: isolate;
           border: 1px solid rgba(255, 255, 255, 0.14);    /* Нейтральная граница */
           padding: 6px 10px;                               /* Внутренние отступы */
           border-radius: 999px;                            /* Капсульная форма */

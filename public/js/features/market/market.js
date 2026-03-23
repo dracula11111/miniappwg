@@ -381,6 +381,7 @@ try { window.state = state; } catch {}
 let giftDrawerEl = null;
 let giftDrawerOverlayEl = null;
 let giftDrawerBuyBtn = null;
+let giftDrawerBalanceProxyEl = null;
 
 function ensureGiftDrawer() {
   if (giftDrawerEl && giftDrawerOverlayEl) return;
@@ -441,6 +442,7 @@ function ensureGiftDrawer() {
 
   function close() {
     overlay.classList.remove('is-open');
+    if (giftDrawerBalanceProxyEl) giftDrawerBalanceProxyEl.style.display = 'none';
     try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
     // allow animation
     setTimeout(() => {
@@ -477,11 +479,24 @@ function ensureGiftDrawer() {
   // Prevent clicks inside drawer from closing
   drawer?.addEventListener('click', (e) => e.stopPropagation());
 
+  const balanceProxy = document.createElement('div');
+  balanceProxy.className = 'market-gift-balance-proxy';
+  balanceProxy.setAttribute('aria-hidden', 'true');
+  overlay.prepend(balanceProxy);
+
+  const syncBalanceProxyIfOpen = () => {
+    if (!overlay.classList.contains('is-open')) return;
+    syncGiftDrawerBalanceProxy();
+  };
+  window.addEventListener('resize', syncBalanceProxyIfOpen, { passive: true });
+  window.addEventListener('scroll', syncBalanceProxyIfOpen, { passive: true });
+
   document.body.appendChild(overlay);
 
   giftDrawerEl = drawer;
   giftDrawerOverlayEl = overlay;
   giftDrawerBuyBtn = buyBtn;
+  giftDrawerBalanceProxyEl = balanceProxy;
 }
 
 function getStarsPerTon() {
@@ -522,8 +537,65 @@ function formatBuyPriceForGift(gift) {
 function closeGiftDrawer() {
   if (!giftDrawerOverlayEl) return;
   giftDrawerOverlayEl.classList.remove('is-open');
+  if (giftDrawerBalanceProxyEl) giftDrawerBalanceProxyEl.style.display = 'none';
   try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
   setTimeout(() => { try { giftDrawerOverlayEl.style.display = 'none'; } catch {} }, 250);
+}
+
+function syncGiftDrawerBalanceProxy() {
+  if (!giftDrawerOverlayEl || !giftDrawerBalanceProxyEl) return;
+
+  const sourcePill =
+    document.getElementById('tonPill') ||
+    document.querySelector('.topbar > .balance .pill') ||
+    document.querySelector('.topbar .pill');
+  if (!sourcePill) {
+    giftDrawerBalanceProxyEl.style.display = 'none';
+    return;
+  }
+
+  const pillClone = sourcePill.cloneNode(true);
+  if (pillClone && typeof pillClone.querySelectorAll === 'function') {
+    pillClone.removeAttribute?.('id');
+    pillClone.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+  }
+  if (pillClone && typeof pillClone.setAttribute === 'function') {
+    pillClone.setAttribute('aria-hidden', 'true');
+    pillClone.tabIndex = -1;
+    pillClone.disabled = true;
+  }
+  if (pillClone?.style) {
+    pillClone.style.boxSizing = 'border-box';
+    pillClone.style.width = '100%';
+    pillClone.style.height = '100%';
+    pillClone.style.margin = '0';
+  }
+
+  giftDrawerBalanceProxyEl.replaceChildren(pillClone);
+
+  const sourceRect = sourcePill.getBoundingClientRect?.();
+  const topbar = document.querySelector('.topbar');
+  const topbarPadTop = topbar
+    ? Number.parseFloat(window.getComputedStyle(topbar).paddingTop || '')
+    : NaN;
+  const stickyTop = Number.isFinite(topbarPadTop) ? topbarPadTop : 72;
+  if (sourceRect && Number.isFinite(sourceRect.left) && Number.isFinite(sourceRect.top)) {
+    const visibleTop = Math.max(stickyTop, sourceRect.top);
+    giftDrawerBalanceProxyEl.style.left = `${sourceRect.left}px`;
+    giftDrawerBalanceProxyEl.style.top = `${visibleTop}px`;
+    giftDrawerBalanceProxyEl.style.width = `${sourceRect.width}px`;
+    giftDrawerBalanceProxyEl.style.height = `${sourceRect.height}px`;
+    giftDrawerBalanceProxyEl.style.right = 'auto';
+    giftDrawerBalanceProxyEl.style.bottom = 'auto';
+  } else {
+    giftDrawerBalanceProxyEl.style.left = 'auto';
+    giftDrawerBalanceProxyEl.style.top = '72px';
+    giftDrawerBalanceProxyEl.style.width = 'auto';
+    giftDrawerBalanceProxyEl.style.height = 'auto';
+    giftDrawerBalanceProxyEl.style.right = '14px';
+    giftDrawerBalanceProxyEl.style.bottom = 'auto';
+  }
+  giftDrawerBalanceProxyEl.style.display = 'block';
 }
 
 function getProfileNavTargetRect() {
@@ -593,20 +665,31 @@ async function animateGiftToProfile() {
   }
   // Close drawer
   closeGiftDrawer();
-  // Wait for pop animation to finish (320 ms)
-  await new Promise(r => setTimeout(r, 320));
+  // Wait for pop animation to finish.
+  const POP_MS = 240;
+  await new Promise(r => setTimeout(r, POP_MS));
   // Fly to profile icon
   const toX  = targetRect.left + targetRect.width  / 2 - (sourceRect.left + sourceRect.width  / 2);
   const toY  = targetRect.top  + targetRect.height / 2 - (sourceRect.top  + sourceRect.height / 2);
+  const distance = Math.hypot(toX, toY);
   const scale = Math.max(0.14, Math.min(0.30, targetRect.width / Math.max(sourceRect.width, 1)));
+  const arcLift = Math.max(72, Math.min(190, distance * 0.28));
+  const midX = toX * 0.56;
+  const midY = toY * 0.50 - arcLift;
+  const midScale = Math.min(0.74, Math.max(scale + 0.30, 0.48));
+  const flyMs = Math.max(780, Math.min(1180, 640 + distance * 0.34));
   clone.style.setProperty('--fly-x',     `${toX}px`);
   clone.style.setProperty('--fly-y',     `${toY}px`);
+  clone.style.setProperty('--fly-mid-x', `${midX}px`);
+  clone.style.setProperty('--fly-mid-y', `${midY}px`);
   clone.style.setProperty('--fly-scale', String(scale));
+  clone.style.setProperty('--fly-mid-scale', String(midScale));
+  clone.style.setProperty('--fly-duration', `${Math.round(flyMs)}ms`);
 
   await new Promise(resolve => {
     requestAnimationFrame(() => {
       clone.classList.add('is-flying');
-      setTimeout(resolve, 700);
+      setTimeout(resolve, flyMs + 80);
     });
   });
   // Landing pulse on nav profile icon
@@ -730,7 +813,6 @@ async function applyOptimisticPurchase(gift) {
 
   // 1) Market UI - remove instantly
   state.gifts = snapshot.giftsBefore.filter(x => String(x?.id) !== String(gift?.id));
-  await animateGiftToProfile();
   renderMarket();
 
   // 2) Balance UI - deduct instantly
@@ -854,6 +936,12 @@ async function buyGift(gift) {
     const j = await postJson('/api/market/items/buy', { id: gift.id, currency: state.currency }, { timeoutMs: 15000 });
 
     emitLivePurchaseEvents({ response: j, gift, currency: state.currency });
+    try {
+      await animateGiftToProfile();
+    } catch (animErr) {
+      console.warn('[market] buy animation failed:', animErr);
+      closeGiftDrawer();
+    }
 
     toast(`✅ Purchased: ${name}`);
   } catch (e) {
@@ -862,6 +950,8 @@ async function buyGift(gift) {
     const msg = payload?.error || payload?.message || e?.message || 'Buy failed';
 
     if (code === 'ALREADY_SOLD' || e?.status === 409) {
+      rollbackOptimisticPurchase(optimistic);
+      closeGiftDrawer();
       toast('⚠️ This gift was already sold. Refreshing…');
       state.gifts = await loadGifts();
       renderMarket();
@@ -1029,10 +1119,16 @@ function openGiftDrawer(gift) {
     await buyGift(gift);
   };
 
+  giftDrawerEl.style.top = '';
+  giftDrawerEl.style.maxHeight = '';
+  syncGiftDrawerBalanceProxy();
   giftDrawerOverlayEl.style.display = 'block';
   try { document.body.classList.add('market-gift-overlay-open'); } catch {}
   // next tick for animation
-  requestAnimationFrame(() => giftDrawerOverlayEl.classList.add('is-open'));
+  requestAnimationFrame(() => {
+    syncGiftDrawerBalanceProxy();
+    giftDrawerOverlayEl.classList.add('is-open');
+  });
 }
 
   // =========================

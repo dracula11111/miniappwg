@@ -666,6 +666,69 @@ body.market-gift-overlay-open .topbar{
   z-index: 10001;
   position: relative;
 }
+body.market-gift-overlay-open .topbar > .balance{
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.market-gift-balance-proxy{
+  position: fixed;
+  z-index: 10002;
+  display: none;
+  pointer-events: none;
+}
+.market-gift-balance-proxy .pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 6px 10px;
+  background: rgba(18, 24, 35, 0.34);
+  backdrop-filter: blur(14px) saturate(145%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  color: #fff;
+  line-height: 1;
+  opacity: 1;
+}
+.market-gift-balance-proxy .pill::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 14% 8%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(circle at 88% 92%, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 44%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+.market-gift-balance-proxy .pill > span{
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: .2px;
+  position: relative;
+  z-index: 2;
+}
+.market-gift-balance-proxy .pill-icon,
+.market-gift-balance-proxy .pill-plus-icon{
+  width: 16px;
+  height: 16px;
+  position: relative;
+  z-index: 2;
+}
+.market-gift-balance-proxy .pill[disabled]{
+  opacity: 1;
+}
 
 .market-gift-drawer{
   position: absolute;
@@ -691,8 +754,8 @@ body.market-gift-overlay-open .topbar{
 /* ── Gift fly animation ─────────────────────────────────────── */
 @keyframes market-fly-pop {
   0%   { transform: scale(1); }
-  35%  { transform: scale(1.18); filter: brightness(1.25) saturate(1.4); }
-  60%  { transform: scale(1.08); }
+  35%  { transform: scale(1.12); filter: brightness(1.18) saturate(1.2); }
+  70%  { transform: scale(1.04); }
   100% { transform: scale(1); }
 }
 
@@ -704,6 +767,27 @@ body.market-gift-overlay-open .topbar{
 @keyframes market-sparkle-out {
   0%   { opacity: 1; transform: translate(0,0) scale(1); }
   100% { opacity: 0; transform: translate(var(--sx,0), var(--sy,0)) scale(0); }
+}
+
+@keyframes market-fly-to-profile {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+    filter: blur(0) brightness(1.08) saturate(1.1);
+    box-shadow: 0 22px 52px rgba(0,0,0,.46), 0 0 0 0 rgba(255,220,80,0);
+  }
+  62% {
+    transform: translate3d(var(--fly-mid-x, 0), var(--fly-mid-y, 0), 0) scale(var(--fly-mid-scale, .62)) rotate(-3deg);
+    opacity: 1;
+    filter: blur(.2px) brightness(1.12) saturate(1.06);
+    box-shadow: 0 16px 34px rgba(0,0,0,.38), 0 0 28px 7px rgba(255,220,80,.18);
+  }
+  100% {
+    transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0) scale(var(--fly-scale, .2)) rotate(-7deg);
+    opacity: .2;
+    filter: blur(1px) brightness(1.24) saturate(.95);
+    box-shadow: 0 0 30px 10px rgba(255,220,80,.22);
+  }
 }
 
 @keyframes market-nav-pulse {
@@ -725,20 +809,11 @@ body.market-gift-overlay-open .topbar{
   will-change: transform, opacity, filter;
   box-shadow: 0 18px 44px rgba(0,0,0,.5), 0 0 0 0 rgba(255,220,80,0);
   /* pop before flying */
-  animation: market-fly-pop .32s cubic-bezier(.34,1.56,.64,1) forwards;
+  animation: market-fly-pop .24s cubic-bezier(.34,1.56,.64,1) forwards;
 }
 
 .market-fly-image.is-flying {
-  animation: none;
-  transition:
-    transform .70s cubic-bezier(.18,.82,.16,1.02),
-    opacity   .68s cubic-bezier(.4,0,.6,1),
-    filter    .68s ease,
-    box-shadow .68s ease;
-  transform: translate3d(var(--fly-x, 0), var(--fly-y, 0), 0) scale(var(--fly-scale, .2));
-  opacity: 0;
-  filter: blur(3px) brightness(1.5) saturate(0.7);
-  box-shadow: 0 0 32px 8px rgba(255,220,80,.3);
+  animation: market-fly-to-profile var(--fly-duration, 920ms) cubic-bezier(.22,.78,.2,1) forwards;
 }
 
 /* Glow ring that expands from start position */

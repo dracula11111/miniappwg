@@ -82,7 +82,9 @@
           width: 40px;                                   /* Ширина кнопки */
           height: 40px;                                  /* Высота кнопки */
           border-radius: 12px;                           /* Скруглённые углы */
-          background: rgba(18, 24, 35, 0.38);           /* Более прозрачный нейтральный фон */
+          background: rgba(18, 24, 35, 0.32);           /* Более прозрачный нейтральный фон */
+          backdrop-filter: blur(14px) saturate(145%);   /* Liquid glass внутри кнопки настроек */
+          -webkit-backdrop-filter: blur(14px) saturate(145%);
           border: 1px solid rgba(255, 255, 255, 0.14);  /* Нейтральная граница */
           display: flex;                                 /* Flexbox */
           flex-direction: column;                        /* Вертикальное расположение */
