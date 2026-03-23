@@ -634,13 +634,13 @@ background: rgba(96, 165, 250, 0.5);
 
 /* Non-Fragment fallback images should look a bit smaller than full composite previews */
 .market-card:not(.has-preview) .market-card__img{
-  inset: 7%;
-  width: auto;
-  height: auto;
-  max-width: 86%;
-  max-height: 86%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   object-position: center;
+  transform: scale(0.88);
+  transform-origin: center;
 }
 
 
