@@ -60,7 +60,9 @@ const API_ID = Number(process.env.RELAYER_API_ID_NF || process.env.RELAYER_API_I
 const API_HASH = String(process.env.RELAYER_API_HASH_NF || process.env.RELAYER_API_HASH || process.env.TG_API_HASH || "");
 const SESSION_STR = String(process.env.RELAYER_SESSION_NF || process.env.RELAYER_SESSION || "");
 const SERVER = String(process.env.RELAYER_SERVER || "http://localhost:3000").replace(/\/+$/, "");
+const DEFAULT_SERVER_PORT = Math.max(1, Math.min(65535, Number(process.env.PORT || process.env.SERVER_PORT || 7700) || 7700));
 const SECRET = String(process.env.RELAYER_SECRET || process.env.MARKET_SECRET || "");
+const SERVER_CANDIDATES = buildServerCandidates();
 const ADMIN_IDS = String(
   process.env.RELAYER_ADMIN_IDS ||
   process.env.RELAYER_ADMIN_ID ||
@@ -71,6 +73,32 @@ const ADMIN_IDS = String(
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+function normalizeBaseServerUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function buildServerCandidates() {
+  const seen = new Set();
+  const out = [];
+
+  const push = (value) => {
+    const url = normalizeBaseServerUrl(value);
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+    out.push(url);
+  };
+
+  push(SERVER);
+  push(process.env.SERVER_URL);
+  push(process.env.APP_SERVER_URL);
+  push(process.env.WEB_SERVER_URL);
+  push(`http://127.0.0.1:${DEFAULT_SERVER_PORT}`);
+  push(`http://localhost:${DEFAULT_SERVER_PORT}`);
+
+  return out.length ? out : [SERVER];
+}
 
 function normalizeTelegramId(value) {
   if (value == null) return "";
@@ -687,10 +715,43 @@ async function getJson(url, headers = {}) {
   return { ok: r.ok, status: r.status, json, text };
 }
 
+function serverUrl(pathname, base = SERVER) {
+  const p = String(pathname || "").trim();
+  if (!p) return base;
+  return `${base}${p.startsWith("/") ? p : `/${p}`}`;
+}
+
+async function postServerJson(pathname, body, headers = {}) {
+  const errors = [];
+  for (const base of SERVER_CANDIDATES) {
+    const url = serverUrl(pathname, base);
+    try {
+      return await postJson(url, body, headers);
+    } catch (e) {
+      errors.push(`${base}: ${shortErrorText(e?.message || e, 220)}`);
+    }
+  }
+  const detail = errors.length ? ` (${errors.join(" | ")})` : "";
+  throw new Error(`fetch failed${detail}`);
+}
+
+async function getServerJson(pathname, headers = {}) {
+  const errors = [];
+  for (const base of SERVER_CANDIDATES) {
+    const url = serverUrl(pathname, base);
+    try {
+      return await getJson(url, headers);
+    } catch (e) {
+      errors.push(`${base}: ${shortErrorText(e?.message || e, 220)}`);
+    }
+  }
+  const detail = errors.length ? ` (${errors.join(" | ")})` : "";
+  throw new Error(`fetch failed${detail}`);
+}
+
 async function pushRelayerPrices(items) {
-  const url = `${SERVER}/api/gifts/prices/push`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
-  return await postJson(url, { items }, headers);
+  return await postServerJson("/api/gifts/prices/push", { items }, headers);
 }
 
 function parseStarsAmount(a) {
@@ -724,7 +785,7 @@ async function refreshAndPushPrices(client) {
   if (!ENABLE_PRICES) return;
 
   // 1) Fetch tracked catalog from server
-  const cat = await getJson(`${SERVER}/api/gifts/catalog`);
+  const cat = await getServerJson("/api/gifts/catalog");
   const tracked = Array.isArray(cat?.json?.items) ? cat.json.items : [];
   if (!tracked.length) {
     console.log("[Relayer][Prices] ⚠️ No catalog items from server (skip).");
@@ -874,10 +935,9 @@ function startPricesLoop(client) {
 
 
 async function addToInventory({ userId, username = "", item, claimId }) {
-  const url = `${SERVER}/api/inventory/nft/add`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
   const cleanUsername = normalizeUsername(username);
-  return await postJson(url, {
+  return await postServerJson("/api/inventory/nft/add", {
     userId: String(userId),
     username: cleanUsername || undefined,
     items: [item],
@@ -888,15 +948,13 @@ async function addToInventory({ userId, username = "", item, claimId }) {
 
 
 async function addToMarket({ item }) {
-  const url = `${SERVER}/api/market/items/add`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
-  return await postJson(url, { item }, headers);
+  return await postServerJson("/api/market/items/add", { item }, headers);
 }
 
 async function clearMarketItemsRemote() {
-  const url = `${SERVER}/api/market/items/clear`;
   const headers = SECRET ? { authorization: `Bearer ${SECRET}` } : {};
-  return await postJson(url, {}, headers);
+  return await postServerJson("/api/market/items/clear", {}, headers);
 }
 
 async function run({ mode = "run" } = {}) {
@@ -926,6 +984,7 @@ async function run({ mode = "run" } = {}) {
 
   console.log("[Relayer] ✅ Connected. Listening gifts...");
   console.log("[Relayer] SERVER:", SERVER);
+  console.log("[Relayer] SERVER_CANDIDATES:", SERVER_CANDIDATES.join(", "));
   console.log("[Relayer] IMG_DIR:", IMG_DIR);
   console.log("[Relayer] ADMIN_IDS:", ADMIN_IDS.join(", ") || "(empty)");
   console.log("[Relayer] ADMIN_IDS(normalized):", Array.from(ADMIN_ID_SET).join(", ") || "(empty)");

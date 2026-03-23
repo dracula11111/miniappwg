@@ -6099,24 +6099,26 @@ app.post("/api/market/items/add", async (req, res) => {
     };
     delete out.imageData;
     delete out.previewData;
+    let saved = out;
+    if (typeof db.addMarketItem === "function" && typeof db.getMarketItems === "function") {
+      // Fast path for Postgres: upsert single row instead of rewriting full market.
+      await db.addMarketItem(out);
+    } else {
+      saved = await withMarketLock(async () => {
+        const items = await readMarketItems();
+        const filtered = items.filter(x => String(x?.id) !== String(out.id));
+        filtered.unshift(out);
 
-    const saved = await withMarketLock(async () => {
-      const items = await readMarketItems();
-    
-      // РґРµРґСѓРї: РµСЃР»Рё С‚Р°РєРѕР№ id СѓР¶Рµ РµСЃС‚СЊ вЂ” СѓР±РёСЂР°РµРј СЃС‚Р°СЂСѓСЋ Р·Р°РїРёСЃСЊ
-      const filtered = items.filter(x => String(x?.id) !== String(out.id));
-      filtered.unshift(out);
-    
-      const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
-      if (filtered.length > MAX) filtered.length = MAX;
-    
-      const ok = await writeMarketItems(filtered);
-      if (!ok) throw new Error("write failed");
-      return out;
-    });
-    
+        const MAX = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
+        if (filtered.length > MAX) filtered.length = MAX;
+
+        const ok = await writeMarketItems(filtered);
+        if (!ok) throw new Error("write failed");
+        return out;
+      });
+    }
+
     return res.json({ ok: true, item: saved, relisted });
-    
   } catch (e) {
     console.error("[MarketStore] add error:", e);
     return res.status(500).json({ ok: false, error: "market add error" });
@@ -6153,110 +6155,114 @@ app.post("/api/market/items/buy", requireTelegramUser, async (req, res) => {
     if (!itemId) return res.status(400).json({ ok: false, error: "id required" });
 
     const cur = String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
+    const hasDbMarketOps = typeof db.takeMarketItemById === "function" && typeof db.addMarketItem === "function";
+    const MAX_MARKET_ITEMS = Math.max(10, Math.min(5000, Number(process.env.MARKET_MAX_ITEMS) || 1000));
 
-    const result = await withMarketLock(async () => {
-      let it = null;
-      let items = null;
-      let idx = -1;
-
-      if (typeof db.takeMarketItemById === "function") {
-        it = await db.takeMarketItemById(itemId);
-        if (!it) return { ok: false, code: "ALREADY_SOLD" };
-      } else {
-        items = await readMarketItems();
-        idx = items.findIndex(x => String(x?.id) === itemId);
-        if (idx < 0) return { ok: false, code: "ALREADY_SOLD" };
-        it = items[idx];
-      }
-
-      // Buy should be instant: TON purchases must not block on external rate fetch.
-      // We use cached tonUsd when available and only fetch a fresh rate for Stars purchases.
-      let tonUsd = Number.isFinite(Number(tonUsdCache?.tonUsd)) ? Number(tonUsdCache.tonUsd) : null;
-      if (cur === "stars" && (!Number.isFinite(tonUsd) || tonUsd <= 0)) {
-        const rate = await getTonUsdRate();
-        tonUsd = Number.isFinite(Number(rate?.tonUsd)) ? Number(rate.tonUsd) : null;
-      }
-
-      const priceTon = resolveMarketItemPriceTon(it, tonUsd);
-      const priceStars = resolveMarketItemPriceStars(it, tonUsd);
-
-      const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
-      if (!Number.isFinite(price) || price <= 0) {
-        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
-          try { await db.addMarketItem(it); } catch {}
-        }
-        return { ok: false, code: "BAD_PRICE" };
-      }
-
-      // explicit guard before attempting debit to keep error semantics predictable
-      // across db backends and avoid progressing purchase flow with stale/invalid funds.
-      try {
-        const bal = await db.getUserBalance(userId);
-        const available = cur === "stars"
-          ? Number(bal?.stars_balance ?? 0)
-          : Number(bal?.ton_balance ?? 0);
-        if (!Number.isFinite(available) || available < price) {
-          if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
-            try { await db.addMarketItem(it); } catch {}
-          }
-          return { ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance" };
-        }
-      } catch {}
-
-      // charge
-      let newBalance = null;
-      try {
-        newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
-      } catch (e) {
-        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
-          try { await db.addMarketItem(it); } catch {}
-        }
-        return { ok: false, code: "INSUFFICIENT_BALANCE", error: e?.message || "Insufficient balance" };
-      }
-
-      // build inventory item
-      const nowMs = Date.now();
-      const instanceId = `mkt_${itemId}_${crypto.randomBytes(6).toString("hex")}`;
-      const invItem = {
-        type: "nft",
-        id: String(it?.tg?.slug || it?.tg?.giftId || it?.id || "gift"),
-        name: it?.name || "Gift",
-        displayName: it?.name || "Gift",
-        icon: it?.previewUrl || it?.image || "/images/gifts/stars.webp",
-        instanceId,
-        acquiredAt: nowMs,
-        price: { ton: priceTon || null, stars: priceStars || null },
-        fromMarket: true,
-        marketId: itemId,
-        tg: it?.tg || null
-      };
-
-      const addRes = await inventoryAdd(userId, [invItem], `buy_${itemId}`);
-      if (!addRes?.items) {
-        try { await db.updateBalance(userId, cur, +price, "market_buy_refund", `Refund market buy: ${it?.name || "Gift"}`, { marketItemId: itemId }); } catch {}
-        if (typeof db.addMarketItem === "function" && typeof db.takeMarketItemById === "function") {
-          try { await db.addMarketItem(it); } catch {}
-        }
-        return { ok: false, code: "INV_ADD_FAILED" };
-      }
-
-      // remove from market + mark sold
-      if (typeof db.takeMarketItemById !== "function" && items && idx >= 0) {
+    let it = null;
+    if (hasDbMarketOps) {
+      // Fast DB path: reserve item atomically without waiting on global in-memory lock queue.
+      it = await db.takeMarketItemById(itemId);
+    } else {
+      // File fallback path still needs lock for atomic reserve.
+      it = await withMarketLock(async () => {
+        const items = await readMarketItems();
+        const idx = items.findIndex(x => String(x?.id) === itemId);
+        if (idx < 0) return null;
+        const picked = items[idx];
         items.splice(idx, 1);
-        await writeMarketItems(items);
+        const ok = await writeMarketItems(items);
+        if (!ok) throw new Error("market write failed");
+        return picked;
+      });
+    }
+    if (!it) return res.status(409).json({ ok: false, code: "ALREADY_SOLD", error: "ALREADY_SOLD" });
+
+    const rollbackMarketItem = async () => {
+      if (!it || typeof it !== "object") return;
+
+      if (hasDbMarketOps) {
+        try { await db.addMarketItem(it); } catch {}
+        return;
       }
-      if (it?.sourceKey) await markMarketSold(it.sourceKey);
 
-      return { ok: true, itemId, newBalance, inventory: addRes.items };
-    });
+      try {
+        await withMarketLock(async () => {
+          const items = await readMarketItems();
+          const exists = items.some(x => String(x?.id) === String(it?.id));
+          if (exists) return;
+          items.unshift(it);
+          if (items.length > MAX_MARKET_ITEMS) items.length = MAX_MARKET_ITEMS;
+          await writeMarketItems(items);
+        });
+      } catch {}
+    };
 
-    if (!result.ok) {
-      const code = result.code || "ERROR";
-      const status = (code === "ALREADY_SOLD") ? 409 : (code === "INSUFFICIENT_BALANCE" ? 402 : 400);
-      return res.status(status).json({ ok: false, code, error: result.error || code });
+    // Buy must be instant. Never block on external TON/USD fetch in purchase path.
+    const tonUsd = Number.isFinite(Number(tonUsdCache?.tonUsd)) && Number(tonUsdCache?.tonUsd) > 0
+      ? Number(tonUsdCache.tonUsd)
+      : null;
+
+    const priceTon = resolveMarketItemPriceTon(it, tonUsd);
+    const priceStars = resolveMarketItemPriceStars(it, tonUsd);
+
+    const price = (cur === "stars") ? Number(priceStars || 0) : priceTon;
+    if (!Number.isFinite(price) || price <= 0) {
+      await rollbackMarketItem();
+      return res.status(400).json({ ok: false, code: "BAD_PRICE", error: "BAD_PRICE" });
     }
 
-    return res.json({ ok: true, id: result.itemId, newBalance: result.newBalance, inventory: result.inventory });
+    // explicit guard before attempting debit to keep error semantics predictable
+    // across db backends and avoid progressing purchase flow with stale/invalid funds.
+    try {
+      const bal = await db.getUserBalance(userId);
+      const available = cur === "stars"
+        ? Number(bal?.stars_balance ?? 0)
+        : Number(bal?.ton_balance ?? 0);
+      if (!Number.isFinite(available) || available < price) {
+        await rollbackMarketItem();
+        return res.status(402).json({ ok: false, code: "INSUFFICIENT_BALANCE", error: "Insufficient balance" });
+      }
+    } catch {}
+
+    // charge
+    let newBalance = null;
+    try {
+      newBalance = await db.updateBalance(userId, cur, -price, "market_buy", `Market buy: ${it?.name || "Gift"}`, { marketItemId: itemId });
+    } catch (e) {
+      await rollbackMarketItem();
+      return res.status(402).json({ ok: false, code: "INSUFFICIENT_BALANCE", error: e?.message || "Insufficient balance" });
+    }
+
+    // build inventory item
+    const nowMs = Date.now();
+    const instanceId = `mkt_${itemId}_${crypto.randomBytes(6).toString("hex")}`;
+    const invItem = {
+      type: "nft",
+      id: String(it?.tg?.slug || it?.tg?.giftId || it?.id || "gift"),
+      name: it?.name || "Gift",
+      displayName: it?.name || "Gift",
+      icon: it?.previewUrl || it?.image || "/images/gifts/stars.webp",
+      instanceId,
+      acquiredAt: nowMs,
+      price: { ton: priceTon || null, stars: priceStars || null },
+      fromMarket: true,
+      marketId: itemId,
+      tg: it?.tg || null
+    };
+
+    const addRes = await inventoryAdd(userId, [invItem], `buy_${itemId}`);
+    if (!addRes?.items) {
+      try { await db.updateBalance(userId, cur, +price, "market_buy_refund", `Refund market buy: ${it?.name || "Gift"}`, { marketItemId: itemId }); } catch {}
+      await rollbackMarketItem();
+      return res.status(400).json({ ok: false, code: "INV_ADD_FAILED", error: "INV_ADD_FAILED" });
+    }
+
+    if (it?.sourceKey) {
+      try { await markMarketSold(it.sourceKey); }
+      catch (soldErr) { console.warn("[Market] mark sold warning:", soldErr?.message || soldErr); }
+    }
+
+    return res.json({ ok: true, id: itemId, newBalance, inventory: addRes.items });
   } catch (e) {
     console.error("[Market] buy error:", e);
     return res.status(500).json({ ok: false, error: "market buy error" });
@@ -7400,7 +7406,6 @@ async function sendTelegramMessage(chatId, text, options = {}) {
 
   return result;
 }
-
 
 
 
