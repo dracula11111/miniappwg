@@ -338,28 +338,38 @@ function extractGiftAssets(gift) {
 
   let modelDoc = null;
   let modelName = null;
+  let modelRarityPermille = null;
 
   let patternDoc = null;
   let patternName = null;
+  let patternRarityPermille = null;
 
   let backdrop = null;
+  let backdropRarityPermille = null;
 
   for (const a of attrs) {
     if (a instanceof Api.StarGiftAttributeModel) {
       if (a.document) modelDoc = a.document;
       modelName = a.name || modelName;
+      const rarity = Number(a.rarityPermille);
+      if (Number.isFinite(rarity) && rarity >= 0) modelRarityPermille = rarity;
     }
     if (a instanceof Api.StarGiftAttributePattern) {
       if (a.document) patternDoc = a.document;
       patternName = a.name || patternName;
+      const rarity = Number(a.rarityPermille);
+      if (Number.isFinite(rarity) && rarity >= 0) patternRarityPermille = rarity;
     }
     if (a instanceof Api.StarGiftAttributeBackdrop) {
+      const rarity = Number(a.rarityPermille);
+      if (Number.isFinite(rarity) && rarity >= 0) backdropRarityPermille = rarity;
       backdrop = {
         name: a.name || null,
         center: rgb24ToHex(a.centerColor),
         edge: rgb24ToHex(a.edgeColor),
         patternColor: rgb24ToHex(a.patternColor),
         textColor: rgb24ToHex(a.textColor),
+        rarityPermille: Number.isFinite(backdropRarityPermille) ? backdropRarityPermille : null,
       };
     }
   }
@@ -369,9 +379,12 @@ function extractGiftAssets(gift) {
   return {
     modelDoc: modelDoc || fallbackDoc || null,
     modelName: modelName || null,
+    modelRarityPermille: Number.isFinite(modelRarityPermille) ? modelRarityPermille : null,
     patternDoc: patternDoc || null,
     patternName: patternName || null,
+    patternRarityPermille: Number.isFinite(patternRarityPermille) ? patternRarityPermille : null,
     backdrop: backdrop || null,
+    backdropRarityPermille: Number.isFinite(backdropRarityPermille) ? backdropRarityPermille : null,
   };
 }
 
@@ -1066,22 +1079,30 @@ async function run({ mode = "run" } = {}) {
       }
 
       const numberText = num != null ? formatNum(num) : "";
+      const availabilityIssued = Number(gift?.availabilityIssued);
+      const availabilityTotal = Number(gift?.availabilityTotal);
 
       const tgPayload = {
         kind: isStarGift ? "star_gift" : "gift",
         giftId: giftId != null ? String(giftId) : null,
         slug: slug || null,
         num: num != null ? Number(num) : null,
+        ownerName: String(gift?.ownerName || "").trim() || null,
+        ownerAddress: String(gift?.ownerAddress || "").trim() || null,
+        availabilityIssued: Number.isFinite(availabilityIssued) ? availabilityIssued : null,
+        availabilityTotal: Number.isFinite(availabilityTotal) ? availabilityTotal : null,
 
         // Collectible parts
         collectible: !!assets.backdrop,
         model: {
           name: assets.modelName || null,
-          image: modelDataUrl || imageUrl || ""
+          image: modelDataUrl || imageUrl || "",
+          rarityPermille: Number.isFinite(assets.modelRarityPermille) ? assets.modelRarityPermille : null
         },
         pattern: patternDoc ? {
           name: assets.patternName || null,
-          image: patternDataUrl || ""
+          image: patternDataUrl || "",
+          rarityPermille: Number.isFinite(assets.patternRarityPermille) ? assets.patternRarityPermille : null
         } : null,
         backdrop: assets.backdrop || null,
         peerKey: peerK,
@@ -1350,19 +1371,30 @@ async function run({ mode = "run" } = {}) {
     const peerK = peerKey(fromPeer) || "msg";
     const eventKey = `tg_link_${peerK}_${msgId}`;
     const assets = extractGiftAssets(gift);
+    const availabilityIssued = Number(gift?.availabilityIssued);
+    const availabilityTotal = Number(gift?.availabilityTotal);
 
     const tgPayload = {
       kind: "star_gift",
       giftId: giftId != null ? String(giftId) : null,
       slug: slug || null,
       num,
+      ownerName: String(gift?.ownerName || "").trim() || null,
+      ownerAddress: String(gift?.ownerAddress || "").trim() || null,
+      availabilityIssued: Number.isFinite(availabilityIssued) ? availabilityIssued : null,
+      availabilityTotal: Number.isFinite(availabilityTotal) ? availabilityTotal : null,
       collectible: !!assets.backdrop,
       model: {
         name: assets.modelName || null,
-        image: ""
+        image: "",
+        rarityPermille: Number.isFinite(assets.modelRarityPermille) ? assets.modelRarityPermille : null
       },
       pattern: assets.patternName
-        ? { name: assets.patternName || null, image: "" }
+        ? {
+            name: assets.patternName || null,
+            image: "",
+            rarityPermille: Number.isFinite(assets.patternRarityPermille) ? assets.patternRarityPermille : null
+          }
         : null,
       backdrop: assets.backdrop || null,
       peerKey: peerK,
@@ -1411,19 +1443,30 @@ async function run({ mode = "run" } = {}) {
     const peerK = peerKey(fromPeer) || "saved";
     const eventKey = `tg_saved_${msgId}`;
     const assets = extractGiftAssets(gift);
+    const availabilityIssued = Number(gift?.availabilityIssued);
+    const availabilityTotal = Number(gift?.availabilityTotal);
 
     const tgPayload = {
       kind: "star_gift",
       giftId: giftId != null ? String(giftId) : null,
       slug: slug || null,
       num,
+      ownerName: String(gift?.ownerName || "").trim() || null,
+      ownerAddress: String(gift?.ownerAddress || "").trim() || null,
+      availabilityIssued: Number.isFinite(availabilityIssued) ? availabilityIssued : null,
+      availabilityTotal: Number.isFinite(availabilityTotal) ? availabilityTotal : null,
       collectible: !!assets.backdrop,
       model: {
         name: assets.modelName || null,
-        image: ""
+        image: "",
+        rarityPermille: Number.isFinite(assets.modelRarityPermille) ? assets.modelRarityPermille : null
       },
       pattern: assets.patternName
-        ? { name: assets.patternName || null, image: "" }
+        ? {
+            name: assets.patternName || null,
+            image: "",
+            rarityPermille: Number.isFinite(assets.patternRarityPermille) ? assets.patternRarityPermille : null
+          }
         : null,
       backdrop: assets.backdrop || null,
       peerKey: peerK,

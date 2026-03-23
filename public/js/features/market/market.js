@@ -984,6 +984,67 @@ async function buyGift(gift) {
   }
 }
 
+function resolveAttributeProbabilityPercent(part) {
+  if (!part || typeof part !== 'object') return null;
+
+  const permille = toFiniteNumber(
+    part?.rarityPermille ??
+    part?.rarity_permille ??
+    part?.probabilityPermille ??
+    part?.probability_permille ??
+    part?.chancePermille ??
+    part?.chance_permille
+  );
+  if (Number.isFinite(permille) && permille > 0) return permille / 10;
+
+  const pct = toFiniteNumber(
+    part?.rarityPercent ??
+    part?.rarity_percent ??
+    part?.probabilityPercent ??
+    part?.probability_percent ??
+    part?.chancePercent ??
+    part?.chance_percent ??
+    part?.probability ??
+    part?.chance
+  );
+  if (!Number.isFinite(pct) || pct <= 0) return null;
+
+  if (pct <= 1) return pct * 100;
+  if (pct <= 100) return pct;
+  return pct / 10;
+}
+
+function formatPercentText(value) {
+  const n = toFiniteNumber(value);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const decimals = n < 0.1 ? 2 : (n < 10 ? 1 : 0);
+  const rounded = n.toFixed(decimals)
+    .replace(/\.0+$/, '')
+    .replace(/(\.\d)0$/, '$1');
+  return `${rounded}%`;
+}
+
+function setGiftDrawerAttrValue(key, text, probabilityPercent = null) {
+  if (!giftDrawerEl) return;
+  const el = giftDrawerEl.querySelector(`.market-gift-v[data-k="${key}"]`);
+  if (!el) return;
+
+  el.innerHTML = '';
+
+  const textEl = document.createElement('span');
+  textEl.className = 'market-gift-v__text';
+  textEl.textContent = String(text || '—');
+  el.appendChild(textEl);
+
+  const pctText = formatPercentText(probabilityPercent);
+  if (pctText) {
+    const chip = document.createElement('span');
+    chip.className = 'market-gift-prob';
+    chip.textContent = pctText;
+    el.appendChild(chip);
+  }
+}
+
 function refreshGiftDrawerPrice() {
   if (!giftDrawerOverlayEl || giftDrawerOverlayEl.style.display !== 'block') return;
   if (!giftDrawerEl) return;
@@ -1053,6 +1114,9 @@ function openGiftDrawer(gift) {
   const model = safeText(tg?.model?.name, 64) || '—';
   const symbol = safeText(tg?.pattern?.name, 64) || '—';
   const backdrop = safeText(tg?.backdrop?.name, 64) || '—';
+  const modelProb = resolveAttributeProbabilityPercent(tg?.model);
+  const symbolProb = resolveAttributeProbabilityPercent(tg?.pattern);
+  const backdropProb = resolveAttributeProbabilityPercent(tg?.backdrop);
 
   const heroImgEl = giftDrawerEl.querySelector('.market-gift-hero__img');
   if (heroImgEl) {
@@ -1096,13 +1160,9 @@ function openGiftDrawer(gift) {
     }
   }
 
-  const setAttr = (key, val) => {
-    const el = giftDrawerEl.querySelector(`.market-gift-v[data-k="${key}"]`);
-    if (el) el.textContent = val;
-  };
-  setAttr('model', model);
-  setAttr('symbol', symbol);
-  setAttr('backdrop', backdrop);
+  setGiftDrawerAttrValue('model', model, modelProb);
+  setGiftDrawerAttrValue('symbol', symbol, symbolProb);
+  setGiftDrawerAttrValue('backdrop', backdrop, backdropProb);
 
   // remember opened gift (so we can refresh its price on currency switch)
   state.openGift = gift;
