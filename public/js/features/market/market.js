@@ -319,11 +319,11 @@ try { window.state = state; } catch {}
   const previewSrc = safeImg(gift?.previewUrl) || safeImg(tg?.previewUrl) || safeImg(fragmentPreviewUrlFromSlug(tg?.slug, 'medium')) || '';
 
   // Fallbacks (if preview missing)
-  const modelImg = safeImg(tg?.model?.image);
   const giftImg  = safeImg(gift?.image);
+  const modelImg = safeImg(tg?.model?.image);
   const namedFallbackImg = marketFallbackImageByGift(gift);
 
-  const imgSrc = previewSrc || modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
+  const imgSrc = previewSrc || giftImg || modelImg || namedFallbackImg || PLACEHOLDER_IMG;
 
   if (previewSrc) btn.classList.add('has-preview');
   if (imgSrc && imgSrc !== PLACEHOLDER_IMG) btn.classList.add('has-image');
@@ -344,8 +344,8 @@ try { window.state = state; } catch {}
   const img = btn.querySelector('.market-card__img');
   if (img) {
     const fallbackQueue = [];
-    if (modelImg) fallbackQueue.push(modelImg);
     if (giftImg) fallbackQueue.push(giftImg);
+    if (modelImg) fallbackQueue.push(modelImg);
     if (previewSrc) {
       const nextPreview = nextFragmentPreviewFallback(previewSrc);
       if (nextPreview) fallbackQueue.push(nextPreview);
@@ -1099,10 +1099,10 @@ function openGiftDrawer(gift) {
     safeImg(tg?.previewUrl) ||
     safeImg(fragmentPreviewUrlFromSlug(tg?.slug, 'large')) ||
     '';
-  const modelImg = safeImg(tg?.model?.image);
   const giftImg  = safeImg(gift?.image);
+  const modelImg = safeImg(tg?.model?.image);
   const namedFallbackImg = marketFallbackImageByGift(gift);
-  const imgSrc = previewSrc || modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
+  const imgSrc = previewSrc || giftImg || modelImg || namedFallbackImg || PLACEHOLDER_IMG;
 
   // Text
   const name = safeText(gift?.name, 64) || 'Gift';
@@ -1123,7 +1123,7 @@ function openGiftDrawer(gift) {
     heroImgEl.onerror = null;
     if (previewSrc && /^https:\/\/nft\.fragment\.com\/gift\//i.test(previewSrc)) {
       heroImgEl.onerror = () => {
-        const tgFallbackImg = modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG;
+        const tgFallbackImg = giftImg || modelImg || namedFallbackImg || PLACEHOLDER_IMG;
         if (tgFallbackImg) {
           heroImgEl.onerror = null;
           heroImgEl.setAttribute('src', tgFallbackImg);
@@ -1135,7 +1135,7 @@ function openGiftDrawer(gift) {
           heroImgEl.setAttribute('src', nextPreviewSrc);
         } else {
           heroImgEl.onerror = null;
-          heroImgEl.setAttribute('src', modelImg || giftImg || namedFallbackImg || PLACEHOLDER_IMG);
+          heroImgEl.setAttribute('src', giftImg || modelImg || namedFallbackImg || PLACEHOLDER_IMG);
         }
       };
     }

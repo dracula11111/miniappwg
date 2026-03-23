@@ -318,6 +318,77 @@ function canonicalNftGiftLink(parsed) {
   return `https://t.me/nft/${parsed.slug}-${parsed.num}`;
 }
 
+function firstTelegramNftImageUrlFromHtml(rawHtml, pageUrl = "") {
+  const html = String(rawHtml || "");
+  if (!html) return "";
+
+  const patterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+    /<a[^>]+href=["']([^"']+)["'][^>]*>\s*Image\s*<\/a>/i
+  ];
+
+  for (const re of patterns) {
+    const m = html.match(re);
+    const raw = String(m?.[1] || "").trim();
+    if (!raw) continue;
+    try {
+      const abs = new URL(raw, pageUrl || "https://t.me").toString();
+      if (/^https?:\/\//i.test(abs)) return abs;
+    } catch {}
+  }
+  return "";
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12_000) {
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => { try { ctrl.abort("timeout"); } catch {} }, timeoutMs) : null;
+  try {
+    return await fetch(url, { ...options, signal: ctrl ? ctrl.signal : undefined });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function downloadImageAsDataUrl(imageUrl, { timeoutMs = 12_000, maxBytes = 3_500_000 } = {}) {
+  const res = await fetchWithTimeout(imageUrl, {
+    method: "GET",
+    headers: {
+      "accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+      "referer": "https://t.me/"
+    }
+  }, timeoutMs);
+
+  if (!res.ok) throw new Error(`image HTTP ${res.status}`);
+  const ctype = String(res.headers.get("content-type") || "").toLowerCase();
+  const mime = ctype.includes("image/") ? ctype.split(";")[0].trim() : "image/jpeg";
+  const ab = await res.arrayBuffer();
+  if (!ab || !ab.byteLength) throw new Error("image empty");
+  if (ab.byteLength > maxBytes) throw new Error(`image too large (${ab.byteLength} bytes)`);
+  const b64 = Buffer.from(ab).toString("base64");
+  return `data:${mime};base64,${b64}`;
+}
+
+async function fetchTelegramNftCompositeDataUrl(parsed) {
+  const link = canonicalNftGiftLink(parsed);
+  if (!link) return "";
+
+  const pageRes = await fetchWithTimeout(link, {
+    method: "GET",
+    headers: {
+      "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
+    }
+  }, 12_000);
+
+  if (!pageRes.ok) throw new Error(`gift page HTTP ${pageRes.status}`);
+  const html = await pageRes.text();
+  const imageUrl = firstTelegramNftImageUrlFromHtml(html, link);
+  if (!imageUrl) throw new Error("gift image URL not found");
+  return await downloadImageAsDataUrl(imageUrl, { timeoutMs: 12_000, maxBytes: 3_500_000 });
+}
+
 
 function fragmentMediumPreviewUrlFromSlug(slug) {
   const s = String(slug || "").trim();
@@ -1648,6 +1719,20 @@ async function run({ mode = "run" } = {}) {
       ].filter(Boolean).join("; ");
       const hint = `Gift not found. history: dialogs=${diagDialogsScanned}, messages=${diagMsgScanned}, giftActions=${diagActionScanned}; saved: items=${diagSavedScanned}, pages=${diagSavedPages}${refsTail ? `; ${refsTail}` : ""}.`;
       return { ok: false, code: "GIFT_NOT_FOUND", error: hint };
+    }
+
+    // Alternative to Fragment preview for link imports:
+    // use ready collectible image from Telegram NFT page when available.
+    try {
+      const teleDataUrl = await fetchTelegramNftCompositeDataUrl(parsed);
+      if (teleDataUrl) {
+        built.marketItem.image = teleDataUrl;
+      }
+    } catch (e) {
+      if (DEBUG) {
+        const reason = shortErrorText(e?.message || e, 220);
+        console.log("[Relayer][ImportByLink] telegram page preview fallback failed:", reason);
+      }
     }
 
     const addRes = await addToMarket({ item: built.marketItem });
