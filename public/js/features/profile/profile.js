@@ -761,7 +761,6 @@
   let isRelayerAdmin = false;
   const STAR_WITHDRAW_LOCK_MS = 5 * 24 * 60 * 60 * 1000;
   const STAR_WITHDRAW_MIN_LABEL_MS = (5 * 24 * 60 - 1) * 60 * 1000;
-  const withdrawLockHintsSeen = new Set();
   const withdrawLockUntilOverrides = new Map();
   let withdrawLockTickerId = 0;
   function removeLegacyNftShelf() {
@@ -788,6 +787,10 @@
 
   function getUiLangCode() {
     const lang =
+      window.WT?.i18n?.getLanguage?.() ||
+      document.documentElement?.lang ||
+      document.body?.getAttribute?.('data-lang') ||
+      document.body?.getAttribute?.('lang') ||
       tg?.initDataUnsafe?.user?.language_code ||
       navigator?.language ||
       '';
@@ -803,6 +806,10 @@
       return 'Вывод этого подарка временно недоступен.Для защиты пользователей и предотвращения мошенничества новые покупки проходят период проверки безопасности.Подарок можно будет вывести после окончания таймера.';
     }
     return 'Withdrawal of this gift is temporarily unavailable. To protect users and prevent fraud, new purchases go through a security review period. You will be able to withdraw the gift after the timer ends.';
+  }
+
+  function getSupportButtonLabel() {
+    return isRuUi() ? 'Написать в поддержку' : 'Contact support';
   }
 
   function inventoryActionId(item, idx = 0) {
@@ -873,9 +880,9 @@
     withdrawLockUntilOverrides.set(lockId, effectiveUntil);
 
     showWithdrawErrorPanel(getStarsWithdrawLockedText(), {
-      showSupport: false,
+      showSupport: true,
+      supportLabel: getSupportButtonLabel(),
       onClose: () => {
-        withdrawLockHintsSeen.add(lockId);
         renderInventory(lastInventory);
       }
     });
@@ -1129,12 +1136,18 @@ function closeWithdrawErrorModal() {
 
 function showWithdrawErrorPanel(text, options = {}) {
   const showSupport = options?.showSupport !== false;
+  const supportLabel = typeof options?.supportLabel === 'string' ? options.supportLabel : '';
   const onClose = typeof options?.onClose === 'function' ? options.onClose : null;
   const el = ensureWithdrawErrorModal();
   const t = el.querySelector('#wgWithdrawErrText');
   if (t) t.textContent = String(text || 'Failed to withdraw gift.');
   const supportBtn = el.querySelector('#wgWithdrawSupport');
-  if (supportBtn) supportBtn.style.display = showSupport ? '' : 'none';
+  if (supportBtn) {
+    supportBtn.style.display = showSupport ? '' : 'none';
+    if (showSupport) {
+      supportBtn.textContent = supportLabel || getSupportButtonLabel();
+    }
+  }
   withdrawErrorOnClose = onClose;
   el.style.display = 'flex';
 }
@@ -1331,6 +1344,15 @@ async function withdrawContinue() {
       }
       return;
     }
+
+    if (action === 'withdraw-locked-info') {
+      const found = findInventoryItemByKey(key);
+      if (found?.item && isItemWithdrawLocked(found.item, found.index || 0)) {
+        openWithdrawLockedPanel(found.item, found.index || 0);
+        haptic('light');
+      }
+      return;
+    }
   
     if (action === 'sell') {
       sellOne(key);
@@ -1382,6 +1404,15 @@ async function withdrawContinue() {
           } else {
             openWithdrawModal(found.item);
           }
+          haptic('light');
+        }
+        return;
+      }
+
+      if (action === 'withdraw-locked-info') {
+        const found = findInventoryItemByKey(key);
+        if (found?.item && isItemWithdrawLocked(found.item, found.index || 0)) {
+          openWithdrawLockedPanel(found.item, found.index || 0);
           haptic('light');
         }
         return;
@@ -1618,10 +1649,11 @@ async function withdrawContinue() {
       const backdropVisual = itemBackdropVisual(it);
       const imgWrapClass = `inv-card__imgwrap${backdropVisual.isCollectible ? ' is-collectible' : ''}`;
       const imgWrapStyle = backdropVisual.style ? ` style="${escapeHtml(backdropVisual.style)}"` : '';
-      const lockId = inventoryActionId(it, idx);
       const lockUntilMs = getItemWithdrawLockUntil(it, idx);
       const isWithdrawLocked = lockUntilMs > Date.now();
-      const showWithdrawTimer = isWithdrawLocked && withdrawLockHintsSeen.has(lockId);
+      const showWithdrawTimer = isWithdrawLocked;
+      const cardClass = `inv-card${isWithdrawLocked ? ' inv-card--locked' : ''}`;
+      const cardActionAttr = isWithdrawLocked ? ' data-action="withdraw-locked-info"' : '';
       const lockOverlayHtml = isWithdrawLocked ? `
             <div class="inv-card__lock-overlay" aria-hidden="true">
               <img class="inv-card__lock-icon" src="/icons/lock.svg" alt="">
@@ -1654,7 +1686,7 @@ async function withdrawContinue() {
       `;
 
       return `
-        <div class="inv-card" data-key="${key}">
+        <div class="${cardClass}" data-key="${key}"${cardActionAttr}>
           <div class="${imgWrapClass}"${imgWrapStyle}>
             <img src="${escapeHtml(visual.src)}" alt="" />
             ${lockOverlayHtml}

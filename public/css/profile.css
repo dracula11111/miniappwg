@@ -3458,10 +3458,10 @@ html[data-currency="stars"] .profile-ava,
   }
 
   .inv-card__lock-icon{
-    width: 30px;
-    height: 30px;
+    width: 20px;
+    height: 20px;
     display: block;
-    filter: brightness(0) invert(1);
+    filter: brightness(0) invert(1) saturate(0) contrast(200%);
     opacity: 0.96;
   }
 
@@ -3480,6 +3480,18 @@ html[data-currency="stars"] .profile-ava,
     padding: 0;
     display: block;
     filter: drop-shadow(0 10px 22px rgba(0,0,0,0.35));
+  }
+
+  .inv-card__imgwrap .inv-card__lock-overlay .inv-card__lock-icon{
+    width: 20px !important;
+    height: 20px !important;
+    object-fit: contain !important;
+    padding: 0 !important;
+    filter: brightness(0) invert(1) saturate(0) contrast(200%) !important;
+  }
+
+  .inv-card--locked{
+    cursor: pointer;
   }
   
   .inv-card__name{
