@@ -3547,11 +3547,28 @@ html[data-currency="stars"] .profile-ava,
     background: rgba(255,255,255,0.14);
     color: #fff;
     border: 1px solid rgba(255,255,255,0.22);
-    cursor: default;
+    cursor: pointer;
+    flex-wrap: nowrap;
   }
 
   .inv-btn--withdraw-locked:disabled{
     opacity: 1;
+  }
+
+  .inv-btn--withdraw-locked .inv-btn__label{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    line-height: 1.05;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .inv-btn--withdraw-locked .inv-btn__hours,
+  .inv-btn--withdraw-locked .inv-btn__mins{
+    display: block;
+    white-space: nowrap;
   }
 
   .inv-btn__icon--clock{

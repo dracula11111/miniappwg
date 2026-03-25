@@ -931,16 +931,16 @@
   }
   
   .crash-maxBtn:hover::before {
-    left: 100%;
+    left: -100%;
   }
   
   .crash-maxBtn:hover {
-    border-color: rgba(0,212,255,0.5);
+    border-color: rgba(0,212,255,0.3);
     box-shadow: 
-      0 6px 24px rgba(0,0,0,0.4),
-      0 0 30px rgba(0,212,255,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.2);
-    transform: translateY(-2px);
+      0 4px 16px rgba(0,0,0,0.3),
+      0 0 20px rgba(0,212,255,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+    transform: none;
   }
   
   .crash-maxBtn:active {

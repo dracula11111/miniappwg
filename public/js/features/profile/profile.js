@@ -862,13 +862,21 @@
     return getItemWithdrawLockUntil(item, idx) > Date.now();
   }
 
-  function formatWithdrawLockLabel(lockUntilMs) {
+  function getWithdrawLockLabelParts(lockUntilMs) {
     const leftMs = Math.max(0, Number(lockUntilMs || 0) - Date.now());
     const totalMinutes = Math.max(0, Math.floor((leftMs - 1) / 60000));
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    if (isRuUi()) return `${hours} часов ${minutes} мин`;
-    return `${hours} h ${String(minutes).padStart(2, '0')} min`;
+    if (isRuUi()) {
+      return {
+        hoursText: `${hours} часов`,
+        minutesText: `${minutes} мин`
+      };
+    }
+    return {
+      hoursText: `${hours} h`,
+      minutesText: `${minutes} min`
+    };
   }
 
   function openWithdrawLockedPanel(item, idx = 0) {
@@ -903,10 +911,11 @@
         hasExpired = true;
         continue;
       }
-      const labelEl = btn.querySelector('.inv-btn__label');
-      if (!labelEl) continue;
-      const nextText = formatWithdrawLockLabel(until);
-      if (labelEl.textContent !== nextText) labelEl.textContent = nextText;
+      const parts = getWithdrawLockLabelParts(until);
+      const hoursEl = btn.querySelector('.inv-btn__hours');
+      const minsEl = btn.querySelector('.inv-btn__mins');
+      if (hoursEl && hoursEl.textContent !== parts.hoursText) hoursEl.textContent = parts.hoursText;
+      if (minsEl && minsEl.textContent !== parts.minutesText) minsEl.textContent = parts.minutesText;
     }
 
     if (hasExpired) renderInventory(lastInventory);
@@ -1673,10 +1682,16 @@ async function withdrawContinue() {
             Вернуть на рынок
           </button>
       ` : '';
+      const lockLabel = getWithdrawLockLabelParts(lockUntilMs);
       const withdrawBtnHtml = showWithdrawTimer ? `
-          <button class="inv-btn inv-btn--withdraw inv-btn--withdraw-locked" type="button" disabled aria-disabled="true" data-lock-until="${Math.max(0, Math.floor(lockUntilMs))}">
+          <button class="inv-btn inv-btn--withdraw inv-btn--withdraw-locked" type="button"
+                  data-action="withdraw-locked-info" data-key="${key}"
+                  data-lock-until="${Math.max(0, Math.floor(lockUntilMs))}">
             <img class="inv-btn__icon inv-btn__icon--clock" src="/icons/clock.svg" alt="">
-            <span class="inv-btn__label">${escapeHtml(formatWithdrawLockLabel(lockUntilMs))}</span>
+            <span class="inv-btn__label">
+              <span class="inv-btn__hours">${escapeHtml(lockLabel.hoursText)}</span>
+              <span class="inv-btn__mins">${escapeHtml(lockLabel.minutesText)}</span>
+            </span>
           </button>
       ` : `
           <button class="inv-btn inv-btn--withdraw" type="button"
