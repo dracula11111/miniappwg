@@ -2458,6 +2458,77 @@ function saveMarketImageFromData(imageData, baseName = "gift") {
   }
 }
 
+function marketImageExtFromMimeOrUrl(mimeRaw, urlRaw) {
+  const mime = String(mimeRaw || "").toLowerCase();
+  if (mime.includes("png")) return ".png";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return ".jpg";
+  if (mime.includes("webp")) return ".webp";
+  if (mime.includes("gif")) return ".gif";
+
+  const url = String(urlRaw || "").toLowerCase();
+  if (url.includes(".png")) return ".png";
+  if (url.includes(".jpeg") || url.includes(".jpg")) return ".jpg";
+  if (url.includes(".webp")) return ".webp";
+  if (url.includes(".gif")) return ".gif";
+  return ".jpg";
+}
+
+function safeMarketRemoteImageUrl(rawUrl) {
+  const s = String(rawUrl || "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "https:") return "";
+    const host = String(u.hostname || "").toLowerCase();
+    const isTelegramCdn =
+      host === "telesco.pe" ||
+      host.endsWith(".telesco.pe") ||
+      /^cdn\d+\.telesco\.pe$/i.test(host);
+    const isFragmentPreview = host === "nft.fragment.com";
+    if (!isTelegramCdn && !isFragmentPreview) return "";
+    return u.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function saveMarketImageFromRemoteUrl(imageUrl, baseName = "gift", { timeoutMs = 12_000 } = {}) {
+  const safeUrl = safeMarketRemoteImageUrl(imageUrl);
+  if (!safeUrl) return "";
+
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => { try { ctrl.abort("timeout"); } catch {} }, timeoutMs) : null;
+  try {
+    const res = await fetch(safeUrl, {
+      method: "GET",
+      headers: {
+        "accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+        "referer": "https://t.me/"
+      },
+      signal: ctrl ? ctrl.signal : undefined
+    });
+    if (!res.ok) return "";
+    const ctype = String(res.headers.get("content-type") || "").toLowerCase();
+    if (ctype && !ctype.includes("image/")) return "";
+
+    const ab = await res.arrayBuffer();
+    if (!ab || !ab.byteLength) return "";
+    if (ab.byteLength > 4 * 1024 * 1024) return "";
+
+    const ext = marketImageExtFromMimeOrUrl(res.headers.get("content-type"), safeUrl);
+    const fileName = `${safeMarketFileBase(baseName)}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}${ext}`;
+    const outPath = path.join(MARKET_GIFTS_IMG_DIR, fileName);
+    fs.writeFileSync(outPath, Buffer.from(ab));
+    return `/images/gifts/marketnfts/${fileName}`;
+  } catch (e) {
+    console.warn("[MarketStore] remote image save warning:", e?.message || e);
+    return "";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 
 
 function broadcastTick() {
@@ -4986,17 +5057,57 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
       safeMarketString(item?.baseId, 96) ||
       safeMarketString(instanceId, 96) ||
       "gift";
+    const marketImageCandidates = [
+      item?.image,
+      item?.icon,
+      item?.tg?.model?.image,
+      item?.previewUrl
+    ]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+    let marketImage = safeMarketImagePath(marketImageCandidates[0] || "");
+    if (!marketImage) {
+      const inlineCandidate = marketImageCandidates.find((v) => v.startsWith("data:")) || "";
+      if (inlineCandidate) {
+        marketImage = saveMarketImageFromData(inlineCandidate, baseMarketId);
+      }
+    }
+    if (!marketImage) {
+      for (const candidate of marketImageCandidates) {
+        const remoteUrl = safeMarketRemoteImageUrl(candidate);
+        if (!remoteUrl) continue;
+        const savedRemote = await saveMarketImageFromRemoteUrl(remoteUrl, baseMarketId);
+        if (savedRemote) {
+          marketImage = savedRemote;
+          break;
+        }
+      }
+    }
+
+    let tgPayload = item?.tg || null;
+    if (marketImage && tgPayload && typeof tgPayload === "object") {
+      const model = tgPayload.model;
+      if (model && typeof model === "object") {
+        tgPayload = {
+          ...tgPayload,
+          model: {
+            ...model,
+            image: marketImage
+          }
+        };
+      }
+    }
     const marketItem = {
       id: `ret_${baseMarketId}_${now}`,
       name: safeMarketString(item?.displayName || item?.name, 120) || "Gift",
       number: safeMarketString(item?.tg?.num || item?.number || item?.tg?.number, 32) || "",
-      image: safeMarketImagePath(item?.icon || item?.image || item?.previewUrl),
+      image: marketImage,
       previewUrl: safeMarketPreviewRef(item?.previewUrl || item?.icon || item?.image) || fragmentMediumPreviewUrlFromSlug(item?.tg?.slug),
       priceTon: Number.isFinite(Number(item?.price?.ton)) ? Number(item.price.ton) : null,
       priceStars: Number.isFinite(Number(item?.price?.stars)) ? Number(item.price.stars) : null,
       createdAt: now,
       source: "admin_inventory_return",
-      tg: item?.tg || null
+      tg: tgPayload
     };
 
     let marketAdded = false;
@@ -6721,24 +6832,66 @@ app.post("/api/market/items/add", async (req, res) => {
     const createdAt = Number(item.createdAt || Date.now());
     const priceTon = (item.priceTon == null ? null : Number(item.priceTon));
 
-    // image: allow either a normal /images/... path OR a dataURL in image/imageData
-    const data = String(item.imageData || "").trim() || (typeof item.image === "string" && item.image.trim().startsWith("data:") ? item.image.trim() : "");
-    let image = safeMarketImagePath(item.image);
+    // image: prefer local /images/...; otherwise materialize inline/remote image to local file.
+    const rawImage = String(item.image || "").trim();
+    const imageCandidates = [
+      rawImage,
+      item?.tg?.model?.image,
+      item?.icon
+    ]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+    const data =
+      String(item.imageData || "").trim() ||
+      (rawImage.startsWith("data:") ? rawImage : "");
+    let image = safeMarketImagePath(rawImage);
     if (data) {
       const saved = saveMarketImageFromData(data, name);
       if (saved) image = saved;
+    }
+    if (!image && !data) {
+      const inlineCandidate = imageCandidates.find((v) => v.startsWith("data:")) || "";
+      if (inlineCandidate) {
+        const savedInline = saveMarketImageFromData(inlineCandidate, name);
+        if (savedInline) image = savedInline;
+      }
+    }
+    if (!image) {
+      for (const candidate of imageCandidates) {
+        const remoteUrl = safeMarketRemoteImageUrl(candidate);
+        if (!remoteUrl) continue;
+        const savedRemote = await saveMarketImageFromRemoteUrl(remoteUrl, name);
+        if (savedRemote) {
+          image = savedRemote;
+          break;
+        }
+      }
     }
 
     // preview: pre-rendered composite (Fragment preferred)
     let previewUrl = safeMarketPreviewRef(item.previewUrl);
     if (!previewUrl) previewUrl = fragmentMediumPreviewUrlFromSlug(item?.tg?.slug);
 
+    let tgPayload = item?.tg || null;
+    if (image && tgPayload && typeof tgPayload === "object") {
+      const model = tgPayload.model;
+      if (model && typeof model === "object") {
+        tgPayload = {
+          ...tgPayload,
+          model: {
+            ...model,
+            image
+          }
+        };
+      }
+    }
 
     const out = {
       ...item,
       id, name, number,
       image,
       previewUrl,
+      tg: tgPayload,
       priceTon: Number.isFinite(priceTon) ? priceTon : null,
       createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
     };

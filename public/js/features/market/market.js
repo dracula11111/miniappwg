@@ -498,6 +498,10 @@ function ensureGiftDrawer() {
   };
   window.addEventListener('resize', syncBalanceProxyIfOpen, { passive: true });
   window.addEventListener('scroll', syncBalanceProxyIfOpen, { passive: true });
+  if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+    window.visualViewport.addEventListener('resize', syncBalanceProxyIfOpen, { passive: true });
+    window.visualViewport.addEventListener('scroll', syncBalanceProxyIfOpen, { passive: true });
+  }
 
   document.body.appendChild(overlay);
 
@@ -582,13 +586,23 @@ function syncGiftDrawerBalanceProxy() {
   giftDrawerBalanceProxyEl.replaceChildren(pillClone);
 
   const sourceRect = sourcePill.getBoundingClientRect?.();
+  const scrollTopRaw = Number(window.scrollY);
+  const scrollTop = Number.isFinite(scrollTopRaw)
+    ? scrollTopRaw
+    : Number(document.documentElement?.scrollTop || 0);
+  // Keep proxy on the same visual Y as the original topbar pill regardless of page scroll.
+  const sourceDocTop = sourceRect && Number.isFinite(sourceRect.top)
+    ? sourceRect.top + scrollTop
+    : NaN;
   const topbar = document.querySelector('.topbar');
   const topbarPadTop = topbar
     ? Number.parseFloat(window.getComputedStyle(topbar).paddingTop || '')
     : NaN;
-  const stickyTop = Number.isFinite(topbarPadTop) ? topbarPadTop : 72;
+  const stickyTop = Number.isFinite(sourceDocTop)
+    ? sourceDocTop
+    : (Number.isFinite(topbarPadTop) ? topbarPadTop : 72);
   if (sourceRect && Number.isFinite(sourceRect.left) && Number.isFinite(sourceRect.top)) {
-    const visibleTop = Math.max(stickyTop, sourceRect.top);
+    const visibleTop = Math.max(stickyTop, 0);
     giftDrawerBalanceProxyEl.style.left = `${sourceRect.left}px`;
     giftDrawerBalanceProxyEl.style.top = `${visibleTop}px`;
     giftDrawerBalanceProxyEl.style.width = `${sourceRect.width}px`;
