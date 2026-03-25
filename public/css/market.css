@@ -664,6 +664,84 @@ background: rgba(96, 165, 250, 0.5);
   pointer-events: auto;
 }
 
+.market-buy-confirm-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(0,0,0,0.62);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+}
+
+.market-buy-confirm-overlay.is-open{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.market-buy-confirm{
+  width: min(420px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(18,20,24,0.98);
+  box-shadow: 0 26px 56px rgba(0,0,0,0.55);
+  padding: 16px;
+  color: #fff;
+}
+
+.market-buy-confirm__title{
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 900;
+}
+
+.market-buy-confirm__note{
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.8);
+}
+
+.market-buy-confirm__actions{
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.market-buy-confirm__btn{
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.market-buy-confirm__btn:active{
+  transform: translateY(1px);
+}
+
+.market-buy-confirm__btn--cancel{
+  background: #df4747;
+  border-color: #df4747;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(223,71,71,0.32);
+}
+
+.market-buy-confirm__btn--continue{
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #121212;
+}
+
 body.market-gift-overlay-open .logo-header,
 body.market-gift-overlay-open .topbar__left{
   opacity: 0.32;

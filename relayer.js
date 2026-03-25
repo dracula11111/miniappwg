@@ -1241,6 +1241,7 @@ async function run({ mode = "run" } = {}) {
       };
 
       const instanceId = `tg_gift_${eventKey}`;
+      const acquiredAtMs = Date.now();
 
       const inventoryItem = {
         type: "nft",
@@ -1249,7 +1250,9 @@ async function run({ mode = "run" } = {}) {
         displayName: title,
         icon: fragmentPreviewUrl || (modelDataUrl || imageUrl) || "/images/gifts/stars.webp",
         instanceId,
-        acquiredAt: Date.now(),
+        acquiredAt: acquiredAtMs,
+        acquiredCurrency: isStarGift ? "stars" : null,
+        withdrawLockUntil: isStarGift ? (acquiredAtMs + 5 * 24 * 60 * 60 * 1000) : null,
         price: { ton: null, stars: null },
         tg: tgPayload
       };

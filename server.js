@@ -3749,6 +3749,35 @@ function findInventoryItemForAction(items, lookup = {}) {
   return null;
 }
 
+function normalizeInventoryCurrencyTag(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function getInventoryWithdrawLockUntil(item) {
+  const explicitUntil = Number(
+    item?.withdrawLockUntil ??
+    item?.withdraw_lock_until ??
+    item?.tg?.withdrawLockUntil ??
+    0
+  );
+  if (Number.isFinite(explicitUntil) && explicitUntil > 0) return explicitUntil;
+
+  const isStarsOrigin =
+    normalizeInventoryCurrencyTag(item?.acquiredCurrency) === "stars" ||
+    normalizeInventoryCurrencyTag(item?.buyCurrency) === "stars" ||
+    normalizeInventoryCurrencyTag(item?.purchaseCurrency) === "stars" ||
+    normalizeInventoryCurrencyTag(item?.currency) === "stars" ||
+    normalizeInventoryCurrencyTag(item?.tg?.currency) === "stars" ||
+    normalizeInventoryCurrencyTag(item?.tg?.kind) === "star_gift";
+  if (!isStarsOrigin) return 0;
+
+  const acquiredAt = Number(item?.acquiredAt || item?.createdAt || item?.ts || 0);
+  if (Number.isFinite(acquiredAt) && acquiredAt > 0) {
+    return acquiredAt + 5 * 24 * 60 * 60 * 1000;
+  }
+  return 0;
+}
+
 // GET inventory (NFTs) for a user
 app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
@@ -4543,6 +4572,17 @@ app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActions
     const inst = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
     if (!inst) {
       return res.status(404).json({ ok: false, code: "NO_STOCK", error: "Item not found in inventory", support: "@wildgift_support" });
+    }
+
+    const lockUntil = getInventoryWithdrawLockUntil(item);
+    if (lockUntil > Date.now()) {
+      return res.status(423).json({
+        ok: false,
+        code: "WITHDRAW_LOCKED",
+        lockUntil,
+        remainingMs: lockUntil - Date.now(),
+        error: "Withdrawal of this gift is temporarily unavailable"
+      });
     }
 
     const msgId = item?.tg?.messageId;
@@ -7033,6 +7073,7 @@ app.post("/api/market/items/buy", requireTelegramUser, requireTechPauseActionsAl
 
     // build inventory item
     const nowMs = Date.now();
+    const withdrawLockUntil = cur === "stars" ? (nowMs + 5 * 24 * 60 * 60 * 1000) : null;
     const instanceId = `mkt_${itemId}_${crypto.randomBytes(6).toString("hex")}`;
     const invItem = {
       type: "nft",
@@ -7044,6 +7085,9 @@ app.post("/api/market/items/buy", requireTelegramUser, requireTechPauseActionsAl
       image: it?.image || "",
       instanceId,
       acquiredAt: nowMs,
+      acquiredCurrency: cur,
+      buyCurrency: cur,
+      withdrawLockUntil,
       price: { ton: priceTon || null, stars: priceStars || null },
       fromMarket: true,
       marketId: itemId,

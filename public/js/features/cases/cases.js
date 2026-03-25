@@ -2970,7 +2970,17 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
 const claimAllNfts = async (queue) => {
   if (!queue || !queue.length) return true;
 
-  const items = queue.map(q => q.item);
+  const nowMs = Date.now();
+  const withdrawLockUntil = (currency === 'stars')
+    ? (nowMs + 5 * 24 * 60 * 60 * 1000)
+    : null;
+  const items = queue.map((q) => {
+    const src = (q && q.item && typeof q.item === 'object') ? q.item : {};
+    const out = { ...src };
+    if (!out.acquiredCurrency) out.acquiredCurrency = currency;
+    if (withdrawLockUntil && !out.withdrawLockUntil) out.withdrawLockUntil = withdrawLockUntil;
+    return out;
+  });
 
   if (demoModeForRound) {
     showToast('Demo: NFT не сохраняются');

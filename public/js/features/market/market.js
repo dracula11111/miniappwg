@@ -390,6 +390,23 @@ let giftDrawerEl = null;
 let giftDrawerOverlayEl = null;
 let giftDrawerBuyBtn = null;
 let giftDrawerBalanceProxyEl = null;
+let marketBuyConfirmOverlayEl = null;
+let marketBuyConfirmResolve = null;
+
+const MARKET_BUY_CONFIRM_COPY = Object.freeze({
+  en: Object.freeze({
+    title: 'Are you sure you want to buy a gift for {stars} Stars?',
+    note: 'After purchase it will be unavailable for some time.',
+    cancel: 'Cancel',
+    continue: 'Continue'
+  }),
+  ru: Object.freeze({
+    title: '\u0423\u0432\u0435\u0440\u0435\u043d\u044b, \u0447\u0442\u043e \u0445\u043e\u0442\u0438\u0442\u0435 \u043a\u0443\u043f\u0438\u0442\u044c \u043f\u043e\u0434\u0430\u0440\u043e\u043a \u0437\u0430 {stars} \u0417\u0432\u0435\u0437\u0434?',
+    note: '\u041f\u043e\u0441\u043b\u0435 \u043f\u043e\u043a\u0443\u043f\u043a\u0438 \u043e\u043d \u043d\u0435\u043a\u043e\u0442\u043e\u0440\u043e\u0435 \u0432\u0440\u0435\u043c\u044f \u0431\u0443\u0434\u0435\u0442 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d.',
+    cancel: 'Cancel',
+    continue: 'Continue'
+  })
+});
 
 function ensureGiftDrawer() {
   if (giftDrawerEl && giftDrawerOverlayEl) return;
@@ -449,6 +466,7 @@ function ensureGiftDrawer() {
   const viewLink = overlay.querySelector('.market-gift-view-link');
 
   function close() {
+    closeMarketBuyConfirm(false);
     overlay.classList.remove('is-open');
     if (giftDrawerBalanceProxyEl) giftDrawerBalanceProxyEl.style.display = 'none';
     try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
@@ -545,9 +563,143 @@ function formatBuyPriceForGift(gift) {
   return { num: formatPrice(v), icon: currencyIconPath('ton') };
 }
 
+function getMarketUiLanguage() {
+  const raw = String(
+    window.WT?.i18n?.getLanguage?.() ||
+    document.body?.getAttribute('data-wt-lang') ||
+    document.documentElement?.lang ||
+    ''
+  ).toLowerCase();
+  return raw.startsWith('ru') ? 'ru' : 'en';
+}
+
+function marketBuyConfirmText(key, vars = {}) {
+  const lang = getMarketUiLanguage();
+  const dict = MARKET_BUY_CONFIRM_COPY[lang] || MARKET_BUY_CONFIRM_COPY.en;
+  const tpl = String(dict?.[key] || MARKET_BUY_CONFIRM_COPY.en?.[key] || '');
+  return tpl.replace(/\{(\w+)\}/g, (_m, k) => String(vars?.[k] ?? ''));
+}
+
+function formatStarsCountForConfirm(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return '?';
+  const rounded = Math.max(1, Math.round(n));
+  const locale = getMarketUiLanguage() === 'ru' ? 'ru-RU' : 'en-US';
+  try { return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(rounded); }
+  catch { return String(rounded); }
+}
+
+function ensureMarketBuyConfirmPanel() {
+  if (marketBuyConfirmOverlayEl) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'market-buy-confirm-overlay';
+  overlay.innerHTML = `
+    <div class="market-buy-confirm" role="dialog" aria-modal="true">
+      <h3 class="market-buy-confirm__title"></h3>
+      <p class="market-buy-confirm__note"></p>
+      <div class="market-buy-confirm__actions">
+        <button class="market-buy-confirm__btn market-buy-confirm__btn--cancel" type="button"></button>
+        <button class="market-buy-confirm__btn market-buy-confirm__btn--continue" type="button"></button>
+      </div>
+    </div>
+  `;
+
+  const panel = overlay.querySelector('.market-buy-confirm');
+  const cancelBtn = overlay.querySelector('.market-buy-confirm__btn--cancel');
+  const continueBtn = overlay.querySelector('.market-buy-confirm__btn--continue');
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeMarketBuyConfirm(false);
+  });
+  panel?.addEventListener('click', (e) => e.stopPropagation());
+  cancelBtn?.addEventListener('click', () => closeMarketBuyConfirm(false));
+  continueBtn?.addEventListener('click', () => closeMarketBuyConfirm(true));
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!overlay.classList.contains('is-open')) return;
+    closeMarketBuyConfirm(false);
+  });
+
+  document.body.appendChild(overlay);
+  marketBuyConfirmOverlayEl = overlay;
+}
+
+function setMarketBuyConfirmTexts(starsAmount) {
+  if (!marketBuyConfirmOverlayEl) return;
+  const stars = formatStarsCountForConfirm(starsAmount);
+
+  const titleEl = marketBuyConfirmOverlayEl.querySelector('.market-buy-confirm__title');
+  const noteEl = marketBuyConfirmOverlayEl.querySelector('.market-buy-confirm__note');
+  const cancelBtn = marketBuyConfirmOverlayEl.querySelector('.market-buy-confirm__btn--cancel');
+  const continueBtn = marketBuyConfirmOverlayEl.querySelector('.market-buy-confirm__btn--continue');
+
+  if (titleEl) titleEl.textContent = marketBuyConfirmText('title', { stars });
+  if (noteEl) noteEl.textContent = marketBuyConfirmText('note');
+  if (cancelBtn) cancelBtn.textContent = marketBuyConfirmText('cancel');
+  if (continueBtn) continueBtn.textContent = marketBuyConfirmText('continue');
+}
+
+function closeMarketBuyConfirm(confirmed = false) {
+  const resolve = marketBuyConfirmResolve;
+  marketBuyConfirmResolve = null;
+
+  if (marketBuyConfirmOverlayEl) {
+    marketBuyConfirmOverlayEl.classList.remove('is-open');
+    setTimeout(() => {
+      if (!marketBuyConfirmOverlayEl) return;
+      if (marketBuyConfirmOverlayEl.classList.contains('is-open')) return;
+      marketBuyConfirmOverlayEl.style.display = 'none';
+    }, 220);
+  }
+
+  if (typeof resolve === 'function') {
+    try { resolve(!!confirmed); } catch {}
+  }
+}
+
+function openMarketBuyConfirm(starsAmount) {
+  ensureMarketBuyConfirmPanel();
+  if (!marketBuyConfirmOverlayEl) return Promise.resolve(false);
+
+  if (typeof marketBuyConfirmResolve === 'function') {
+    const prevResolve = marketBuyConfirmResolve;
+    marketBuyConfirmResolve = null;
+    try { prevResolve(false); } catch {}
+  }
+
+  setMarketBuyConfirmTexts(starsAmount);
+  marketBuyConfirmOverlayEl.style.display = 'flex';
+  requestAnimationFrame(() => {
+    marketBuyConfirmOverlayEl?.classList.add('is-open');
+  });
+
+  return new Promise((resolve) => {
+    marketBuyConfirmResolve = resolve;
+  });
+}
+
+async function buyGiftWithConfirm(gift) {
+  if (!gift || !gift.id) return;
+  if (state.buying) return;
+
+  const currency = state.currency === 'stars' ? 'stars' : 'ton';
+  if (currency !== 'stars') {
+    await buyGift(gift);
+    return;
+  }
+
+  const starsAmount = resolvePriceForCurrency(gift, 'stars');
+  const confirmed = await openMarketBuyConfirm(starsAmount);
+  if (!confirmed) return;
+
+  await buyGift(gift);
+}
+
 
 function closeGiftDrawer() {
   if (!giftDrawerOverlayEl) return;
+  closeMarketBuyConfirm(false);
   giftDrawerOverlayEl.classList.remove('is-open');
   if (giftDrawerBalanceProxyEl) giftDrawerBalanceProxyEl.style.display = 'none';
   try { document.body.classList.remove('market-gift-overlay-open'); } catch {}
@@ -804,6 +956,10 @@ function buildOptimisticInventoryItem(gift) {
   const priceTon = resolvePriceTon(gift);
   const priceStars = resolvePriceForCurrency(gift, 'stars');
   const nowMs = Date.now();
+  const buyCurrency = state.currency === 'stars' ? 'stars' : 'ton';
+  const withdrawLockUntil = buyCurrency === 'stars'
+    ? (nowMs + 5 * 24 * 60 * 60 * 1000)
+    : null;
 
   return {
     type: 'nft',
@@ -813,6 +969,9 @@ function buildOptimisticInventoryItem(gift) {
     icon: gift?.previewUrl || gift?.image || '/images/gifts/stars.webp',
     instanceId: `optimistic_${String(gift?.id || 'gift')}_${nowMs}`,
     acquiredAt: nowMs,
+    acquiredCurrency: buyCurrency,
+    buyCurrency,
+    withdrawLockUntil,
     price: {
       ton: Number.isFinite(priceTon) ? priceTon : null,
       stars: Number.isFinite(priceStars) ? Math.max(1, Math.round(priceStars)) : null
@@ -1081,7 +1240,7 @@ function refreshGiftDrawerPrice() {
   // update buy button (keep same handler, but update label/price in UI)
   if (giftDrawerBuyBtn) {
     giftDrawerBuyBtn.onclick = async () => {
-      if (state.openGift) await buyGift(state.openGift);
+      if (state.openGift) await buyGiftWithConfirm(state.openGift);
     };
   }
 }
@@ -1204,7 +1363,7 @@ function openGiftDrawer(gift) {
 
   // click buy
   giftDrawerBuyBtn.onclick = async () => {
-    await buyGift(gift);
+    await buyGiftWithConfirm(gift);
   };
 
   giftDrawerEl.style.top = '';

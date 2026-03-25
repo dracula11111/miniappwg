@@ -759,6 +759,11 @@
   const selection = new Set();
   let lastInventory = [];
   let isRelayerAdmin = false;
+  const STAR_WITHDRAW_LOCK_MS = 5 * 24 * 60 * 60 * 1000;
+  const STAR_WITHDRAW_MIN_LABEL_MS = (5 * 24 * 60 - 1) * 60 * 1000;
+  const withdrawLockHintsSeen = new Set();
+  const withdrawLockUntilOverrides = new Map();
+  let withdrawLockTickerId = 0;
   function removeLegacyNftShelf() {
     // Удаляем верхнюю бессмысленную панель "NFT", если она есть (в т.ч. из старых кешей)
     document.querySelectorAll('#profileNftShelf, .profile-nft-shelf, .profile-nft-card, .profile-nft')
@@ -779,6 +784,132 @@
       if (k === key) return { item: lastInventory[i], index: i, key: k };
     }
     return null;
+  }
+
+  function getUiLangCode() {
+    const lang =
+      tg?.initDataUnsafe?.user?.language_code ||
+      navigator?.language ||
+      '';
+    return String(lang || '').toLowerCase();
+  }
+
+  function isRuUi() {
+    return getUiLangCode().startsWith('ru');
+  }
+
+  function getStarsWithdrawLockedText() {
+    if (isRuUi()) {
+      return 'Вывод этого подарка временно недоступен.Для защиты пользователей и предотвращения мошенничества новые покупки проходят период проверки безопасности.Подарок можно будет вывести после окончания таймера.';
+    }
+    return 'Withdrawal of this gift is temporarily unavailable. To protect users and prevent fraud, new purchases go through a security review period. You will be able to withdraw the gift after the timer ends.';
+  }
+
+  function inventoryActionId(item, idx = 0) {
+    return String(
+      item?.instanceId ||
+      item?.marketId ||
+      item?.uid ||
+      item?.id ||
+      item?.baseId ||
+      `idx_${idx}`
+    );
+  }
+
+  function normalizeCurrencyTag(v) {
+    return String(v || '').trim().toLowerCase();
+  }
+
+  function getItemWithdrawLockUntil(item, idx = 0) {
+    const id = inventoryActionId(item, idx);
+    const overrideUntil = Number(withdrawLockUntilOverrides.get(id) || 0);
+
+    const explicitUntil = Number(
+      item?.withdrawLockUntil ??
+      item?.withdraw_lock_until ??
+      item?.tg?.withdrawLockUntil ??
+      0
+    );
+    if (Number.isFinite(explicitUntil) && explicitUntil > 0) {
+      return Math.max(explicitUntil, overrideUntil);
+    }
+
+    const isStarsOrigin =
+      normalizeCurrencyTag(item?.acquiredCurrency) === 'stars' ||
+      normalizeCurrencyTag(item?.buyCurrency) === 'stars' ||
+      normalizeCurrencyTag(item?.purchaseCurrency) === 'stars' ||
+      normalizeCurrencyTag(item?.currency) === 'stars' ||
+      normalizeCurrencyTag(item?.tg?.currency) === 'stars' ||
+      normalizeCurrencyTag(item?.tg?.kind) === 'star_gift';
+    if (!isStarsOrigin) return overrideUntil;
+
+    const acquiredAt = Number(item?.acquiredAt || item?.createdAt || item?.ts || 0);
+    const computedUntil = Number.isFinite(acquiredAt) && acquiredAt > 0
+      ? acquiredAt + STAR_WITHDRAW_LOCK_MS
+      : 0;
+
+    return Math.max(computedUntil, overrideUntil);
+  }
+
+  function isItemWithdrawLocked(item, idx = 0) {
+    return getItemWithdrawLockUntil(item, idx) > Date.now();
+  }
+
+  function formatWithdrawLockLabel(lockUntilMs) {
+    const leftMs = Math.max(0, Number(lockUntilMs || 0) - Date.now());
+    const totalMinutes = Math.max(0, Math.floor((leftMs - 1) / 60000));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (isRuUi()) return `${hours} часов ${minutes} мин`;
+    return `${hours} h ${String(minutes).padStart(2, '0')} min`;
+  }
+
+  function openWithdrawLockedPanel(item, idx = 0) {
+    const lockId = inventoryActionId(item, idx);
+    const knownUntil = getItemWithdrawLockUntil(item, idx);
+    const effectiveUntil = knownUntil > Date.now()
+      ? knownUntil
+      : (Date.now() + STAR_WITHDRAW_MIN_LABEL_MS);
+    withdrawLockUntilOverrides.set(lockId, effectiveUntil);
+
+    showWithdrawErrorPanel(getStarsWithdrawLockedText(), {
+      showSupport: false,
+      onClose: () => {
+        withdrawLockHintsSeen.add(lockId);
+        renderInventory(lastInventory);
+      }
+    });
+  }
+
+  function refreshWithdrawLockTimers() {
+    const grid = document.getElementById('profileInvGrid');
+    if (!grid) return;
+    const buttons = Array.from(grid.querySelectorAll('.inv-btn--withdraw-locked[data-lock-until]'));
+    if (!buttons.length) return;
+
+    const now = Date.now();
+    let hasExpired = false;
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i];
+      const until = Number(btn.getAttribute('data-lock-until') || 0);
+      if (!Number.isFinite(until) || until <= now) {
+        hasExpired = true;
+        continue;
+      }
+      const labelEl = btn.querySelector('.inv-btn__label');
+      if (!labelEl) continue;
+      const nextText = formatWithdrawLockLabel(until);
+      if (labelEl.textContent !== nextText) labelEl.textContent = nextText;
+    }
+
+    if (hasExpired) renderInventory(lastInventory);
+  }
+
+  function ensureWithdrawLockTicker() {
+    if (withdrawLockTickerId) return;
+    withdrawLockTickerId = window.setInterval(() => {
+      try { refreshWithdrawLockTimers(); } catch {}
+    }, 1000);
   }
   
     async function sellOne(key) {
@@ -873,6 +1004,7 @@ function openSupportChat() {
 let withdrawModalEl = null;
 let withdrawErrEl = null;
 let withdrawCtx = { instanceId: null, marketId: null, itemId: null, tgMessageId: null };
+let withdrawErrorOnClose = null;
 
 function ensureWithdrawModal() {
   if (withdrawModalEl) return withdrawModalEl;
@@ -988,12 +1120,22 @@ function closeWithdrawModal() {
 function closeWithdrawErrorModal() {
   if (!withdrawErrEl) return;
   withdrawErrEl.style.display = 'none';
+  const cb = withdrawErrorOnClose;
+  withdrawErrorOnClose = null;
+  if (typeof cb === 'function') {
+    try { cb(); } catch {}
+  }
 }
 
-function showWithdrawErrorPanel(text) {
+function showWithdrawErrorPanel(text, options = {}) {
+  const showSupport = options?.showSupport !== false;
+  const onClose = typeof options?.onClose === 'function' ? options.onClose : null;
   const el = ensureWithdrawErrorModal();
   const t = el.querySelector('#wgWithdrawErrText');
   if (t) t.textContent = String(text || 'Failed to withdraw gift.');
+  const supportBtn = el.querySelector('#wgWithdrawSupport');
+  if (supportBtn) supportBtn.style.display = showSupport ? '' : 'none';
+  withdrawErrorOnClose = onClose;
   el.style.display = 'flex';
 }
 
@@ -1071,6 +1213,14 @@ async function withdrawContinue() {
       const code = j?.code || j?.errorCode || '';
       closeWithdrawModal();
 
+      if (code === 'WITHDRAW_LOCKED') {
+        openWithdrawLockedPanel({
+          instanceId: instanceId || marketId || itemId || tgMessageId,
+          acquiredCurrency: 'stars',
+          withdrawLockUntil: Number(j?.lockUntil || 0)
+        });
+        return;
+      }
       if (code === 'RELAYER_STARS_LOW') {
         showWithdrawErrorPanel('Failed to withdraw gift: relayer has not enough Stars for transfer.\nContact support @' + SUPPORT_USERNAME);
         return;
@@ -1172,7 +1322,11 @@ async function withdrawContinue() {
     if (action === 'withdraw') {
       const found = findInventoryItemByKey(key);
       if (found?.item) {
-        openWithdrawModal(found.item);
+        if (isItemWithdrawLocked(found.item, found.index || 0)) {
+          openWithdrawLockedPanel(found.item, found.index || 0);
+        } else {
+          openWithdrawModal(found.item);
+        }
         haptic('light');
       }
       return;
@@ -1223,7 +1377,11 @@ async function withdrawContinue() {
       if (action === 'withdraw') {
         const found = findInventoryItemByKey(key);
         if (found?.item) {
-          openWithdrawModal(found.item);
+          if (isItemWithdrawLocked(found.item, found.index || 0)) {
+            openWithdrawLockedPanel(found.item, found.index || 0);
+          } else {
+            openWithdrawModal(found.item);
+          }
           haptic('light');
         }
         return;
@@ -1460,6 +1618,15 @@ async function withdrawContinue() {
       const backdropVisual = itemBackdropVisual(it);
       const imgWrapClass = `inv-card__imgwrap${backdropVisual.isCollectible ? ' is-collectible' : ''}`;
       const imgWrapStyle = backdropVisual.style ? ` style="${escapeHtml(backdropVisual.style)}"` : '';
+      const lockId = inventoryActionId(it, idx);
+      const lockUntilMs = getItemWithdrawLockUntil(it, idx);
+      const isWithdrawLocked = lockUntilMs > Date.now();
+      const showWithdrawTimer = isWithdrawLocked && withdrawLockHintsSeen.has(lockId);
+      const lockOverlayHtml = isWithdrawLocked ? `
+            <div class="inv-card__lock-overlay" aria-hidden="true">
+              <img class="inv-card__lock-icon" src="/icons/lock.svg" alt="">
+            </div>
+      ` : '';
       const sellBtnHtml = marketOnlyWithdraw ? '' : `
           <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
                   data-action="sell" data-key="${key}">
@@ -1474,11 +1641,23 @@ async function withdrawContinue() {
             Вернуть на рынок
           </button>
       ` : '';
-  
+      const withdrawBtnHtml = showWithdrawTimer ? `
+          <button class="inv-btn inv-btn--withdraw inv-btn--withdraw-locked" type="button" disabled aria-disabled="true" data-lock-until="${Math.max(0, Math.floor(lockUntilMs))}">
+            <img class="inv-btn__icon inv-btn__icon--clock" src="/icons/clock.svg" alt="">
+            <span class="inv-btn__label">${escapeHtml(formatWithdrawLockLabel(lockUntilMs))}</span>
+          </button>
+      ` : `
+          <button class="inv-btn inv-btn--withdraw" type="button"
+                  data-action="withdraw" data-key="${key}">
+            Withdraw
+          </button>
+      `;
+
       return `
         <div class="inv-card" data-key="${key}">
           <div class="${imgWrapClass}"${imgWrapStyle}>
             <img src="${escapeHtml(visual.src)}" alt="" />
+            ${lockOverlayHtml}
           </div>
   
           <div class="inv-card__name">${itemDisplayName(it)}</div>
@@ -1486,14 +1665,13 @@ async function withdrawContinue() {
           ${sellBtnHtml}
           ${returnBtnHtml}
   
-          <button class="inv-btn inv-btn--withdraw" type="button"
-                  data-action="withdraw" data-key="${key}">
-            Withdraw
-          </button>
+          ${withdrawBtnHtml}
         </div>
       `;
     }).join('');
     bindInventoryImageFallbacks(grid, arr);
+    ensureWithdrawLockTicker();
+    refreshWithdrawLockTimers();
   }
   
   // ====== SELL FLOW ======
@@ -1660,5 +1838,11 @@ window.addEventListener('currency:changed', () => {
     }
 
     loadInventory();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (!withdrawLockTickerId) return;
+    clearInterval(withdrawLockTickerId);
+    withdrawLockTickerId = 0;
   });
 })();
