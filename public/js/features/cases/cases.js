@@ -20,13 +20,13 @@
 
 
   // ====== CASE DATA ======
-  const CASES = {
+  // TON and STARS use separate case pools.
+  const TON_CASES = {
     case1: {
       id: 'case1',
       name: 'Basic',
       price: { ton: 0.10, stars: 20 },
       items: [
-
         { id: 'gift1',  icon: 'gift1.png',  giftChance: 0.001, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
         { id: 'gift2',  icon: 'gift2.png',  giftChance: 0.001, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
         { id: 'gift3',  icon: 'gift3.png',  giftChance: 0.001, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
@@ -40,95 +40,271 @@
         { id: 'gift11', icon: 'gift11.png', giftChance: 0.50, price: { ton: 0.14, stars: 15  }, rarity: 'common'    },
         { id: 'gift12', icon: 'stars.webp', giftChance: 8.00, price: { ton: 0.015, stars: 5  }, rarity: 'common'    },
       ]
-
-
-    }
-,
-// Case 2: NFT + Gifts
+    },
     case2: {
       id: 'case2',
       name: 'NFT Hunt',
       price: { ton: 0.15, stars: 30 },
       items: [
-        // NFTs (put images into /public/images/nfts/)
-        { id: 'Stellar Rocket', type: 'nft', icon: 'RaketaNFT.png',   nftChance: 0.01, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
+        { id: 'Stellar Rocket', type: 'nft', icon: 'RaketaNFT.png', nftChance: 0.01, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
         { id: 'Ice Cream', type: 'nft', icon: 'IceCreamNFT.png', nftChance: 0.01, price: { ton: 2.83, stars: 359 }, rarity: 'epic' },
         { id: 'Instant Ramen', type: 'nft', icon: 'RamenNFT.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'rare' },
-
-        // Gifts
         { id: 'gift1',  icon: 'gift1.png',  giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
         { id: 'gift4',  icon: 'gift4.png',  giftChance: 0.08, price: { ton: 0.46, stars: 50  }, rarity: 'epic' },
         { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.18, price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
         { id: 'gift9',  icon: 'gift9.png',  giftChance: 0.71, price: { ton: 0.23, stars: 25  }, rarity: 'common' },
         { id: 'gift12', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
       ]
-    }
-
-    ,
+    },
     case3: {
       id: 'case3',
       name: 'Sweet Sugar',
       price: { ton: 0.20, stars: 40 },
       items: [
-        // Premium NFTs
         { id: 'Ice Cream', type: 'nft', icon: 'IceCreamNFtSkin.png', nftChance: 0.01, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
         { id: 'Cookie Heart', type: 'nft', icon: 'CookieHeartNFTSkin.png', nftChance: 0.01, price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
         { id: 'Mousse Cake', type: 'nft', icon: 'MousseCakeNFTSkin.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
         { id: 'Lol Pop', type: 'nft', icon: 'LolPopNFTSkin.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
         { id: 'Berry Box', type: 'nft', icon: 'BerryBoxNFTSkin.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-
-        // High-value Gifts       
-        { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.18, price: { ton: 0.46, stars: 50  }, rarity: 'rare' },   
+        { id: 'gift7',  icon: 'gift7.png',  giftChance: 0.18, price: { ton: 0.46, stars: 50  }, rarity: 'rare' },
         { id: 'gift12', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         { id: 'gift13', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.01, stars: 3 }, rarity: 'common' },
       ]
-      
-    }
-    ,
+    },
     case4: {
       id: 'case4',
       name: 'Ice Blue',
       price: { ton: 0.25, stars: 50 },
       items: [
-        // Premium NFTs
         { id: 'Electric Skull', type: 'nft', icon: 'ElectricSkullNFTSkin.png', nftChance: 0.00, price: { ton: 3.46, stars: 350 }, rarity: 'legendary' },
         { id: 'Vintage Cigar', type: 'nft', icon: 'VintageCigarNFTSkin.png', nftChance: 0.00, price: { ton: 2.83, stars: 359 }, rarity: 'legendary' },
         { id: 'Voodoo Doll', type: 'nft', icon: 'VoodooDollNFTSkin.png', nftChance: 0.00, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
         { id: 'Flying Broom', type: 'nft', icon: 'FlyingBroomNFTSkin.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
         { id: 'Hex Pot', type: 'nft', icon: 'HexPotNFTSkin.png', nftChance: 0.01, price: { ton: 2.7, stars: 235  }, rarity: 'epic' },
-
-        // High-value Gifts       
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.01, stars: 3 }, rarity: 'common' },
-        
       ]
-      
-    }
-
-    ,
+    },
     case5: {
       id: 'case5',
       name: 'Cat House',
       price: { ton: 1, stars: 200 },
       items: [
-        // Premium NFTs
-   
         { id: 'Mighty Arm', type: 'nft', icon: 'MightyArmNFTSkin.png', nftChance: 0.00, price: { ton: 2.5, stars: 250 }, rarity: 'legendary' },
         { id: 'Scared Cat', type: 'nft', icon: 'ScaredCatNFTSkin.png', nftChance: 0.00, price: { ton: 2.8, stars: 280 }, rarity: 'legendary' },
         { id: 'Bonded Ring', type: 'nft', icon: 'BondedRingNFTSkin.png', nftChance: 0.00, price: { ton: 3.0, stars: 300  }, rarity: 'legendary' },
         { id: 'Genie Lamp', type: 'nft', icon: 'GenieLampNFTSkin.png', nftChance: 0.00, price: { ton: 2.7, stars: 270  }, rarity: 'legendary' },
         { id: 'Jack-In-The-Box', type: 'nft', icon: 'JackInTheBoxNFTSkin.png', nftChance: 0.01, price: { ton: 2.6, stars: 260  }, rarity: 'legendary' },
         { id: 'Winter Wreath', type: 'nft', icon: 'WinterWreathNFTSkin.png', nftChance: 0.01, price: { ton: 2.9, stars: 290  }, rarity: 'legendary' },
-                // High-value Gifts       
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.065, stars: 25 }, rarity: 'common' },
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
         { id: '', icon: 'stars.webp', giftChance: 0.71, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
-        
       ]
-      
     }
   };
+
+  const STAR_CASES = {
+    case1: {
+      id: 'case1',
+      name: 'Basic',
+      price: { ton: 0.10, stars: 3 },
+      items: [
+        { id: 'Bow Tie', type: 'nft', icon: 'BowTieNFTSkin.png', nftChance: 0.01, price: { ton: 1.95, stars: 195 }, rarity: 'legendary' },
+        { id: 'Pet Snake', type: 'nft', icon: 'PetSnakeNFTSkin.png', nftChance: 0.01, price: { ton: 1.85, stars: 185 }, rarity: 'epic' },
+        { id: 'Restless Jar', type: 'nft', icon: 'RestlessJArNFTSkin.png', nftChance: 0.01, price: { ton: 2.05, stars: 205 }, rarity: 'legendary' },
+        { id: 'Flying Broom', type: 'nft', icon: 'FlyingBroomNFTSkin2.png', nftChance: 0.01, price: { ton: 1.75, stars: 175 }, rarity: 'epic' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.06, price: { ton: 0.92, stars: 100 }, rarity: 'epic' },
+        { id: 'stars2', icon: 'stars.webp', giftChance: 0.42, price: { ton: 0.006, stars: 2 }, rarity: 'common' },
+        { id: 'stars1', icon: 'stars.webp', giftChance: 1.30, price: { ton: 0.003, stars: 1 }, rarity: 'common' },
+      ]
+    },
+    case2: {
+      id: 'case2',
+      name: 'NFT Hunt',
+      price: { ton: 0.15, stars: 5 },
+      items: [
+        { id: 'Cookie Heart', type: 'nft', icon: 'CookieHeartNFTSkin.png', nftChance: 0.01, price: { ton: 1.95, stars: 195 }, rarity: 'legendary' },
+        { id: 'Pool Float', type: 'nft', icon: 'PoolFloatNFTSkin.png', nftChance: 0.01, price: { ton: 1.80, stars: 180 }, rarity: 'epic' },
+        { id: 'Chill Flame', type: 'nft', icon: 'ChillFlameNFTSkin.png', nftChance: 0.01, price: { ton: 1.72, stars: 172 }, rarity: 'epic' },
+        { id: 'Ginger Cookie', type: 'nft', icon: 'GingerCookieNFTSkin.png', nftChance: 0.01, price: { ton: 1.65, stars: 165 }, rarity: 'rare' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.06, price: { ton: 0.92, stars: 100 }, rarity: 'epic' },
+        { id: 'stars3', icon: 'stars.webp', giftChance: 0.22, price: { ton: 0.009, stars: 3 }, rarity: 'common' },
+        { id: 'stars2', icon: 'stars.webp', giftChance: 0.45, price: { ton: 0.006, stars: 2 }, rarity: 'common' },
+        { id: 'stars1', icon: 'stars.webp', giftChance: 1.20, price: { ton: 0.003, stars: 1 }, rarity: 'common' },
+      ]
+    },
+    case3: {
+      id: 'case3',
+      name: 'Sweet Sugar',
+      price: { ton: 0.20, stars: 10 },
+      items: [
+        { id: 'Jolly Chimp', type: 'nft', icon: 'JollyChimpNFTSkin.png', nftChance: 0.01, price: { ton: 2.15, stars: 215 }, rarity: 'legendary' },
+        { id: 'Gem Signet', type: 'nft', icon: 'GemSignetNFTSkin.png', nftChance: 0.01, price: { ton: 2.00, stars: 200 }, rarity: 'legendary' },
+        { id: 'Vintage Cigar', type: 'nft', icon: 'VintageCigarNFTSkin2.png', nftChance: 0.01, price: { ton: 1.90, stars: 190 }, rarity: 'epic' },
+        { id: 'Timeless Book', type: 'nft', icon: 'TimelessBookNFTSkin.png', nftChance: 0.01, price: { ton: 1.80, stars: 180 }, rarity: 'epic' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.06, price: { ton: 0.92, stars: 100 }, rarity: 'epic' },
+        { id: 'stars3', icon: 'stars.webp', giftChance: 0.22, price: { ton: 0.009, stars: 3 }, rarity: 'common' },
+        { id: 'stars2', icon: 'stars.webp', giftChance: 0.45, price: { ton: 0.006, stars: 2 }, rarity: 'common' },
+        { id: 'stars1', icon: 'stars.webp', giftChance: 1.20, price: { ton: 0.003, stars: 1 }, rarity: 'common' },
+      ]
+    },
+    case4: {
+      id: 'case4',
+      name: 'Ice Blue',
+      price: { ton: 0.25, stars: 20 },
+      items: [
+        { id: 'Astral Shard', type: 'nft', icon: 'AstralShardNFTSkin.png', nftChance: 0.01, price: { ton: 2.40, stars: 240 }, rarity: 'legendary' },
+        { id: 'Perfume Bottle', type: 'nft', icon: 'PerfumeBottleNFTSkin.png', nftChance: 0.01, price: { ton: 2.10, stars: 210 }, rarity: 'epic' },
+        { id: 'Precious Peach', type: 'nft', icon: 'PreciousPeachNFTSkin.png', nftChance: 0.01, price: { ton: 2.25, stars: 225 }, rarity: 'legendary' },
+        { id: 'Signet Ring', type: 'nft', icon: 'SignetRingNFTSkin.png', nftChance: 0.01, price: { ton: 1.95, stars: 195 }, rarity: 'epic' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.06, price: { ton: 0.92, stars: 100 }, rarity: 'epic' },
+        { id: 'stars10', icon: 'stars.webp', giftChance: 0.15, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'stars7', icon: 'stars.webp', giftChance: 0.26, price: { ton: 0.021, stars: 7 }, rarity: 'common' },
+        { id: 'stars4', icon: 'stars.webp', giftChance: 0.55, price: { ton: 0.012, stars: 4 }, rarity: 'common' },
+      ]
+    },
+    case5: {
+      id: 'case5',
+      name: 'Cat House',
+      price: { ton: 1, stars: 30 },
+      items: [
+        { id: 'Plush Pepe', type: 'nft', icon: 'PlushPepeNFTSkin.png', nftChance: 0.01, price: { ton: 2.75, stars: 275 }, rarity: 'legendary' },
+        { id: 'Mighty Arm', type: 'nft', icon: 'MightyArmNFTSkin2.png', nftChance: 0.01, price: { ton: 2.50, stars: 250 }, rarity: 'legendary' },
+        { id: 'Heroic Helmet', type: 'nft', icon: 'HeroicHelmetNFTSkin.png', nftChance: 0.01, price: { ton: 2.35, stars: 235 }, rarity: 'epic' },
+        { id: 'Durov\'s Cap', type: 'nft', icon: 'Durov\'sCapNFTSkin.png', nftChance: 0.01, price: { ton: 2.20, stars: 220 }, rarity: 'epic' },
+        { id: 'gift1', icon: 'gift1.png', giftChance: 0.03, price: { ton: 0.92, stars: 100 }, rarity: 'legendary' },
+        { id: 'gift2', icon: 'gift2.png', giftChance: 0.05, price: { ton: 0.92, stars: 100 }, rarity: 'epic' },
+        { id: 'gift4', icon: 'gift4.png', giftChance: 0.09, price: { ton: 0.46, stars: 50 }, rarity: 'epic' },
+        { id: 'gift7', icon: 'gift7.png', giftChance: 0.16, price: { ton: 0.46, stars: 50 }, rarity: 'rare' },
+        { id: 'gift9', icon: 'gift9.png', giftChance: 0.27, price: { ton: 0.23, stars: 25 }, rarity: 'common' },
+        { id: 'stars15', icon: 'stars.webp', giftChance: 0.11, price: { ton: 0.045, stars: 15 }, rarity: 'common' },
+        { id: 'stars10', icon: 'stars.webp', giftChance: 0.22, price: { ton: 0.030, stars: 10 }, rarity: 'common' },
+        { id: 'stars5', icon: 'stars.webp', giftChance: 0.80, price: { ton: 0.015, stars: 5 }, rarity: 'common' },
+      ]
+    }
+  };
+
+  const DEFAULT_GIFT_ICONS = [
+    'gift1.png',
+    'gift2.png',
+    'gift3.png',
+    'gift4.png',
+    'gift5.png',
+    'gift6.png',
+    'gift7.png',
+    'gift8.png',
+    'gift9.png',
+    'gift10.png',
+    'gift11.png'
+  ];
+
+  const DEFAULT_GIFT_CANONICAL_PRICE = Object.freeze({
+    'gift1.png': { ton: 0.92, stars: 100 },
+    'gift2.png': { ton: 0.92, stars: 100 },
+    'gift3.png': { ton: 0.92, stars: 100 },
+    'gift4.png': { ton: 0.46, stars: 50 },
+    'gift5.png': { ton: 0.46, stars: 50 },
+    'gift6.png': { ton: 0.46, stars: 50 },
+    'gift7.png': { ton: 0.46, stars: 50 },
+    'gift8.png': { ton: 0.23, stars: 25 },
+    'gift9.png': { ton: 0.23, stars: 25 },
+    'gift10.png': { ton: 0.14, stars: 15 },
+    'gift11.png': { ton: 0.14, stars: 15 }
+  });
+
+  const DEFAULT_GIFT_VALUE_RATIOS = [0.34, 0.48, 0.62, 0.76, 0.88];
+
+  function buildDefaultGiftPrice(caseData, ratio, icon) {
+    const iconKey = String(icon || '').toLowerCase();
+    const canonical = DEFAULT_GIFT_CANONICAL_PRICE[iconKey];
+    if (canonical) {
+      return { ton: Number(canonical.ton), stars: Number(canonical.stars) };
+    }
+
+    const caseTon = Number(caseData?.price?.ton || 0);
+    const caseStars = Number(caseData?.price?.stars || 0);
+    const ton = Math.max(0.003, Math.round((caseTon * ratio) * 1000) / 1000);
+    const stars = Math.max(1, Math.round(caseStars * ratio));
+    return { ton, stars };
+  }
+
+  function createDefaultGiftEntry(caseData, currencyTag, icon, ratio, idx) {
+    const price = buildDefaultGiftPrice(caseData, ratio, icon);
+    const rarity = ratio >= 0.82 ? 'epic' : (ratio >= 0.62 ? 'rare' : 'common');
+    const giftChance = ratio >= 0.82 ? 0.48 : (ratio >= 0.62 ? 0.92 : 1.55);
+    const iconBase = String(icon || '').replace(/\.png$/i, '');
+
+    return {
+      id: `${currencyTag}_${caseData.id}_default_${iconBase}_${idx + 1}`,
+      type: 'gift',
+      icon,
+      giftChance,
+      price,
+      rarity
+    };
+  }
+
+  function enrichCaseWithDefaultGifts(caseData, currencyTag) {
+    if (!caseData || !Array.isArray(caseData.items) || caseData.__defaultGiftEnriched) return;
+
+    const existingGiftIcons = new Set(
+      caseData.items
+        .filter((it) => itemType(it) !== 'nft')
+        .map((it) => String(it?.icon || '').toLowerCase())
+    );
+
+    const missingIcons = DEFAULT_GIFT_ICONS.filter((icon) => !existingGiftIcons.has(icon.toLowerCase()));
+    const extra = [];
+    let seq = 0;
+
+    missingIcons.forEach((icon, idx) => {
+      const ratio = DEFAULT_GIFT_VALUE_RATIOS[idx % DEFAULT_GIFT_VALUE_RATIOS.length];
+      extra.push(createDefaultGiftEntry(caseData, currencyTag, icon, ratio, seq++));
+    });
+
+    // Add a few extra default gift variants to widen the paid-mode pool.
+    const topupIcons = ['gift3.png', 'gift6.png', 'gift10.png', 'gift11.png'];
+    const topupRatios = [0.38, 0.56, 0.72, 0.84];
+    topupIcons.forEach((icon, idx) => {
+      const ratio = topupRatios[idx % topupRatios.length];
+      extra.push(createDefaultGiftEntry(caseData, currencyTag, icon, ratio, seq++));
+    });
+
+    const hasStarsGift = caseData.items.some(
+      (it) => itemType(it) !== 'nft' && String(it?.icon || '').toLowerCase() === 'stars.webp'
+    );
+    if (!hasStarsGift) {
+      const lowPrice = buildDefaultGiftPrice(caseData, 0.28, 'stars.webp');
+      extra.push({
+        id: `${currencyTag}_${caseData.id}_default_stars_low`,
+        type: 'gift',
+        icon: 'stars.webp',
+        giftChance: 1.75,
+        price: lowPrice,
+        rarity: 'common'
+      });
+    }
+
+    caseData.items.push(...extra);
+    caseData.__defaultGiftEnriched = true;
+  }
+
+  function enrichCasesWithDefaultGifts(casesMap, currencyTag) {
+    Object.values(casesMap || {}).forEach((caseData) => enrichCaseWithDefaultGifts(caseData, currencyTag));
+  }
+
+  enrichCasesWithDefaultGifts(TON_CASES, 'ton');
+  enrichCasesWithDefaultGifts(STAR_CASES, 'stars');
+
+  function getActiveCases(currencyOverride) {
+    const currency = currencyOverride || (window.WildTimeCurrency?.current || 'ton');
+    return currency === 'stars' ? STAR_CASES : TON_CASES;
+  }
 
   // Use global test mode from wheel.js (window.TEST_MODE).
   const isCasesTestMode = () => !!window.TEST_MODE;
@@ -150,6 +326,10 @@
   let casesPerfResizeRaf = 0;
   let casesPathObserver = null;
   let caseSheetUiMetricsRaf = 0;
+  const CASE_SHEET_HISTORY_KEY = '__wtCaseSheet';
+  const APP_PAGE_HISTORY_KEY = '__wtPage';
+  let caseSheetBackNavPending = false;
+  let caseSheetBackNavFallbackTimer = 0;
 
   function detectCasesLowMotion() {
     try {
@@ -173,7 +353,22 @@
     } catch (_) {}
   }
 
+  function isStarsCarouselPerfStress() {
+    const currency = window.WildTimeCurrency?.current || 'ton';
+    const count = Math.max(1, Math.min(3, Number(selectedCount) || 1));
+    return currency === 'stars' && document.body.classList.contains('case-sheet-open') && (count >= 3 || casesLowMotion);
+  }
+
   function getIdleBaseCount() {
+    const currency = window.WildTimeCurrency?.current || 'ton';
+    const count = Math.max(1, Math.min(3, Number(selectedCount) || 1));
+
+    if (currency === 'stars') {
+      if (count >= 3) return casesLowMotion ? 30 : 42;
+      if (count === 2) return casesLowMotion ? 36 : 52;
+      return casesLowMotion ? 42 : 62;
+    }
+
     return casesLowMotion ? 44 : 70;
   }
 
@@ -202,6 +397,260 @@ function itemIconPath(item) {
 // РѕР±С‰РёР№ С„РѕР»Р±СЌРє (РµСЃР»Рё РєР°СЂС‚РёРЅРєР° РЅРµ РЅР°Р№РґРµРЅР°)
 const ITEM_ICON_FALLBACK = assetUrl('images/gifts/stars.webp');
 
+const STARS_GLOW_FALLBACK_BY_CASE = Object.freeze({
+  case1: { r: 255, g: 236, b: 202 },
+  case2: { r: 138, g: 241, b: 217 },
+  case3: { r: 246, g: 138, b: 198 },
+  case4: { r: 138, g: 196, b: 255 },
+  case5: { r: 255, g: 191, b: 124 },
+  default: { r: 255, g: 206, b: 148 }
+});
+
+const starsGlowColorCache = new Map();
+const starsGlowColorPending = new Map();
+
+function clampInt(v, min, max) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function rgbToHsl(r, g, b) {
+  const rr = clampInt(r, 0, 255) / 255;
+  const gg = clampInt(g, 0, 255) / 255;
+  const bb = clampInt(b, 0, 255) / 255;
+  const max = Math.max(rr, gg, bb);
+  const min = Math.min(rr, gg, bb);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  switch (max) {
+    case rr:
+      h = (gg - bb) / d + (gg < bb ? 6 : 0);
+      break;
+    case gg:
+      h = (bb - rr) / d + 2;
+      break;
+    default:
+      h = (rr - gg) / d + 4;
+      break;
+  }
+  h /= 6;
+  return { h, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  if (!Number.isFinite(h) || !Number.isFinite(s) || !Number.isFinite(l)) {
+    return { r: 255, g: 206, b: 148 };
+  }
+  const hh = ((h % 1) + 1) % 1;
+  const ss = Math.max(0, Math.min(1, s));
+  const ll = Math.max(0, Math.min(1, l));
+
+  if (ss === 0) {
+    const gray = clampInt(ll * 255, 0, 255);
+    return { r: gray, g: gray, b: gray };
+  }
+
+  const hueToRgb = (p, q, t) => {
+    let x = t;
+    if (x < 0) x += 1;
+    if (x > 1) x -= 1;
+    if (x < 1 / 6) return p + (q - p) * 6 * x;
+    if (x < 1 / 2) return q;
+    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+    return p;
+  };
+
+  const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
+  const p = 2 * ll - q;
+  return {
+    r: clampInt(hueToRgb(p, q, hh + 1 / 3) * 255, 0, 255),
+    g: clampInt(hueToRgb(p, q, hh) * 255, 0, 255),
+    b: clampInt(hueToRgb(p, q, hh - 1 / 3) * 255, 0, 255)
+  };
+}
+
+function tuneGlowColor(rgb) {
+  if (!rgb) return null;
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const tunedS = Math.max(0.34, Math.min(0.95, hsl.s * 1.14));
+  const tunedL = Math.max(0.32, Math.min(0.72, hsl.l));
+  return hslToRgb(hsl.h, tunedS, tunedL);
+}
+
+function sampleDominantGlowColorFromImage(img) {
+  if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+  const size = 26;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(img, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size).data;
+
+  let wr = 0;
+  let wg = 0;
+  let wb = 0;
+  let wsum = 0;
+  let fr = 0;
+  let fg = 0;
+  let fb = 0;
+  let fsum = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a < 24) continue;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    fr += r * a;
+    fg += g * a;
+    fb += b * a;
+    fsum += a;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const sat = max > 0 ? (max - min) / max : 0;
+    const lum = (max + min) / 510;
+    const vividness = 0.26 + sat * 0.74;
+    const brightness = 0.20 + lum * 0.80;
+    const weight = (a / 255) * vividness * brightness;
+    if (weight <= 0) continue;
+
+    wr += r * weight;
+    wg += g * weight;
+    wb += b * weight;
+    wsum += weight;
+  }
+
+  if (wsum > 0.01) {
+    return {
+      r: clampInt(wr / wsum, 0, 255),
+      g: clampInt(wg / wsum, 0, 255),
+      b: clampInt(wb / wsum, 0, 255)
+    };
+  }
+
+  if (fsum > 0) {
+    return {
+      r: clampInt(fr / fsum, 0, 255),
+      g: clampInt(fg / fsum, 0, 255),
+      b: clampInt(fb / fsum, 0, 255)
+    };
+  }
+  return null;
+}
+
+function getStarsFallbackGlowColor() {
+  const caseId = String(currentCase?.id || '').trim();
+  return STARS_GLOW_FALLBACK_BY_CASE[caseId] || STARS_GLOW_FALLBACK_BY_CASE.default;
+}
+
+function clearCarouselNodeGlow(node) {
+  if (!node || !node.style) return;
+  node.style.removeProperty('--case-item-glow-r');
+  node.style.removeProperty('--case-item-glow-g');
+  node.style.removeProperty('--case-item-glow-b');
+  try { delete node.dataset.glowKey; } catch (_) {}
+}
+
+function setCarouselNodeGlow(node, rgb) {
+  if (!node || !node.style || !rgb) return;
+  node.style.setProperty('--case-item-glow-r', String(clampInt(rgb.r, 0, 255)));
+  node.style.setProperty('--case-item-glow-g', String(clampInt(rgb.g, 0, 255)));
+  node.style.setProperty('--case-item-glow-b', String(clampInt(rgb.b, 0, 255)));
+}
+
+function loadGlowColorForSrc(src) {
+  const key = String(src || '').trim();
+  if (!key) return Promise.resolve(null);
+  if (starsGlowColorCache.has(key)) return Promise.resolve(starsGlowColorCache.get(key));
+  if (starsGlowColorPending.has(key)) return starsGlowColorPending.get(key);
+
+  const pending = new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const done = (rawColor) => {
+      if (settled) return;
+      settled = true;
+      const tuned = tuneGlowColor(rawColor);
+      starsGlowColorCache.set(key, tuned || null);
+      starsGlowColorPending.delete(key);
+      resolve(tuned || null);
+    };
+
+    try {
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+    } catch (_) {}
+
+    img.onload = () => {
+      try {
+        done(sampleDominantGlowColorFromImage(img));
+      } catch (_) {
+        done(null);
+      }
+    };
+    img.onerror = () => done(null);
+
+    try {
+      img.src = key;
+    } catch (_) {
+      done(null);
+      return;
+    }
+
+    if (img.complete && img.naturalWidth > 0) {
+      try {
+        done(sampleDominantGlowColorFromImage(img));
+      } catch (_) {
+        done(null);
+      }
+    }
+
+    setTimeout(() => done(null), 2500);
+  });
+
+  starsGlowColorPending.set(key, pending);
+  return pending;
+}
+
+function applyAdaptiveStarsGlow(node, src, currency) {
+  if (!node) return;
+  const itemTypeOnNode = String(node.dataset?.itemType || '').toLowerCase();
+  if (currency !== 'stars' || itemTypeOnNode !== 'nft') {
+    clearCarouselNodeGlow(node);
+    return;
+  }
+
+  setCarouselNodeGlow(node, getStarsFallbackGlowColor());
+  if (isStarsCarouselPerfStress()) return;
+  const key = String(src || '').trim();
+  if (!key) return;
+
+  node.dataset.glowKey = key;
+
+  const cached = starsGlowColorCache.get(key);
+  if (cached) {
+    setCarouselNodeGlow(node, cached);
+    return;
+  }
+
+  loadGlowColorForSrc(key).then((resolved) => {
+    if (!resolved || !node?.isConnected) return;
+    if (String(node.dataset.glowKey || '') !== key) return;
+    setCarouselNodeGlow(node, resolved);
+  }).catch(() => {});
+}
+
 
 function isStarsPrizeGift(item) {
   return itemType(item) !== 'nft' && String(item?.icon || '').toLowerCase() === 'stars.webp';
@@ -213,7 +662,10 @@ function normalizeItemForCurrency(item, currency) {
   if (!isStarsPrizeGift(item)) return item;
 
   const stars = Number(item?.price?.stars || 0);
-  const ton = starsToTon(stars);
+  const directTon = Number(item?.price?.ton || 0);
+  const ton = (Number.isFinite(directTon) && directTon > 0)
+    ? directTon
+    : starsToTon(stars);
 
   return {
     ...item,
@@ -230,6 +682,26 @@ function normalizeItemForCurrency(item, currency) {
 
 // ====== PEEK FLOOR PRICES (in-memory on client) ======
 const NFT_PEEK_NAME_BY_ICON = {
+  'BowTieNFTSkin.png': 'Bow Tie',
+  'PetSnakeNFTSkin.png': 'Pet Snake',
+  'RestlessJArNFTSkin.png': 'Restless Jar',
+  'FlyingBroomNFTSkin2.png': 'Flying Broom',
+  'PoolFloatNFTSkin.png': 'Pool Float',
+  'ChillFlameNFTSkin.png': 'Chill Flame',
+  'GingerCookieNFTSkin.png': 'Ginger Cookie',
+  'JollyChimpNFTSkin.png': 'Jolly Chimp',
+  'GemSignetNFTSkin.png': 'Gem Signet',
+  'VintageCigarNFTSkin2.png': 'Vintage Cigar',
+  'TimelessBookNFTSkin.png': 'Timeless Book',
+  'AstralShardNFTSkin.png': 'Astral Shard',
+  'PerfumeBottleNFTSkin.png': 'Perfume Bottle',
+  'PreciousPeachNFTSkin.png': 'Precious Peach',
+  'SignetRingNFTSkin.png': 'Signet Ring',
+  'PlushPepeNFTSkin.png': 'Plush Pepe',
+  'MightyArmNFTSkin2.png': 'Mighty Arm',
+  'HeroicHelmetNFTSkin.png': 'Heroic Helmet',
+  'Durov\'sCapNFTSkin.png': 'Durov\'s Cap',
+  'StellarRocket_Telegram.png': 'Stellar Rocket',
   'RaketaNFT.png': 'Stellar Rocket',
   'RamenNFT.png': 'Instant Ramen',
   'IceCreamNFT.png': 'Ice Cream',
@@ -271,6 +743,63 @@ function getPeekNameForItem(item) {
   return NFT_PEEK_NAME_BY_ICON[icon] || null;
 }
 
+function normalizePeekGiftName(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u0060]/g, "'")
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function parsePeekPriceTon(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+
+  const directTon = Number(
+    entry.priceTon ??
+    entry.price_ton ??
+    entry.ton ??
+    entry.floor_price ??
+    entry.floorPrice ??
+    entry.floor ??
+    null
+  );
+  if (Number.isFinite(directTon) && directTon > 0) return directTon;
+
+  const priceStars = Number(entry.priceStars ?? entry.price_stars ?? entry.stars ?? null);
+  if (Number.isFinite(priceStars) && priceStars > 0) {
+    const conv = starsToTon(priceStars);
+    if (Number.isFinite(conv) && conv > 0) return conv;
+  }
+
+  const rawPrice = Number(entry.price ?? null);
+  if (Number.isFinite(rawPrice) && rawPrice > 0) {
+    const currencyTag = String(entry.currency || entry.currencyCode || '').toUpperCase();
+    if (currencyTag === 'XTR' || currencyTag === 'STAR' || currencyTag === 'STARS') {
+      const conv = starsToTon(rawPrice);
+      return (Number.isFinite(conv) && conv > 0) ? conv : null;
+    }
+    return rawPrice;
+  }
+
+  return null;
+}
+
+function extractPeekItemsFromPayload(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+
+  const out = [];
+  if (Array.isArray(payload.items)) out.push(...payload.items);
+  if (Array.isArray(payload.prices)) out.push(...payload.prices);
+
+  if (payload.prices && typeof payload.prices === 'object' && !Array.isArray(payload.prices)) {
+    out.push(...Object.values(payload.prices));
+  }
+
+  return out;
+}
+
 async function ensurePeekFloorsLoaded() {
   // РѕР±РЅРѕРІР»СЏС‚СЊ С‡Р°С‰Рµ СЃРјС‹СЃР»Р° РЅРµС‚, Сѓ РЅР°СЃ СЃРµСЂРІРµСЂ РѕР±РЅРѕРІР»СЏРµС‚ СЂР°Р· РІ С‡Р°СЃ
   if (peekFloorMap && (Date.now() - peekFloorUpdatedAt) < 10 * 60 * 1000) return;
@@ -278,18 +807,25 @@ async function ensurePeekFloorsLoaded() {
   try {
     let j = null;
 
-    // 1) same-origin (works in production / when UI served by this server)
-    try {
-      const r1 = await fetch('/api/gifts/prices');
-      if (r1.ok) j = await r1.json();
-    } catch (e) {
-      console.warn('[Cases] Failed to fetch from /api/gifts/prices:', e);
+    // 1) same-origin (supports deployments in subfolders)
+    const sameOriginUrls = [];
+    try { sameOriginUrls.push(new URL('api/gifts/prices', document.baseURI).toString()); } catch (_) {}
+    sameOriginUrls.push('/api/gifts/prices');
+
+    for (const url of sameOriginUrls) {
+      if (j) break;
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (r.ok) j = await r.json();
+      } catch (e) {
+        console.warn(`[Cases] Failed to fetch from ${url}:`, e);
+      }
     }
     
     // 2) dev fallback: try Node on :7700
     if (!j) {
       try {
-        const r2a = await fetch('http://localhost:7700/api/gifts/prices');
+        const r2a = await fetch('http://localhost:7700/api/gifts/prices', { cache: 'no-store' });
         if (r2a.ok) j = await r2a.json();
       } catch (e) {
         console.warn('[Cases] Failed to fetch from localhost:7700:', e);
@@ -300,7 +836,7 @@ async function ensurePeekFloorsLoaded() {
     if (!j) {
       try {
         console.log('[Cases] Trying alternative source: market.tonnel.network');
-        const r3 = await fetch('https://market.tonnel.network/api/gifts/prices');
+        const r3 = await fetch('https://market.tonnel.network/api/gifts/prices', { cache: 'no-store' });
         if (r3.ok) j = await r3.json();
       } catch (e) {
         console.warn('[Cases] Failed to fetch from market.tonnel.network:', e);
@@ -311,14 +847,15 @@ async function ensurePeekFloorsLoaded() {
       console.error('[Cases] All price sources failed');
       return;
     }
-    const items = Array.isArray(j?.items) ? j.items : [];
+    const items = extractPeekItemsFromPayload(j);
 
     const m = new Map();
     for (const it of items) {
-      const name = String(it.name || '').trim();
-      const priceTon = Number(it.priceTon);
-      if (!name || !Number.isFinite(priceTon)) continue;
-      m.set(name.toLowerCase(), priceTon);
+      const name = String(it?.name || it?.title || it?.gift || it?.key || '').trim();
+      const normalizedName = normalizePeekGiftName(name);
+      const priceTon = parsePeekPriceTon(it);
+      if (!normalizedName || !Number.isFinite(priceTon) || priceTon <= 0) continue;
+      m.set(normalizedName, priceTon);
     }
 
     peekFloorMap = m;
@@ -336,39 +873,52 @@ async function ensurePeekFloorsLoaded() {
 function getFloorTonForItem(item) {
   const peekName = getPeekNameForItem(item);
   if (!peekName || !peekFloorMap) return null;
-  const v = peekFloorMap.get(peekName.toLowerCase());
+  const v = peekFloorMap.get(normalizePeekGiftName(peekName));
   return (Number.isFinite(v) && v > 0) ? v : null;
+}
+
+function getItemDisplayValue(item, currency) {
+  if (!item) return 0;
+
+  if (itemType(item) === 'nft') {
+    const floorTon = getFloorTonForItem(item);
+    if (Number.isFinite(floorTon) && floorTon > 0) {
+      return currency === 'ton' ? floorTon : tonToStars(floorTon);
+    }
+  }
+
+  return prizeValue(item, currency);
 }
 
 
 
 // ====== DROP RATES (NFT rarity) ======
-// Demo: NFT РІС‹РїР°РґР°РµС‚ С‡Р°СЃС‚Рѕ (РїРѕС‡С‚Рё РєР°Р¶РґС‹Р№ РїСЂРѕРєСЂСѓС‚)
-// Paid (TON / Stars): NFT РІС‹РїР°РґР°РµС‚ СЂРµРґРєРѕ
+// Demo: NFT can appear sometimes.
+// Paid (TON / Stars): NFT disabled.
 const NFT_DROP_RATES = {
-  demo: 0.40,          // 90% РЅР° РІС‹РёРіСЂС‹С€ РІ РґРµРјРѕ
-  ton: 0.13,           // 3% РЅР° РІС‹РёРіСЂС‹С€ Р·Р° TON
-  stars: 0.12          // 2% РЅР° РІС‹РёРіСЂС‹С€ Р·Р° Stars
+  demo: 0.12,
+  ton: 0.00,
+  stars: 0.00
 };
 
-// Р”Р»СЏ Р·Р°РїРѕР»РЅРµРЅРёСЏ Р»РµРЅС‚С‹ (РІРёР·СѓР°Р»СЊРЅРѕ): С‡С‚РѕР±С‹ NFT РЅРµ РјРµР»СЊРєР°Р»Рё СЃР»РёС€РєРѕРј С‡Р°СЃС‚Рѕ
+// For strip visuals: allow NFTs to fly by for excitement, more often in paid.
 const STRIP_NFT_CHANCE = {
-  demo: 0.28,          // РІ РґРµРјРѕ РїСѓСЃС‚СЊ РёРЅРѕРіРґР° РјРµР»СЊРєР°СЋС‚
-  paid: 0.26           // РІ РѕР±С‹С‡РЅРѕРј СЂРµР¶РёРјРµ СЂРµРґРєРѕ
+  demo: 0.14,
+  paid: 0.30
 };
 
-const _casePoolsCache = new Map();
+const _casePoolsCache = new WeakMap();
 
 function getCasePools(caseData) {
-  const key = caseData && caseData.id ? String(caseData.id) : '';
-  if (key && _casePoolsCache.has(key)) return _casePoolsCache.get(key);
+  if (!caseData || typeof caseData !== 'object') return { items: [], nfts: [], gifts: [] };
+  if (_casePoolsCache.has(caseData)) return _casePoolsCache.get(caseData);
 
   const items = (caseData && Array.isArray(caseData.items)) ? caseData.items : [];
   const nfts = items.filter(it => itemType(it) === 'nft');
   const gifts = items.filter(it => itemType(it) !== 'nft');
 
   const pools = { items, nfts, gifts };
-  if (key) _casePoolsCache.set(key, pools);
+  _casePoolsCache.set(caseData, pools);
   return pools;
 }
 
@@ -407,18 +957,17 @@ const DEFAULT_GIFT_CHANCE_BY_RARITY = {
   common: 0.71
 };
 
-// TON economy profile:
-// keep expected return below 1x while still allowing occasional near-breakeven rounds.
-const TON_PAYOUT_PROFILE = {
-  targetMin: 0.58,          // usual return floor (58% of case price)
-  targetMax: 0.90,          // usual return ceiling (90% of case price)
-  nearBreakEvenChance: 0.22, // more rounds can land near break-even
-  nearBreakEvenMin: 0.97,
-  nearBreakEvenMax: 1.05,
-  softCap: 1.02,            // allow around-zero outcomes in normal rounds
-  hardCap: 1.25,            // soft ceiling in near-break-even rounds
-  overshootPenalty: 3.2,
-  nftChanceScale: 0.34      // slightly higher jackpot lane for TON paid opens
+// Paid economy profile:
+// keep average result below case cost in both TON and Stars.
+const PAID_PAYOUT_PROFILE = {
+  targetMin: 0.42,
+  targetMax: 0.78,
+  nearBreakEvenChance: 0.07,
+  nearBreakEvenMin: 0.88,
+  nearBreakEvenMax: 0.98,
+  softCap: 0.92,
+  hardCap: 1.00,
+  overshootPenalty: 4.8
 };
 
 function getGiftWeight(gift) {
@@ -483,72 +1032,85 @@ function pickByDynamicWeight(items, getWeight) {
   return items[items.length - 1] || null;
 }
 
-function pickTonBalancedWinningItem(caseData, pools, demoMode) {
-  if (demoMode) return null;
+function makeEmergencyStarsGift(caseData) {
+  const caseTon = Number(caseData?.price?.ton || 0);
+  const caseStars = Number(caseData?.price?.stars || 0);
+  const ton = Math.max(0.003, Math.round((caseTon * 0.25) * 1000) / 1000);
+  const stars = Math.max(1, Math.round(caseStars * 0.25));
+  return {
+    id: `fallback_stars_${caseData?.id || 'case'}`,
+    type: 'gift',
+    icon: 'stars.webp',
+    giftChance: 1.0,
+    price: { ton, stars },
+    rarity: 'common'
+  };
+}
 
-  const casePriceTon = Number(caseData?.price?.ton);
-  if (!(casePriceTon > 0)) return null;
+function pickPaidFallbackGift(caseData, pools) {
+  return pickWeightedGift(pools?.gifts) || pickRandom(pools?.gifts) || makeEmergencyStarsGift(caseData);
+}
 
-  // Rare jackpot lane: keep excitement, but with strongly reduced NFT chance.
-  if (Array.isArray(pools?.nfts) && pools.nfts.length) {
-    const tonedNftChance = Math.max(0.0025, getNftWinChance(false, 'ton') * TON_PAYOUT_PROFILE.nftChanceScale);
-    if (Math.random() < tonedNftChance) {
-      return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
-    }
+function pickPaidBalancedWinningGift(caseData, pools, currency) {
+  const casePrice = Number(caseData?.price?.[currency]);
+  const source = (Array.isArray(pools?.gifts) && pools.gifts.length) ? pools.gifts : [];
+  if (!source.length) return null;
+
+  if (!(casePrice > 0)) {
+    return pickWeightedGift(source) || pickRandom(source);
   }
 
-  const nearBreakEvenRoll = Math.random() < TON_PAYOUT_PROFILE.nearBreakEvenChance;
+  const nearBreakEvenRoll = Math.random() < PAID_PAYOUT_PROFILE.nearBreakEvenChance;
   const targetRatio = nearBreakEvenRoll
-    ? randomInRange(TON_PAYOUT_PROFILE.nearBreakEvenMin, TON_PAYOUT_PROFILE.nearBreakEvenMax)
-    : randomInRange(TON_PAYOUT_PROFILE.targetMin, TON_PAYOUT_PROFILE.targetMax);
+    ? randomInRange(PAID_PAYOUT_PROFILE.nearBreakEvenMin, PAID_PAYOUT_PROFILE.nearBreakEvenMax)
+    : randomInRange(PAID_PAYOUT_PROFILE.targetMin, PAID_PAYOUT_PROFILE.targetMax);
 
-  const capRatio = nearBreakEvenRoll ? TON_PAYOUT_PROFILE.hardCap : TON_PAYOUT_PROFILE.softCap;
-  const targetTon = casePriceTon * targetRatio;
-  const capTon = casePriceTon * capRatio;
+  const capRatio = nearBreakEvenRoll ? PAID_PAYOUT_PROFILE.hardCap : PAID_PAYOUT_PROFILE.softCap;
+  const targetValue = casePrice * targetRatio;
+  const capValue = casePrice * capRatio;
 
-  const source = (Array.isArray(pools?.items) && pools.items.length) ? pools.items : [];
   const picked = pickByDynamicWeight(source, (item) => {
-    const valueTon = prizeValue(item, 'ton');
-    if (!(valueTon > 0)) return 0;
+    const value = prizeValue(item, currency);
+    if (!(value > 0)) return 0;
 
-    const baseWeight = (itemType(item) === 'nft')
-      ? Math.max(0.0001, Number(item?.nftChance) || 0)
-      : getGiftWeight(item);
-
+    const baseWeight = getGiftWeight(item);
     if (!(baseWeight > 0)) return 0;
 
-    const relativeDelta = Math.abs(valueTon - targetTon) / Math.max(targetTon, 0.01);
-    let weight = baseWeight / (1 + relativeDelta * 3.8);
+    const relativeDelta = Math.abs(value - targetValue) / Math.max(targetValue, 0.01);
+    let weight = baseWeight / (1 + (relativeDelta * 4.4));
 
-    // Values above the cap are still possible, but become much less likely.
-    if (valueTon > capTon) {
-      const relativeOvershoot = (valueTon - capTon) / Math.max(capTon, 0.01);
-      weight /= (1 + (relativeOvershoot * TON_PAYOUT_PROFILE.overshootPenalty));
+    if (value > capValue) {
+      const relativeOvershoot = (value - capValue) / Math.max(capValue, 0.01);
+      weight /= (1 + (relativeOvershoot * PAID_PAYOUT_PROFILE.overshootPenalty));
+    }
+
+    if (value > (casePrice * 1.1)) {
+      weight *= 0.02;
     }
 
     return weight;
   });
 
   if (picked) return picked;
-  return pickWeightedGift(pools?.gifts) || pickRandom(pools?.gifts) || pickRandom(pools?.items);
+  return pickWeightedGift(source) || pickRandom(source) || makeEmergencyStarsGift(caseData);
 }
 
 function getNftWinChance(demoMode, currency) {
-  if (demoMode) return NFT_DROP_RATES.demo;
-  return (currency === 'ton') ? NFT_DROP_RATES.ton : NFT_DROP_RATES.stars;
+  if (!demoMode) return 0;
+  return NFT_DROP_RATES.demo;
 }
 
 function pickWinningItem(caseData, demoMode, currency) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
 
-  // TON paid mode: controlled return profile (soft negative EV).
-  if (!demoMode && currency === 'ton') {
-    const tonBalanced = pickTonBalancedWinningItem(caseData, pools, demoMode);
-    if (tonBalanced) return tonBalanced;
+  if (!demoMode) {
+    const paidGift = pickPaidBalancedWinningGift(caseData, pools, currency);
+    if (paidGift) return paidGift;
+    return pickPaidFallbackGift(caseData, pools);
   }
 
-  // Р•СЃР»Рё NFT РІ РєРµР№СЃРµ РЅРµС‚ вЂ” РІС‹Р±РёСЂР°РµРј РєР°Рє РѕР±С‹С‡РЅРѕ
+  // Demo mode: NFT can appear sometimes.
   if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
 
   const chance = getNftWinChance(demoMode, currency);
@@ -557,7 +1119,7 @@ function pickWinningItem(caseData, demoMode, currency) {
   if (roll < chance) {
     return pickWeightedNft(pools.nfts) || pickRandom(pools.items);
   }
-  // РЅРµ NFT: РІС‹Р±РёСЂР°РµРј РёР· РїРѕРґР°СЂРєРѕРІ
+  // non-NFT path
   return pickWeightedGift(pools.gifts) || pickRandom(pools.gifts) || pickRandom(pools.items);
 }
 
@@ -565,9 +1127,16 @@ function pickStripItem(caseData, demoMode) {
   const pools = getCasePools(caseData);
   if (!pools.items.length) return null;
 
+  if (!demoMode) {
+    if (pools.nfts.length && Math.random() < STRIP_NFT_CHANCE.paid) {
+      return pickRandom(pools.nfts) || pickPaidFallbackGift(caseData, pools);
+    }
+    return pickPaidFallbackGift(caseData, pools);
+  }
+
   if (!pools.nfts.length) return pickWeightedGift(pools.items) || pickRandom(pools.items);
 
-  const chance = demoMode ? STRIP_NFT_CHANCE.demo : STRIP_NFT_CHANCE.paid;
+  const chance = STRIP_NFT_CHANCE.demo;
   if (Math.random() < chance) return pickRandom(pools.nfts) || pickRandom(pools.items);
   return pickWeightedGift(pools.gifts) || pickRandom(pools.gifts) || pickRandom(pools.items);
 }
@@ -694,30 +1263,21 @@ function starsToTon(stars) {
 
 function prizeValue(item, currency) {
   const p = item?.price || {};
+  const pTon = Number(p.ton);
+  const pStars = Number(p.stars);
 
   if (currency === 'ton') {
-    // в­ђ-РїСЂРёР· -> РєРѕРЅРІРµСЂС‚РёРј РІ TON РїРѕ РєСѓСЂСЃСѓ
-    if (isStarsPrizeGift(item)) {
-      const s = Number(p.stars);
-      return (Number.isFinite(s) && s > 0) ? starsToTon(s) : 0;
-    }
-    const t = Number(p.ton);
-    return (Number.isFinite(t) && t > 0) ? t : 0;
+    // Use explicit TON price as final value when provided.
+    if (Number.isFinite(pTon) && pTon > 0) return pTon;
+    if (Number.isFinite(pStars) && pStars > 0) return starsToTon(pStars);
+    return 0;
   }
 
   // currency === 'stars'
-  // в­ђ-РїСЂРёР· РѕСЃС‚Р°С‘С‚СЃСЏ РІ Р·РІС‘Р·РґР°С… РєР°Рє РµСЃС‚СЊ
-  if (isStarsPrizeGift(item)) {
-    const s = Number(p.stars);
-    return (Number.isFinite(s) && s > 0) ? s : 0;
-  }
-
-  // Р’СЃС‘ РѕСЃС‚Р°Р»СЊРЅРѕРµ: СЃС‡РёС‚Р°РµРј Stars РёР· TON (Р°РєС‚СѓР°Р»СЊРЅС‹Р№ РєСѓСЂСЃ, С‡С‚РѕР±С‹ С†РµРЅС‹ РЅРµ Р±С‹Р»Рё Р·Р°РІС‹С€РµРЅС‹/Р·Р°РЅРёР¶РµРЅС‹)
-  const t = Number(p.ton);
-  if (Number.isFinite(t) && t > 0) return tonToStars(t);
-
-  const s = Number(p.stars);
-  return (Number.isFinite(s) && s > 0) ? s : 0;
+  // Use explicit Stars price as final value when provided.
+  if (Number.isFinite(pStars) && pStars > 0) return pStars;
+  if (Number.isFinite(pTon) && pTon > 0) return tonToStars(pTon);
+  return 0;
 }
 
 function formatAmount(currency, value) {
@@ -727,6 +1287,40 @@ function formatAmount(currency, value) {
 
     
   }
+
+function formatPillAmount(currency, value) {
+  const base = formatAmount(currency, value);
+  if (currency !== 'stars') return base;
+
+  const n = Math.round(Number(value) || 0);
+  if (!Number.isFinite(n) || n <= 0) return base;
+
+  if (n >= 1_000_000_000) return `${Math.floor(n / 1_000_000_000)}b`;
+  if (n >= 1_000_000) return `${Math.floor(n / 1_000_000)}m`;
+  if (n >= 1_000) return `${Math.floor(n / 1_000)}k`;
+
+  return base;
+}
+
+function getCasesUiLang() {
+  try {
+    const lang = String(
+      window.WT?.i18n?.getLanguage?.() ||
+      document.body?.getAttribute?.('data-wt-lang') ||
+      document.documentElement?.lang ||
+      window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code ||
+      navigator?.language ||
+      'en'
+    ).toLowerCase();
+    return lang.startsWith('ru') ? 'ru' : 'en';
+  } catch (_) {
+    return 'en';
+  }
+}
+
+function casesText(en, ru) {
+  return getCasesUiLang() === 'ru' ? ru : en;
+}
 
   function setBalanceValue(currency, value) {
   const c = (currency === 'stars') ? 'stars' : 'ton';
@@ -856,8 +1450,10 @@ function getBalanceSafe(currency) {
   let contentsGrid = null;
   let openBtn = null;
   let closeBtn = null;
+  let floatingCloseBtn = null;
   let countBtns = [];
   let demoToggle = null;
+  let caseThumbImg = null;
 
   // ====== CASES PAGE UI: HERO + GLOBAL HISTORY ======
   const MAX_CASES_HISTORY = 20;
@@ -899,8 +1495,7 @@ function getBalanceSafe(currency) {
   function getCaseImagePath(caseId, currency) {
     const rawId = String(caseId || 'case1').toLowerCase();
     const safeId = rawId.replace(/[^a-z0-9_-]/g, '') || 'case1';
-    const effectiveId = (currency === 'stars') ? 'case1' : safeId;
-    return assetUrl(`images/cases/${getCaseImageFolder(currency)}/${effectiveId}.png`);
+    return assetUrl(`images/cases/${getCaseImageFolder(currency)}/${safeId}.png`);
   }
 
   function initHeroTicker() {
@@ -909,8 +1504,8 @@ function getBalanceSafe(currency) {
 
     // Clear and (re)build
     heroTickerEl.innerHTML = '';
-    const list = Object.values(CASES);
     const currency = window.WildTimeCurrency?.current || 'ton';
+    const list = Object.values(getActiveCases(currency));
     const slotMs = 2200; // each case visible ~2.2s
     const totalMs = Math.max(slotMs * Math.max(1, list.length), 3000);
 
@@ -1129,6 +1724,7 @@ function getBalanceSafe(currency) {
     contentsGrid = document.getElementById('caseContentsGrid');
     openBtn = document.getElementById('caseOpenBtn');
     closeBtn = document.getElementById('caseSheetClose');
+    floatingCloseBtn = document.getElementById('caseSheetFloatingClose');
     countBtns = Array.from(document.querySelectorAll('.case-count-btn'));
 
     createDemoToggle();
@@ -1245,6 +1841,13 @@ function getBalanceSafe(currency) {
     countSection.appendChild(toggle);
     demoToggle = toggle;
 
+    const thumb = document.createElement('div');
+    thumb.id = 'caseCurrentThumb';
+    thumb.className = 'case-current-thumb';
+    thumb.innerHTML = `<img id="caseCurrentThumbImg" src="" alt="">`;
+    countSection.appendChild(thumb);
+    caseThumbImg = thumb.querySelector('#caseCurrentThumbImg');
+
     const demoActive = isCasesTestMode() || isDemoMode;
     toggle.classList.toggle('active', demoActive);
     if (isCasesTestMode()) {
@@ -1260,6 +1863,8 @@ function getBalanceSafe(currency) {
   function attachListeners() {
     overlay?.addEventListener('click', closeBottomSheet);
     closeBtn?.addEventListener('click', closeBottomSheet);
+    floatingCloseBtn?.addEventListener('click', closeBottomSheet);
+    window.addEventListener('popstate', handleCaseSheetPopstate);
 
     countBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1343,14 +1948,14 @@ function getBalanceSafe(currency) {
     casesPath.className = 'cases-path';
     casesPath.innerHTML = '';
 
-    const casesArray = Object.values(CASES);
     const currency = window.WildTimeCurrency?.current || 'ton';
+    const casesArray = Object.values(getActiveCases(currency));
     const isStarsTheme = currency === 'stars';
-    const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/stars.svg');
+    const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/tgStarsWhite.svg');
 
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
-      const priceDisplay = isStarsTheme ? '-' : price;
+      const priceDisplay = formatAmount(currency, price);
       
       // Low-motion keeps fewer moving objects to reduce main-thread load.
       const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
@@ -1372,6 +1977,7 @@ function getBalanceSafe(currency) {
                    class="case-path-image">
             </div>
             <div class="case-path-price case-path-price--stub">
+              <img src="${icon}" class="case-path-price-icon" alt="${currency}">
               <span class="case-path-price-val">${priceDisplay}</span>
             </div>
           </div>
@@ -1499,6 +2105,102 @@ function getBalanceSafe(currency) {
     root.style.removeProperty('--case-sheet-top-offset');
   }
 
+  function isCaseSheetHistoryState(state = window.history?.state) {
+    return !!(state && typeof state === 'object' && state[CASE_SHEET_HISTORY_KEY]);
+  }
+
+  function pushCaseSheetHistoryState() {
+    if (!window.history || typeof window.history.pushState !== 'function') return;
+    if (isCaseSheetHistoryState()) return;
+
+    const baseState = (window.history.state && typeof window.history.state === 'object')
+      ? window.history.state
+      : {};
+    const activePageId = document.querySelector('.page.page-active')?.id || 'casesPage';
+    const nextState = {
+      ...baseState,
+      [APP_PAGE_HISTORY_KEY]: baseState[APP_PAGE_HISTORY_KEY] || activePageId,
+      [CASE_SHEET_HISTORY_KEY]: 1
+    };
+
+    try {
+      window.history.pushState(nextState, '', window.location.href);
+    } catch (_) {}
+  }
+
+  function closeCaseSheetByHistoryStep() {
+    if (!window.history || typeof window.history.back !== 'function') return false;
+    if (!isCaseSheetHistoryState()) return false;
+
+    caseSheetBackNavPending = true;
+    if (caseSheetBackNavFallbackTimer) clearTimeout(caseSheetBackNavFallbackTimer);
+
+    try {
+      window.history.back();
+    } catch (_) {
+      caseSheetBackNavPending = false;
+      return false;
+    }
+
+    // Fallback: if browser/back gesture doesn't dispatch popstate quickly.
+    caseSheetBackNavFallbackTimer = setTimeout(() => {
+      caseSheetBackNavFallbackTimer = 0;
+      if (!caseSheetBackNavPending) return;
+      caseSheetBackNavPending = false;
+      if (document.body.classList.contains('case-sheet-open')) {
+        closeBottomSheet({ skipHistoryBack: true });
+      }
+    }, 220);
+
+    return true;
+  }
+
+  function handleCaseSheetPopstate() {
+    if (caseSheetBackNavFallbackTimer) {
+      clearTimeout(caseSheetBackNavFallbackTimer);
+      caseSheetBackNavFallbackTimer = 0;
+    }
+
+    caseSheetBackNavPending = false;
+
+    if (!document.body.classList.contains('case-sheet-open')) return;
+
+    // Any Back navigation while case sheet is open should close only the sheet.
+    // Prevent recursive history.back() from closeBottomSheet itself.
+    closeBottomSheet({ skipHistoryBack: true, force: true });
+  }
+
+  function restoreCaseSheetLayerVisibility() {
+    if (sheetPanel) {
+      sheetPanel.style.removeProperty('display');
+      sheetPanel.style.removeProperty('visibility');
+      sheetPanel.style.removeProperty('opacity');
+      sheetPanel.style.removeProperty('transform');
+      sheetPanel.style.removeProperty('pointer-events');
+    }
+    if (overlay) {
+      overlay.style.removeProperty('display');
+      overlay.style.removeProperty('visibility');
+      overlay.style.removeProperty('opacity');
+      overlay.style.removeProperty('pointer-events');
+    }
+  }
+
+  function hideCaseSheetLayerImmediately() {
+    if (sheetPanel) {
+      sheetPanel.style.setProperty('display', 'none');
+      sheetPanel.style.setProperty('visibility', 'hidden');
+      sheetPanel.style.setProperty('opacity', '0');
+      sheetPanel.style.setProperty('pointer-events', 'none');
+    }
+    if (overlay) {
+      overlay.style.setProperty('display', 'none');
+      overlay.style.setProperty('visibility', 'hidden');
+      overlay.style.setProperty('opacity', '0');
+      overlay.style.setProperty('pointer-events', 'none');
+    }
+  }
+
   function lockCaseSheetScreen() {
     if (document.body.classList.contains('case-sheet-open')) return;
 
@@ -1529,7 +2231,7 @@ function getBalanceSafe(currency) {
   function openBottomSheet(caseId) {
     if (isAnimating || document.body.classList.contains('case-sheet-open')) return;
 
-    currentCase = CASES[caseId];
+    currentCase = getActiveCases()[caseId];
     if (!currentCase) return;
 
     console.log('[Cases] рџЋЃ Opening:', currentCase.name);
@@ -1537,7 +2239,9 @@ function getBalanceSafe(currency) {
     isAnimating = true;
     selectedCount = 1;
 
+    restoreCaseSheetLayerVisibility();
     lockCaseSheetScreen();
+    pushCaseSheetHistoryState();
 
     updateSheetContent();
 
@@ -1557,22 +2261,47 @@ function getBalanceSafe(currency) {
   }
 
   // ====== CLOSE BOTTOM SHEET ======
-  function closeBottomSheet() {
-    if (isAnimating || isSpinning) return;
+  function closeBottomSheet(options = null) {
+    const opts = (options && typeof options === 'object') ? options : {};
+    const skipHistoryBack = !!opts.skipHistoryBack;
+    const force = !!opts.force;
+
+    if ((isAnimating || isSpinning) && !force) return;
+    if (!skipHistoryBack && closeCaseSheetByHistoryStep()) return;
 
     isAnimating = true;
     stopAllAnimations();
+    try { hideClaimBar(); } catch (_) {}
+    pendingRound = null;
+
+    const closeCurrency = window.WildTimeCurrency?.current || 'ton';
+    const isStarsClose = closeCurrency === 'stars';
+    const starsCloseDelayMs = 220;
 
     if (sheetPanel) sheetPanel.classList.remove('active');
     if (overlay) overlay.classList.remove('active');
-    unlockCaseSheetScreen();
 
     safeHaptic('impact', 'light');
 
-    setTimeout(() => {
+    // In Stars mode hide the whole layer before removing `case-sheet-open`
+    // so legacy bottom-sheet styles never get a chance to flash.
+    const finalizeClose = () => {
+      if (caseSheetBackNavFallbackTimer) {
+        clearTimeout(caseSheetBackNavFallbackTimer);
+        caseSheetBackNavFallbackTimer = 0;
+      }
+      if (isStarsClose) hideCaseSheetLayerImmediately();
+      unlockCaseSheetScreen();
       isAnimating = false;
       currentCase = null;
-    }, 400);
+      caseSheetBackNavPending = false;
+    };
+
+    if (isStarsClose) {
+      setTimeout(finalizeClose, starsCloseDelayMs);
+    } else {
+      finalizeClose();
+    }
   }
 
   // ====== UPDATE SHEET CONTENT ======
@@ -1580,15 +2309,17 @@ function getBalanceSafe(currency) {
     if (!currentCase) return;
   
     const currency = window.WildTimeCurrency?.current || 'ton';
+    const activeCases = getActiveCases(currency);
+    if (currentCase?.id && activeCases[currentCase.id]) currentCase = activeCases[currentCase.id];
     const price = currentCase.price[currency];
-    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
+    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/tgStarsWhite.svg');
   
     const title = document.getElementById('caseSheetTitle');
     if (title) title.textContent = currentCase.name;
   
     const priceEl = document.getElementById('casePrice');
     const iconEl = document.getElementById('caseCurrencyIcon');
-    if (priceEl) priceEl.textContent = (currency === 'stars') ? '-' : price;
+    if (priceEl) priceEl.textContent = formatAmount(currency, price);
     if (iconEl) iconEl.src = icon;
   
     // Set case ID on panel for gradient styling
@@ -1601,6 +2332,11 @@ function getBalanceSafe(currency) {
     if (countSection) {
       const caseImg = getCaseImagePath(currentCase.id, currency);
       countSection.style.setProperty('--current-case-image', `url('${caseImg}')`);
+      if (!caseThumbImg) caseThumbImg = document.getElementById('caseCurrentThumbImg');
+      if (caseThumbImg) {
+        caseThumbImg.src = caseImg;
+        caseThumbImg.alt = currentCase.name || currentCase.id || 'Case';
+      }
 }
   
     renderCarousels(selectedCount, currency);
@@ -1612,10 +2348,12 @@ function getBalanceSafe(currency) {
           if (!currentCase) return;
           const cur = window.WildTimeCurrency?.current || 'ton';
           renderContents(cur);
+          refreshCarouselValuePills(cur);
         });
 
     
     updateOpenButton();
+    setBottomActionClaimMode(false);
   
     countBtns.forEach(btn => {
       btn.classList.toggle('active', parseInt(btn.dataset.count) === selectedCount);
@@ -1633,29 +2371,27 @@ function getBalanceSafe(currency) {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const totalPrice = currentCase.price[currency] * selectedCount;
     const demoActive = isCasesTestMode() || isDemoMode;
+    const iconEl = document.getElementById('caseCurrencyIcon');
 
     const priceEl = document.getElementById('casePrice');
     if (priceEl) {
-      if (currency === 'stars') {
-        priceEl.textContent = '-';
-      } else {
-        priceEl.textContent = demoActive ? 'FREE' : totalPrice.toFixed(currency === 'ton' ? 2 : 0);
-      }
+      priceEl.textContent = demoActive ? 'FREE' : formatAmount(currency, totalPrice);
     }
+    if (iconEl) iconEl.src = getCaseCurrencyIcon(currency);
 
     openBtn.classList.toggle('demo-mode', demoActive);
   }
 
   function getCaseCurrencyIcon(currency) {
-    return currency === 'stars' ? assetUrl('icons/stars.svg') : assetUrl('icons/ton.svg');
+    return currency === 'stars' ? assetUrl('icons/tgStarsWhite.svg') : assetUrl('icons/ton.svg');
   }
 
   function getCarouselValuePillData(item, currency) {
-    if (!item || itemType(item) === 'nft') return null;
-    const amount = prizeValue(item, currency);
+    if (!item) return null;
+    const amount = getItemDisplayValue(item, currency);
     if (!(Number.isFinite(amount) && amount > 0)) return null;
     return {
-      amount: formatAmount(currency, amount),
+      amount: formatPillAmount(currency, amount),
       icon: getCaseCurrencyIcon(currency),
       currency
     };
@@ -1696,10 +2432,12 @@ function getBalanceSafe(currency) {
       node.prepend(mainImg);
     }
 
+    const imgSrc = itemIconPath(dataItem);
     mainImg.onerror = null;
-    mainImg.src = itemIconPath(dataItem);
+    mainImg.src = imgSrc;
     mainImg.alt = id;
     mainImg.onerror = function () { this.onerror = null; this.src = ITEM_ICON_FALLBACK; };
+    applyAdaptiveStarsGlow(node, imgSrc, currency);
 
     const pillData = getCarouselValuePillData(dataItem, currency);
     let pillEl = node.querySelector('.case-carousel-item-pill');
@@ -1724,6 +2462,19 @@ function getBalanceSafe(currency) {
     } else {
       node.classList.remove('case-carousel-item--has-value-pill');
       if (pillEl) pillEl.remove();
+    }
+  }
+
+  function refreshCarouselValuePills(currency) {
+    for (const carousel of carousels) {
+      const cont = carousel?.itemsContainer;
+      const strip = Array.isArray(carousel?.items) ? carousel.items : [];
+      if (!cont || !cont.children || !strip.length) continue;
+
+      const len = Math.min(cont.children.length, strip.length);
+      for (let i = 0; i < len; i++) {
+        syncCarouselItemNode(cont.children[i], strip[i], currency);
+      }
     }
   }
 
@@ -1753,10 +2504,20 @@ function getBalanceSafe(currency) {
     if (!carouselsWrapper || !currentCase) return;
 
     carouselsWrapper.innerHTML = '';
+    carouselsWrapper.classList.remove(
+      'case-carousels-wrapper--count-1',
+      'case-carousels-wrapper--count-2',
+      'case-carousels-wrapper--count-3'
+    );
+    const normalizedCount = Math.max(1, Math.min(3, Number(count) || 1));
+    carouselsWrapper.classList.add(`case-carousels-wrapper--count-${normalizedCount}`);
+    carouselsWrapper.dataset.count = String(normalizedCount);
     carousels = [];
     stopAllAnimations();
 
-    const heights = { 1: 100, 2: 85, 3: 70 };
+    const heights = (currency === 'stars')
+      ? { 1: 132, 2: 88, 3: 74 }
+      : { 1: 100, 2: 85, 3: 70 };
     const height = heights[count] || 100;
 
     for (let i = 0; i < count; i++) {
@@ -1765,6 +2526,19 @@ function getBalanceSafe(currency) {
       carousels.push(carousel);
 
       setTimeout(() => carousel.element.classList.add('active'), i * 100);
+    }
+
+    if (currency === 'stars') {
+      requestAnimationFrame(() => {
+        carousels.forEach((carousel) => {
+          alignCarouselToCenterLine(carousel);
+          updateLeftSideCullForCarousel(carousel, { force: true });
+        });
+      });
+    } else {
+      requestAnimationFrame(() => {
+        carousels.forEach((carousel) => updateLeftSideCullForCarousel(carousel, { force: true }));
+      });
     }
   }
 
@@ -1790,6 +2564,10 @@ function getBalanceSafe(currency) {
     const items = baseItems.concat(baseItems);
 
     itemsContainer.innerHTML = items.map(item => createCarouselItemMarkup(item, currency)).join('');
+    const renderedNodes = itemsContainer.children;
+    for (let i = 0; i < items.length && i < renderedNodes.length; i++) {
+      applyAdaptiveStarsGlow(renderedNodes[i], itemIconPath(items[i]), currency);
+    }
 
     container.appendChild(itemsContainer);
 
@@ -1809,11 +2587,30 @@ function getBalanceSafe(currency) {
     };
   }
 
-  function getCarouselMetrics(carousel) {
-    const cont = carousel.itemsContainer;
-    const firstItem = cont.querySelector('.case-carousel-item');
+  function invalidateCarouselMetrics(carousel) {
+    if (!carousel) return;
+    carousel._metricsCache = null;
+  }
 
+  function getCarouselMetrics(carousel, forceRecalc = false) {
+    const cont = carousel?.itemsContainer;
+    if (!cont || !cont.children || !cont.children.length) return null;
 
+    const childCount = cont.children.length;
+    const contW = Math.round(cont.clientWidth || 0);
+    const contH = Math.round(cont.clientHeight || 0);
+    const cached = carousel?._metricsCache;
+    if (
+      !forceRecalc &&
+      cached &&
+      cached.childCount === childCount &&
+      cached.contW === contW &&
+      cached.contH === contH
+    ) {
+      return cached.metrics;
+    }
+
+    const firstItem = cont.children[0];
     if (!firstItem) return null;
 
     const itemWidth = firstItem.getBoundingClientRect().width;
@@ -1821,6 +2618,8 @@ function getBalanceSafe(currency) {
     const gap = parseFloat(cs.gap || cs.columnGap || '0') || 0;
     const padL = parseFloat(cs.paddingLeft) || 0;
     const padR = parseFloat(cs.paddingRight) || 0;
+    const leftInset = parseFloat(cs.left || '0') || 0;
+    const firstOffset = Number(firstItem.offsetLeft || 0);
 
     const step = itemWidth + gap;
     const baseLen = (carousel.baseItems && carousel.baseItems.length)
@@ -1828,16 +2627,135 @@ function getBalanceSafe(currency) {
       : Math.floor((carousel.items?.length || 0) / 2);
 
     const loopWidth = Math.max(0, baseLen * step);
-    return { itemWidth, gap, padL, padR, step, baseLen, loopWidth };
+    const metrics = {
+      itemWidth,
+      gap,
+      padL,
+      padR,
+      step,
+      baseLen,
+      loopWidth,
+      leftInset,
+      firstOffset,
+      firstRight: firstOffset + itemWidth
+    };
+
+    carousel._metricsCache = { childCount, contW, contH, metrics };
+    return metrics;
+  }
+
+  function alignCarouselToCenterLine(carousel, attempt = 0) {
+    if (!carousel?.itemsContainer) return;
+    const metrics = getCarouselMetrics(carousel, attempt === 0);
+    if (!metrics || !Number.isFinite(metrics.step) || metrics.step <= 0) {
+      if (attempt < 8) {
+        requestAnimationFrame(() => alignCarouselToCenterLine(carousel, attempt + 1));
+      }
+      return;
+    }
+
+    const lineX = getLineXInItems(carousel);
+    const half = metrics.itemWidth / 2;
+    const idx = Math.max(0, Math.ceil((lineX - metrics.padL - half) / metrics.step));
+    const targetCenter = metrics.padL + idx * metrics.step + half;
+
+    let nextPos = targetCenter - lineX;
+    if (Number.isFinite(metrics.loopWidth) && metrics.loopWidth > 0) {
+      nextPos = ((nextPos % metrics.loopWidth) + metrics.loopWidth) % metrics.loopWidth;
+    }
+    if (!Number.isFinite(nextPos)) nextPos = 0;
+
+    carousel.position = nextPos;
+    carousel.itemsContainer.style.transform = `translate3d(-${nextPos}px, 0, 0)`;
+  }
+
+  function updateLeftSideCullForCarousel(carousel, options = null) {
+    const cont = carousel?.itemsContainer;
+    if (!cont || !cont.children || !cont.children.length) return;
+
+    const starsMode = (window.WildTimeCurrency?.current || 'ton') === 'stars'
+      && document.body.classList.contains('case-sheet-open');
+    const force = !!(options && options.force);
+    const now = Number(options && options.now);
+
+    if (!starsMode) {
+      if (carousel._cullActive || force) {
+        for (let i = 0; i < cont.children.length; i++) {
+          const el = cont.children[i];
+          if (el.classList.contains('case-carousel-item--culled-left')) {
+            el.classList.remove('case-carousel-item--culled-left');
+          }
+          if (el.style.opacity) el.style.opacity = '';
+        }
+      }
+      carousel._cullActive = false;
+      return;
+    }
+
+    const metrics = getCarouselMetrics(carousel);
+    if (!metrics || !Number.isFinite(metrics.itemWidth) || metrics.itemWidth <= 0 || !Number.isFinite(metrics.step) || metrics.step <= 0) return;
+
+    const perfStress = isStarsCarouselPerfStress();
+    const minDeltaPx = perfStress ? 1 : 0.35;
+    const minIntervalMs = perfStress ? 30 : 14;
+    const ts = Number.isFinite(now) ? now : performance.now();
+    const pos = Number(carousel.position || 0);
+    const prevPos = Number(carousel._lastCullPos);
+    const prevTs = Number(carousel._lastCullTs || 0);
+
+    if (!force && Number.isFinite(prevPos)) {
+      if (Math.abs(pos - prevPos) < minDeltaPx && (ts - prevTs) < minIntervalMs) {
+        return;
+      }
+    }
+
+    carousel._cullActive = true;
+    carousel._lastCullPos = pos;
+    carousel._lastCullTs = ts;
+
+    // Use tracked scroll position instead of per-frame viewport rect reads.
+    const leftViewportX = pos - (Number(metrics.leftInset) || 0);
+    const fadeStartBoundary = leftViewportX + 6;
+    const fadeEndBoundary = leftViewportX - 10;
+    const fadeSpan = Math.max(1, fadeStartBoundary - fadeEndBoundary);
+    const firstRight = Number(metrics.firstRight) || ((Number(metrics.firstOffset) || 0) + metrics.itemWidth);
+
+    for (let i = 0; i < cont.children.length; i++) {
+      const el = cont.children[i];
+      const rightEdge = firstRight + i * metrics.step;
+
+      if (rightEdge <= fadeEndBoundary) {
+        if (!el.classList.contains('case-carousel-item--culled-left')) {
+          el.classList.add('case-carousel-item--culled-left');
+        }
+        if (el.style.opacity !== '0') el.style.opacity = '0';
+      } else if (rightEdge < fadeStartBoundary) {
+        if (el.classList.contains('case-carousel-item--culled-left')) {
+          el.classList.remove('case-carousel-item--culled-left');
+        }
+        const t = (rightEdge - fadeEndBoundary) / fadeSpan;
+        const nextOpacity = String(Math.max(0, Math.min(1, t)));
+        if (el.style.opacity !== nextOpacity) el.style.opacity = nextOpacity;
+      } else {
+        if (el.classList.contains('case-carousel-item--culled-left')) {
+          el.classList.remove('case-carousel-item--culled-left');
+        }
+        if (el.style.opacity) el.style.opacity = '';
+      }
+    }
   }
 
   function renderCarouselItems(itemsContainer, items) {
     const currency = window.WildTimeCurrency?.current || 'ton';
     itemsContainer.innerHTML = items.map(it => createCarouselItemMarkup(it, currency)).join('');
+    const renderedNodes = itemsContainer.children;
+    for (let i = 0; i < items.length && i < renderedNodes.length; i++) {
+      applyAdaptiveStarsGlow(renderedNodes[i], itemIconPath(items[i]), currency);
+    }
   }
 
   function resetCarouselToIdleFromCurrent(carousel) {
-    const metrics = getCarouselMetrics(carousel);
+    const metrics = getCarouselMetrics(carousel, true);
     const strip = Array.isArray(carousel.items) && carousel.items.length ? carousel.items : [];
 
     // Р•СЃР»Рё РїРѕ РєР°РєРѕР№-С‚Рѕ РїСЂРёС‡РёРЅРµ Р»РµРЅС‚С‹ РЅРµС‚ вЂ” РїСЂРѕСЃС‚Рѕ РїРµСЂРµСЃРѕР·РґР°РґРёРј Р±Р°Р·Сѓ
@@ -1858,8 +2776,10 @@ function getBalanceSafe(currency) {
       carousel.winningItem = null;
       carousel.winningStripIndex = null;
       renderCarouselItems(cont, carousel.items);
+      invalidateCarouselMetrics(carousel);
       carousel.position = 0;
       cont.style.transform = 'translateX(0px)';
+      updateLeftSideCullForCarousel(carousel, { force: true });
       return;
     }
 
@@ -1891,7 +2811,9 @@ function getBalanceSafe(currency) {
     carousel.position = newPos;
 
     renderCarouselItems(cont, carousel.items);
+    invalidateCarouselMetrics(carousel);
     cont.style.transform = `translateX(-${carousel.position}px)`;
+    updateLeftSideCullForCarousel(carousel, { force: true });
   }
 
   // ====== IDLE ANIMATION (slow continuous scroll) ======
@@ -1910,6 +2832,9 @@ function getBalanceSafe(currency) {
     }
 
     let lastTime = 0;
+    let metrics = getCarouselMetrics(carousel, true);
+    let nextMetricsRefreshAt = 0;
+    const metricsRefreshMs = casesLowMotion ? 760 : (isStarsCarouselPerfStress() ? 520 : 360);
 
     const animate = (t) => {
       // РµСЃР»Рё РєР°СЂСѓСЃРµР»СЊ СЃРєСЂС‹Р»Рё/СѓРґР°Р»РёР»Рё вЂ” РїСЂРµРєСЂР°С‰Р°РµРј
@@ -1923,7 +2848,10 @@ function getBalanceSafe(currency) {
 
       // РІРѕ РІСЂРµРјСЏ СЃРїРёРЅР° Р°Р№РґР» РЅРµ РґРІРёРіР°РµРј, РЅРѕ RAF РѕСЃС‚Р°РІР»СЏРµРј Р¶РёРІС‹Рј
       if (!isSpinning) {
-        const metrics = getCarouselMetrics(carousel);
+        if (!metrics || t >= nextMetricsRefreshAt) {
+          metrics = getCarouselMetrics(carousel);
+          nextMetricsRefreshAt = t + metricsRefreshMs;
+        }
 
         // С€Р°Рі РЅР° СЌС‚РѕРј РєР°РґСЂРµ
         const delta = carousel.velocity * dt;
@@ -1935,6 +2863,7 @@ function getBalanceSafe(currency) {
         }
 
         carousel.itemsContainer.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
+        updateLeftSideCullForCarousel(carousel, { now: t });
       }
 
       animationFrames[index] = requestAnimationFrame(animate);
@@ -1957,7 +2886,7 @@ function getBalanceSafe(currency) {
   function renderContents(currency) {
     if (!contentsGrid) return;
   
-    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
+    const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/tgStarsWhite.svg');
   
     contentsGrid.innerHTML = currentCase.items.map(raw => {
       const item = normalizeItemForCurrency(raw, currency);
@@ -1966,19 +2895,8 @@ function getBalanceSafe(currency) {
         ? '<div class="case-nft-sparks" aria-hidden="true"></div>'
         : '';
       
-      // Р”Р»СЏ NFT: РїРѕРєР°Р·С‹РІР°РµРј floor price РµСЃР»Рё РµСЃС‚СЊ, РёРЅР°С‡Рµ fallback
-      let val = item?.price?.[currency];
-      
-      if (type === 'nft') {
-        const floorTon = getFloorTonForItem(item);
-        if (floorTon != null && floorTon > 0) {
-          val = (currency === 'ton') ? floorTon : tonToStars(floorTon);
-        }
-      }
-  
-      const text = (currency === 'ton')
-        ? (Math.round((Number(val) || 0) * 100) / 100).toFixed(2)
-        : String(Math.round(Number(val) || 0));
+      const val = getItemDisplayValue(item, currency);
+      const text = formatAmount(currency, val);
 
 
       return `
@@ -2083,7 +3001,7 @@ function getBalanceSafe(currency) {
     const sig = carousels.map(c => {
       try {
         if (!c?.element || !c?.itemsContainer) return 'x';
-        const m = getCarouselMetrics(c);
+        const m = getCarouselMetrics(c, true);
         const w = c.element.getBoundingClientRect().width;
         return m ? `${w.toFixed(2)}:${m.itemWidth.toFixed(2)}:${(m.gap||0).toFixed(2)}` : 'x';
       } catch {
@@ -2147,7 +3065,10 @@ function getBalanceSafe(currency) {
       if (serverEnabled) {
         const balance = getBalanceSafe(currency);
         if (balance < totalPrice) {
-          showToast(`Insufficient ${currency.toUpperCase()} balance`);
+          showToast(casesText(
+            `Insufficient ${currency.toUpperCase()} balance`,
+            `Недостаточно ${currency.toUpperCase()} на балансе`
+          ));
           safeHaptic('notification', 'error');
           return;
         }
@@ -2198,15 +3119,27 @@ function getBalanceSafe(currency) {
               activeSpin.initData = '';
             }
             if (r.status === 401 || r.status === 403) {
-              showToast('Сессия Telegram устарела. Продолжаем в локальном режиме.');
+              showToast(casesText(
+                'Telegram session expired. Continuing in local mode.',
+                'Сессия Telegram устарела. Продолжаем в локальном режиме.'
+              ));
             } else {
-              showToast('Сервер недоступен. Продолжаем в локальном режиме.');
+              showToast(casesText(
+                'Server unavailable. Continuing in local mode.',
+                'Сервер недоступен. Продолжаем в локальном режиме.'
+              ));
             }
           } else {
             if (r.status === 503) {
-              showToast('Техническая пауза активна. Открытие кейсов временно недоступно.');
+              showToast(casesText(
+                'Maintenance mode is active. Case opening is temporarily unavailable.',
+                'Техническая пауза активна. Открытие кейсов временно недоступно.'
+              ));
             } else {
-              showToast('Не удалось списать стоимость кейса. Попробуй еще раз.');
+              showToast(casesText(
+                'Failed to charge case cost. Please try again.',
+                'Не удалось списать стоимость кейса. Попробуй еще раз.'
+              ));
             }
             safeHaptic('notification', 'error');
             return;
@@ -2317,9 +3250,15 @@ function getBalanceSafe(currency) {
       }
 
       if (isLocalRuntime()) {
-        showToast(`Ошибка открытия кейса (${openStep})`);
+        showToast(casesText(
+          `Case open error (${openStep})`,
+          `Ошибка открытия кейса (${openStep})`
+        ));
       } else {
-        showToast('Ошибка открытия кейса');
+        showToast(casesText(
+          'Case open error',
+          'Ошибка открытия кейса'
+        ));
       }
       safeHaptic('notification', 'error');
     } finally {
@@ -2344,25 +3283,31 @@ function getBalanceSafe(currency) {
     stopAllAnimations();
     setWinningGiftPillsVisible(false);
 
-    const MIN_STRIP_LENGTH = casesLowMotion ? 128 : 170;
-    const TAIL_AFTER_WIN = casesLowMotion ? 24 : 32;
+    const starsPerfMode = currency === 'stars' && (carousels.length >= 3 || isStarsCarouselPerfStress());
+    const MIN_STRIP_LENGTH = starsPerfMode
+      ? (casesLowMotion ? 116 : 140)
+      : (casesLowMotion ? 128 : 170);
+    const TAIL_AFTER_WIN = starsPerfMode
+      ? (casesLowMotion ? 20 : 26)
+      : (casesLowMotion ? 24 : 32);
 
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
         try {
         // 1) Р’С‹Р±РёСЂР°РµРј РІС‹РёРіСЂС‹С€
-        const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+        const winRaw = pickWinningItem(currentCase, !!(spinCtx && spinCtx.demoMode), currency) || makeEmergencyStarsGift(currentCase);
             const winItem = normalizeItemForCurrency(winRaw, currency);
             carousel.winningItem = winItem;
 
 
         // 2) Р‘РµСЂС‘Рј С‚РµРєСѓС‰СѓСЋ Р»РµРЅС‚Сѓ РєР°Рє Р±Р°Р·Сѓ (С‡С‚РѕР±С‹ РЅРµ Р±С‹Р»Рѕ СЂРµР·РєРѕРіРѕ "СЃРєР°С‡РєР°")
+        const demoSpin = !!(spinCtx && spinCtx.demoMode);
         let strip = (Array.isArray(carousel.items) && carousel.items.length) ? carousel.items.slice() : [];
 
         if (!strip.length) {
           const idleCount = getIdleBaseCount();
           for (let i = 0; i < idleCount; i++) {
-            const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+            const raw = pickStripItem(currentCase, demoSpin) || makeEmergencyStarsGift(currentCase);
                 strip.push(normalizeItemForCurrency(raw, currency));
 
           }
@@ -2370,7 +3315,7 @@ function getBalanceSafe(currency) {
 
         // 3) РЈРґР»РёРЅСЏРµРј Р»РµРЅС‚Сѓ
         while (strip.length < MIN_STRIP_LENGTH) {
-          const raw = pickStripItem(currentCase, !!(spinCtx && spinCtx.demoMode)) || currentCase.items[Math.floor(Math.random() * currentCase.items.length)];
+          const raw = pickStripItem(currentCase, demoSpin) || makeEmergencyStarsGift(currentCase);
           strip.push(normalizeItemForCurrency(raw, currency));
         }
 
@@ -2380,7 +3325,7 @@ function getBalanceSafe(currency) {
 
         // Р’ РѕР±С‹С‡РЅРѕРј СЂРµР¶РёРјРµ РґРµР»Р°РµРј "Р±РµР·РѕРїР°СЃРЅСѓСЋ Р·РѕРЅСѓ" РІРѕРєСЂСѓРі РІС‹РёРіСЂС‹С€РЅРѕР№ РїРѕР·РёС†РёРё,
         // С‡С‚РѕР±С‹ РёР·вЂ‘Р·Р° РїРёРєСЃРµР»СЊРЅРѕРіРѕ СЃРґРІРёРіР° Р»РёРЅРёСЏ РЅРµ РјРѕРіР»Р° СЃР»СѓС‡Р°Р№РЅРѕ РїРѕРїР°СЃС‚СЊ РЅР° NFT.
-        if (!(spinCtx && spinCtx.demoMode) && itemType(winItem) !== 'nft') {
+        if (!demoSpin && itemType(winItem) !== 'nft') {
           const poolsSafe = getCasePools(currentCase);
           const giftsPool = (poolsSafe && poolsSafe.gifts && poolsSafe.gifts.length) ? poolsSafe.gifts : null;
           if (giftsPool) {
@@ -2425,6 +3370,7 @@ function getBalanceSafe(currency) {
             cont.removeChild(existingNodes[i]);
           }
         }
+        invalidateCarouselMetrics(carousel);
 
         // 5.5) РќР°РґС‘Р¶РЅС‹Р№ Р·Р°РјРµСЂ СЂР°Р·РјРµСЂРѕРІ (РёРЅРѕРіРґР° РІ РјРѕРјРµРЅС‚ РїРµСЂРµРєР»СЋС‡РµРЅРёСЏ fullscreen Р±СЂР°СѓР·РµСЂ РјРѕР¶РµС‚ РІРµСЂРЅСѓС‚СЊ 0)
 let itemWidth = 0;
@@ -2506,6 +3452,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
           carousel.position = startPosition + totalDistance * eased;
           cont.style.transform = `translate3d(-${carousel.position}px, 0, 0)`;
+          updateLeftSideCullForCarousel(carousel, { now: currentTime });
 
           // С‚Р°РєС‚РёР»РєР° РЅРµ С‡Р°С‰Рµ, С‡РµРј СЂР°Р· РІ 140РјСЃ
           if (progress < 0.85 && (currentTime - lastHaptic) > 140) {
@@ -2519,6 +3466,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
             carousel.position = targetPosition;
             cont.style.transform = `translate3d(-${targetPosition}px, 0, 0)`;
             cont.style.willChange = '';
+            updateLeftSideCullForCarousel(carousel, { force: true });
 
             // Р’РђР–РќРћ: С„РёРЅР°Р»СЊРЅС‹Р№ РІС‹РёРіСЂС‹С€ = С‚Рѕ, С‡С‚Рѕ СЂРµР°Р»СЊРЅРѕ РїРѕРґ Р»РёРЅРёРµР№
             syncWinByLine(carousel, targetPosition, strip, padL, step, lineOffset, itemWidth);
@@ -2565,7 +3513,10 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
       );
     } catch (showResultError) {
       console.error('[Cases] showResult error:', showResultError);
-      showToast('Не удалось отобразить результат. Попробуй еще раз.');
+      showToast(casesText(
+        'Failed to render result. Please try again.',
+        'Не удалось отобразить результат. Попробуй еще раз.'
+      ));
       safeHaptic('notification', 'error');
 
       // Fail-safe UI reset
@@ -2649,6 +3600,12 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
   }
 
 // ====== CLAIM BAR (under carousels) ======
+function setBottomActionClaimMode(enabled) {
+  const bottom = document.querySelector('.case-bottom-button');
+  if (!bottom) return;
+  bottom.classList.toggle('has-claim', !!enabled);
+}
+
 function bindClaimBarHandlers(bar) {
   if (!bar) return;
 
@@ -2680,15 +3637,17 @@ function bindClaimBarHandlers(bar) {
 }
 
 function ensureClaimBar() {
+  const bottomActions = document.querySelector('.case-bottom-button');
+  if (!bottomActions) return null;
+
   let bar = document.getElementById('caseClaimBar');
   if (bar) {
+    if (bar.parentElement !== bottomActions) {
+      bottomActions.appendChild(bar);
+    }
     bindClaimBarHandlers(bar);
     return bar;
   }
-
-  // Р’СЃС‚Р°РІР»СЏРµРј СЃСЂР°Р·Сѓ РїРѕРґ Р±Р»РѕРєРѕРј РєР°СЂСѓСЃРµР»РµР№
-  const section = document.querySelector('.case-carousels-section');
-  if (!section) return null;
 
   bar = document.createElement('div');
   bar.id = 'caseClaimBar';
@@ -2700,7 +3659,7 @@ function ensureClaimBar() {
       <button id="caseClaimBtn" class="case-claim-btn" type="button">
         <span class="case-claim-btn__label">Claim</span>
         <span class="case-claim-btn__amount" id="caseClaimAmount">0</span>
-        <img class="case-claim-btn__icon" id="caseClaimIcon" src="icons/ton.svg" alt="">
+        <img class="case-claim-btn__icon" id="caseClaimIcon" src="icons/tgStarsWhite.svg" alt="">
       </button>
 
       <div id="caseNftActions" class="case-nft-actions-inline" style="display:none" hidden>
@@ -2712,7 +3671,7 @@ function ensureClaimBar() {
         <button id="caseNftSellBtn" class="case-nft-btn-inline case-nft-btn-inline--secondary" type="button">
           <span>Sell</span>
           <span id="caseNftSellAmount" class="case-nft-btn-inline__amount">0</span>
-          <img id="caseNftSellIcon" class="case-nft-btn-inline__icon" src="icons/ton.svg" alt="">
+          <img id="caseNftSellIcon" class="case-nft-btn-inline__icon" src="icons/tgStarsWhite.svg" alt="">
         </button>
       </div>
     </div>
@@ -2720,8 +3679,8 @@ function ensureClaimBar() {
     <div class="case-claim-note" id="caseClaimNote" hidden></div>
   `;
 
-  // Р’СЃС‚Р°РІРёРј РїРѕСЃР»Рµ СЃРµРєС†РёРё РєР°СЂСѓСЃРµР»РµР№
-  section.insertAdjacentElement('afterend', bar);
+  // Place claim actions into the bottom action zone (instead of Open button area).
+  bottomActions.appendChild(bar);
 
   bindClaimBarHandlers(bar);
 
@@ -2732,6 +3691,7 @@ function hideClaimBar() {
   const bar = document.getElementById('caseClaimBar');
   if (!bar) return;
 
+  setBottomActionClaimMode(false);
   bar.classList.remove('is-visible');
   setWinningGiftPillsVisible(false);
   bar.hidden = true;
@@ -2892,7 +3852,7 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
     ? Math.max(0, Math.round(giftsRaw))
     : Math.max(0, +(+giftsRaw).toFixed(2));
 
-  const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/stars.svg');
+  const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/tgStarsWhite.svg');
 
   // Use one roundId for the whole open -> claim flow
   const roundId = activeSpin?.roundId || `case_${tgUserId}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -2983,7 +3943,10 @@ const claimAllNfts = async (queue) => {
   });
 
   if (demoModeForRound) {
-    showToast('Demo: NFT не сохраняются');
+    showToast(casesText(
+      'Demo: NFTs are not saved.',
+      'Demo: NFT не сохраняются'
+    ));
     return true;
   }
 
@@ -2991,7 +3954,9 @@ const claimAllNfts = async (queue) => {
   if (!serverEnabled) {
     addToLocalInventory(tgUserId, items);
     try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
-    showToast(items.length > 1 ? 'NFT сохранены локально' : 'NFT сохранено локально');
+    showToast(items.length > 1
+      ? casesText('NFTs saved locally', 'NFT сохранены локально')
+      : casesText('NFT saved locally', 'NFT сохранено локально'));
     return true;
   }
 
@@ -3011,9 +3976,15 @@ const claimAllNfts = async (queue) => {
 
   if (!r.ok) {
     if (r.status === 401 || r.status === 403) {
-      showToast('Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.');
+      showToast(casesText(
+        'Telegram session expired. Reopen the mini app and try again.',
+        'Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.'
+      ));
     } else {
-      showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй еще раз.');
+      showToast(r.json?.error || casesText(
+        'Failed to save NFT. Please try again.',
+        'Не удалось сохранить NFT. Попробуй еще раз.'
+      ));
     }
     return false;
   }
@@ -3028,7 +3999,9 @@ const claimAllNfts = async (queue) => {
   try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
 
   safeHaptic('notification', 'success');
-  showToast(items.length > 1 ? 'NFT сохранены' : 'NFT сохранено');
+  showToast(items.length > 1
+    ? casesText('NFTs saved', 'NFT сохранены')
+    : casesText('NFT saved', 'NFT сохранено'));
 
   return true;
 };
@@ -3199,11 +4172,13 @@ function renderPendingClaimBar() {
     setWinningGiftPillsVisible(shouldShowBar && hasGifts);
 
     if (!shouldShowBar) {
+      setBottomActionClaimMode(false);
       bar.classList.remove('is-visible');
       bar.hidden = true;
       return;
     }
 
+    setBottomActionClaimMode(true);
     if (bar.hidden) {
       bar.hidden = false;
       bar.classList.remove('is-visible');
@@ -3271,7 +4246,10 @@ async function onGiftClaimClick() {
     }
 
     if (pr.demo) {
-      showToast('Demo: награда не начисляется');
+      showToast(casesText(
+        'Demo: reward is not credited.',
+        'Demo: награда не начисляется'
+      ));
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, pr.giftsAmount);
     } else {
@@ -3308,16 +4286,28 @@ async function onGiftClaimClick() {
           applyBalanceDelta(pr.currency, pr.giftsAmount);
           pr.serverEnabled = false;
           if (r.status === 401) {
-            showToast('Сессия Telegram устарела. Награда начислена локально.');
+            showToast(casesText(
+              'Telegram session expired. Reward was credited locally.',
+              'Сессия Telegram устарела. Награда начислена локально.'
+            ));
           } else {
-            showToast('Сервер недоступен. Награда начислена локально.');
+            showToast(casesText(
+              'Server unavailable. Reward was credited locally.',
+              'Сервер недоступен. Награда начислена локально.'
+            ));
           }
         } else {
           if (r.status === 503) {
-            showToast('Техническая пауза. Стоимость незабранного кейса будет возвращена.');
+            showToast(casesText(
+              'Maintenance mode. Unclaimed case value will be refunded.',
+              'Техническая пауза. Стоимость незабранного кейса будет возвращена.'
+            ));
             return;
           }
-          showToast('Не удалось начислить награду. Попробуй еще раз.');
+          showToast(casesText(
+            'Failed to credit reward. Please try again.',
+            'Не удалось начислить награду. Попробуй еще раз.'
+          ));
           return;
         }
       }
@@ -3340,7 +4330,10 @@ async function onGiftClaimClick() {
     maybeFinishPendingRound();
   } catch (e) {
     console.error('[Cases] Gift claim click failed:', e);
-    showToast('Не удалось обработать клейм. Попробуй еще раз.');
+    showToast(casesText(
+      'Failed to process claim. Please try again.',
+      'Не удалось обработать клейм. Попробуй еще раз.'
+    ));
   } finally {
     pr._giftClaimInFlight = false;
     setBtnLoading(btn, false);
@@ -3364,7 +4357,10 @@ async function onNftClaimClick() {
     const item = entry.item;
 
     if (pr.demo) {
-      showToast('Demo: NFT не сохраняются');
+      showToast(casesText(
+        'Demo: NFTs are not saved.',
+        'Demo: NFT не сохраняются'
+      ));
     } else if (!pr.serverEnabled) {
       addToLocalInventory(pr.userId, [item]);
     } else {
@@ -3382,9 +4378,15 @@ async function onNftClaimClick() {
       }, 6500);
       if (!r.ok) {
         if (r.status === 401 || r.status === 403) {
-        showToast('Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.');
+        showToast(casesText(
+          'Telegram session expired. Reopen the mini app and try again.',
+          'Сессия Telegram устарела. Перезапусти мини-апп и попробуй еще раз.'
+        ));
       } else {
-        showToast(r.json?.error || 'Не удалось сохранить NFT. Попробуй еще раз.');
+        showToast(r.json?.error || casesText(
+          'Failed to save NFT. Please try again.',
+          'Не удалось сохранить NFT. Попробуй еще раз.'
+        ));
       }
         return;
       }
@@ -3399,7 +4401,7 @@ async function onNftClaimClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT сохранено');
+    if (!pr.demo) showToast(casesText('NFT saved', 'NFT сохранено'));
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);
@@ -3433,7 +4435,10 @@ async function onNftSellClick() {
     const amount = entry.amount;
 
     if (pr.demo) {
-      showToast('Demo: продажа отключена');
+      showToast(casesText(
+        'Demo: selling is disabled.',
+        'Demo: продажа отключена'
+      ));
     } else if (!pr.serverEnabled) {
       applyBalanceDelta(pr.currency, amount);
     } else {
@@ -3454,7 +4459,10 @@ async function onNftSellClick() {
       }, 6500);
 
       if (!r.ok) {
-        showToast('Не удалось продать NFT. Попробуй еще раз.');
+        showToast(casesText(
+          'Failed to sell NFT. Please try again.',
+          'Не удалось продать NFT. Попробуй еще раз.'
+        ));
         return;
       }
       if (r.json && typeof r.json.newBalance !== 'undefined') {
@@ -3463,7 +4471,7 @@ async function onNftSellClick() {
     }
 
     safeHaptic('notification', 'success');
-    if (!pr.demo) showToast('NFT продано');
+    if (!pr.demo) showToast(casesText('NFT sold', 'NFT продано'));
 
     // Clear glow only for this NFT line
     clearGlowForCarousel(entry.carousel);
@@ -3508,7 +4516,7 @@ async function onNftSellClick() {
   window.WTCases = {
     openCase: openBottomSheet,
     closeCase: closeBottomSheet,
-    getCases: () => CASES,
+    getCases: () => getActiveCases(),
     isDemoMode: () => isDemoMode,
     setDemoMode: (mode) => {
       if (isSpinning) return false; // Р·Р°РїСЂРµС‰Р°РµРј РјРµРЅСЏС‚СЊ СЂРµР¶РёРј РІРѕ РІСЂРµРјСЏ РїСЂРѕРєСЂСѓС‚Р°/РєР»РµР№РјР°

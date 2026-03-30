@@ -5,6 +5,7 @@
   const STYLE_ID = "wtTechPauseScreenStyles";
   const POLL_INTERVAL_MS = 8000;
   const LANG_STORAGE_KEY = "wt-language";
+  const LANG_USER_STORAGE_PREFIX = "wt-language:user:";
 
   const MESSAGES = {
     en: {
@@ -55,6 +56,12 @@
     } catch {}
 
     try {
+      const userId = String(tg?.initDataUnsafe?.user?.id || "").trim();
+      if (userId) {
+        const fromUserStorage = String(localStorage.getItem(`${LANG_USER_STORAGE_PREFIX}${userId}`) || "").trim().toLowerCase();
+        if (fromUserStorage.startsWith("ru")) return "ru";
+        if (fromUserStorage.startsWith("en")) return "en";
+      }
       const fromStorage = String(localStorage.getItem(LANG_STORAGE_KEY) || "").trim().toLowerCase();
       if (fromStorage.startsWith("ru")) return "ru";
       if (fromStorage.startsWith("en")) return "en";

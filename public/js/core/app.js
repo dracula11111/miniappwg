@@ -94,6 +94,8 @@
 
   // ===== Language/i18n =====
   const I18N_STORAGE_KEY = "wt-language";
+  const I18N_USER_STORAGE_KEY_PREFIX = "wt-language:user:";
+  const I18N_SERVER_ENDPOINT = "/api/user/language";
   const I18N_ATTRS = ["placeholder", "title", "aria-label", "alt"];
   const I18N_SUPPORTED = new Set(["en", "ru"]);
   const RUSSIAN_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
@@ -438,8 +440,38 @@
     return "en";
   }
 
+  function getTelegramUserId() {
+    try {
+      const id = tg?.initDataUnsafe?.user?.id;
+      if (id === null || id === undefined) return "";
+      const normalized = String(id).trim();
+      return normalized || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getTelegramInitData() {
+    try {
+      return String(tg?.initData || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function getUserLanguageStorageKey() {
+    const userId = getTelegramUserId();
+    if (!userId) return "";
+    return `${I18N_USER_STORAGE_KEY_PREFIX}${userId}`;
+  }
+
   function readStoredLanguage() {
     try {
+      const userStorageKey = getUserLanguageStorageKey();
+      if (userStorageKey) {
+        const userStored = normalizeLanguage(localStorage.getItem(userStorageKey));
+        if (userStored) return userStored;
+      }
       const stored = normalizeLanguage(localStorage.getItem(I18N_STORAGE_KEY));
       return stored || "";
     } catch {
@@ -448,12 +480,22 @@
   }
 
   function writeStoredLanguage(lang) {
-    try { localStorage.setItem(I18N_STORAGE_KEY, lang); } catch {}
+    const normalized = normalizeLanguage(lang);
+    if (!normalized) return;
+    try {
+      localStorage.setItem(I18N_STORAGE_KEY, normalized);
+      const userStorageKey = getUserLanguageStorageKey();
+      if (userStorageKey) localStorage.setItem(userStorageKey, normalized);
+    } catch {}
   }
 
   let currentLanguage = "en";
   let i18nObserver = null;
   let i18nApplying = false;
+  let lastServerPersistedLanguage = "";
+  let pendingServerLanguage = "";
+  let languagePersistInFlight = false;
+  let languageServerSyncStarted = false;
 
   function shouldSkipI18nNode(node) {
     const parent = node?.parentElement;
@@ -578,24 +620,131 @@
     return currentLanguage;
   }
 
+  async function fetchServerLanguagePreference() {
+    const initData = getTelegramInitData();
+    const userId = getTelegramUserId();
+    if (!initData || !userId) return "";
+
+    try {
+      const response = await fetch(I18N_SERVER_ENDPOINT, {
+        method: "GET",
+        cache: "no-store",
+        headers: { "x-telegram-init-data": initData }
+      });
+      if (!response.ok) return "";
+
+      const payload = await response.json().catch(() => null);
+      const manualLanguage = normalizeLanguage(payload?.manualLanguage);
+      if (manualLanguage) lastServerPersistedLanguage = manualLanguage;
+
+      return normalizeLanguage(payload?.language || payload?.defaultLanguage || "");
+    } catch {
+      return "";
+    }
+  }
+
+  async function persistLanguageToServer(lang) {
+    const normalized = normalizeLanguage(lang);
+    if (!normalized) return false;
+
+    const initData = getTelegramInitData();
+    const userId = getTelegramUserId();
+    if (!initData || !userId) return false;
+
+    try {
+      const response = await fetch(I18N_SERVER_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-telegram-init-data": initData
+        },
+        body: JSON.stringify({ language: normalized })
+      });
+      if (!response.ok) return false;
+
+      lastServerPersistedLanguage = normalized;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function flushLanguagePersistQueue() {
+    if (languagePersistInFlight) return;
+    if (!pendingServerLanguage) return;
+
+    languagePersistInFlight = true;
+    (async () => {
+      while (pendingServerLanguage) {
+        const target = pendingServerLanguage;
+        pendingServerLanguage = "";
+        if (target === lastServerPersistedLanguage) continue;
+
+        const ok = await persistLanguageToServer(target);
+        if (!ok) break;
+      }
+    })().finally(() => {
+      languagePersistInFlight = false;
+      if (pendingServerLanguage && pendingServerLanguage !== lastServerPersistedLanguage) {
+        flushLanguagePersistQueue();
+      }
+    });
+  }
+
+  function scheduleLanguagePersist(lang) {
+    const normalized = normalizeLanguage(lang);
+    if (!normalized) return;
+    if (normalized === lastServerPersistedLanguage) return;
+    pendingServerLanguage = normalized;
+    flushLanguagePersistQueue();
+  }
+
+  function changeLanguage(lang, options = {}) {
+    const targetLanguage = normalizeLanguage(lang) || "en";
+    const changed = options.force === true || targetLanguage !== currentLanguage;
+    const applied = applyLanguage(targetLanguage, options);
+    if (changed && options.persistServer !== false) {
+      scheduleLanguagePersist(applied);
+    }
+    return applied;
+  }
+
+  function syncLanguageFromServer() {
+    if (languageServerSyncStarted) return;
+    languageServerSyncStarted = true;
+
+    fetchServerLanguagePreference()
+      .then((serverLanguage) => {
+        if (!serverLanguage) return;
+        const changed = serverLanguage !== currentLanguage;
+        applyLanguage(serverLanguage, {
+          persist: true,
+          emit: changed,
+          force: changed
+        });
+      })
+      .catch(() => {});
+  }
+
   const i18nApi = {
     getLanguage: () => currentLanguage,
     detectLanguage: detectPreferredLanguage,
     detectLanguageFromLocale,
     isRussianLocale: (locale) => detectLanguageFromLocale(locale) === "ru",
-    changeLanguage: (lang, options = {}) => applyLanguage(lang, options),
+    changeLanguage,
     translate: (text, lang = currentLanguage) => translateText(text, lang),
     t: (key, fallback = "") => translateByKey(key, fallback, currentLanguage)
   };
 
   WT.i18n = i18nApi;
-  WT.changeLanguage = (lang, options = {}) => applyLanguage(lang, options);
+  WT.changeLanguage = changeLanguage;
   WT.getLanguage = () => currentLanguage;
   WT.t = (key, fallback = "") => translateByKey(key, fallback, currentLanguage);
 
   const storedLanguage = readStoredLanguage();
   const initialLanguage = storedLanguage || detectPreferredLanguage();
-  applyLanguage(initialLanguage, { persist: !storedLanguage, emit: false, force: true });
+  applyLanguage(initialLanguage, { persist: true, emit: false, force: true });
+  syncLanguageFromServer();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {

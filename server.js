@@ -70,6 +70,35 @@ function normalizeUiLanguageCode(localeValue) {
   return "en";
 }
 
+function normalizeExplicitUiLanguageCode(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (raw.startsWith("ru")) return "ru";
+  if (raw.startsWith("en")) return "en";
+  return null;
+}
+
+function resolveUserUiLanguagePreference(dbUser, tgUser = null) {
+  const manualLanguage = normalizeExplicitUiLanguageCode(dbUser?.ui_language);
+  if (manualLanguage) {
+    return { language: manualLanguage, source: "manual", manualLanguage };
+  }
+
+  const profileLanguage = normalizeUiLanguageCode(dbUser?.language_code);
+  if (profileLanguage) {
+    return { language: profileLanguage, source: "telegram_profile", manualLanguage: null };
+  }
+
+  const telegramLiveLanguage = normalizeUiLanguageCode(
+    tgUser?.language_code ?? tgUser?.languageCode
+  );
+  if (telegramLiveLanguage) {
+    return { language: telegramLiveLanguage, source: "telegram_live", manualLanguage: null };
+  }
+
+  return { language: "en", source: "fallback", manualLanguage: null };
+}
+
 // ---- Memory DB (per-process; resets on restart). Used only when IS_TEST === true ----
 function createMemoryDb() {
   const users = new Map();    // telegram_id(string) -> user
@@ -102,6 +131,7 @@ function createMemoryDb() {
         first_name: "Test",
         last_name: "",
         language_code: null,
+        ui_language: null,
         is_premium: false,
         ton_balance: "0",
         stars_balance: 0,
@@ -199,6 +229,19 @@ function createMemoryDb() {
         last_seen: nowSec(),
       });
       return true;
+    },
+    async setUserUiLanguage(telegramId, language) {
+      const k = ensure(telegramId);
+      const normalized = normalizeExplicitUiLanguageCode(language);
+      if (!normalized) throw new Error("Unsupported UI language");
+
+      const u = users.get(k);
+      users.set(k, {
+        ...u,
+        ui_language: normalized,
+        last_seen: nowSec()
+      });
+      return normalized;
     },
     async getUserById(telegramId) {
       const k = ensure(telegramId);
@@ -2680,8 +2723,21 @@ let giftsCatalog = [
         "Snoop Dogg",
         "Neko Helmet",
         "Pet Snake",
+        "Bow Tie",
+        "Restless Jar",
         "Xmas Stocking",
           "Pool Float",
+          "Chill Flame",
+          "Jolly Chimp",
+          "Gem Signet",
+          "Timeless Book",
+          "Astral Shard",
+          "Perfume Bottle",
+          "Precious Peach",
+          "Signet Ring",
+          "Plush Pepe",
+          "Heroic Helmet",
+          "Durov's Cap",
           "Mood Pack",
           "B-Day Candle",
           "Snake Box",
@@ -6328,6 +6384,8 @@ app.get("/api/user/profile", requireTelegramUser, async (req, res) => {
         username: user.username,
         firstName: user.first_name,
         lastName: user.last_name,
+        languageCode: user.language_code || null,
+        uiLanguage: normalizeExplicitUiLanguageCode(user.ui_language) || null,
         isPremium: user.is_premium === true || user.is_premium === 1,
         tonBalance: user.ton_balance || 0,
         starsBalance: user.stars_balance || 0,
@@ -6344,6 +6402,54 @@ app.get("/api/user/profile", requireTelegramUser, async (req, res) => {
       ok: false,
       error: error.message || 'Failed to get profile'
     });
+  }
+});
+
+app.get("/api/user/language", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUser = req.tg?.user || null;
+    const userId = String(tgUser?.id || "").trim();
+    if (!userId) return res.status(400).json({ ok: false, error: "User ID is required" });
+
+    const dbUser = req.dbUser || await db.getUserById(userId).catch(() => null);
+    const resolved = resolveUserUiLanguagePreference(dbUser, tgUser);
+    const defaultLanguage = normalizeUiLanguageCode(
+      dbUser?.language_code ?? tgUser?.language_code ?? tgUser?.languageCode
+    ) || "en";
+
+    return res.json({
+      ok: true,
+      language: resolved.language,
+      source: resolved.source,
+      manualLanguage: resolved.manualLanguage,
+      defaultLanguage
+    });
+  } catch (error) {
+    console.error("[Language] Failed to resolve user language:", error);
+    return res.status(500).json({ ok: false, error: "Failed to resolve language" });
+  }
+});
+
+app.post("/api/user/language", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUser = req.tg?.user || null;
+    const userId = String(tgUser?.id || "").trim();
+    if (!userId) return res.status(400).json({ ok: false, error: "User ID is required" });
+
+    const rawLanguage = req.body?.language ?? req.body?.lang;
+    const language = normalizeExplicitUiLanguageCode(rawLanguage);
+    if (!language) {
+      return res.status(400).json({ ok: false, error: "Unsupported language", supported: ["en", "ru"] });
+    }
+    if (typeof db?.setUserUiLanguage !== "function") {
+      return res.status(500).json({ ok: false, error: "Language persistence is unavailable" });
+    }
+
+    await db.setUserUiLanguage(userId, language);
+    return res.json({ ok: true, language });
+  } catch (error) {
+    console.error("[Language] Failed to save user language:", error);
+    return res.status(500).json({ ok: false, error: "Failed to save language" });
   }
 });
 

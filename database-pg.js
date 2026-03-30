@@ -93,6 +93,15 @@ function normalizeUiLanguageCode(localeValue) {
   return "en";
 }
 
+function normalizeExplicitUiLanguageCode(value) {
+  const raw = normalizeOptionalText(value, 16);
+  if (!raw) return null;
+  const normalized = String(raw).trim().toLowerCase();
+  if (normalized.startsWith("ru")) return "ru";
+  if (normalized.startsWith("en")) return "en";
+  return null;
+}
+
 function normalizeHash(value) {
   const raw = normalizeOptionalText(value, 128);
   if (!raw) return null;
@@ -390,6 +399,7 @@ export async function initDatabase() {
       first_name TEXT,
       last_name TEXT,
       language_code TEXT,
+      ui_language TEXT,
       is_premium BOOLEAN DEFAULT FALSE,
       ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0,
       stars_balance BIGINT NOT NULL DEFAULT 0,
@@ -569,6 +579,7 @@ export async function initDatabase() {
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban SMALLINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_language TEXT`);
   await query(`ALTER TABLE balances ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
   await query(`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
   await query(`ALTER TABLE bets ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
@@ -962,7 +973,7 @@ export async function getUserById(telegramId) {
 
   const r = await query(
     `
-    SELECT u.telegram_id, u.username, u.first_name, u.last_name, u.language_code,
+    SELECT u.telegram_id, u.username, u.first_name, u.last_name, u.language_code, u.ui_language,
            u.is_premium, u.ban, u.created_at, u.last_seen,
            COALESCE(u.ton_balance, b.ton_balance, 0) AS ton_balance,
            COALESCE(u.stars_balance, b.stars_balance, 0) AS stars_balance
@@ -974,6 +985,46 @@ export async function getUserById(telegramId) {
   );
 
   return r.rows[0] || null;
+}
+
+export async function setUserUiLanguage(telegramId, language) {
+  const id = BigInt(telegramId);
+  const lang = normalizeExplicitUiLanguageCode(language);
+  if (!lang) throw new Error("Unsupported UI language");
+  const now = Math.floor(Date.now() / 1000);
+
+  const updated = await query(
+    `
+    UPDATE users
+    SET ui_language = $2,
+        last_seen = GREATEST(COALESCE(last_seen, 0), $3)
+    WHERE telegram_id = $1
+    `,
+    [id, lang, now]
+  );
+
+  if (Number(updated?.rowCount || 0) < 1) {
+    await query(
+      `
+      INSERT INTO users (telegram_id, ui_language, created_at, last_seen)
+      VALUES ($1, $2, $3, $3)
+      ON CONFLICT (telegram_id) DO UPDATE SET
+        ui_language = EXCLUDED.ui_language,
+        last_seen = EXCLUDED.last_seen
+      `,
+      [id, lang, now]
+    );
+    await query(
+      `
+      INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+      VALUES ($1, (SELECT username FROM users WHERE telegram_id = $1), 0, 0, $2)
+      ON CONFLICT (telegram_id) DO NOTHING
+      `,
+      [id, now]
+    );
+  }
+
+  return lang;
 }
 
 export async function listTelegramRecipientsForBroadcast(options = {}) {
