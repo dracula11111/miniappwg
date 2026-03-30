@@ -28,7 +28,8 @@ const RLS_PROTECTED_TABLES = [
   "user_task_claims",
   "webhook_events",
   "tech_pause_control",
-  "case_rounds_pending"
+  "case_rounds_pending",
+  "game_round_meta"
 ];
 
 async function query(text, params) {
@@ -141,6 +142,17 @@ function normalizeCaseCostByCurrency(value, currency) {
   if (!Number.isFinite(raw) || raw <= 0) return 0;
   if (cur === "stars") return Math.max(1, Math.round(raw));
   return Math.max(0.01, Math.round(raw * 100) / 100);
+}
+
+function normalizeGameRoundMetaKey(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return key === "crash" || key === "wheel" ? key : "";
+}
+
+function normalizeGameRoundCounter(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.max(0, Math.trunc(raw));
 }
 
 async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
@@ -575,6 +587,13 @@ export async function initDatabase() {
       ON case_rounds_pending(status, created_at ASC);
     CREATE INDEX IF NOT EXISTS idx_case_rounds_pending_user_status
       ON case_rounds_pending(telegram_id, status);
+
+    CREATE TABLE IF NOT EXISTS game_round_meta (
+      game_key TEXT PRIMARY KEY CHECK (game_key IN ('crash','wheel')),
+      round_counter BIGINT NOT NULL DEFAULT 0 CHECK (round_counter >= 0),
+      round_hash TEXT,
+      updated_at BIGINT NOT NULL
+    );
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -642,6 +661,14 @@ export async function initDatabase() {
      ON CONFLICT (id) DO NOTHING`,
     [Date.now()]
   );
+  await query(
+    `INSERT INTO game_round_meta (game_key, round_counter, round_hash, updated_at)
+     VALUES
+       ('crash', 0, NULL, $1),
+       ('wheel', 0, NULL, $1)
+     ON CONFLICT (game_key) DO NOTHING`,
+    [Date.now()]
+  );
   await rebuildGiftReadableSnapshot();
   try {
     await hardenPublicSchemaAccess();
@@ -673,6 +700,59 @@ export async function releaseWebhookEvent(eventKey) {
   if (!key) return false;
   const r = await query(`DELETE FROM webhook_events WHERE event_key = $1`, [key]);
   return Number(r.rowCount || 0) > 0;
+}
+
+export async function getGameRoundMeta(gameKey) {
+  const key = normalizeGameRoundMetaKey(gameKey);
+  if (!key) {
+    return { gameKey: "", counter: 0, hash: "", updatedAt: 0 };
+  }
+
+  const r = await query(
+    `SELECT round_counter, round_hash, updated_at
+     FROM game_round_meta
+     WHERE game_key = $1
+     LIMIT 1`,
+    [key]
+  );
+
+  const row = r.rows?.[0] || null;
+  if (!row) {
+    return { gameKey: key, counter: 0, hash: "", updatedAt: 0 };
+  }
+
+  return {
+    gameKey: key,
+    counter: normalizeGameRoundCounter(row.round_counter),
+    hash: String(row.round_hash || ""),
+    updatedAt: Number(row.updated_at) || 0
+  };
+}
+
+export async function setGameRoundMeta(gameKey, counter, hash = null) {
+  const key = normalizeGameRoundMetaKey(gameKey);
+  if (!key) throw new Error("gameKey required");
+
+  const nextCounter = normalizeGameRoundCounter(counter);
+  const roundHash = normalizeOptionalText(hash, 256);
+  const now = Date.now();
+
+  await query(
+    `INSERT INTO game_round_meta (game_key, round_counter, round_hash, updated_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (game_key)
+     DO UPDATE SET round_counter = EXCLUDED.round_counter,
+                   round_hash = EXCLUDED.round_hash,
+                   updated_at = EXCLUDED.updated_at`,
+    [key, nextCounter, roundHash, now]
+  );
+
+  return {
+    gameKey: key,
+    counter: nextCounter,
+    hash: roundHash || "",
+    updatedAt: now
+  };
 }
 
 export async function getTechPauseFlag() {

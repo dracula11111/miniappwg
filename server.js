@@ -1,4 +1,4 @@
-﻿// server.js 
+// server.js 
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
 
 import "dotenv/config";
@@ -110,6 +110,10 @@ function createMemoryDb() {
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
+  const gameRoundMeta = new Map([
+    ["crash", { counter: 0, hash: "", updatedAt: Date.now() }],
+    ["wheel", { counter: 0, hash: "", updatedAt: Date.now() }]
+  ]);
   let techPauseEnabled = 0;
   let techPauseUpdatedAt = Date.now();
   let txId = 1;
@@ -192,6 +196,17 @@ function createMemoryDb() {
     if (!Number.isFinite(raw) || raw <= 0) return 0;
     if (cur === "stars") return Math.max(1, Math.round(raw));
     return Math.max(0.01, Math.round(raw * 100) / 100);
+  }
+
+  function normalizeGameRoundMetaKey(value) {
+    const keyValue = String(value || "").trim().toLowerCase();
+    return keyValue === "crash" || keyValue === "wheel" ? keyValue : "";
+  }
+
+  function normalizeGameRoundCounter(value) {
+    const raw = Number(value);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.max(0, Math.trunc(raw));
   }
 
   function mapPendingCaseRound(row = {}) {
@@ -644,6 +659,35 @@ function createMemoryDb() {
         .map((x) => mapPendingCaseRound(x));
       return rows;
     },
+    async getGameRoundMeta(gameKey) {
+      const keyValue = normalizeGameRoundMetaKey(gameKey);
+      if (!keyValue) return { gameKey: "", counter: 0, hash: "", updatedAt: 0 };
+      const row = gameRoundMeta.get(keyValue) || null;
+      if (!row) return { gameKey: keyValue, counter: 0, hash: "", updatedAt: 0 };
+      return {
+        gameKey: keyValue,
+        counter: normalizeGameRoundCounter(row.counter),
+        hash: String(row.hash || ""),
+        updatedAt: Number(row.updatedAt) || 0
+      };
+    },
+    async setGameRoundMeta(gameKey, counter, hash = null) {
+      const keyValue = normalizeGameRoundMetaKey(gameKey);
+      if (!keyValue) throw new Error("gameKey required");
+      const now = Date.now();
+      const next = {
+        counter: normalizeGameRoundCounter(counter),
+        hash: String(hash || ""),
+        updatedAt: now
+      };
+      gameRoundMeta.set(keyValue, next);
+      return {
+        gameKey: keyValue,
+        counter: next.counter,
+        hash: next.hash,
+        updatedAt: now
+      };
+    },
     async getTechPauseFlag() {
       return {
         enabled: Number(techPauseEnabled) === 1,
@@ -970,7 +1014,8 @@ const wheelWss = new WebSocketServer({ noServer: true });
 const crashGame = {
   phase: 'betting',
   phaseStart: Date.now(),
-  roundId: 1,
+  roundId: 0,
+  roundHash: "",
   crashPoint: 2.0,
   currentMult: 1.0,
   players: [],
@@ -992,7 +1037,13 @@ const TICK_MS = 100; // send multiplier updates 10 times per second (clients int
 const HEARTBEAT_MS = 30000;
 const WS_MAX_BUFFERED = 2 * 1024 * 1024;      // 2MB -> skip non-critical sends
 const WS_HARD_CLOSE_BUFFERED = 8 * 1024 * 1024; // 8MB -> terminate the socket
+const CRASH_VERBOSE_LOGS = /^(1|true|yes|on)$/i.test(String(process.env.CRASH_VERBOSE_LOGS || "").trim());
 const crashBetCredits = new Map(); // "<crashRoundId>|<userId>|<currency>" -> remaining amount
+const GAME_META_KEYS = Object.freeze({ crash: "crash", wheel: "wheel" });
+
+function crashLog(...args) {
+  if (CRASH_VERBOSE_LOGS) console.log(...args);
+}
 
 function normalizeCrashCurrency(currency) {
   return String(currency || "ton").toLowerCase() === "stars" ? "stars" : "ton";
@@ -1091,6 +1142,48 @@ function pruneCrashBetCredits(activeRoundId) {
   }
 }
 
+function normalizeGameCounterValue(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.max(0, Math.trunc(raw));
+}
+
+function normalizeRoundHashValue(value) {
+  const raw = String(value || "").trim();
+  return raw ? raw.slice(0, 256) : "";
+}
+
+function makeRoundHash(gameKey, counter, entropy = "") {
+  const payload = `${gameKey}|${normalizeGameCounterValue(counter)}|${Date.now()}|${String(entropy || "")}`;
+  return crypto.createHash("sha256").update(payload).digest("hex");
+}
+
+async function loadGameRoundMeta(gameKey) {
+  if (typeof db?.getGameRoundMeta !== "function") {
+    return { counter: 0, hash: "", updatedAt: 0 };
+  }
+  try {
+    const snapshot = await db.getGameRoundMeta(gameKey);
+    return {
+      counter: normalizeGameCounterValue(snapshot?.counter),
+      hash: normalizeRoundHashValue(snapshot?.hash),
+      updatedAt: Number(snapshot?.updatedAt) || 0
+    };
+  } catch (error) {
+    console.warn(`[Games] Failed to load round meta for ${gameKey}:`, error?.message || error);
+    return { counter: 0, hash: "", updatedAt: 0 };
+  }
+}
+
+function persistGameRoundMeta(gameKey, counter, hash) {
+  if (typeof db?.setGameRoundMeta !== "function") return;
+  const safeCounter = normalizeGameCounterValue(counter);
+  const safeHash = normalizeRoundHashValue(hash);
+  db.setGameRoundMeta(gameKey, safeCounter, safeHash || null).catch((error) => {
+    console.warn(`[Games] Failed to persist round meta for ${gameKey}:`, error?.message || error);
+  });
+}
+
 function wsSendSafe(ws, data) {
   try {
     if (!ws || ws.readyState !== 1) return false;
@@ -1127,6 +1220,8 @@ function buildGameState(now = Date.now()) {
     phase: crashGame.phase,
     phaseStart: crashGame.phaseStart,
     roundId: crashGame.roundId,
+    gameCounter: crashGame.roundId,
+    roundHash: crashGame.roundHash || "",
     crashPoint: (crashGame.phase === 'crash' || crashGame.phase === 'wait') ? crashGame.crashPoint : null,
     currentMult: crashGame.currentMult,
     players: crashGame.players,
@@ -1222,12 +1317,18 @@ function startBetting() {
   crashGame.phase = 'betting';
   crashGame.phaseStart = Date.now();
   crashGame.roundId++;
+  crashGame.roundHash = makeRoundHash(
+    GAME_META_KEYS.crash,
+    crashGame.roundId,
+    `${crashGame.serverSeed}:${crashGame.clientSeed}:${crashGame.nonce}`
+  );
+  persistGameRoundMeta(GAME_META_KEYS.crash, crashGame.roundId, crashGame.roundHash);
   pruneCrashBetCredits(crashGame.roundId);
   crashGame.currentMult = 1.0;
   crashGame.crashPoint = generateCrashPoint();
   crashGame.players = [];
 
-  console.log(`[Crash] Round ${crashGame.roundId} betting started, will crash at ${crashGame.crashPoint.toFixed(2)}x`);
+  crashLog(`[Crash] Round ${crashGame.roundId} betting started`);
 
   broadcastGameState();
 
@@ -1270,7 +1371,7 @@ function startRunning() {
   crashGame.phaseStart = Date.now();
   crashGame.currentMult = 1.0;
 
-  console.log(`[Crash] Round ${crashGame.roundId} running with ${crashGame.players.length} players`);
+  crashLog(`[Crash] Round ${crashGame.roundId} running with ${crashGame.players.length} players`);
 
   // Full state once at phase start
   broadcastGameState();
@@ -1305,7 +1406,7 @@ function crash() {
   crashGame.phase = 'crash';
   crashGame.currentMult = crashGame.crashPoint;
   
-  console.log(`[Crash] Round ${crashGame.roundId} crashed at ${crashGame.crashPoint.toFixed(2)}x`);
+  crashLog(`[Crash] Round ${crashGame.roundId} crashed`);
   
   crashGame.history.unshift(crashGame.crashPoint);
   if (crashGame.history.length > 20) crashGame.history.length = 20;
@@ -1353,7 +1454,7 @@ function resolveCrashWsUser(msg) {
 }
 
 wss.on('connection', (ws) => {
-  console.log('[Crash WS] Client connected');
+  crashLog('[Crash WS] Client connected');
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
   
@@ -1429,7 +1530,7 @@ ws.on('message', async (data) => {
           claimMult: null
         });
         
-        console.log(`[Crash] ${name} bet ${amount} ${currency}`);
+        crashLog(`[Crash] ${name} bet ${amount} ${currency}`);
         
         wsSendSafe(ws, JSON.stringify({ type: 'betPlaced', userId }));
         broadcastGameState();
@@ -1492,7 +1593,7 @@ ws.on('message', async (data) => {
           player.claiming = false;
 
           broadcastBalanceUpdate(userId);
-          console.log(`[Crash] ${player.name} claimed at ${claimMult.toFixed(2)}x, payout: ${payout} ${currency}`);
+          crashLog(`[Crash] ${player.name} claimed at ${claimMult.toFixed(2)}x, payout: ${payout} ${currency}`);
 
           wsSendSafe(ws, JSON.stringify({ type: 'claimed', userId, mult: claimMult, payout, currency }));
           broadcastGameState();
@@ -1509,7 +1610,7 @@ ws.on('message', async (data) => {
   });
 
   ws.on('close', () => {
-    console.log('[Crash WS] Client disconnected');
+    crashLog('[Crash WS] Client disconnected');
   });
 });
 
@@ -1527,10 +1628,6 @@ httpServer.on('upgrade', (request, socket, head) => {
     socket.destroy();
   }
 });
-
-
-// Start first round
-startBetting();
 
 // Rest of your Express routes below...
 
@@ -1578,6 +1675,7 @@ const wheelGame = {
   phase: 'betting',           // betting | spin | bonus | result
   phaseStart: Date.now(),
   roundId: 0,
+  roundHash: "",
   players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
   history: [],
   spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
@@ -1946,6 +2044,8 @@ function buildWheelState(now = Date.now()) {
     phase: wheelGame.phase,
     phaseStart: wheelGame.phaseStart,
     roundId: wheelGame.roundId,
+    gameCounter: wheelGame.roundId,
+    roundHash: wheelGame.roundHash || "",
     spin: wheelGame.spin,
     bonus: bonusData,
     payoutMode: 'server',
@@ -1981,6 +2081,12 @@ function wheelStartBetting() {
   wheelGame.phase = 'betting';
   wheelGame.phaseStart = Date.now();
   wheelGame.roundId += 1;
+  wheelGame.roundHash = makeRoundHash(
+    GAME_META_KEYS.wheel,
+    wheelGame.roundId,
+    `${wheelGame.phaseStart}:${crypto.randomBytes(8).toString("hex")}`
+  );
+  persistGameRoundMeta(GAME_META_KEYS.wheel, wheelGame.roundId, wheelGame.roundHash);
   cleanupWheelBetCredits(wheelGame.roundId);
   wheelGame.spin = null;
   wheelGame.bonus = null;
@@ -2214,8 +2320,20 @@ wheelWss.on('connection', (ws) => {
   });
 });
 
-// Start shared loop
-wheelStartBetting();
+async function startGameLoops() {
+  const crashMeta = await loadGameRoundMeta(GAME_META_KEYS.crash);
+  crashGame.roundId = normalizeGameCounterValue(crashMeta.counter);
+  crashGame.roundHash = normalizeRoundHashValue(crashMeta.hash);
+
+  const wheelMeta = await loadGameRoundMeta(GAME_META_KEYS.wheel);
+  wheelGame.roundId = normalizeGameCounterValue(wheelMeta.counter);
+  wheelGame.roundHash = normalizeRoundHashValue(wheelMeta.hash);
+
+  startBetting();
+  wheelStartBetting();
+}
+
+await startGameLoops();
 
 function hasUnresolvedCrashBetsForTechPause() {
   const playersCount = Array.isArray(crashGame?.players) ? crashGame.players.length : 0;

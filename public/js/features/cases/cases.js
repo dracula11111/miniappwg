@@ -356,14 +356,15 @@
   function isStarsCarouselPerfStress() {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const count = Math.max(1, Math.min(3, Number(selectedCount) || 1));
-    return currency === 'stars' && document.body.classList.contains('case-sheet-open') && (count >= 3 || casesLowMotion);
+    const isMeadowCurrency = currency === 'stars' || currency === 'ton';
+    return isMeadowCurrency && document.body.classList.contains('case-sheet-open') && (count >= 3 || casesLowMotion);
   }
 
   function getIdleBaseCount() {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const count = Math.max(1, Math.min(3, Number(selectedCount) || 1));
 
-    if (currency === 'stars') {
+    if (currency === 'stars' || currency === 'ton') {
       if (count >= 3) return casesLowMotion ? 30 : 42;
       if (count === 2) return casesLowMotion ? 36 : 52;
       return casesLowMotion ? 42 : 62;
@@ -549,8 +550,8 @@ function sampleDominantGlowColorFromImage(img) {
   return null;
 }
 
-function getStarsFallbackGlowColor() {
-  const caseId = String(currentCase?.id || '').trim();
+function getStarsFallbackGlowColor(caseIdOverride) {
+  const caseId = String(caseIdOverride || currentCase?.id || '').trim();
   return STARS_GLOW_FALLBACK_BY_CASE[caseId] || STARS_GLOW_FALLBACK_BY_CASE.default;
 }
 
@@ -567,6 +568,21 @@ function setCarouselNodeGlow(node, rgb) {
   node.style.setProperty('--case-item-glow-r', String(clampInt(rgb.r, 0, 255)));
   node.style.setProperty('--case-item-glow-g', String(clampInt(rgb.g, 0, 255)));
   node.style.setProperty('--case-item-glow-b', String(clampInt(rgb.b, 0, 255)));
+}
+
+function clearCasePathNodeGlow(node) {
+  if (!node || !node.style) return;
+  node.style.removeProperty('--case-path-glow-r');
+  node.style.removeProperty('--case-path-glow-g');
+  node.style.removeProperty('--case-path-glow-b');
+  try { delete node.dataset.casePathGlowKey; } catch (_) {}
+}
+
+function setCasePathNodeGlow(node, rgb) {
+  if (!node || !node.style || !rgb) return;
+  node.style.setProperty('--case-path-glow-r', String(clampInt(rgb.r, 0, 255)));
+  node.style.setProperty('--case-path-glow-g', String(clampInt(rgb.g, 0, 255)));
+  node.style.setProperty('--case-path-glow-b', String(clampInt(rgb.b, 0, 255)));
 }
 
 function loadGlowColorForSrc(src) {
@@ -626,7 +642,8 @@ function loadGlowColorForSrc(src) {
 function applyAdaptiveStarsGlow(node, src, currency) {
   if (!node) return;
   const itemTypeOnNode = String(node.dataset?.itemType || '').toLowerCase();
-  if (currency !== 'stars' || itemTypeOnNode !== 'nft') {
+  const isMeadowCurrency = currency === 'stars' || currency === 'ton';
+  if (!isMeadowCurrency || itemTypeOnNode !== 'nft') {
     clearCarouselNodeGlow(node);
     return;
   }
@@ -648,6 +665,31 @@ function applyAdaptiveStarsGlow(node, src, currency) {
     if (!resolved || !node?.isConnected) return;
     if (String(node.dataset.glowKey || '') !== key) return;
     setCarouselNodeGlow(node, resolved);
+  }).catch(() => {});
+}
+
+function applyAdaptiveCasePathGlow(node, src, currency, caseId) {
+  if (!node) return;
+  if (currency !== 'ton') {
+    clearCasePathNodeGlow(node);
+    return;
+  }
+
+  setCasePathNodeGlow(node, getStarsFallbackGlowColor(caseId));
+  const key = String(src || '').trim();
+  if (!key) return;
+  node.dataset.casePathGlowKey = key;
+
+  if (starsGlowColorCache.has(key)) {
+    const cached = starsGlowColorCache.get(key);
+    if (cached) setCasePathNodeGlow(node, cached);
+    return;
+  }
+
+  loadGlowColorForSrc(key).then((resolved) => {
+    if (!resolved || !node?.isConnected) return;
+    if (String(node.dataset.casePathGlowKey || '') !== key) return;
+    setCasePathNodeGlow(node, resolved);
   }).catch(() => {});
 }
 
@@ -1729,6 +1771,8 @@ function getBalanceSafe(currency) {
 
     createDemoToggle();
     attachListeners();
+    preloadCasesThemeBackgrounds();
+    clearLegacyCasesCurrencySwapArtifacts();
     generateCasesGrid();
 
     // Р—Р°РіСЂСѓР·РёС‚СЊ floor prices РїСЂРё СЃС‚Р°СЂС‚Рµ
@@ -1940,6 +1984,41 @@ function getBalanceSafe(currency) {
     casesPath.appendChild(layer);
   }
 
+  function preloadCasesThemeBackgrounds() {
+    const sources = [
+      assetUrl('images/cases/starcases/starsbackimg.png'),
+      assetUrl('images/cases/toncases/tonbackimg.webp')
+    ];
+    for (const src of sources) {
+      try {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = src;
+      } catch (_) {}
+    }
+  }
+
+  function clearLegacyCasesCurrencySwapArtifacts() {
+    try {
+      document.body.classList.remove('cases-bg-swap-active');
+      document.body.style.removeProperty('--cases-bg-swap-dir');
+    } catch (_) {}
+
+    const layer = document.getElementById('casesBgSwapLayer');
+    if (layer?.parentNode) layer.parentNode.removeChild(layer);
+
+    const casesPath = document.getElementById('casesGrid');
+    if (!casesPath) return;
+    casesPath.classList.remove(
+      'cases-grid-swap',
+      'cases-grid-swap-out',
+      'cases-grid-swap-pre-enter',
+      'cases-grid-swap-enter'
+    );
+    casesPath.style.removeProperty('--cases-swap-out-x');
+    casesPath.style.removeProperty('--cases-swap-in-x');
+  }
+
   function generateCasesGrid() {
     const casesPath = document.getElementById('casesGrid');
     if (!casesPath) return;
@@ -1950,12 +2029,16 @@ function getBalanceSafe(currency) {
 
     const currency = window.WildTimeCurrency?.current || 'ton';
     const casesArray = Object.values(getActiveCases(currency));
-    const isStarsTheme = currency === 'stars';
+    const isMeadowTheme = currency === 'stars' || currency === 'ton';
     const icon = currency === 'ton' ? assetUrl('icons/tgTonWhite.svg') : assetUrl('icons/tgStarsWhite.svg');
 
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
       const priceDisplay = formatAmount(currency, price);
+      const caseImageSrc = getCaseImagePath(caseData.id, currency);
+      const adaptiveTileGlowMarkup = currency === 'ton'
+        ? '<div class="case-path-image-glow" aria-hidden="true"></div>'
+        : '';
       
       // Low-motion keeps fewer moving objects to reduce main-thread load.
       const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
@@ -1965,12 +2048,13 @@ function getBalanceSafe(currency) {
       pathItem.dataset.caseId = caseData.id;
       pathItem.dataset.variant = String((index % 3) + 1);
 
-      if (isStarsTheme) {
+      if (isMeadowTheme) {
         pathItem.classList.add('case-path-item--stars');
         pathItem.innerHTML = `
           <div class="case-path-case">
             <div class="case-path-image-wrapper">
-              <img src="${getCaseImagePath(caseData.id, currency)}"
+              ${adaptiveTileGlowMarkup}
+              <img src="${caseImageSrc}"
                    alt="${caseData.name}"
                    loading="lazy"
                    decoding="async"
@@ -2006,7 +2090,7 @@ function getBalanceSafe(currency) {
           <div class="case-path-case">
             <div class="case-path-image-wrapper">
               <div class="case-path-glow"></div>
-              <img src="${getCaseImagePath(caseData.id, currency)}" 
+              <img src="${caseImageSrc}" 
                    alt="${caseData.name}" 
                    loading="lazy"
                    decoding="async"
@@ -2021,12 +2105,15 @@ function getBalanceSafe(currency) {
         `;
       }
 
+      applyAdaptiveCasePathGlow(pathItem, caseImageSrc, currency, caseData.id);
+
       pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
       casesPath.appendChild(pathItem);
     });
 
-    if (isStarsTheme) appendStarsFireflies(casesPath);
-
+    if (currency === 'stars') {
+      appendStarsFireflies(casesPath);
+    }
     setupCasesPathAnimationVisibility(casesPath);
   }
 
@@ -2275,7 +2362,7 @@ function getBalanceSafe(currency) {
     pendingRound = null;
 
     const closeCurrency = window.WildTimeCurrency?.current || 'ton';
-    const isStarsClose = closeCurrency === 'stars';
+    const isMeadowClose = closeCurrency === 'stars' || closeCurrency === 'ton';
     const starsCloseDelayMs = 220;
 
     if (sheetPanel) sheetPanel.classList.remove('active');
@@ -2283,21 +2370,21 @@ function getBalanceSafe(currency) {
 
     safeHaptic('impact', 'light');
 
-    // In Stars mode hide the whole layer before removing `case-sheet-open`
+    // In meadow mode hide the whole layer before removing `case-sheet-open`
     // so legacy bottom-sheet styles never get a chance to flash.
     const finalizeClose = () => {
       if (caseSheetBackNavFallbackTimer) {
         clearTimeout(caseSheetBackNavFallbackTimer);
         caseSheetBackNavFallbackTimer = 0;
       }
-      if (isStarsClose) hideCaseSheetLayerImmediately();
+      if (isMeadowClose) hideCaseSheetLayerImmediately();
       unlockCaseSheetScreen();
       isAnimating = false;
       currentCase = null;
       caseSheetBackNavPending = false;
     };
 
-    if (isStarsClose) {
+    if (isMeadowClose) {
       setTimeout(finalizeClose, starsCloseDelayMs);
     } else {
       finalizeClose();
@@ -2377,7 +2464,11 @@ function getBalanceSafe(currency) {
     if (priceEl) {
       priceEl.textContent = demoActive ? 'FREE' : formatAmount(currency, totalPrice);
     }
-    if (iconEl) iconEl.src = getCaseCurrencyIcon(currency);
+    if (iconEl) {
+      iconEl.src = (currency === 'ton')
+        ? assetUrl('icons/tgTonWhite.svg')
+        : getCaseCurrencyIcon(currency);
+    }
 
     openBtn.classList.toggle('demo-mode', demoActive);
   }
@@ -2515,7 +2606,7 @@ function getBalanceSafe(currency) {
     carousels = [];
     stopAllAnimations();
 
-    const heights = (currency === 'stars')
+    const heights = (currency === 'stars' || currency === 'ton')
       ? { 1: 132, 2: 88, 3: 74 }
       : { 1: 100, 2: 85, 3: 70 };
     const height = heights[count] || 100;
@@ -2528,7 +2619,7 @@ function getBalanceSafe(currency) {
       setTimeout(() => carousel.element.classList.add('active'), i * 100);
     }
 
-    if (currency === 'stars') {
+    if (currency === 'stars' || currency === 'ton') {
       requestAnimationFrame(() => {
         carousels.forEach((carousel) => {
           alignCarouselToCenterLine(carousel);
@@ -2673,7 +2764,8 @@ function getBalanceSafe(currency) {
     const cont = carousel?.itemsContainer;
     if (!cont || !cont.children || !cont.children.length) return;
 
-    const starsMode = (window.WildTimeCurrency?.current || 'ton') === 'stars'
+    const currentCurrency = window.WildTimeCurrency?.current || 'ton';
+    const starsMode = (currentCurrency === 'stars' || currentCurrency === 'ton')
       && document.body.classList.contains('case-sheet-open');
     const force = !!(options && options.force);
     const now = Number(options && options.now);
@@ -3283,7 +3375,7 @@ function getBalanceSafe(currency) {
     stopAllAnimations();
     setWinningGiftPillsVisible(false);
 
-    const starsPerfMode = currency === 'stars' && (carousels.length >= 3 || isStarsCarouselPerfStress());
+    const starsPerfMode = (currency === 'stars' || currency === 'ton') && (carousels.length >= 3 || isStarsCarouselPerfStress());
     const MIN_STRIP_LENGTH = starsPerfMode
       ? (casesLowMotion ? 116 : 140)
       : (casesLowMotion ? 128 : 170);
@@ -4498,6 +4590,7 @@ async function onNftSellClick() {
 
     initHeroTicker();
     renderHistory(historyState);
+    clearLegacyCasesCurrencySwapArtifacts();
     generateCasesGrid();
 
     if (currentCase && sheetPanel?.classList.contains('active')) {

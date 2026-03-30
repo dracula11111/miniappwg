@@ -1041,6 +1041,52 @@
   color: rgba(255,255,255,0.88);
   text-transform: uppercase;
 }
+.wheel-players-panel__count {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: rgba(255,255,255,0.56);
+  white-space: nowrap;
+}
+
+.wheel-players-panel__hash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 58%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  opacity: 0.38;
+  color: rgba(255,255,255,0.56);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.wheel-players-panel__hash:hover {
+  opacity: 0.58;
+}
+
+.wheel-players-panel__hashIcon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+
+.wheel-players-panel__hashText {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* count badge вЂ” frosted pill */
 
@@ -1273,6 +1319,8 @@ flex: 0 0 auto;
 @media (max-width: 360px) {
   .wheel-player-pill__name      { max-width: 105px; }
   .wheel-player-pill__segments  { max-width: 120px; }
+  .wheel-players-panel__hash    { max-width: 50%; opacity: 0.34; }
+  .wheel-players-panel__count   { font-size: 10px; }
 }
 /* рџ”Ґ РљРћРњРџРђРљРўРќР«Р• РљРђР РўРћР§РљР РЎРўРђР’РћРљ (РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ РїСЂРё СЃРїРёРЅРµ) */
 .bet-cards-compact {
@@ -2684,4 +2732,5 @@ flex: 0 0 auto;
           hue-rotate(335deg) brightness(100%) contrast(92%)
           drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
+
 

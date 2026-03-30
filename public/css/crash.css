@@ -643,7 +643,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 18px 12px;
+    min-height: 42px;
     flex: 0 0 auto;
+    position: relative;
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
   
@@ -652,6 +654,53 @@
     font-weight: 800;
     color: var(--cr-text);
     letter-spacing: 0.3px;
+  }
+
+  .crash-panel__game {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  .crash-panel__hash {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 56%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    opacity: 0.38;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .crash-panel__hash:hover {
+    opacity: 0.58;
+  }
+
+  .crash-panel__hashIcon {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    opacity: 0.65;
+  }
+
+  .crash-panel__hashText {
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   
   .crash-players {
@@ -2489,6 +2538,15 @@ body.page-crash.crash-space-ui .crash-mult {
   .crash-topThemeIco {
     width: 23px;
     height: 23px;
+  }
+
+  .crash-panel__title {
+    font-size: 16px;
+  }
+
+  .crash-panel__hash {
+    max-width: 48%;
+    opacity: 0.34;
   }
 }
 

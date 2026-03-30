@@ -203,6 +203,11 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     <div class="crash-panel">
       <div class="crash-panel__head">
         <div class="crash-panel__title">Players</div>
+        <button class="crash-panel__hash" id="crashRoundHashCopy" type="button" aria-label="Copy round hash">
+          <img class="crash-panel__hashIcon" src="/icons/copy.svg" alt="" aria-hidden="true" />
+          <span class="crash-panel__hashText" id="crashRoundHashLabel">Hash #--</span>
+        </button>
+        <div class="crash-panel__game" id="crashGameCounter">Game #1</div>
       </div>
       <div class="crash-players" id="crashPlayers"></div>
     </div>
@@ -264,6 +269,9 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     const betTextEl = document.getElementById(BET_TEXT_ID);
     const statusEl = document.getElementById(STATUS_ID);
     const playersEl = document.getElementById("crashPlayers");
+    const gameCounterEl = document.getElementById("crashGameCounter");
+    const roundHashCopyBtn = document.getElementById("crashRoundHashCopy");
+    const roundHashLabelEl = document.getElementById("crashRoundHashLabel");
     const spaceLayerEl = document.getElementById("crashSpaceLayer");
     const spaceCanvas = document.getElementById("crashSpaceCanvas");
     const spaceCtx = spaceCanvas?.getContext("2d", { alpha: true, desynchronized: true }) || null;
@@ -333,6 +341,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       phase: "betting",
       phaseStart: 0,
       roundId: 0,
+      gameCounter: 0,
+      roundHash: "",
       crashPoint: 2.0,
       serverMult: 1.0,
       displayMult: 1.0,
@@ -393,6 +403,55 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       lastRenderAt: 0
 
     };
+
+    function formatHashPreview(hash) {
+      const raw = String(hash || "").trim();
+      if (!raw) return "Hash #--";
+      if (raw.length <= 10) return `Hash #${raw}`;
+      return `Hash #${raw.slice(0, 4)}...${raw.slice(-3)}`;
+    }
+
+    async function copyToClipboard(text) {
+      const value = String(text || "").trim();
+      if (!value) return false;
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return true;
+        }
+      } catch (_) {}
+
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return !!copied;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function renderPlayersPanelMeta() {
+      const gameNo = Number.isFinite(Number(state.gameCounter)) && Number(state.gameCounter) > 0
+        ? Math.trunc(Number(state.gameCounter))
+        : Math.max(0, Math.trunc(Number(state.roundId) || 0));
+
+      if (gameCounterEl) {
+        gameCounterEl.textContent = `Game #${Math.max(1, gameNo || 1)}`;
+      }
+
+      if (roundHashLabelEl) {
+        roundHashLabelEl.textContent = formatHashPreview(state.roundHash);
+      }
+    }
+
     function isRunPhase(phase) {
       return phase === "run" || phase === "running" || phase === "inGame";
     }
@@ -1232,6 +1291,10 @@ function handleTestCrash() {
             state.bettingLeftAt = Date.now();
           }
           state.roundId = msg.roundId;
+          state.gameCounter = Number.isFinite(Number(msg.gameCounter)) && Number(msg.gameCounter) > 0
+            ? Math.trunc(Number(msg.gameCounter))
+            : Math.max(0, Math.trunc(Number(msg.roundId) || 0));
+          state.roundHash = typeof msg.roundHash === "string" ? String(msg.roundHash).trim() : "";
           state.crashPoint = msg.crashPoint;
           state.serverMult = (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) ? msg.currentMult : 1.0;
           state.players = msg.players || [];
@@ -1270,6 +1333,7 @@ function handleTestCrash() {
           }
 
           // Sync UI (heavy stuff only here, not on tick)
+          renderPlayersPanelMeta();
           renderPlayers();
           renderHistory();
           updateUIForPhase();
@@ -2086,6 +2150,13 @@ function showToast(text, opts = {}) {
       opener?.click?.();
     });
 
+    roundHashCopyBtn?.addEventListener("click", async () => {
+      const hash = String(state.roundHash || "").trim();
+      if (!hash) return;
+      const copied = await copyToClipboard(hash);
+      if (copied) setStatus("Hash copied");
+    });
+
     // Render visual candles based on serverMult
     function addCandle() {
       const prevClose = state.candles.length ? state.candles[state.candles.length - 1].close : 1.0;
@@ -2663,6 +2734,7 @@ const yOf = (v) => {
       if (running) return;
       running = true;
       resize();
+      renderPlayersPanelMeta();
       renderPills();
       startCurrencyPolling();
       connectWebSocket();

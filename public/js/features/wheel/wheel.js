@@ -482,6 +482,7 @@ function applyWheelServerState(state) {
 
   wheelServerState = state;
   window.__wheelPayoutMode = state?.payoutMode || 'client';
+  syncWheelPlayersPanelMeta(state);
 
   // classes for CSS
   document.body.classList.toggle('is-betting', state.phase === 'betting');
@@ -942,7 +943,8 @@ const wheelRootEl = document.documentElement;
 let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
-let wheelPlayersPanel, wheelPlayersList;
+let wheelPlayersPanel, wheelPlayersList, wheelGameCounterEl, wheelRoundHashCopyBtn, wheelRoundHashLabelEl;
+let wheelRoundHashRaw = '';
 
 /* ===== wheel state ===== */
 let currentAngle = 0;
@@ -1232,10 +1234,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   countNumEl   = document.getElementById('countNum') || countdownBox?.querySelector('span');
   wheelPlayersPanel = document.getElementById('wheelPlayersPanel');
   wheelPlayersList  = document.getElementById('wheelPlayersList');
-  
-  // 🔥 Скрываем счётчик при загрузке
-  setTimeout(() => hidePlayersPanelCounter(), 100);
- 
+  wheelGameCounterEl = document.getElementById('wheelGameCounter');
+  wheelRoundHashCopyBtn = document.getElementById('wheelRoundHashCopy');
+  wheelRoundHashLabelEl = document.getElementById('wheelRoundHashLabel');
+  syncWheelPlayersPanelMeta();
+  wheelRoundHashCopyBtn?.addEventListener('click', async () => {
+    if (!wheelRoundHashRaw) return;
+    await copyWheelHashToClipboard(wheelRoundHashRaw);
+  });
   // Берём элементы ставок только из оверлея (чтобы не цеплять элементы с других страниц)
   const __betScope = betOverlay || document;
   amountBtns = Array.from(__betScope.querySelectorAll('.amount-btn'));
@@ -2750,6 +2756,55 @@ function formatWheelAmount(amount, currency) {
   return n.toFixed(2);
 }
 
+function formatWheelHashPreview(hash) {
+  const raw = String(hash || '').trim();
+  if (!raw) return 'Hash #--';
+  if (raw.length <= 10) return `Hash #${raw}`;
+  return `Hash #${raw.slice(0, 4)}...${raw.slice(-3)}`;
+}
+
+async function copyWheelHashToClipboard(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (_) {}
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!copied;
+  } catch (_) {
+    return false;
+  }
+}
+
+function syncWheelPlayersPanelMeta(state = wheelServerState) {
+  const gameNo = Number.isFinite(Number(state?.gameCounter)) && Number(state.gameCounter) > 0
+    ? Math.trunc(Number(state.gameCounter))
+    : Math.max(0, Math.trunc(Number(state?.roundId) || 0));
+
+  if (wheelGameCounterEl) {
+    wheelGameCounterEl.textContent = `Game #${Math.max(1, gameNo || 1)}`;
+  }
+
+  wheelRoundHashRaw = String(state?.roundHash || '').trim();
+  if (wheelRoundHashLabelEl) {
+    wheelRoundHashLabelEl.textContent = formatWheelHashPreview(wheelRoundHashRaw);
+  }
+}
+
 function getWheelPlayersSnapshot() {
   // Right now wheel bets are local on client → показываем хотя бы текущего игрока.
   // Позже можно заменить на мультиплеер/WS и передавать массив игроков.
@@ -2846,40 +2901,9 @@ function renderWheelPlayers(players) {
 }
 
 
-// 🔥 Функция для скрытия счётчика игроков в правом углу панели
+// Legacy hook name used by older call-sites: now it only syncs Game/Hash meta.
 function hidePlayersPanelCounter() {
-  if (!wheelPlayersPanel) return;
-  
-  // Ищем все возможные элементы счётчика
-  const selectors = [
-    '.wheel-players-panel__counter',
-    '.wheel-players-panel__count',
-    '.wheel-players-count',
-    '.players-counter',
-    '.players-count',
-    '[class*="counter"]',
-    '[class*="count"]'
-  ];
-  
-  for (const selector of selectors) {
-    const counters = wheelPlayersPanel.querySelectorAll(selector);
-    counters.forEach(counter => {
-      // Проверяем, не является ли это важным элементом
-      const text = counter.textContent?.trim();
-      if (text === '0' || text === '' || /^\d+$/.test(text)) {
-        counter.style.display = 'none';
-      }
-    });
-  }
-  
-  // Также проверяем прямые дочерние элементы панели
-  if (wheelPlayersPanel.children) {
-    Array.from(wheelPlayersPanel.children).forEach(child => {
-      if (child !== wheelPlayersList && child.textContent?.trim() === '0') {
-        child.style.display = 'none';
-      }
-    });
-  }
+  syncWheelPlayersPanelMeta(wheelServerState);
 }
 
 function getWheelPlayersForPanel() {
@@ -3650,4 +3674,5 @@ console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
   } catch (_) {}
   
 })();
+
 
