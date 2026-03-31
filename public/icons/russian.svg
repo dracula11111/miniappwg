@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-label="Russian flag">
+  <defs>
+    <clipPath id="r">
+      <rect x="4" y="4" width="40" height="40" rx="20" ry="20"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="48" height="16" y="0" fill="#ffffff"/>
+    <rect width="48" height="16" y="16" fill="#1d4ed8"/>
+    <rect width="48" height="16" y="32" fill="#dc2626"/>
+  </g>
+</svg>

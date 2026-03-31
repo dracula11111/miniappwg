@@ -243,7 +243,15 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
+  overflow-x: clip;
   position: relative;
+}
+
+#casesPage,
+#casesPage #casesGrid.cases-path,
+#casesPage .cases-path{
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 /* Center TON/Stars switch in topbar, visible only on Cases page */
@@ -453,6 +461,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
   padding: 18px 0 120px; /* bottom safe for navbar */
   min-height: 100dvh;
   overflow-x: hidden !important;
+  overflow-x: clip !important;
   scroll-behavior: smooth;
 }
 
@@ -484,6 +493,12 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
   content-visibility: visible;
   contain-intrinsic-size: auto;
   overflow: visible;
+}
+
+@supports (-webkit-touch-callout: none){
+  #casesPage .case-path-item::after{
+    width: min(1100px, 100vw);
+  }
 }
 
 

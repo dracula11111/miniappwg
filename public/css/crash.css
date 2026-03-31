@@ -1301,6 +1301,31 @@
   }
 }
 
+/* iOS/Safari centering + compact WAITING label */
+.crash-timer {
+  left: 50% !important;
+  right: auto !important;
+  margin: 0 !important;
+  transform: translate3d(-50%, -50%, 0) !important;
+  width: max-content;
+  min-width: 1ch;
+  align-items: center;
+  justify-content: center;
+}
+
+.crash-timer.is-label {
+  font-size: clamp(24px, 7.6vw, 36px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(236, 246, 255, 0.94);
+  text-shadow:
+    0 0 16px rgba(0, 212, 255, 0.24),
+    0 0 28px rgba(0, 212, 255, 0.16),
+    0 3px 18px rgba(0, 0, 0, 0.55);
+  animation: none !important;
+}
+
 
 /* РСЃС‚РѕСЂРёСЏ СЂР°СѓРЅРґРѕРІ - РєРѕРјРїР°РєС‚РЅР°СЏ РІРµСЂСЃРёСЏ РІРЅРёР·Сѓ РєР°СЂС‚С‹ */
 .crash-history {

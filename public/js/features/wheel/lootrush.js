@@ -643,9 +643,23 @@ class LootRush {
       }
 
       const serverPayoutMode = window.__wheelPayoutMode === 'server';
-      const revealIndex = serverPayoutMode
-        ? this._sharedWinnerIndex
-        : (Number.isInteger(pickedIdx) ? pickedIdx : this._sharedWinnerIndex);
+      const hasPickedIndex = Number.isInteger(pickedIdx);
+      const revealIndex = hasPickedIndex ? pickedIdx : this._sharedWinnerIndex;
+
+      // Keep server-authoritative payout, but always reveal/highlight the bag chosen by player.
+      // We remap multiplier into picked slot so visual pick and outcome never diverge.
+      if (
+        serverPayoutMode &&
+        hasPickedIndex &&
+        Number.isInteger(this._sharedWinnerIndex) &&
+        this._sharedWinnerIndex >= 0 &&
+        this._sharedWinnerIndex < this._multipliers.length &&
+        pickedIdx !== this._sharedWinnerIndex
+      ) {
+        const tmp = this._multipliers[pickedIdx];
+        this._multipliers[pickedIdx] = this._multipliers[this._sharedWinnerIndex];
+        this._multipliers[this._sharedWinnerIndex] = tmp;
+      }
 
       if (this._aborted) return;
 

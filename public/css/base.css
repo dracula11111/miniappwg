@@ -22,6 +22,8 @@
       html,body{ 
         height:100%;                                     /* Высота 100% */
         margin:0;                                        /* Убираем отступы */
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
       }
       body{
         background:                                      /* Двойной градиент фона */
@@ -41,8 +43,19 @@
         
         color: #ffffff;                                  /* Белый текст */
         overflow-x: hidden;                              /* Убираем горизонтальную прокрутку */
+        overflow-x: clip;
         min-height: 100vh;                               /* Fallback для старых браузеров */
         min-height: 100dvh;                              /* Точная высота viewport на мобильных */
+      }
+
+      html{
+        scrollbar-width: none;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar{
+        width: 0;
+        height: 0;
+        display: none;
       }
 
 

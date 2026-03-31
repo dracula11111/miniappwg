@@ -430,6 +430,14 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     };
 
+    let lastRenderedMetaKey = null;
+    let lastRenderedHistoryKey = null;
+    let lastRenderedPlayersKey = null;
+    let lastUiPhaseKey = null;
+    let lastStatusText = null;
+    let lastTimerText = null;
+    let lastTimerVisible = null;
+
     function formatHashPreview(hash) {
       const raw = String(hash || "").trim();
       if (!raw) return "Hash #--";
@@ -464,17 +472,28 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       }
     }
 
-    function renderPlayersPanelMeta() {
+    function renderPlayersPanelMeta(force = false) {
       const gameNo = Number.isFinite(Number(state.gameCounter)) && Number(state.gameCounter) > 0
         ? Math.trunc(Number(state.gameCounter))
         : Math.max(0, Math.trunc(Number(state.roundId) || 0));
 
+      const nextGameText = `Game #${Math.max(1, gameNo || 1)}`;
+      const nextHashText = formatHashPreview(state.roundHash);
+      const nextMetaKey = `${nextGameText}|${nextHashText}`;
+
+      if (!force && nextMetaKey === lastRenderedMetaKey) return;
+      lastRenderedMetaKey = nextMetaKey;
+
       if (gameCounterEl) {
-        gameCounterEl.textContent = `Game #${Math.max(1, gameNo || 1)}`;
+        if (gameCounterEl.textContent !== nextGameText) {
+          gameCounterEl.textContent = nextGameText;
+        }
       }
 
       if (roundHashLabelEl) {
-        roundHashLabelEl.textContent = formatHashPreview(state.roundHash);
+        if (roundHashLabelEl.textContent !== nextHashText) {
+          roundHashLabelEl.textContent = nextHashText;
+        }
       }
     }
 
@@ -1399,9 +1418,11 @@ function handleTestCrash() {
           state.serverMult = (typeof msg.currentMult === 'number' && Number.isFinite(msg.currentMult)) ? msg.currentMult : 1.0;
           state.players = msg.players || [];
           state.history = msg.history || [];
+          const isRoundChanged = state.roundId !== prevRoundId;
+          const isPhaseChanged = state.phase !== prevPhase;
 
           // New round -> reset visuals so graph/multiplier doesn't "jump"
-          if (state.roundId !== prevRoundId) {
+          if (isRoundChanged) {
             state.candles = [];
             state.displayMult = 1.0;
             state.lastCandleAt = 0;
@@ -1432,10 +1453,10 @@ function handleTestCrash() {
             state.serverMult = 1.0;
           }
 
-          // Sync UI (heavy stuff only here, not on tick)
-          renderPlayersPanelMeta();
-          renderPlayers();
-          renderHistory();
+          // Sync UI: avoid re-rendering heavy blocks when snapshot data is unchanged.
+          renderPlayersPanelMeta(isRoundChanged);
+          renderPlayers(isRoundChanged || isPhaseChanged);
+          renderHistory(isRoundChanged);
           updateUIForPhase();
           break;
         }
@@ -1502,9 +1523,23 @@ function handleTestCrash() {
       }
     }
 
-    function updateUIForPhase() {
+    function updateUIForPhase(force = false) {
       const myPlayer = state.players.find(p => p.userId === getUserId());
       state.myBet = myPlayer;
+
+      const myAmount = Number(myPlayer?.amount);
+      const myClaimMult = Number(myPlayer?.claimMult);
+      const myPlayerKey = myPlayer
+        ? [
+            String(myPlayer.userId ?? ""),
+            myPlayer.claimed ? "1" : "0",
+            Number.isFinite(myAmount) ? myAmount.toFixed(4) : "0.0000",
+            Number.isFinite(myClaimMult) ? myClaimMult.toFixed(4) : "0.0000"
+          ].join(":")
+        : "none";
+      const nextUiPhaseKey = `${state.roundId}|${state.phase}|${state.actionLock ? 1 : 0}|${myPlayerKey}`;
+      if (!force && nextUiPhaseKey === lastUiPhaseKey) return;
+      lastUiPhaseKey = nextUiPhaseKey;
 
       switch (state.phase) {
         case 'waiting':
@@ -1657,7 +1692,11 @@ function handleTestCrash() {
     
 
     function setStatus(text) {
-      if (statusEl) statusEl.textContent = text;
+      if (!statusEl) return;
+      const nextText = String(text ?? "");
+      if (nextText === lastStatusText) return;
+      lastStatusText = nextText;
+      statusEl.textContent = nextText;
     }
 
 function showToast(text, opts = {}) {
@@ -1723,13 +1762,26 @@ function showToast(text, opts = {}) {
     function setTimer(seconds, show) {
       if (!timerEl) return;
 
-      if (show) {
-        timerEl.textContent = seconds;
+      const shouldShow = !!show;
+      const nextText = shouldShow ? String(seconds ?? "") : "";
+      const isNumericTimer = shouldShow && /^\d+$/.test(nextText.trim());
+
+      if (shouldShow && nextText !== lastTimerText) {
+        lastTimerText = nextText;
+        timerEl.textContent = nextText;
+      }
+
+      timerEl.classList.toggle('is-label', shouldShow && !isNumericTimer);
+
+      if (lastTimerVisible !== shouldShow) {
         // Safari/iOS can mis-center absolutely-positioned block elements.
         // Keep countdown as shrink-to-content so left:50% + translateX(-50%) stays exact.
-        timerEl.style.display = 'inline-block';
-      } else {
-        timerEl.style.display = 'none';
+        timerEl.style.display = shouldShow ? 'inline-flex' : 'none';
+        if (shouldShow) {
+          timerEl.style.left = '50%';
+          timerEl.style.transform = 'translate(-50%, -50%)';
+        }
+        lastTimerVisible = shouldShow;
       }
     }
 
@@ -1785,13 +1837,20 @@ function showToast(text, opts = {}) {
       return 'color-5';
     }
 
-    function renderHistory() {
+    function renderHistory(force = false) {
       const historyEl = document.getElementById('crashHistory');
       if (!historyEl) return;
 
-      historyEl.innerHTML = state.history
-        .slice(0, 15)
-        .map(mult => {
+      const view = (state.history || []).slice(0, 15).map((mult) => {
+        const n = Number(mult);
+        return Number.isFinite(n) ? n : 0;
+      });
+      const nextHistoryKey = view.map((mult) => mult.toFixed(2)).join("|");
+      if (!force && nextHistoryKey === lastRenderedHistoryKey) return;
+      lastRenderedHistoryKey = nextHistoryKey;
+
+      historyEl.innerHTML = view
+        .map((mult) => {
           const colorClass = getMultColor(mult);
           return `<div class="crash-history__item ${colorClass}">${formatX(mult)}</div>`;
         })
@@ -1807,15 +1866,33 @@ function showToast(text, opts = {}) {
       }
     }
     
-    function renderPlayers() {
+    function renderPlayers(force = false) {
       if (!playersEl) return;
 
       const userId = getUserId();
       const sortedPlayers = [...state.players].sort((a, b) => {
         if (a.userId === userId) return -1;
         if (b.userId === userId) return 1;
-        return (b.amount || 0) - (a.amount || 0);
+        const byAmount = (b.amount || 0) - (a.amount || 0);
+        if (Math.abs(byAmount) > 1e-9) return byAmount;
+        return String(a?.userId ?? "").localeCompare(String(b?.userId ?? ""));
       });
+
+      const nextPlayersKey = `${state.phase}|${sortedPlayers.map((player) => {
+        const amount = Number(player?.amount);
+        const claimMult = Number(player?.claimMult);
+        return [
+          String(player?.userId ?? ""),
+          Number.isFinite(amount) ? amount.toFixed(4) : "0.0000",
+          player?.currency === "stars" ? "s" : "t",
+          player?.claimed ? "1" : "0",
+          Number.isFinite(claimMult) ? claimMult.toFixed(4) : "0.0000",
+          String(player?.name ?? player?.username ?? ""),
+          String(player?.avatar ?? "")
+        ].join(":");
+      }).join("|")}`;
+      if (!force && nextPlayersKey === lastRenderedPlayersKey) return;
+      lastRenderedPlayersKey = nextPlayersKey;
 
       if (sortedPlayers.length === 0) {
         playersEl.innerHTML = `

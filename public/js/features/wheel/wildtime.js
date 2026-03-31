@@ -797,6 +797,8 @@
     el.classList.remove("wt-jarBtn--floating");
     el.style.marginTop = "";
     el.style.transition = `transform ${ms}ms cubic-bezier(0.22,0.75,0.12,1), opacity 220ms ease`;
+    // Force style commit so Safari/iOS doesn't skip transition frames.
+    void el.offsetWidth;
     setJarVars(el, x, y, rotDeg, 0, 1);
     await sleep(ms);
     el.style.transition = "";
@@ -855,7 +857,7 @@
 
     // Multipliers remain hidden until timer ends.
 
-    const jarNum = randInt(1, CFG.jarPool);
+    const jarNums = pickUniqueJars();
     const jars = [];
 
     // Create jars (each jar "carries" its mult with it, like shells)
@@ -864,6 +866,7 @@
       btn.type = "button";
       btn.className = "wt-jarBtn";
       btn.disabled = true;
+      const jarNum = jarNums[i % jarNums.length];
       btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${jarNum}.png" alt="">`;
       row.appendChild(btn);
 
@@ -940,7 +943,10 @@
       // last steps are extra fast
       if (s > CFG.jarShuffleSteps - 5) ms = Math.max(70, ms - 25);
 
-      const perm = shuffleArray([0, 1, 2]); // which slot each jar goes to
+      let perm = shuffleArray([0, 1, 2]); // which slot each jar goes to
+      if (perm.every((slot, idx) => slot === jars[idx].pos)) {
+        perm = [perm[1], perm[2], perm[0]];
+      }
       jars.forEach((j, idx) => { j.pos = perm[idx]; });
 
       const kick = (rand() * 2 - 1) * clamp(jarH * 0.08, 10, 18);

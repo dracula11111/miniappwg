@@ -1422,7 +1422,7 @@
   
     /* The core positioning transform — all movement goes through here */
     transform:
-      translate(var(--x, 0px), var(--y, 0px))
+      translate3d(var(--x, 0px), var(--y, 0px), 0)
       rotate(var(--rot, 0deg))
       translateY(calc(-1 * var(--lift, 0px)));
   
@@ -1459,14 +1459,14 @@
   }
   #wildTimeOverlay .wt-jarBtn.wt-jarBtn--selectable:hover {
     transform:
-      translate(var(--x, 0px), var(--y, 0px))
+      translate3d(var(--x, 0px), var(--y, 0px), 0)
       rotate(var(--rot, 0deg))
       translateY(calc(-1 * var(--lift, 0px)))
       scale(1.07) translateY(-8px);
   }
   #wildTimeOverlay .wt-jarBtn:active {
     transform:
-      translate(var(--x, 0px), var(--y, 0px))
+      translate3d(var(--x, 0px), var(--y, 0px), 0)
       rotate(var(--rot, 0deg))
       translateY(calc(-1 * var(--lift, 0px)))
       scale(0.96);
@@ -1499,7 +1499,7 @@
      The lift class just enables a smoother transition for the upward reveal. */
   
   #wildTimeOverlay .wt-jarImg {
-    width: clamp(80px, 20vw, 200px);
+    width: clamp(108px, 26vw, 240px);
     height: auto;
     display: block;
     object-fit: contain;
@@ -1647,6 +1647,9 @@
     #wildTimeOverlay .wt-jarRow {
       gap: clamp(12px, 5vw, 80px);
       padding: clamp(16px, 4vw, 30px) clamp(12px, 3vw, 25px);
+    }
+    #wildTimeOverlay .wt-jarImg {
+      width: clamp(98px, 30vw, 198px);
     }
     #wildTimeOverlay .wt-mult     { font-size:clamp(40px, 12vw, 100px); }
     #wildTimeOverlay .wt-countdown{ font-size:clamp(44px, 14vw, 90px); }

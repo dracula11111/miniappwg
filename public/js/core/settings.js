@@ -22,6 +22,22 @@
     let currentLang = String(
       window.WT?.i18n?.getLanguage?.() || localStorage.getItem('wt-language') || 'en'
     ).toLowerCase().startsWith('ru') ? 'ru' : 'en';
+    let flagSwitchSwapTimer = 0;
+    let flagSwitchCleanupTimer = 0;
+    let flagSwitchToken = 0;
+    const prefersReducedMotion = (() => {
+      try { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches; } catch { return false; }
+    })();
+    const isIOSLike = (() => {
+      try {
+        const ua = String(navigator?.userAgent || '');
+        const byDevice = /iPad|iPhone|iPod/i.test(ua);
+        const byDesktopMode = navigator?.platform === 'MacIntel' && Number(navigator?.maxTouchPoints || 0) > 1;
+        return byDevice || byDesktopMode;
+      } catch {
+        return false;
+      }
+    })();
   
     // ====== FLAG FORMAT DETECTION ======
     // Определяем лучший формат для браузера
@@ -33,8 +49,8 @@
         if (supportsWebP) return 'webp';
       }
       
-      // Используем APNG (поддерживается почти везде)
-      return 'apng';
+      // Fallback: SVG files exist in /icons and are always supported.
+      return 'svg';
     })();
   
     console.log('[Settings] Using flag format:', FLAG_FORMAT);
@@ -234,6 +250,17 @@
       const flagName = lang === 'en' ? 'english' : 'russian';
       return `/icons/${flagName}.${FLAG_FORMAT}`;
     }
+
+    function clearFlagSwitchTimers() {
+      if (flagSwitchSwapTimer) {
+        clearTimeout(flagSwitchSwapTimer);
+        flagSwitchSwapTimer = 0;
+      }
+      if (flagSwitchCleanupTimer) {
+        clearTimeout(flagSwitchCleanupTimer);
+        flagSwitchCleanupTimer = 0;
+      }
+    }
   
     function updateLanguageDisplay() {
       if (!languageSwitcher) return;
@@ -249,21 +276,37 @@
       
       // Update flag with swap animation
       if (flagImg) {
-        // Add switching class for animation
+        const flagSrc = getFlagPath(currentLang);
+        const altText = currentLang === 'en' ? 'English Flag' : 'Russian Flag';
+        const translatedAlt = window.WT?.i18n?.translate?.(altText) || altText;
+        const immediateSwap = prefersReducedMotion || isIOSLike;
+
+        clearFlagSwitchTimers();
+        flagSwitchToken += 1;
+
+        if (immediateSwap) {
+          flagImg.classList.remove('flag-switching');
+          if (flagImg.src !== flagSrc) flagImg.src = flagSrc;
+          flagImg.alt = translatedAlt;
+          return;
+        }
+
+        const token = flagSwitchToken;
+        flagImg.classList.remove('flag-switching');
+        // Restart CSS animation reliably.
+        void flagImg.offsetWidth;
         flagImg.classList.add('flag-switching');
-        
-        // Change flag image in the middle of animation
-        setTimeout(() => {
-          const flagSrc = getFlagPath(currentLang);
-          flagImg.src = flagSrc;
-          const altText = currentLang === 'en' ? 'English Flag' : 'Russian Flag';
-          flagImg.alt = window.WT?.i18n?.translate?.(altText) || altText;
-          
-          // Remove switching class after animation
-          setTimeout(() => {
-            flagImg.classList.remove('flag-switching');
-          }, 150);
-        }, 150);
+
+        flagSwitchSwapTimer = setTimeout(() => {
+          if (token !== flagSwitchToken) return;
+          if (flagImg.src !== flagSrc) flagImg.src = flagSrc;
+          flagImg.alt = translatedAlt;
+        }, 120);
+
+        flagSwitchCleanupTimer = setTimeout(() => {
+          if (token !== flagSwitchToken) return;
+          flagImg.classList.remove('flag-switching');
+        }, 320);
       }
     }
   
@@ -298,7 +341,9 @@
     window.addEventListener('language:changed', (event) => {
       const lang = String(event?.detail?.language || '').toLowerCase();
       if (!lang) return;
-      currentLang = lang.startsWith('ru') ? 'ru' : 'en';
+      const nextLang = lang.startsWith('ru') ? 'ru' : 'en';
+      if (nextLang === currentLang) return;
+      currentLang = nextLang;
       updateLanguageDisplay();
     });
   
