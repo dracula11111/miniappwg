@@ -1771,6 +1771,7 @@ function getBalanceSafe(currency) {
 
     createDemoToggle();
     attachListeners();
+    ensureCasesThemeBackdrop();
     preloadCasesThemeBackgrounds();
     clearLegacyCasesCurrencySwapArtifacts();
     generateCasesGrid();
@@ -1996,6 +1997,22 @@ function getBalanceSafe(currency) {
         img.src = src;
       } catch (_) {}
     }
+  }
+
+  function ensureCasesThemeBackdrop() {
+    const host = document.body;
+    if (!host) return;
+    if (document.getElementById('casesThemeBackdrop')) return;
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'casesThemeBackdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+    backdrop.innerHTML = `
+      <div class="cases-theme-bg-layer cases-theme-bg-layer--stars"></div>
+      <div class="cases-theme-bg-layer cases-theme-bg-layer--ton"></div>
+    `;
+
+    host.insertBefore(backdrop, host.firstChild || null);
   }
 
   function clearLegacyCasesCurrencySwapArtifacts() {
@@ -3939,10 +3956,13 @@ async function showResult(currency, demoModeOverride, serverEnabledOverride) {
   const itemValue = (it) => prizeValue(it, currency);
 
 
-  const giftsRaw = giftEntries.reduce((sum, e) => sum + itemValue(e.item), 0);
   const giftsAmount = (currency === 'stars')
-    ? Math.max(0, Math.round(giftsRaw))
-    : Math.max(0, +(+giftsRaw).toFixed(2));
+    ? Math.max(0, giftEntries.reduce((sum, e) => sum + Math.round(itemValue(e.item) || 0), 0))
+    // TON: sum rounded item cents to avoid float drift (e.g. 0.015 becoming 0.01).
+    : Math.max(
+      0,
+      giftEntries.reduce((sum, e) => sum + Math.round((itemValue(e.item) || 0) * 100), 0) / 100
+    );
 
   const icon = currency === 'ton' ? assetUrl('icons/ton.svg') : assetUrl('icons/tgStarsWhite.svg');
 
@@ -4590,6 +4610,7 @@ async function onNftSellClick() {
 
     initHeroTicker();
     renderHistory(historyState);
+    ensureCasesThemeBackdrop();
     clearLegacyCasesCurrencySwapArtifacts();
     generateCasesGrid();
 

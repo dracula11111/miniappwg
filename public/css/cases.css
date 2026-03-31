@@ -87,24 +87,99 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage){
   --stars-price-ink: #ffffff;
   --stars-price-icon-filter: none;
   position: relative;
-  background:
-    #272727 url('/images/cases/starcases/starsbackimg.png')
-    center top / var(--stars-layout-w) auto no-repeat;
+  background: #272727;
   background-attachment: scroll;
-  background-repeat: no-repeat;
+  background-repeat: repeat;
   --sky-glass: rgba(13, 35, 17, 0.32);
   --sky-border: rgba(214, 255, 194, 0.22);
   --sky-shadow: rgba(8, 22, 11, 0.36);
 }
 
 html.currency-ton body:has(.page-active#casesPage){
-  background:
-    #272727 url('/images/cases/toncases/tonbackimg.webp')
-    center top / var(--stars-layout-w) auto no-repeat;
+  background: #272727;
 }
 
 html:is(.currency-stars,.currency-ton) body.page-cases{
   --stars-layout-w: min(100vw, 430px);
+  background: #272727;
+}
+
+body:has(.page-active#casesPage) .app,
+body.page-cases .app{
+  isolation: auto;
+}
+
+#casesThemeBackdrop{
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--stars-layout-w, min(100vw, 430px));
+  height: max(var(--stars-bg-h, 2400px), 100vh);
+  transform: translateX(-50%);
+  pointer-events: none;
+  overflow: visible;
+  z-index: -1;
+  opacity: 0;
+  background: #272727;
+  will-change: opacity;
+  transition: opacity 300ms ease;
+}
+
+body:has(.page-active#casesPage) #casesThemeBackdrop,
+body.page-cases #casesThemeBackdrop{
+  opacity: 1;
+}
+
+#casesThemeBackdrop .cases-theme-bg-layer{
+  position: absolute;
+  inset: 0;
+  background-position: center top;
+  background-size: var(--stars-layout-w, min(100vw, 430px)) auto;
+  background-repeat: no-repeat;
+  will-change: opacity, transform;
+  transition:
+    opacity 360ms cubic-bezier(0.22, 0.78, 0.16, 1),
+    transform 420ms cubic-bezier(0.22, 0.78, 0.16, 1);
+}
+
+#casesThemeBackdrop .cases-theme-bg-layer--stars{
+  background-image: url('/images/cases/starcases/starsbackimg.png');
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+#casesThemeBackdrop .cases-theme-bg-layer--ton{
+  background-image: url('/images/cases/toncases/tonbackimg.webp');
+  opacity: 0;
+  transform: translate3d(3.5%, 0, 0);
+}
+
+html.currency-stars #casesThemeBackdrop .cases-theme-bg-layer--stars{
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+html.currency-stars #casesThemeBackdrop .cases-theme-bg-layer--ton{
+  opacity: 0;
+  transform: translate3d(3.5%, 0, 0);
+}
+
+html.currency-ton #casesThemeBackdrop .cases-theme-bg-layer--stars{
+  opacity: 0;
+  transform: translate3d(-3.5%, 0, 0);
+}
+
+html.currency-ton #casesThemeBackdrop .cases-theme-bg-layer--ton{
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+@media (prefers-reduced-motion: reduce){
+  #casesThemeBackdrop,
+  #casesThemeBackdrop .cases-theme-bg-layer{
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::before{

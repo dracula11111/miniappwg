@@ -5641,7 +5641,11 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
-    const isUntrustedClientCredit = !isRelayer && amountNum > 0;
+    const allowedUntrustedClientCreditTypes = new Set(["case_gift_claim", "case_nft_sell"]);
+    const isUntrustedClientCredit =
+      !isRelayer &&
+      amountNum > 0 &&
+      !allowedUntrustedClientCreditTypes.has(typeNorm);
     if (isUntrustedClientCredit) {
       console.warn("[Deposit][SECURITY] Rejected untrusted positive credit:", {
         userId,
