@@ -6,7 +6,8 @@
    ============================================ */
 
    .games{
-    padding: 16px 16px 96px; /* +space for bottom nav */
+    /* Нижний отступ под nav уже даёт .app, тут оставляем только контентный */
+    padding: 16px 16px 14px;
   }
   
   .games__head{

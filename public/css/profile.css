@@ -1008,7 +1008,10 @@ html[data-currency="stars"] .profile-ava,
 
       @media (max-width:420px){
         .app{ 
-          padding-bottom: 94px; 
+          --wt-app-bottom-inset: calc(94px + env(safe-area-inset-bottom, 0px));
+          min-height: calc(100vh - 94px);
+          min-height: calc(100dvh - var(--wt-app-bottom-inset));
+          padding-bottom: var(--wt-app-bottom-inset);
         }
         .amount-btn img{ 
           width:34px; 

@@ -233,14 +233,6 @@ const ICON_TON = "/icons/tgTonWhite.svg";
           <button class="crash-buy" id="${BUY_ID}" type="button">Place bet</button>
           <button class="crash-plus" id="${PLUS_ID}" type="button" aria-label="Deposit">+</button>
         </div>
-
-        <div class="crash-helpRow">
-          <span id="${BET_LABEL_ID}" class="crash-betLabel">
-            <img id="${BET_ICON_ID}" class="crash-ico" src="${ICON_TON}" alt="" />
-            <span id="${BET_TEXT_ID}">Bet: 0.1</span>
-          </span>
-          <span id="${STATUS_ID}">Connecting…</span>
-        </div>
       </div>
     </div>
   </section>
@@ -280,6 +272,34 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     const boomEl = document.getElementById("crashRocketBoom");
     const timerEl = document.getElementById("crashTimer");
     const rootEl = document.documentElement;
+    const pointerCoarse = (() => {
+      try { return !!window.matchMedia?.("(pointer: coarse)")?.matches; } catch { return false; }
+    })();
+    const touchDevice = pointerCoarse || ((navigator?.maxTouchPoints || 0) > 0);
+    const cpuCores = Number(navigator?.hardwareConcurrency || 0);
+    const deviceMemory = Number(navigator?.deviceMemory || 0);
+    const lowPowerDevice = touchDevice && (
+      (Number.isFinite(cpuCores) && cpuCores > 0 && cpuCores <= 6) ||
+      (Number.isFinite(deviceMemory) && deviceMemory > 0 && deviceMemory <= 4)
+    );
+    const spacePerf = {
+      isTouch: touchDevice,
+      lowPower: lowPowerDevice,
+      dprCapSpace: lowPowerDevice ? 1.35 : (touchDevice ? 1.55 : 2.5),
+      dprCapDefault: touchDevice ? 2 : 2.5,
+      cloudCount: lowPowerDevice ? 7 : (touchDevice ? 9 : 12),
+      cloudTickMs: lowPowerDevice ? 42 : (touchDevice ? 34 : 20),
+      cssVarsTickMs: lowPowerDevice ? 46 : (touchDevice ? 34 : 20),
+      starsTickMs: lowPowerDevice ? 44 : (touchDevice ? 34 : 18),
+      maxStarsLite: lowPowerDevice ? 20 : (touchDevice ? 26 : 38),
+      maxStarsFull: lowPowerDevice ? 28 : (touchDevice ? 36 : 68),
+      starPoolSize: lowPowerDevice ? 44 : (touchDevice ? 56 : 96),
+      spaceFps: lowPowerDevice ? 30 : (touchDevice ? 36 : 55),
+      forceLiteStars: touchDevice
+    };
+    try {
+      document.body?.classList?.toggle?.("crash-space-perf-lite", !!touchDevice);
+    } catch (_) {}
     const ROCKET_SPRITES = Object.freeze([
       "/images/crash/rocketSpaceTheme1.webp",
       "/images/crash/rocketSpaceTheme2.webp",
@@ -317,13 +337,14 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     const topThemeSwitchEl = ensureTopbarThemeSwitch();
 
-    let dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    let dpr = Math.max(1, Math.min(spacePerf.dprCapDefault, window.devicePixelRatio || 1));
     let W = 0;
     let H = 0;
 
     function resize() {
       const rect = canvas.getBoundingClientRect();
-      dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      const dprCap = (state.theme === "space") ? spacePerf.dprCapSpace : spacePerf.dprCapDefault;
+      dpr = Math.max(1, Math.min(dprCap, window.devicePixelRatio || 1));
       W = Math.max(1, Math.floor(rect.width * dpr));
       H = Math.max(1, Math.floor(rect.height * dpr));
       canvas.width = W;
@@ -400,7 +421,12 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       cloudLayoutRoundId: -1,
       cloudFlow: [],
       cloudFlowLastAt: 0,
-      lastRenderAt: 0
+      lastRenderAt: 0,
+      lastSpaceVarsAt: 0,
+      lastSpaceStarsAt: 0,
+      lastSpaceStarsAlpha: 0,
+      lastSpaceStage: 0,
+      spaceVarCache: Object.create(null)
 
     };
 
@@ -468,6 +494,9 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     function getTargetFrameIntervalMs() {
       if (isCrashPageVisible()) {
+        if (state.theme === "space") {
+          return 1000 / Math.max(24, Number(spacePerf.spaceFps) || 36);
+        }
         return isLiteRuntime() ? (1000 / 36) : (1000 / 55);
       }
       return hasActiveCrashBet() ? (1000 / 10) : (1000 / 4);
@@ -541,7 +570,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     function ensureFlowClouds(force = false) {
       if (!spaceCloudsEl) return;
-      const desired = 12;
+      const desired = Math.max(5, Number(spacePerf.cloudCount) || 9);
 
       if (force) {
         for (const cloud of state.cloudFlow) cloud?.el?.remove?.();
@@ -562,7 +591,10 @@ const ICON_TON = "/icons/tgTonWhite.svg";
           scale: 1,
           alpha: 0.65,
           margin: 0.42,
-          lane: null
+          lane: null,
+          _left: NaN,
+          _top: NaN,
+          _scale: NaN
         });
       }
 
@@ -661,6 +693,12 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     function updateCloudFlow(now, force = false) {
       if (!state.cloudFlow.length) return;
+      if (!force) {
+        const elapsedMs = now - (Number(state.cloudFlowLastAt) || 0);
+        if (Number.isFinite(elapsedMs) && elapsedMs > 0 && elapsedMs < spacePerf.cloudTickMs) {
+          return;
+        }
+      }
 
       const prev = Number(state.cloudFlowLastAt) || now;
       let dt = (now - prev) / 1000;
@@ -678,9 +716,22 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         const outRight = cloud.x > 1 + cloud.margin + 0.40;
         if (outLeft || outRight) resetOneFlowCloud(cloud, false);
 
-        cloud.el.style.left = `${(cloud.x * 100).toFixed(3)}%`;
-        cloud.el.style.top = `${(cloud.y * 100).toFixed(3)}%`;
-        cloud.el.style.transform = `translate(-50%, -50%) scale(${(cloud.scale * passScale).toFixed(3)})`;
+        const nextLeft = cloud.x * 100;
+        const nextTop = cloud.y * 100;
+        const nextScale = cloud.scale * passScale;
+
+        if (force || !Number.isFinite(cloud._left) || Math.abs(nextLeft - cloud._left) >= 0.075) {
+          cloud._left = nextLeft;
+          cloud.el.style.left = `${nextLeft.toFixed(3)}%`;
+        }
+        if (force || !Number.isFinite(cloud._top) || Math.abs(nextTop - cloud._top) >= 0.02) {
+          cloud._top = nextTop;
+          cloud.el.style.top = `${nextTop.toFixed(3)}%`;
+        }
+        if (force || !Number.isFinite(cloud._scale) || Math.abs(nextScale - cloud._scale) >= 0.0025) {
+          cloud._scale = nextScale;
+          cloud.el.style.transform = `translate(-50%, -50%) scale(${nextScale.toFixed(3)})`;
+        }
       }
     }
 
@@ -745,6 +796,9 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       state.boomAt = 0;
       state.spaceMix = 0;
       state.spaceStars = 0;
+      state.lastSpaceVarsAt = 0;
+      state.lastSpaceStage = 0;
+      state.spaceVarCache = Object.create(null);
       if (rocketEl) rocketEl.classList.add("is-hidden");
       if (boomEl) {
         boomEl.classList.remove("is-on");
@@ -789,7 +843,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       };
 
       const inRun = isRunPhase(state.phase);
-      const inBetting = state.phase === "betting";
+      const inBetting = state.phase === "betting" || state.phase === "waiting";
       const inCrashHold = state.phase === "crash" || state.phase === "wait";
       const phaseStart = Number(state.phaseStart) || 0;
       const runProgress = (inRun && phaseStart > 0)
@@ -851,20 +905,48 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       const cloudShift = clamp((inRun ? runEase * 78 : mix * 44), 0, 96);
       const cloudScale = 1 + (inRun ? runEase : mix) * 0.14;
 
-      if (canvasWrapEl) {
-        canvasWrapEl.style.setProperty("--space-mix", mix.toFixed(3));
-        canvasWrapEl.style.setProperty("--space-stars", stars.toFixed(3));
-        canvasWrapEl.style.setProperty("--space-grass", grass.toFixed(3));
-        canvasWrapEl.style.setProperty("--space-grass-shift", `${grassShift.toFixed(2)}%`);
-        canvasWrapEl.style.setProperty("--space-cloud", clouds.toFixed(3));
-        canvasWrapEl.style.setProperty("--space-cloud-shift", `${cloudShift.toFixed(2)}%`);
-        canvasWrapEl.style.setProperty("--space-cloud-scale", cloudScale.toFixed(3));
+      const varsNow = performance.now();
+      const shouldPushVars = !state.lastSpaceVarsAt || (varsNow - state.lastSpaceVarsAt) >= spacePerf.cssVarsTickMs;
+      const varCache = state.spaceVarCache || (state.spaceVarCache = Object.create(null));
+
+      if (canvasWrapEl && shouldPushVars) {
+        const setVar = (name, value, threshold = 0.001) => {
+          const prev = Number(varCache[name]);
+          if (Number.isFinite(prev) && Math.abs(value - prev) < threshold) return;
+          varCache[name] = value;
+          if (name.includes("shift")) {
+            canvasWrapEl.style.setProperty(name, `${value.toFixed(2)}%`);
+          } else {
+            canvasWrapEl.style.setProperty(name, value.toFixed(3));
+          }
+        };
+
+        setVar("--space-mix", mix, 0.0015);
+        setVar("--space-stars", stars, 0.0015);
+        setVar("--space-grass", grass, 0.0015);
+        setVar("--space-grass-shift", grassShift, 0.2);
+        setVar("--space-cloud", clouds, 0.0015);
+        setVar("--space-cloud-shift", cloudShift, 0.2);
+        setVar("--space-cloud-scale", cloudScale, 0.0015);
+        state.lastSpaceVarsAt = varsNow;
       }
-      try {
-        document.documentElement.style.setProperty("--crash-space-progress", mix.toFixed(3));
-      } catch (_) {}
+
+      if (shouldPushVars) {
+        try {
+          const prevProgress = Number(varCache["--crash-space-progress"]);
+          if (!Number.isFinite(prevProgress) || Math.abs(mix - prevProgress) >= 0.002) {
+            varCache["--crash-space-progress"] = mix;
+            document.documentElement.style.setProperty("--crash-space-progress", mix.toFixed(3));
+          }
+        } catch (_) {}
+      }
+
       if (cardEl) {
-        cardEl.setAttribute("data-space-stage", String(getSpaceStage(m)));
+        const stage = getSpaceStage(m);
+        if (stage !== state.lastSpaceStage) {
+          state.lastSpaceStage = stage;
+          cardEl.setAttribute("data-space-stage", String(stage));
+        }
       }
       if (inBetting && state.rocketReturnActive && returnProgressRaw >= 1) {
         state.rocketReturnActive = false;
@@ -873,14 +955,29 @@ const ICON_TON = "/icons/tgTonWhite.svg";
 
     function renderSpaceStars(now, mult) {
       if (!spaceCtx || !spaceCanvas || state.theme !== "space") return;
-      spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
       const intensity = clamp(Number(state.spaceStars) || 0, 0, 1);
-      if (intensity <= 0.02) return;
+      if (intensity <= 0.02) {
+        if ((state.lastSpaceStarsAlpha || 0) > 0.02) {
+          spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
+        }
+        state.lastSpaceStarsAlpha = 0;
+        state.lastSpaceStarsAt = now;
+        return;
+      }
+
+      const elapsed = now - (Number(state.lastSpaceStarsAt) || 0);
+      const alphaDelta = Math.abs(intensity - (Number(state.lastSpaceStarsAlpha) || 0));
+      if (state.lastSpaceStarsAt && elapsed < spacePerf.starsTickMs && alphaDelta < 0.08) {
+        return;
+      }
+      state.lastSpaceStarsAt = now;
+      state.lastSpaceStarsAlpha = intensity;
+      spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
 
       const w = spaceCanvas.width;
       const h = spaceCanvas.height;
-      const liteMode = isLiteRuntime();
-      const maxCount = Math.min(liteMode ? 38 : 68, state.stars.length);
+      const liteMode = isLiteRuntime() || !!spacePerf.forceLiteStars;
+      const maxCount = Math.min(liteMode ? spacePerf.maxStarsLite : spacePerf.maxStarsFull, state.stars.length);
       const count = Math.max(4, Math.round(6 + maxCount * Math.pow(intensity, 1.05)));
       const t = now * 0.001;
       const inRun = isRunPhase(state.phase);
@@ -943,7 +1040,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
     function updateRocket(now) {
       if (!rocketEl || state.theme !== "space") return;
       const x = 0.50;
-      const inBetting = state.phase === "betting";
+      const inBetting = state.phase === "betting" || state.phase === "waiting";
       if (inBetting && state.rocketReturnActive) {
         const tRaw = clamp((now - state.rocketReturnStartAt) / Math.max(1200, state.rocketReturnDurationMs), 0, 1);
         const t = tRaw * tRaw * (3 - 2 * tRaw);
@@ -1046,6 +1143,8 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         try { document.documentElement.style.setProperty("--crash-space-progress", "0"); } catch (_) {}
         resetSpaceRoundVisuals();
         clearSpaceCanvas();
+        state.lastSpaceStarsAlpha = 0;
+        state.lastSpaceStarsAt = 0;
       } else {
         randomizeCloudLayout();
         resetSpaceRoundVisuals();
@@ -1056,9 +1155,10 @@ const ICON_TON = "/icons/tgTonWhite.svg";
         }
       }
       setSpaceThemeVariables(getVisualMultiplier());
+      resize();
     }
 
-    state.stars = makeStarPool();
+    state.stars = makeStarPool(spacePerf.starPoolSize);
     const savedTheme = (() => {
       try { return localStorage.getItem("crashTheme"); } catch (_) { return null; }
     })();
@@ -1312,7 +1412,7 @@ function handleTestCrash() {
             if (state.theme === "space") {
               state.rocketHidden = true;
               if (rocketEl) rocketEl.classList.add("is-hidden");
-              if (state.phase === "betting") startBettingRocketReturn(true);
+              if (state.phase === "betting" || state.phase === "waiting") startBettingRocketReturn(true);
               else {
                 state.rocketReturnActive = false;
                 state.boomActive = false;
@@ -1407,6 +1507,25 @@ function handleTestCrash() {
       state.myBet = myPlayer;
 
       switch (state.phase) {
+        case 'waiting':
+          setTimer("WAITING", true);
+          if (timerEl) timerEl.classList.remove('is-urgent');
+          if (multEl) multEl.style.display = 'none';
+
+          setStatus("Waiting for first bet");
+          setBuyMode("buy");
+
+          const cardWaiting = document.querySelector('.crash-card');
+          if (cardWaiting) cardWaiting.classList.remove('is-crashed');
+          if (state.theme === "space") {
+            state.rocketHidden = true;
+            if (rocketEl) rocketEl.classList.add("is-hidden");
+            startBettingRocketReturn();
+          } else {
+            resetSpaceRoundVisuals();
+          }
+          break;
+
         case 'betting':
           const seconds = getBettingSeconds() ?? 0;
           setTimer(seconds, true);
@@ -1719,7 +1838,7 @@ function showToast(text, opts = {}) {
         if (isNew) traderClass += ' is-enter';
 
 
-        if (state.phase === 'betting' || state.phase === 'wait') {
+        if (state.phase === 'betting' || state.phase === 'waiting' || state.phase === 'wait') {
           const betAmt = typeof player.amount === 'number' && player.amount > 0
             ? player.amount.toFixed(player.currency === 'stars' ? 0 : 2)
             : null;
@@ -1984,7 +2103,7 @@ function showToast(text, opts = {}) {
       buyBtn.textContent = "Place Bet";
 
       // если ставка уже сделана — схлопываем панель
-      if (state.myBet && state.phase === 'betting') {
+      if (state.myBet && (state.phase === 'betting' || state.phase === 'waiting')) {
         if (bar) { bar.classList.add("is-bet-placed"); bar.classList.remove("is-running"); }
       } else {
         if (bar) { bar.classList.remove("is-bet-placed", "is-running"); }
@@ -1995,7 +2114,7 @@ function showToast(text, opts = {}) {
       const currency = detectCurrency();
       renderPills();
     
-      if (state.phase !== "betting") {
+      if (state.phase !== "betting" && state.phase !== "waiting") {
         setStatus("Wait next round");
         return;
       }
@@ -2753,7 +2872,7 @@ const yOf = (v) => {
       const myId = String(getUserId());
       const me = (state.players || []).find(p => String(p?.userId) === myId) || state.myBet;
       if (!me || me.claimed) return false;
-      return state.phase === 'betting' || isRunPhase(state.phase) || state.phase === 'crash' || state.phase === 'wait';
+      return state.phase === 'waiting' || state.phase === 'betting' || isRunPhase(state.phase) || state.phase === 'crash' || state.phase === 'wait';
     }
 
     window.CrashGame = window.CrashGame || {};

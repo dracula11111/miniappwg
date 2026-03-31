@@ -41,7 +41,8 @@
         
         color: #ffffff;                                  /* Белый текст */
         overflow-x: hidden;                              /* Убираем горизонтальную прокрутку */
-        min-height: 100vh;                               /* Минимальная высота viewport */
+        min-height: 100vh;                               /* Fallback для старых браузеров */
+        min-height: 100dvh;                              /* Точная высота viewport на мобильных */
       }
 
 
@@ -78,11 +79,13 @@
         /* APP WRAPPER */
         .app {
                                    /* Макс. ширина как у телефона */
+          --wt-app-bottom-inset: calc(90px + env(safe-area-inset-bottom, 0px));
           margin: 0 auto;                                /* Центрируем */
-          min-height: 100dvh;                            /* Мин. высота (динамический viewport) */
+          min-height: calc(100vh - 90px);                /* Fallback без dvh */
+          min-height: calc(100dvh - var(--wt-app-bottom-inset)); /* Убираем пустой скролл снизу */
           /* Отступ для нижней навигации + safe-area снизу (iPhone home indicator) */
           padding-bottom: calc(90px + constant(safe-area-inset-bottom));
-          padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+          padding-bottom: var(--wt-app-bottom-inset);
           position: relative;                            /* Относительное позиционирование */
           padding-top: 0;                                /* Отступ сверху */
         }
@@ -147,6 +150,12 @@
               }
               .page-active, .page.page-active{ 
                 display:block; 
+              }
+              .wheel-only{
+                display:none !important;
+              }
+              body.page-wheel .wheel-only{
+                display:block !important;
               }
               .coming{
                 margin:18px; 

@@ -1012,7 +1012,7 @@ const wss = new WebSocketServer({ noServer: true });
 const wheelWss = new WebSocketServer({ noServer: true });
 
 const crashGame = {
-  phase: 'betting',
+  phase: 'waiting',
   phaseStart: Date.now(),
   roundId: 0,
   roundHash: "",
@@ -1296,11 +1296,7 @@ function broadcastGameState() {
   wss.clients.forEach(ws => wsSendSafe(ws, msg));
 }
 
-function startBetting() {
-  rotateServerSeed();
-  crashGame.nonce = 0;
-
-  // Cleanup any leftovers (safety)
+function clearCrashTimers() {
   if (crashGame.tickInterval) {
     clearInterval(crashGame.tickInterval);
     crashGame.tickInterval = null;
@@ -1313,8 +1309,16 @@ function startBetting() {
     clearInterval(crashGame.bettingInterval);
     crashGame.bettingInterval = null;
   }
+}
 
-  crashGame.phase = 'betting';
+function startCrashWaitingRound() {
+  rotateServerSeed();
+  crashGame.nonce = 0;
+
+  // Cleanup any leftovers (safety)
+  clearCrashTimers();
+
+  crashGame.phase = 'waiting';
   crashGame.phaseStart = Date.now();
   crashGame.roundId++;
   crashGame.roundHash = makeRoundHash(
@@ -1328,7 +1332,21 @@ function startBetting() {
   crashGame.crashPoint = generateCrashPoint();
   crashGame.players = [];
 
-  crashLog(`[Crash] Round ${crashGame.roundId} betting started`);
+  crashLog(`[Crash] Round ${crashGame.roundId} waiting for first bet`);
+
+  broadcastGameState();
+}
+
+function startBetting() {
+  if (crashGame.phase !== 'waiting') return;
+
+  // Cleanup any leftovers (safety)
+  clearCrashTimers();
+
+  crashGame.phase = 'betting';
+  crashGame.phaseStart = Date.now();
+
+  crashLog(`[Crash] Round ${crashGame.roundId} betting started (${crashGame.players.length} players)`);
 
   broadcastGameState();
 
@@ -1350,22 +1368,17 @@ function startBetting() {
 
 
 function startRunning() {
-  // Cleanup betting timers (safety)
-  if (crashGame.phaseTimeout) {
-    clearTimeout(crashGame.phaseTimeout);
-    crashGame.phaseTimeout = null;
-  }
-  if (crashGame.bettingInterval) {
-    clearInterval(crashGame.bettingInterval);
-    crashGame.bettingInterval = null;
-  }
-  if (crashGame.tickInterval) {
-    clearInterval(crashGame.tickInterval);
-    crashGame.tickInterval = null;
+  if (crashGame.phase !== 'betting') return;
+  if (!Array.isArray(crashGame.players) || crashGame.players.length === 0) {
+    crashGame.phase = 'waiting';
+    crashGame.phaseStart = Date.now();
+    crashGame.currentMult = 1.0;
+    broadcastGameState();
+    return;
   }
 
-    
-  
+  // Cleanup betting timers (safety)
+  clearCrashTimers();
 
   crashGame.phase = 'run';
   crashGame.phaseStart = Date.now();
@@ -1393,15 +1406,7 @@ function startRunning() {
 }
 
 function crash() {
-  if (crashGame.tickInterval) {
-    clearInterval(crashGame.tickInterval);
-    crashGame.tickInterval = null;
-  }
-  
-  if (crashGame.phaseTimeout) {
-    clearTimeout(crashGame.phaseTimeout);
-    crashGame.phaseTimeout = null;
-  }
+  clearCrashTimers();
 
   crashGame.phase = 'crash';
   crashGame.currentMult = crashGame.crashPoint;
@@ -1416,7 +1421,7 @@ function crash() {
   crashGame.phaseTimeout = setTimeout(() => {
     crashGame.phase = 'wait';
     broadcastGameState();
-    setTimeout(startBetting, 2000);
+    setTimeout(startCrashWaitingRound, 2000);
   }, 2000);
 }
 
@@ -1476,7 +1481,7 @@ ws.on('message', async (data) => {
           return;
         }
 
-        if (crashGame.phase !== 'betting') {
+        if (crashGame.phase !== 'betting' && crashGame.phase !== 'waiting') {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
         }
@@ -1533,7 +1538,11 @@ ws.on('message', async (data) => {
         crashLog(`[Crash] ${name} bet ${amount} ${currency}`);
         
         wsSendSafe(ws, JSON.stringify({ type: 'betPlaced', userId }));
-        broadcastGameState();
+        if (crashGame.phase === 'waiting') {
+          startBetting();
+        } else {
+          broadcastGameState();
+        }
       }
       
       else if (msg.type === 'claim') {
@@ -1672,7 +1681,7 @@ const WHEEL_SEGMENT_MULTIPLIERS = Object.freeze({
 const WHEEL_ALLOWED = new Set(WHEEL_ORDER);
 
 const wheelGame = {
-  phase: 'betting',           // betting | spin | bonus | result
+  phase: 'waiting',           // waiting | betting | spin | bonus | result
   phaseStart: Date.now(),
   roundId: 0,
   roundHash: "",
@@ -2075,10 +2084,10 @@ function wheelClearPhaseTimeout() {
   }
 }
 
-function wheelStartBetting() {
+function wheelStartWaitingRound() {
   wheelClearPhaseTimeout();
 
-  wheelGame.phase = 'betting';
+  wheelGame.phase = 'waiting';
   wheelGame.phaseStart = Date.now();
   wheelGame.roundId += 1;
   wheelGame.roundHash = makeRoundHash(
@@ -2095,6 +2104,17 @@ function wheelStartBetting() {
   wheelGame.players.clear();
 
   broadcastWheelState();
+}
+
+function wheelStartBetting() {
+  if (wheelGame.phase !== 'waiting') return;
+
+  wheelClearPhaseTimeout();
+
+  wheelGame.phase = 'betting';
+  wheelGame.phaseStart = Date.now();
+
+  broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
     wheelStartSpin();
@@ -2108,6 +2128,15 @@ function wheelPickResult() {
 }
 
 function wheelStartSpin() {
+  if (wheelGame.phase !== 'betting') return;
+  if ((wheelGame.players?.size || 0) <= 0) {
+    wheelClearPhaseTimeout();
+    wheelGame.phase = 'waiting';
+    wheelGame.phaseStart = Date.now();
+    broadcastWheelState();
+    return;
+  }
+
   wheelClearPhaseTimeout();
 
   wheelGame.phase = 'spin';
@@ -2178,7 +2207,7 @@ function wheelStartResultPhase() {
   broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
-    wheelStartBetting();
+    wheelStartWaitingRound();
   }, WHEEL_RESULT_TIME);
 }
 
@@ -2237,7 +2266,7 @@ wheelWss.on('connection', (ws) => {
           return;
         }
 
-        if (wheelGame.phase !== 'betting') {
+        if (wheelGame.phase !== 'betting' && wheelGame.phase !== 'waiting') {
           wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Betting closed' }));
           return;
         }
@@ -2284,6 +2313,7 @@ wheelWss.on('connection', (ws) => {
 
         const name = String(msg.userName || 'Player').slice(0, 64);
         const avatar = msg.userAvatar ? String(msg.userAvatar).slice(0, 500) : null;
+        const wasWaitingPhase = wheelGame.phase === 'waiting';
 
         let p = wheelGame.players.get(userId);
         if (!p) {
@@ -2303,7 +2333,11 @@ wheelWss.on('connection', (ws) => {
         if (currency === 'stars') p.totalAmount = Math.round(p.totalAmount);
         else p.totalAmount = Math.round(p.totalAmount * 100) / 100;
 
-        broadcastWheelState();
+        if (wasWaitingPhase) {
+          wheelStartBetting();
+        } else {
+          broadcastWheelState();
+        }
       }
 
       if (msg.type === 'clearBets') {
@@ -2311,6 +2345,13 @@ wheelWss.on('connection', (ws) => {
         const userId = String(msg.userId || '').trim();
         if (!userId) return;
         wheelGame.players.delete(userId);
+        if ((wheelGame.players?.size || 0) <= 0) {
+          wheelClearPhaseTimeout();
+          wheelGame.phase = 'waiting';
+          wheelGame.phaseStart = Date.now();
+          broadcastWheelState();
+          return;
+        }
         broadcastWheelState();
       }
 
@@ -2329,8 +2370,8 @@ async function startGameLoops() {
   wheelGame.roundId = normalizeGameCounterValue(wheelMeta.counter);
   wheelGame.roundHash = normalizeRoundHashValue(wheelMeta.hash);
 
-  startBetting();
-  wheelStartBetting();
+  startCrashWaitingRound();
+  wheelStartWaitingRound();
 }
 
 await startGameLoops();
@@ -2338,13 +2379,13 @@ await startGameLoops();
 function hasUnresolvedCrashBetsForTechPause() {
   const playersCount = Array.isArray(crashGame?.players) ? crashGame.players.length : 0;
   if (!playersCount) return false;
-  return crashGame.phase === "betting" || crashGame.phase === "run";
+  return crashGame.phase === "waiting" || crashGame.phase === "betting" || crashGame.phase === "run";
 }
 
 function hasUnresolvedWheelBetsForTechPause() {
   const playersCount = wheelGame?.players?.size || 0;
   if (!playersCount) return false;
-  return wheelGame.phase === "betting" || wheelGame.phase === "spin" || wheelGame.phase === "bonus";
+  return wheelGame.phase === "waiting" || wheelGame.phase === "betting" || wheelGame.phase === "spin" || wheelGame.phase === "bonus";
 }
 
 function resolveTechPauseMode(flagEnabled) {
@@ -5680,11 +5721,24 @@ app.post("/api/deposit-notification", async (req, res) => {
 
       const expectedRoundId = getCurrentCrashRoundIdForUser(userId);
       if (
-        crashGame.phase !== "betting" ||
+        (crashGame.phase !== "betting" && crashGame.phase !== "waiting") ||
         !expectedRoundId ||
         crashRoundCreditId !== expectedRoundId
       ) {
         return res.status(409).json({ ok: false, error: "Crash round is closed" });
+      }
+    }
+
+    if (typeNorm === "wheel_bet" && amountNum < 0) {
+      const wheelRoundId = Number(roundId || 0);
+      const normalizedWheelRoundId = Number.isFinite(wheelRoundId) ? Math.trunc(wheelRoundId) : 0;
+      if (!normalizedWheelRoundId) {
+        return res.status(400).json({ ok: false, error: "Invalid wheel roundId" });
+      }
+
+      const isWheelRoundOpen = wheelGame.phase === "waiting" || wheelGame.phase === "betting";
+      if (!isWheelRoundOpen || normalizedWheelRoundId !== wheelGame.roundId) {
+        return res.status(409).json({ ok: false, error: "Wheel round is closed" });
       }
     }
 

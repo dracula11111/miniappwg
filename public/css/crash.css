@@ -2523,6 +2523,74 @@ body.page-crash.crash-space-ui .crash-mult {
     0 0 46px rgba(57,114,255,0.45);
 }
 
+/* Mobile/touch performance mode for Space theme */
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-spaceClouds {
+  transition: opacity 0.14s linear;
+  transform:
+    translateY(calc(var(--space-cloud-shift, 0%) + var(--space-mix, 0) * 10%))
+    scale(calc(1 + (var(--space-cloud-scale, 1) - 1) * 0.78));
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-spaceCloud {
+  background-image: url("/images/crash/cloud.png");
+  filter: none;
+  will-change: transform, opacity;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-spaceGrass {
+  transition: opacity 0.22s linear, transform 0.22s linear;
+  filter: brightness(calc(1 - var(--space-mix, 0) * 0.34));
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .rocket {
+  filter: drop-shadow(0 0 10px rgba(120,177,255,0.26));
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-card[data-theme="space"] #crashCanvas {
+  filter: contrast(1.02) brightness(1.02);
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-card,
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-panel,
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-history,
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-controls__bar {
+  box-shadow:
+    0 10px 28px rgba(0,0,0,0.42),
+    0 0 0 1px rgba(95,142,236, calc(0.04 + var(--space-ui-p) * 0.08)) inset !important;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-history__item {
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-history__item:hover {
+  box-shadow:
+    0 6px 16px rgba(0,0,0,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.18) !important;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-buy.is-claim {
+  box-shadow:
+    0 10px 24px rgba(0,255,136,0.30),
+    0 0 0 2px rgba(0,255,136,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.22) !important;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-buy.is-lost {
+  box-shadow:
+    0 10px 24px rgba(255,51,102,0.24),
+    0 0 0 2px rgba(255,51,102,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.16) !important;
+}
+
+body.page-crash.crash-space-ui.crash-space-perf-lite .crash-mult {
+  text-shadow:
+    0 0 12px rgba(110,170,255,0.40),
+    0 0 24px rgba(57,114,255,0.28);
+}
+
 @media (max-width: 430px) {
   .crash-topThemeSwitch {
     top: 72px;
@@ -2568,5 +2636,22 @@ html.wt-reduced-motion .crash-timer {
 html.wt-lite .crash-canvasWrap::after,
 html.wt-reduced-motion .crash-canvasWrap::after {
   opacity: 0.05;
+}
+
+/* Crash bet bar compact layout */
+#crashPage .crash-controls__bar {
+  padding: 10px 12px !important;
+}
+
+#crashPage .crash-amountRow {
+  margin-bottom: 8px !important;
+}
+
+#crashPage .crash-actions {
+  margin-bottom: 0 !important;
+}
+
+#crashPage .crash-helpRow {
+  display: none !important;
 }
 

@@ -116,6 +116,7 @@ body.page-cases .app{
   width: var(--stars-layout-w, min(100vw, 430px));
   height: max(var(--stars-bg-h, 2400px), 100vh);
   transform: translateX(-50%);
+  display: none;
   pointer-events: none;
   overflow: visible;
   z-index: -1;
@@ -127,6 +128,7 @@ body.page-cases .app{
 
 body:has(.page-active#casesPage) #casesThemeBackdrop,
 body.page-cases #casesThemeBackdrop{
+  display: block;
   opacity: 1;
 }
 

@@ -340,6 +340,16 @@ function getWheelBettingSecondsLeft() {
 function updateWheelCountdownUI() {
   if (!countdownBox || !countNumEl) return;
 
+  if (wheelServerState?.phase === 'waiting') {
+    wheelLastTimerSec = null;
+    countdownBox.classList.add('is-waiting');
+    countNumEl.textContent = 'WAITING';
+    countdownBox.classList.add('visible');
+    return;
+  }
+
+  countdownBox.classList.remove('is-waiting');
+
   const sec = getWheelBettingSecondsLeft();
   if (sec == null) {
     if (wheelLastTimerSec !== null) {
@@ -485,8 +495,9 @@ function applyWheelServerState(state) {
   syncWheelPlayersPanelMeta(state);
 
   // classes for CSS
-  document.body.classList.toggle('is-betting', state.phase === 'betting');
-  document.body.classList.toggle('is-spinning', state.phase !== 'betting');
+  const isOpenBettingPhase = state.phase === 'betting' || state.phase === 'waiting';
+  document.body.classList.toggle('is-betting', isOpenBettingPhase);
+  document.body.classList.toggle('is-spinning', !isOpenBettingPhase);
   document.body.classList.toggle('is-bonus', state.phase === 'bonus');
 
   // server timer (interpolated locally)
@@ -525,7 +536,7 @@ function applyWheelServerState(state) {
   }
 
   // Phase-based UI
-  if (state.phase === 'betting') {
+  if (state.phase === 'betting' || state.phase === 'waiting') {
     bettingLocked = false;
     setPhase('betting', { force: true });
     setOmega(IDLE_OMEGA, { force: true });
@@ -1445,7 +1456,7 @@ function initBettingUI(){
   // ===== AMOUNT BUTTONS WITH SELECTION HIGHLIGHT =====
   amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      if (phase !== 'betting') return;
+      if (phase !== 'betting' && phase !== 'waiting') return;
       
       // Убираем selected со всех кнопок
       amountBtns.forEach(b => {
@@ -1510,7 +1521,7 @@ function initBettingUI(){
         return;
       }
       
-      if (phase !== 'betting') return;
+      if (phase !== 'betting' && phase !== 'waiting') return;
       
       const seg = normSeg(tile.dataset.seg);
       const cur = betsMap.get(seg) || 0;

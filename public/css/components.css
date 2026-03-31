@@ -712,7 +712,7 @@
      ============================================ */
   
   .games {
-    padding: 16px 16px 96px; /* +safe space for bottom nav */
+    padding: 16px 16px 14px;
   }
   
   .games__head {
