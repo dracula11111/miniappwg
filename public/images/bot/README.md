@@ -6,7 +6,7 @@ Bot welcome media lives in this folder.
 
 Optional environment overrides:
 
-- `TG_WELCOME_PHOTO_URL` - direct image URL or Telegram `file_id`.
+- `TG_WELCOME_PHOTO_URL` - direct image URL, Telegram `file_id`, or an `ibb.co/<id>` share link.
 - `TG_WELCOME_MINI_APP_URL` - Mini App URL for the welcome button.
 - `TG_WELCOME_BUTTON_TEXT` - label for the welcome button.
 - `TG_WELCOME_BUTTON_STYLE` - `primary`, `success`, or `danger`.

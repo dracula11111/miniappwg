@@ -3814,7 +3814,7 @@ html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-open-price img
     visibility: visible !important;
     position: fixed !important;
     left: 50% !important;
-    top: calc(var(--safe-top) + 22px) !important;
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px + 2px) !important;
     transform: translateX(-50%) !important;
     z-index: 2147482990 !important;
     pointer-events: none !important;

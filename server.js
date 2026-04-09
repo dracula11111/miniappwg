@@ -33,10 +33,11 @@ const FRONTEND_TEST_MODE = false;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5392938561909386575";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6006619569318509975";
-const DEFAULT_WELCOME_EMOJI_ID = "5353001366467860034";
-const DEFAULT_WELCOME_CTA_EMOJI_ID = "0475721979504669629";
+const DEFAULT_WELCOME_EMOJI_ID = "5330356071364046086";
+const DEFAULT_WELCOME_CTA_EMOJI_ID = "5470177992950946662";
 const DEFAULT_WELCOME_BUTTON_TEXT = "Claim gifts";
 const DEFAULT_WELCOME_BUTTON_STYLE = "danger";
+const DEFAULT_WELCOME_PHOTO_URL = "https://ibb.co/vFzkMcg";
 const DEFAULT_WELCOME_PHOTO_PATH = "/images/bot/startNtf.png";
 // Temporary safety lock: allow market buy/withdraw only for relayer admins.
 const ADMIN_ONLY_TRADING_MODE = !/^(0|false|no)$/i.test(String(process.env.ADMIN_ONLY_TRADING_MODE || "1"));
@@ -8377,8 +8378,120 @@ function getWelcomeMiniAppUrl() {
   return normalizeTelegramButtonUrl(process.env.WEBAPP_URL || "");
 }
 
+const resolvedTelegramPhotoRefCache = new Map();
+
+function normalizeTelegramPhotoUrlCandidate(value) {
+  let raw = String(value || "").trim();
+  if (!raw) return "";
+
+  raw = raw
+    .replace(/^thtp:/i, "https:")
+    .replace(/^http:/i, "https:")
+    .replace(/^https:(?!\/\/)/i, "https://")
+    .replace(/sibb\/\.co/ig, "ibb.co")
+    .replace(/sibb\.co/ig, "ibb.co");
+
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    raw = `https://${raw.replace(/^\/+/, "")}`;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    parsed.protocol = "https:";
+    if (String(parsed.hostname || "").toLowerCase() === "www.ibb.co") {
+      parsed.hostname = "ibb.co";
+    }
+    parsed.pathname = `/${String(parsed.pathname || "").replace(/^\/+/, "")}`;
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
+function shouldResolveIbbShareUrl(urlValue) {
+  try {
+    const parsed = new URL(urlValue);
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "ibb.co" && host !== "www.ibb.co") return false;
+    const segments = String(parsed.pathname || "")
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return segments.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function extractOgImageUrlFromHtml(html) {
+  const source = String(html || "");
+  if (!source) return "";
+
+  const patterns = [
+    /<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["'][^>]*>/i
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    const value = String(match?.[1] || "").trim();
+    if (!value) continue;
+    return value.replace(/&amp;/gi, "&");
+  }
+  return "";
+}
+
+async function resolveTelegramPhotoRef(photoRef) {
+  const normalizedMediaRef = normalizeTelegramMediaRef(photoRef);
+  if (!normalizedMediaRef) return "";
+
+  const normalizedUrlCandidate = normalizeTelegramPhotoUrlCandidate(normalizedMediaRef);
+  if (!/^https?:\/\//i.test(normalizedUrlCandidate)) {
+    return normalizedMediaRef;
+  }
+
+  if (!shouldResolveIbbShareUrl(normalizedUrlCandidate)) {
+    return normalizeTelegramMediaRef(normalizedUrlCandidate) || normalizedMediaRef;
+  }
+
+  const cacheKey = normalizedUrlCandidate;
+  const now = Date.now();
+  const cached = resolvedTelegramPhotoRefCache.get(cacheKey);
+  if (cached && Number.isFinite(cached.expiresAt) && cached.expiresAt > now && cached.value) {
+    return cached.value;
+  }
+
+  try {
+    const response = await fetch(normalizedUrlCandidate, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; WildGiftBot/1.0; +https://wildgiftapp.onrender.com)"
+      }
+    });
+    const html = await response.text().catch(() => "");
+    const ogImageRaw = extractOgImageUrlFromHtml(html);
+    const ogImageNorm = normalizeTelegramMediaRef(normalizeTelegramPhotoUrlCandidate(ogImageRaw));
+    if (ogImageNorm && /^https?:\/\//i.test(ogImageNorm)) {
+      resolvedTelegramPhotoRefCache.set(cacheKey, {
+        value: ogImageNorm,
+        expiresAt: now + 6 * 60 * 60 * 1000
+      });
+      return ogImageNorm;
+    }
+  } catch {}
+
+  resolvedTelegramPhotoRefCache.set(cacheKey, {
+    value: normalizeTelegramMediaRef(normalizedUrlCandidate) || normalizedMediaRef,
+    expiresAt: now + 10 * 60 * 1000
+  });
+  return normalizeTelegramMediaRef(normalizedUrlCandidate) || normalizedMediaRef;
+}
+
 function getWelcomePhotoRef() {
-  const direct = normalizeTelegramMediaRef(process.env.TG_WELCOME_PHOTO_URL || "");
+  const direct = normalizeTelegramMediaRef(
+    process.env.TG_WELCOME_PHOTO_URL ||
+    process.env.TELEGRAM_WELCOME_PHOTO_URL ||
+    DEFAULT_WELCOME_PHOTO_URL
+  );
   if (direct) return direct;
 
   const base = normalizeTelegramButtonUrl(
@@ -8400,13 +8513,14 @@ function getWelcomeButtonStyle() {
 }
 
 function buildWelcomeMessageText(options = {}) {
-  const useCustomEmoji = options?.useCustomEmoji !== false;
   const introEmojiId = normalizeTelegramCustomEmojiId(process.env.TG_WELCOME_EMOJI_ID || DEFAULT_WELCOME_EMOJI_ID);
   const ctaEmojiId = normalizeTelegramCustomEmojiId(process.env.TG_WELCOME_CTA_EMOJI_ID || DEFAULT_WELCOME_CTA_EMOJI_ID);
-  const introEmoji = (useCustomEmoji && introEmojiId)
+  const introCustom = options?.introCustom !== false;
+  const ctaCustom = options?.ctaCustom !== false;
+  const introEmoji = (introCustom && introEmojiId)
     ? `<tg-emoji emoji-id="${introEmojiId}">\u2728</tg-emoji>`
     : "\u2728";
-  const ctaEmoji = (useCustomEmoji && ctaEmojiId)
+  const ctaEmoji = (ctaCustom && ctaEmojiId)
     ? `<tg-emoji emoji-id="${ctaEmojiId}">\ud83c\udf81</tg-emoji>`
     : "\ud83c\udf81";
 
@@ -8460,9 +8574,10 @@ async function sendTelegramWelcomeMessage(chatId) {
   const buttonText = getWelcomeButtonText();
   const miniAppUrl = getWelcomeMiniAppUrl();
   const buttonStyle = getWelcomeButtonStyle();
-  const captionHtml = buildWelcomeMessageText({ useCustomEmoji: true });
-  const captionFallbackHtml = buildWelcomeMessageText({ useCustomEmoji: false });
-  const photo = getWelcomePhotoRef();
+  const captionBothCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: true });
+  const captionIntroCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: false });
+  const captionFallbackHtml = buildWelcomeMessageText({ introCustom: false, ctaCustom: false });
+  const photo = await resolveTelegramPhotoRef(getWelcomePhotoRef());
 
   const buildMarkup = (withStyle) => buildTelegramReplyMarkup({
     buttonText,
@@ -8486,27 +8601,38 @@ async function sendTelegramWelcomeMessage(chatId) {
   }
 
   const styledMarkup = buildMarkup(true);
-  let result = await sendWith(captionHtml, styledMarkup, true);
+  const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
 
-  if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
-    const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
-    result = await sendWith(captionHtml, plainMarkup, true);
+  async function sendWelcomeVariant(contentText) {
+    let result = await sendWith(contentText, styledMarkup, true);
+    if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
+      result = await sendWith(contentText, plainMarkup, true);
+    }
+    if (!result?.ok) {
+      result = await sendWith(contentText, styledMarkup, false);
+      if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
+        result = await sendWith(contentText, plainMarkup, false);
+      }
+    }
+    return result;
   }
 
-  if (!result?.ok) {
-    result = await sendWith(captionHtml, styledMarkup, false);
-    if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
-      const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
-      result = await sendWith(captionHtml, plainMarkup, false);
-    }
+  let result = await sendWelcomeVariant(captionBothCustom);
+
+  if (!result?.ok && isCustomEmojiEntityError(result?.error)) {
+    console.warn("[Telegram Welcome] full custom emoji set rejected, retrying with intro emoji only:", {
+      chatId,
+      error: String(result?.error || "")
+    });
+    result = await sendWelcomeVariant(captionIntroCustom);
   }
 
   if (!result?.ok && isCustomEmojiEntityError(result?.error)) {
-    result = await sendWith(captionFallbackHtml, styledMarkup, false);
-    if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
-      const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
-      result = await sendWith(captionFallbackHtml, plainMarkup, false);
-    }
+    console.warn("[Telegram Welcome] intro custom emoji rejected, retrying with standard emoji:", {
+      chatId,
+      error: String(result?.error || "")
+    });
+    result = await sendWelcomeVariant(captionFallbackHtml);
   }
 
   return result;
