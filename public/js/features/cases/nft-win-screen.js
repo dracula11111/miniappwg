@@ -15,7 +15,7 @@
        buttonText: "Claim",
        demo: false,
        currency: "ton"|"stars",
-       currencyIcon: "/icons/ton.svg",
+       currencyIcon: "/icons/currency/ton.svg",
        nfts: [{ name, image, amount }],
        showTotal: true,
        total: 123,
@@ -542,7 +542,7 @@
         <div>
           <h1 class="nftwo-title" id="nftwoTitle">You've won!</h1>
           <div class="nftwo-total" id="nftwoTotalWrap" hidden>
-            <img id="nftwoTotalIcon" src="/icons/ton.svg" alt="">
+            <img id="nftwoTotalIcon" src="/icons/currency/ton.svg" alt="">
             <span id="nftwoTotal">0</span>
           </div>
         </div>
@@ -722,7 +722,7 @@
     if (!contentEl) return;
 
     const list = Array.isArray(nfts) ? nfts : [];
-    const safeIcon = currencyIcon || (currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg');
+    const safeIcon = currencyIcon || (currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg');
 
     if (list.length <= 1) {
       const nft = list[0] || {};
@@ -782,7 +782,7 @@
       return;
     }
     totalWrapEl.hidden = false;
-    totalIconEl.src = currencyIcon || (currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg');
+    totalIconEl.src = currencyIcon || (currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg');
     totalEl.textContent = fmt(total, currency);
   }
 
@@ -803,7 +803,7 @@
     ensureOverlay();
 
     const currency = (opts.currency === 'stars') ? 'stars' : 'ton';
-    const currencyIcon = opts.currencyIcon || (currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg');
+    const currencyIcon = opts.currencyIcon || (currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg');
     const caseId = opts.caseId || 'case1'; // Get case ID from options
 
     // Apply themed background (blue for most, pink for case3)

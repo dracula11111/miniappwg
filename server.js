@@ -33,6 +33,11 @@ const FRONTEND_TEST_MODE = false;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5392938561909386575";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6006619569318509975";
+const DEFAULT_WELCOME_EMOJI_ID = "5353001366467860034";
+const DEFAULT_WELCOME_CTA_EMOJI_ID = "0475721979504669629";
+const DEFAULT_WELCOME_BUTTON_TEXT = "Claim gifts";
+const DEFAULT_WELCOME_BUTTON_STYLE = "danger";
+const DEFAULT_WELCOME_PHOTO_PATH = "/images/bot/startNtf.png";
 // Temporary safety lock: allow market buy/withdraw only for relayer admins.
 const ADMIN_ONLY_TRADING_MODE = !/^(0|false|no)$/i.test(String(process.env.ADMIN_ONLY_TRADING_MODE || "1"));
 
@@ -6415,7 +6420,7 @@ app.post("/api/stars/create-invoice", async (req, res) => {
   }
 });
 
-// ====== STARS WEBHOOK ======
+// ====== TELEGRAM WEBHOOK (Stars payments + start/write-access events) ======
 app.post("/api/stars/webhook", async (req, res) => {
   try {
     const configuredWebhookSecret = getConfiguredWebhookSecret();
@@ -6529,7 +6534,63 @@ app.post("/api/stars/webhook", async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, message: 'Not a payment update' });
+    const welcomeTrigger = isTelegramWelcomeTrigger(update);
+    if (welcomeTrigger) {
+      const userId = String(welcomeTrigger?.user?.id || "").trim();
+      const updateIdRaw = Number(update?.update_id);
+      const fallbackMsgId = String(welcomeTrigger?.message?.message_id || "").trim();
+      const eventSuffix = Number.isFinite(updateIdRaw) ? String(updateIdRaw) : `${userId}:${fallbackMsgId || "na"}`;
+      const eventKey = `telegram:welcome:${welcomeTrigger.reason}:${eventSuffix}`;
+
+      if (!userId) {
+        return res.json({ ok: true, welcomeSent: false, reason: "missing_user_id" });
+      }
+
+      const claimed = await claimWebhookEvent(eventKey, {
+        reason: welcomeTrigger.reason,
+        userId,
+        updateId: Number.isFinite(updateIdRaw) ? updateIdRaw : null
+      });
+      if (!claimed) {
+        return res.json({ ok: true, duplicate: true, reason: "welcome_duplicate" });
+      }
+
+      try { await db.saveUser(welcomeTrigger.user); } catch {}
+
+      const welcomeResult = await sendTelegramWelcomeMessage(userId);
+      if (!welcomeResult?.ok) {
+        const classification = classifyTelegramSendError({
+          description: welcomeResult?.error || ""
+        });
+        const isTerminalSendError =
+          classification === "blocked" ||
+          classification === "chat_not_found" ||
+          classification === "forbidden" ||
+          classification === "deactivated";
+
+        if (!isTerminalSendError) {
+          await releaseWebhookEvent(eventKey).catch(() => {});
+          console.error("[Telegram Welcome] send failed:", {
+            userId,
+            reason: welcomeTrigger.reason,
+            error: String(welcomeResult?.error || "send failed")
+          });
+          return res.status(500).json({ ok: false, error: "Failed to send welcome message" });
+        }
+
+        console.warn("[Telegram Welcome] terminal send error:", {
+          userId,
+          reason: welcomeTrigger.reason,
+          class: classification,
+          error: String(welcomeResult?.error || "")
+        });
+        return res.json({ ok: true, welcomeSent: false, skipped: classification });
+      }
+
+      return res.json({ ok: true, welcomeSent: true, trigger: welcomeTrigger.reason });
+    }
+
+    return res.json({ ok: true, message: "Update ignored" });
 
   } catch (error) {
     console.error('[Stars Webhook] Error processing webhook:', error);
@@ -8250,16 +8311,25 @@ function normalizeTelegramButtonUrl(value) {
   return raw.length > 2048 ? raw.slice(0, 2048) : raw;
 }
 
+function normalizeTelegramButtonStyle(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (raw === "primary" || raw === "success" || raw === "danger") return raw;
+  return "";
+}
+
 function buildTelegramReplyMarkup(options = {}) {
   const text = normalizeTelegramButtonText(options?.buttonText || "");
   const miniAppUrl = normalizeTelegramButtonUrl(options?.miniAppUrl || "");
   const buttonUrl = normalizeTelegramButtonUrl(options?.buttonUrl || "");
+  const buttonStyle = normalizeTelegramButtonStyle(options?.buttonStyle || "");
   if (!text) return null;
   if (!miniAppUrl && !buttonUrl) return null;
 
   const button = miniAppUrl
     ? { text, web_app: { url: miniAppUrl } }
     : { text, url: buttonUrl };
+  if (buttonStyle) button.style = buttonStyle;
 
   return { inline_keyboard: [[button]] };
 }
@@ -8280,6 +8350,166 @@ function buildDepositNotifyText(amount, currency) {
     : String(amount ?? "");
   const safeAmount = escapeTelegramHtml(amountText);
   return `<b>Top-up successful</b>\n\nCredited: <b>${safeAmount} ${currencyLabel}</b>`;
+}
+
+function stripTelegramButtonStyles(replyMarkup) {
+  if (!replyMarkup || typeof replyMarkup !== "object") return null;
+  const rows = Array.isArray(replyMarkup.inline_keyboard) ? replyMarkup.inline_keyboard : [];
+  const inlineKeyboard = rows.map((row) => {
+    if (!Array.isArray(row)) return [];
+    return row.map((button) => {
+      if (!button || typeof button !== "object") return button;
+      const clone = { ...button };
+      delete clone.style;
+      return clone;
+    });
+  });
+  return { inline_keyboard: inlineKeyboard };
+}
+
+function getWelcomeMiniAppUrl() {
+  const preferred = normalizeTelegramButtonUrl(
+    process.env.TG_WELCOME_MINI_APP_URL ||
+    process.env.TELEGRAM_WELCOME_MINI_APP_URL ||
+    ""
+  );
+  if (preferred) return preferred;
+  return normalizeTelegramButtonUrl(process.env.WEBAPP_URL || "");
+}
+
+function getWelcomePhotoRef() {
+  const direct = normalizeTelegramMediaRef(process.env.TG_WELCOME_PHOTO_URL || "");
+  if (direct) return direct;
+
+  const base = normalizeTelegramButtonUrl(
+    process.env.TG_WELCOME_BASE_URL ||
+    process.env.PUBLIC_URL ||
+    process.env.WEBAPP_URL ||
+    ""
+  ).replace(/\/+$/g, "");
+  if (!base) return "";
+  return normalizeTelegramMediaRef(`${base}${DEFAULT_WELCOME_PHOTO_PATH}`);
+}
+
+function getWelcomeButtonText() {
+  return normalizeTelegramButtonText(process.env.TG_WELCOME_BUTTON_TEXT || DEFAULT_WELCOME_BUTTON_TEXT);
+}
+
+function getWelcomeButtonStyle() {
+  return normalizeTelegramButtonStyle(process.env.TG_WELCOME_BUTTON_STYLE || DEFAULT_WELCOME_BUTTON_STYLE);
+}
+
+function buildWelcomeMessageText(options = {}) {
+  const useCustomEmoji = options?.useCustomEmoji !== false;
+  const introEmojiId = normalizeTelegramCustomEmojiId(process.env.TG_WELCOME_EMOJI_ID || DEFAULT_WELCOME_EMOJI_ID);
+  const ctaEmojiId = normalizeTelegramCustomEmojiId(process.env.TG_WELCOME_CTA_EMOJI_ID || DEFAULT_WELCOME_CTA_EMOJI_ID);
+  const introEmoji = (useCustomEmoji && introEmojiId)
+    ? `<tg-emoji emoji-id="${introEmojiId}">\u2728</tg-emoji>`
+    : "\u2728";
+  const ctaEmoji = (useCustomEmoji && ctaEmojiId)
+    ? `<tg-emoji emoji-id="${ctaEmojiId}">\ud83c\udf81</tg-emoji>`
+    : "\ud83c\udf81";
+
+  return [
+    `${introEmoji} <b>Welcome to Wild Gift!</b>`,
+    "Discover how easy it is to win, collect, and claim unique NFT gifts right inside Telegram. Open cases, complete simple tasks, and grab fresh drops in just a few taps.",
+    `${ctaEmoji} Jump in now and claim your NFT gifts.`
+  ].join("\n\n");
+}
+
+function isTelegramReplyMarkupParseError(errorText) {
+  const text = String(errorText || "");
+  return /reply markup|can't parse|button style|BUTTON_STYLE|INLINE_KEYBOARD/i.test(text);
+}
+
+function isTelegramWelcomeTrigger(update = {}) {
+  const message = (update && typeof update === "object" && update.message && typeof update.message === "object")
+    ? update.message
+    : null;
+  if (!message) return null;
+
+  const from = (message.from && typeof message.from === "object") ? message.from : null;
+  if (!from || from.is_bot) return null;
+
+  const chatType = String(message?.chat?.type || "").toLowerCase();
+  if (chatType && chatType !== "private") return null;
+
+  const text = String(message?.text || "").trim();
+  const firstToken = (text.split(/\s+/)[0] || "").trim();
+  if (/^\/start(?:@[a-z0-9_]+)?$/i.test(firstToken)) {
+    return {
+      reason: "start",
+      user: from,
+      message
+    };
+  }
+
+  if (message?.write_access_allowed && typeof message.write_access_allowed === "object") {
+    return {
+      reason: "write_access_allowed",
+      user: from,
+      message,
+      writeAccessAllowed: message.write_access_allowed
+    };
+  }
+
+  return null;
+}
+
+async function sendTelegramWelcomeMessage(chatId) {
+  const buttonText = getWelcomeButtonText();
+  const miniAppUrl = getWelcomeMiniAppUrl();
+  const buttonStyle = getWelcomeButtonStyle();
+  const captionHtml = buildWelcomeMessageText({ useCustomEmoji: true });
+  const captionFallbackHtml = buildWelcomeMessageText({ useCustomEmoji: false });
+  const photo = getWelcomePhotoRef();
+
+  const buildMarkup = (withStyle) => buildTelegramReplyMarkup({
+    buttonText,
+    miniAppUrl,
+    buttonStyle: withStyle ? buttonStyle : ""
+  });
+
+  async function sendWith(contentText, replyMarkup, withPhoto) {
+    if (withPhoto && photo) {
+      return sendTelegramPhoto(chatId, contentText, {
+        photo,
+        parseMode: "HTML",
+        replyMarkup
+      });
+    }
+    return sendTelegramMessage(chatId, contentText, {
+      parseMode: "HTML",
+      replyMarkup,
+      disableWebPagePreview: true
+    });
+  }
+
+  const styledMarkup = buildMarkup(true);
+  let result = await sendWith(captionHtml, styledMarkup, true);
+
+  if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
+    const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
+    result = await sendWith(captionHtml, plainMarkup, true);
+  }
+
+  if (!result?.ok) {
+    result = await sendWith(captionHtml, styledMarkup, false);
+    if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
+      const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
+      result = await sendWith(captionHtml, plainMarkup, false);
+    }
+  }
+
+  if (!result?.ok && isCustomEmojiEntityError(result?.error)) {
+    result = await sendWith(captionFallbackHtml, styledMarkup, false);
+    if (!result?.ok && isTelegramReplyMarkupParseError(result?.error)) {
+      const plainMarkup = stripTelegramButtonStyles(styledMarkup) || buildMarkup(false);
+      result = await sendWith(captionFallbackHtml, plainMarkup, false);
+    }
+  }
+
+  return result;
 }
 
 function prependFallbackEmoji(text, fallbackEmoji) {

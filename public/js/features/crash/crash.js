@@ -19,8 +19,8 @@
   const STATUS_ID = "crashStatus";
 
     const TOAST_HOST_ID = "crashToastHost";
-const ICON_TON = "/icons/tgTonWhite.svg";
-  const ICON_STAR = "/icons/tgStarWhite.svg";
+const ICON_TON = "/icons/currency/tgTonWhite.svg";
+  const ICON_STAR = "/icons/currency/tgStarWhite.svg";
 
   const qs = (sel, root = document) => root.querySelector(sel);
   // Detect localhost test mode
@@ -204,7 +204,7 @@ const ICON_TON = "/icons/tgTonWhite.svg";
       <div class="crash-panel__head">
         <div class="crash-panel__title">Players</div>
         <button class="crash-panel__hash" id="crashRoundHashCopy" type="button" aria-label="Copy round hash">
-          <img class="crash-panel__hashIcon" src="/icons/copy.svg" alt="" aria-hidden="true" />
+          <img class="crash-panel__hashIcon" src="/icons/ui/copy.svg" alt="" aria-hidden="true" />
           <span class="crash-panel__hashText" id="crashRoundHashLabel">Hash #--</span>
         </button>
         <div class="crash-panel__game" id="crashGameCounter">Game #1</div>

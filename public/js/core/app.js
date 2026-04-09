@@ -46,6 +46,34 @@
     tg?.expand?.();
   } catch {}
 
+  const TG_WRITE_ACCESS_KEY_PREFIX = "wt:tg:write-access:";
+  function requestTelegramWriteAccessOnce() {
+    if (!tg || typeof tg.requestWriteAccess !== "function") return;
+    try {
+      if (typeof tg.isVersionAtLeast === "function" && !tg.isVersionAtLeast("6.9")) return;
+    } catch {}
+
+    const userIdRaw = tg?.initDataUnsafe?.user?.id;
+    const userId = userIdRaw === undefined || userIdRaw === null ? "" : String(userIdRaw).trim();
+    if (!userId) return;
+
+    const storageKey = `${TG_WRITE_ACCESS_KEY_PREFIX}${userId}`;
+    let alreadyRequested = false;
+    try {
+      alreadyRequested = localStorage.getItem(storageKey) !== null;
+    } catch {}
+    if (alreadyRequested) return;
+
+    try {
+      tg.requestWriteAccess((allowed) => {
+        try {
+          localStorage.setItem(storageKey, allowed ? "1" : "0");
+        } catch {}
+      });
+    } catch {}
+  }
+  requestTelegramWriteAccessOnce();
+
   // Disable Telegram haptics globally while keeping existing calls safe.
   try {
     if (tg) {
@@ -111,6 +139,7 @@
   };
 
   const I18N_PHRASE_BOOK = [
+    ["Match", "\u041c\u044d\u0442\u0447"],
     ["Games", "Игры"],
     ["Market", "Маркет"],
     ["Tasks", "Задания"],
@@ -299,9 +328,11 @@
     ["Open Wheel", "Открыть колесо"],
     ["Open Crash", "Открыть Crash"],
     ["Open Cases", "Открыть кейсы"],
+    ["Open Combo", "Открыть Комбо"],
     ["Wheel canvas", "Холст колеса"],
     ["Crash", "Краш"],
     ["Soon", "Скоро"],
+    ["Combo", "Комбо"],
     ["Error", "Ошибка"],
     ["Go back", "Назад"],
     ["Test mode - Ready", "Тестовый режим - готово"],
@@ -861,6 +892,7 @@
 
 
   // ===== Games hub =====
+  const MATCH_PAGE_ID = "matchPage";
   const GAMES_PAGE_ID = "gamesPage";
   const PAGE_HISTORY_KEY = "__wtPage";
   const GAMES_CHILD_PAGES = new Set(["wheelPage", "crashPage", "casesPage"]);
@@ -1082,10 +1114,53 @@
   };
   const navKeyForPage = (id) => NAV_ALIAS[id] || id;
   const getActivePageId = () => document.querySelector(".page.page-active")?.id || null;
+  const MIN_GAMES_LAYOUT_SCALE = 0.42;
+  let gamesFitRafId = null;
+
+  function applyGamesViewportFit() {
+    const page = document.getElementById(GAMES_PAGE_ID);
+    if (!page) return;
+
+    const fitRoot = page.querySelector(".games__fit");
+    if (!fitRoot) return;
+
+    fitRoot.style.setProperty("--games-layout-scale", "1");
+    page.style.removeProperty("--games-available-height");
+
+    if (getActivePageId() !== GAMES_PAGE_ID) return;
+
+    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+    const topbarBottom = document.querySelector(".topbar")?.getBoundingClientRect?.().bottom || 0;
+    const navTop = document.querySelector(".bottom-nav")?.getBoundingClientRect?.().top || viewportHeight;
+    const availableHeight = Math.max(220, Math.floor(navTop - topbarBottom - 4));
+
+    page.style.setProperty("--games-available-height", `${availableHeight}px`);
+
+    const naturalHeight = fitRoot.scrollHeight || fitRoot.getBoundingClientRect?.().height || 1;
+    const initialScale = Math.max(MIN_GAMES_LAYOUT_SCALE, Math.min(1, availableHeight / naturalHeight));
+    fitRoot.style.setProperty("--games-layout-scale", initialScale.toFixed(4));
+
+    const fittedHeight = fitRoot.scrollHeight || 1;
+    if (fittedHeight > availableHeight) {
+      const correctedScale = Math.max(
+        MIN_GAMES_LAYOUT_SCALE,
+        Math.min(1, initialScale * (availableHeight / fittedHeight))
+      );
+      fitRoot.style.setProperty("--games-layout-scale", correctedScale.toFixed(4));
+    }
+  }
+
+  function scheduleGamesViewportFit() {
+    if (gamesFitRafId !== null) cancelAnimationFrame(gamesFitRafId);
+    gamesFitRafId = requestAnimationFrame(() => {
+      gamesFitRafId = null;
+      applyGamesViewportFit();
+    });
+  }
 
   // If an overlay left scroll-lock styles on body, entering game pages can show
   // a fake top gap and extra scroll range. Normalize this state on navigation.
-  const RESET_SCROLL_PAGES = new Set([GAMES_PAGE_ID, "wheelPage", "crashPage"]);
+  const RESET_SCROLL_PAGES = new Set([MATCH_PAGE_ID, GAMES_PAGE_ID, "wheelPage", "crashPage"]);
   function normalizeLockedViewportForPage(pageId) {
     if (!RESET_SCROLL_PAGES.has(pageId)) return;
     try {
@@ -1177,6 +1252,22 @@
     } catch {}
   }
 
+  function ensureMatchPage() {
+    let page = document.getElementById(MATCH_PAGE_ID);
+    if (page) return page;
+
+    page = document.createElement("main");
+    page.id = MATCH_PAGE_ID;
+    page.className = "page";
+    page.innerHTML = "";
+
+    const appRoot = document.querySelector(".app") || document.body;
+    const bottomNav = appRoot.querySelector(".bottom-nav") || document.querySelector(".bottom-nav");
+    if (bottomNav) appRoot.insertBefore(page, bottomNav);
+    else appRoot.appendChild(page);
+
+    return page;
+  }
 
   function ensureGamesPage() {
     let page = document.getElementById(GAMES_PAGE_ID);
@@ -1188,26 +1279,29 @@
 
     page.innerHTML = `
       <section class="games">
-        <header class="games__head">
-          <h1 class="games__title">Games</h1>
-        </header>
+        <div class="games__fit">
+          <header class="games__head">
+            <h1 class="games__title">Games</h1>
+          </header>
 
-        <div class="games-grid">
-          <button class="game-tile game-tile--wheel" type="button" data-go="wheelPage" aria-label="Open Wheel">
-            <span class="game-tile__label" aria-hidden="true">Wheel</span>
-          </button>
+          <div class="games-grid">
+            <button class="game-tile game-tile--wheel" type="button" data-go="wheelPage" aria-label="Open Wheel">
+              <span class="game-tile__label" aria-hidden="true">Wheel</span>
+            </button>
 
-          <button class="game-tile game-tile--crash" type="button" data-go="crashPage" aria-label="Open Crash">
-            <span class="game-tile__label" aria-hidden="true">Crash</span>
-          </button>
+            <button class="game-tile game-tile--crash" type="button" data-go="crashPage" aria-label="Open Crash">
+              <span class="game-tile__label" aria-hidden="true">Crash</span>
+            </button>
 
-          <button class="game-tile game-tile--cases" type="button" data-go="casesPage" aria-label="Open Cases">
-            <span class="game-tile__label" aria-hidden="true">Cases</span>
-          </button>
+            <button class="game-tile game-tile--cases" type="button" data-go="casesPage" aria-label="Open Cases">
+              <span class="game-tile__label" aria-hidden="true">Cases</span>
+            </button>
 
-          <button class="game-tile game-tile--soon" type="button" disabled aria-disabled="true">
-            <span class="game-tile__label" aria-hidden="true">Soon</span>
-          </button>
+            <button class="game-tile game-tile--soon" type="button" disabled aria-disabled="true">
+              <span class="game-tile__label" aria-hidden="true">Soon</span>
+            </button>
+          </div>
+
         </div>
       </section>
     `;
@@ -1333,9 +1427,11 @@
   });
 
   // Создаём Games-хаб и пункт в навбаре (если его ещё нет)
+  ensureMatchPage();
   const gamesPage = ensureGamesPage();
   setupCasesTileRotation(gamesPage);
   setupCrashTileRotation(gamesPage);
+  scheduleGamesViewportFit();
 
   // Если при старте нет активной — активируем Games (или первую)
   if(!document.querySelector(".page.page-active")){
@@ -1351,4 +1447,15 @@
 
   setupTelegramMiniGameBackButton();
   syncTelegramMiniGameBackButton();
+
+  WT.bus.addEventListener("page:change", (event) => {
+    if (event?.detail?.id === GAMES_PAGE_ID) {
+      scheduleGamesViewportFit();
+      setTimeout(scheduleGamesViewportFit, 120);
+    }
+  });
+
+  window.addEventListener("resize", scheduleGamesViewportFit, { passive: true });
+  window.addEventListener("orientationchange", scheduleGamesViewportFit, { passive: true });
+  window.addEventListener("load", scheduleGamesViewportFit);
 })();

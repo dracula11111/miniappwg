@@ -39,7 +39,7 @@
   // ====== PROMOCODE UI ======
   const promoInput = document.getElementById('promoInput');
   const promoApplyBtn = document.getElementById('promoApplyBtn');
-  const PROMO_APPLY_ICON_HTML = '<img src="/icons/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true">';
+  const PROMO_APPLY_ICON_HTML = '<img src="/icons/ui/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true">';
   const promoToast = document.getElementById('promo-toast');
 
   let promoToastTimer = null;
@@ -397,10 +397,10 @@
       if (nextPreview) fallbackQueue.push(nextPreview);
     }
     if (namedFallback) fallbackQueue.push(namedFallback);
-    fallbackQueue.push('/icons/market.webp');
+    fallbackQueue.push('/icons/app/market.webp');
 
     return {
-      src: previewSrc || iconSrc || modelImg || itemImg || namedFallback || '/icons/market.webp',
+      src: previewSrc || iconSrc || modelImg || itemImg || namedFallback || '/icons/app/market.webp',
       fallbackQueue
     };
   }
@@ -1043,7 +1043,7 @@ function ensureWithdrawModal() {
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
         <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">
-          <img src="/icons/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
+          <img src="/icons/ui/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
         </button>
       </div>
 
@@ -1100,7 +1100,7 @@ function ensureWithdrawErrorModal() {
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
         <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">
-          <img src="/icons/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
+          <img src="/icons/ui/close.svg" alt="" aria-hidden="true" style="width:16px;height:16px;filter:brightness(0) invert(1);opacity:.9;">
         </button>
       </div>
 
@@ -1520,7 +1520,7 @@ async function withdrawContinue() {
         }
         modalImg.onerror = null;
       };
-      modalImg.setAttribute('src', visual.src || '/icons/market.webp');
+      modalImg.setAttribute('src', visual.src || '/icons/app/market.webp');
     }
     modal.querySelector('#profileModalTitle').textContent = String(item.baseId || item.id || 'NFT');
     modal.querySelector('#profileModalSub').textContent = `${val} ${currencyIcon(currency)}`;
@@ -1645,8 +1645,8 @@ async function withdrawContinue() {
     const isStars = currency === 'stars';
   
     // ⚠️ звёздную иконку ты просил именно такую:
-    // если файла нет — либо добавь /icons/tgStar.svg, либо поменяй на /icons/stars.svg
-    const icon = isStars ? '/icons/tgStarsBlack.svg' : '/icons/ton.svg';
+    // если файла нет — либо добавь /icons/currency/tgStarWhite.svg, либо поменяй на /icons/currency/stars.svg
+    const icon = isStars ? '/icons/currency/tgStarsBlack.svg' : '/icons/currency/ton.svg';
     const sellBtnClass = isStars ? 'inv-btn--stars' : 'inv-btn--ton';
   
     grid.innerHTML = arr.map((it, idx) => {
@@ -1665,7 +1665,7 @@ async function withdrawContinue() {
       const cardActionAttr = isWithdrawLocked ? ' data-action="withdraw-locked-info"' : '';
       const lockOverlayHtml = isWithdrawLocked ? `
             <div class="inv-card__lock-overlay" aria-hidden="true">
-              <img class="inv-card__lock-icon" src="/icons/lock.svg" alt="">
+              <img class="inv-card__lock-icon" src="/icons/ui/lock.svg" alt="">
             </div>
       ` : '';
       const sellBtnHtml = marketOnlyWithdraw ? '' : `
@@ -1687,7 +1687,7 @@ async function withdrawContinue() {
           <button class="inv-btn inv-btn--withdraw inv-btn--withdraw-locked" type="button"
                   data-action="withdraw-locked-info" data-key="${key}"
                   data-lock-until="${Math.max(0, Math.floor(lockUntilMs))}">
-            <img class="inv-btn__icon inv-btn__icon--clock" src="/icons/clock.svg" alt="">
+            <img class="inv-btn__icon inv-btn__icon--clock" src="/icons/ui/clock.svg" alt="">
             <span class="inv-btn__label">
               <span class="inv-btn__hours">${escapeHtml(lockLabel.hoursText)}</span>
               <span class="inv-btn__mins">${escapeHtml(lockLabel.minutesText)}</span>

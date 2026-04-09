@@ -95,7 +95,7 @@ function renderUnauthorizedScreen(loginUrl) {
         <p class="wt-unauth__subtitle">Authorization required to access the app</p>
 
         <button type="button" class="wt-unauth__button" id="wtUnauthLoginBtn" data-url="${escapeHtml(safeLoginUrl)}">
-          <img class="wt-unauth__button-icon" src="/icons/telegram.svg" alt="" aria-hidden="true" />
+          <img class="wt-unauth__button-icon" src="/icons/social/telegram.svg" alt="" aria-hidden="true" />
           <span>Log in with Telegram</span>
         </button>
       </div>

@@ -1343,7 +1343,7 @@ function updateAmountButtonsUI(currency) {
         const amount = tonAmounts[index];
         btn.dataset.amount = amount;
         btn.innerHTML = `
-          <img src="/icons/ton.svg" alt="" class="amount-icon" />
+          <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
           <span class="amount-value">${amount}</span>
         `;
       }
@@ -1362,7 +1362,7 @@ function updateAmountButtonsUI(currency) {
         const amount = starsAmounts[index];
         btn.dataset.amount = amount;
         btn.innerHTML = `
-          <img src="/icons/stars.svg" alt="" class="amount-icon" />
+          <img src="/icons/currency/stars.svg" alt="" class="amount-icon" />
           <span class="amount-value">${amount}</span>
         `;
       }
@@ -1382,12 +1382,12 @@ function updateAmountButtonsUI(currency) {
 // Bet pill helpers (amount + currency icon)
 // ===========================
 function getCurrencyIconSrc(currency) {
-  return currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg';
+  return currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg';
 }
 
 // Отдельная функция для белых иконок в badge (на компактных карточках)
 function getCurrencyIconWhite(currency) {
-  return currency === 'stars' ? '/icons/stars.svg' : '/icons/tgTonWhite.svg';
+  return currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/tgTonWhite.svg';
 }
 
 function ensureBetPill(tile, seg) {
@@ -3279,7 +3279,7 @@ function renderWinToast(winAmount, currency = currentCurrency) {
     ? Math.round(Number(winAmount || 0))
     : Number(winAmount || 0).toFixed(2);
 
-  const iconSrc = currency === 'stars' ? '/icons/stars.svg' : '/icons/ton.svg';
+  const iconSrc = currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg';
 
   toast.innerHTML = `
     <span>+${formattedAmount}</span>
@@ -3599,8 +3599,8 @@ function getMultiplier(type) {
     const bonus = new window.Bonus5050(container, {
       boomSrc: 'images/boom.webp',
       particlesSrc: 'images/boomparticles.webp',
-      lightningIcon: 'icons/lighting.webp',
-      backIcon: 'icons/back.svg',
+      lightningIcon: 'icons/decor/lighting.webp',
+      backIcon: 'icons/ui/back.svg',
       hasBet,
       durationSec,
       remainingSec: opts?.remainingSec || null,

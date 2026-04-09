@@ -12,8 +12,8 @@ class Bonus5050 {
       remainingSec: Number.isFinite(options.remainingSec) ? Math.max(1, Math.ceil(options.remainingSec)) : null,
       boomSrc: options.boomSrc || 'images/boom.webp',
       particlesSrc: options.particlesSrc || 'images/boomparticles.webp',
-      lightningIcon: options.lightningIcon || 'icons/lighting.webp',
-      backIcon: options.backIcon || 'icons/back.svg',
+      lightningIcon: options.lightningIcon || 'icons/decor/lighting.webp',
+      backIcon: options.backIcon || 'icons/ui/back.svg',
       ...options
     };
     

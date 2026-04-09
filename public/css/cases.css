@@ -59,18 +59,18 @@ body:has(.page-active#casesPage)::before{
   z-index: 0;
   
   background:
-    url('/icons/pstar.svg') 15% 8% / 8px 8px no-repeat,
-    url('/icons/pstar.svg') 82% 12% / 6px 6px no-repeat,
-    url('/icons/pstar.svg') 28% 18% / 7px 7px no-repeat,
-    url('/icons/pstar.svg') 91% 25% / 5px 5px no-repeat,
-    url('/icons/pstar.svg') 42% 6% / 6px 6px no-repeat,
-    url('/icons/pstar.svg') 68% 15% / 8px 8px no-repeat,
-    url('/icons/pstar.svg') 8% 22% / 5px 5px no-repeat,
-    url('/icons/pstar.svg') 95% 9% / 7px 7px no-repeat,
-    url('/icons/pstar.svg') 55% 11% / 6px 6px no-repeat,
-    url('/icons/pstar.svg') 73% 4% / 5px 5px no-repeat,
-    url('/icons/pstar.svg') 22% 14% / 7px 7px no-repeat,
-    url('/icons/pstar.svg') 88% 19% / 6px 6px no-repeat;
+    url('/icons/decor/pstar.svg') 15% 8% / 8px 8px no-repeat,
+    url('/icons/decor/pstar.svg') 82% 12% / 6px 6px no-repeat,
+    url('/icons/decor/pstar.svg') 28% 18% / 7px 7px no-repeat,
+    url('/icons/decor/pstar.svg') 91% 25% / 5px 5px no-repeat,
+    url('/icons/decor/pstar.svg') 42% 6% / 6px 6px no-repeat,
+    url('/icons/decor/pstar.svg') 68% 15% / 8px 8px no-repeat,
+    url('/icons/decor/pstar.svg') 8% 22% / 5px 5px no-repeat,
+    url('/icons/decor/pstar.svg') 95% 9% / 7px 7px no-repeat,
+    url('/icons/decor/pstar.svg') 55% 11% / 6px 6px no-repeat,
+    url('/icons/decor/pstar.svg') 73% 4% / 5px 5px no-repeat,
+    url('/icons/decor/pstar.svg') 22% 14% / 7px 7px no-repeat,
+    url('/icons/decor/pstar.svg') 88% 19% / 6px 6px no-repeat;
   
   background-repeat: no-repeat;
   
@@ -132,11 +132,24 @@ body.page-cases #casesThemeBackdrop{
   opacity: 1;
 }
 
+/* Keep long backdrop behavior and add extra bottom reserve under nav. */
+html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage) #casesThemeBackdrop,
+html:is(.currency-stars,.currency-ton) body.page-cases #casesThemeBackdrop{
+  height: max(
+    var(--stars-bg-h, 2400px),
+    100dvh
+  );
+  min-height: max(
+    var(--stars-bg-h, 2400px),
+    100dvh
+  );
+}
+
 #casesThemeBackdrop .cases-theme-bg-layer{
   position: absolute;
   inset: 0;
-  background-position: center top;
-  background-size: var(--stars-layout-w, min(100vw, 430px)) auto;
+  background-position: center -1px;
+  background-size: calc(var(--stars-layout-w, min(100vw, 430px)) + 4px) auto;
   background-repeat: no-repeat;
   will-change: opacity, transform;
   transition:
@@ -888,7 +901,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 html:is(.currency-stars,.currency-ton) #casesPage #casesGrid.cases-path,
 html:is(.currency-stars,.currency-ton) #casesPage .cases-path{
   --stars-grid-top-offset: 118px;   /* topbar/logo zone */
-  --stars-grid-bottom-offset: 90px; /* app bottom safe-area */
+  --stars-grid-bottom-offset: calc(72px + env(safe-area-inset-bottom, 0px)); /* capsule nav + safe-area */
   --stars-grid-h: calc(var(--stars-bg-h) - var(--stars-grid-top-offset) - var(--stars-grid-bottom-offset));
   position: relative;
   isolation: isolate;

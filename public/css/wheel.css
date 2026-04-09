@@ -60,7 +60,7 @@
     height: 200vh;
     z-index: 0;
     pointer-events: none;
-    background-image: url('/icons/pstar.svg');
+    background-image: url('/icons/decor/pstar.svg');
     /* each tile cell: 140px wide Г— 110px tall вЂ” stars sparse and staggered */
     background-size: 140px 110px;
     background-repeat: repeat;
@@ -78,7 +78,7 @@
     height: 200vh;
     z-index: 0;
     pointer-events: none;
-    background-image: url('/icons/pstar.svg');
+    background-image: url('/icons/decor/pstar.svg');
     background-size: 100px 140px;
     background-repeat: repeat;
     /* offset half a tile so layer-2 stars fall between layer-1 stars */
@@ -2133,7 +2133,7 @@ flex: 0 0 auto;
   transform: translateY(-50%) !important;
   width: 22px !important;
   height: 22px !important;
-  background: url("/icons/tgStarsBlack.svg") center / contain no-repeat !important;
+  background: url("/icons/currency/tgStarsBlack.svg") center / contain no-repeat !important;
   z-index: 2 !important;
   transition: all 0.3s ease !important;
 }

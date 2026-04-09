@@ -134,7 +134,7 @@
     root.setAttribute("aria-label", "Account banned");
     root.innerHTML = `
       <div class="wt-ban__panel">
-        <img class="wt-ban__icon" src="/icons/ban.webp" alt="Banned account">
+        <img class="wt-ban__icon" src="/icons/app/ban.webp" alt="Banned account">
         <h1 class="wt-ban__title">Your account has been banned</h1>
         <p class="wt-ban__text">If this was done by mistake, contact support.</p>
         <button class="wt-ban__support" type="button">${SUPPORT_USERNAME}</button>

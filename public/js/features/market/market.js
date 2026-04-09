@@ -8,11 +8,11 @@
   const MARKET_AUTO_REFRESH_MS = 5 * 60 * 1000;
 
   const ICONS = {
-    sticker: '/icons/market.webp',
-    arrowUp: '/icons/up.svg',
-    arrowDown: '/icons/down.svg',
-    tonWhite: '/icons/tgTonWhite.svg',
-    starWhite: '/icons/tgStarWhite.svg'
+    sticker: '/icons/app/market.webp',
+    arrowUp: '/icons/ui/up.svg',
+    arrowDown: '/icons/ui/down.svg',
+    tonWhite: '/icons/currency/tgTonWhite.svg',
+    starWhite: '/icons/currency/tgStarWhite.svg'
   };
 
   const CARD_BACKGROUNDS = [
@@ -416,7 +416,7 @@ function ensureGiftDrawer() {
   overlay.innerHTML = `
     <div class="market-gift-drawer" role="dialog" aria-modal="true">
       <button class="market-gift-close" type="button" aria-label="Close">
-        <img src="/icons/close.svg" alt="" aria-hidden="true">
+        <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
       </button>
 
       <div class="market-gift-hero">
@@ -424,7 +424,7 @@ function ensureGiftDrawer() {
           <img class="market-gift-hero__img" src="${escapeHtml(PLACEHOLDER_IMG)}" alt="">
           <a class="market-gift-view-link" href="#" target="_blank" rel="noopener noreferrer">
             <span class="market-gift-view-link__text">View in</span>
-            <img class="market-gift-view-link__icon" src="/icons/TelegramBlack.svg" alt="">
+            <img class="market-gift-view-link__icon" src="/icons/social/TelegramBlack.svg" alt="">
           </a>
           <div class="market-gift-caption">
             <span class="market-gift-caption__name">Gift</span>
@@ -2039,7 +2039,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
         <div class="market-filter-header">
           <h2 class="market-filter-title">Filter Gifts</h2>
           <button class="market-filter-close" type="button" aria-label="Close">
-            <img class="market-filter-close-icon" src="/icons/close.svg" alt="" aria-hidden="true">
+            <img class="market-filter-close-icon" src="/icons/ui/close.svg" alt="" aria-hidden="true">
           </button>
         </div>
 
@@ -2121,7 +2121,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
         safeText(g?.previewUrl, 220000) ||
         safeText(tg?.previewUrl, 220000) ||
         safeText(g?.image, 220000) ||
-        '/icons/market.webp';
+        '/icons/app/market.webp';
       const namedFallbackSrc = marketFallbackImageByGift(g);
       const previewSrc = namedFallbackSrc || fallbackPreviewSrc;
 
@@ -2189,7 +2189,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
 
     const iconEl = item.querySelector('.market-filter-item__icon');
     if (iconEl) {
-      const backupSrc = safeText(t?.fallbackPreviewSrc, 220000) || '/icons/market.webp';
+      const backupSrc = safeText(t?.fallbackPreviewSrc, 220000) || '/icons/app/market.webp';
       let usedBackup = false;
       iconEl.addEventListener('error', () => {
         const currentSrc = String(iconEl.getAttribute('src') || '');
@@ -2198,8 +2198,8 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
           iconEl.setAttribute('src', backupSrc);
           return;
         }
-        if (currentSrc !== '/icons/market.webp') {
-          iconEl.setAttribute('src', '/icons/market.webp');
+        if (currentSrc !== '/icons/app/market.webp') {
+          iconEl.setAttribute('src', '/icons/app/market.webp');
           return;
         }
         iconEl.onerror = null;
@@ -2281,7 +2281,7 @@ async function postJson(url, body, { timeoutMs = 12000 } = {}) {
   }
 
   function currencyIconPath(currency) {
-    return currency === 'stars' ? '/icons/tgStarWhite.svg' : '/icons/tgTonWhite.svg';
+    return currency === 'stars' ? '/icons/currency/tgStarWhite.svg' : '/icons/currency/tgTonWhite.svg';
   }
 
   function resolveTypePrice(t, currency) {

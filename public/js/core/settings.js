@@ -248,7 +248,7 @@
   
     function getFlagPath(lang) {
       const flagName = lang === 'en' ? 'english' : 'russian';
-      return `/icons/${flagName}.${FLAG_FORMAT}`;
+      return `/icons/flags/${flagName}.${FLAG_FORMAT}`;
     }
 
     function clearFlagSwitchTimers() {

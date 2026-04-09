@@ -703,7 +703,7 @@
     const rewardIcon = document.createElement("img");
     rewardIcon.className = "trow__rewardIcon";
     rewardIcon.alt = "";
-    rewardIcon.src = currency === "ton" ? "/icons/tgTonWhite.svg" : "/icons/tgStarsBlack.svg";
+    rewardIcon.src = currency === "ton" ? "/icons/currency/tgTonWhite.svg" : "/icons/currency/tgStarsBlack.svg";
     rewardIcon.onerror = () => {
       rewardIcon.remove();
       reward.insertBefore(el("span", "trow__rewardIconFallback", "*"), reward.firstChild);

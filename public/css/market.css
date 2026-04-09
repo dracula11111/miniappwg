@@ -1,22 +1,11 @@
 /* ===== MARKET PAGE ===== */
 
 #marketPage.market-page {
-  --market-sticky-top: calc(env(safe-area-inset-top, 0px) + 4px);
-  --market-head-h: 56px;
   padding: 12px 0 calc(96px + env(safe-area-inset-bottom));
 }
 
 .market-shell {
   width: 100%;
-}
-
-body.page-market .topbar {
-  position: sticky;
-  top: env(safe-area-inset-top, 0px);
-  z-index: 180;
-  background: linear-gradient(180deg, rgba(10, 14, 22, 0.95) 0%, rgba(10, 14, 22, 0.68) 70%, rgba(10, 14, 22, 0) 100%);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
 /* Header */
@@ -25,12 +14,6 @@ body.page-market .topbar {
   justify-content: center;
   align-items: center;
   padding: 6px 16px 10px;
-  position: sticky;
-  top: var(--market-sticky-top);
-  z-index: 25;
-  background: linear-gradient(180deg, rgba(12, 18, 30, 0.94) 0%, rgba(12, 18, 30, 0.65) 70%, rgba(12, 18, 30, 0) 100%);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
 }
 
 .market-title {
@@ -67,12 +50,6 @@ body.page-market .topbar {
   align-items: center;
   gap: 12px;
   padding: 6px 16px 14px;
-  position: sticky;
-  top: calc(var(--market-sticky-top) + var(--market-head-h));
-  z-index: 24;
-  background: linear-gradient(180deg, rgba(12, 18, 30, 0.96) 0%, rgba(12, 18, 30, 0.74) 70%, rgba(12, 18, 30, 0) 100%);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .market-pill {

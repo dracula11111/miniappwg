@@ -1,4 +1,4 @@
-﻿<!-- App shell rendered into #root by /js/app-shell.js -->
+<!-- App shell rendered into #root by /js/app-shell.js -->
 <!-- Splash Screen -->
 <div id="splash" class="splash">
   <div class="splash__background">
@@ -55,36 +55,36 @@
     <div class="cases-topbar-switch" aria-label="Cases currency switch">
       <div class="currency-switch currency-switch--cases" role="group" aria-label="Currency">
         <button class="curr-btn" data-currency="stars" type="button" aria-label="Stars">
-          <img src="/icons/stars.svg" alt="" class="curr-icon">
+          <img src="/icons/currency/stars.svg" alt="" class="curr-icon">
         </button>
         <button class="curr-btn curr-btn--active" data-currency="ton" type="button" aria-label="TON">
-          <img src="/icons/ton.svg" alt="" class="curr-icon">
+          <img src="/icons/currency/ton.svg" alt="" class="curr-icon">
         </button>
       </div>
     </div>
   
-    <!-- TON/Stars Р±Р°Р»Р°РЅСЃ (РѕС‚РєСЂС‹РІР°РµС‚ РґРµРїРѕР·РёС‚) -->
+    <!-- TON/Stars баланс (открывает депозит) -->
     <div class="balance">
       <button id="tonPill" class="pill pill--ton" type="button" aria-label="Balance" data-open-deposit>
-        <!-- рџ”Ґ Р”РёРЅР°РјРёС‡РµСЃРєР°СЏ РёРєРѕРЅРєР° РІР°Р»СЋС‚С‹ (TON РёР»Рё Stars) -->
+        <!-- 🔥 Динамическая иконка валюты (TON или Stars) -->
         <img 
           id="pillCurrencyIcon" 
-          src="/icons/ton.svg" 
+          src="/icons/currency/ton.svg" 
           alt="Currency" 
           class="pill-icon"
           style="transition: opacity 0.15s ease, transform 0.15s ease;"
         />
         <span id="tonAmount">0.00</span>
-        <img src="/icons/plus.svg" alt="" class="pill-plus-icon" />
+        <img src="/icons/ui/plus.svg" alt="" class="pill-plus-icon" />
       </button>     
     </div>
   </header>
 
-    <!-- ===== HISTORY (РёРєРѕРЅРєРё РїРѕСЃР»РµРґРЅРёС… РІС‹РїР°РґРµРЅРёР№ вЂ” РґРѕР±Р°РІР»СЏР№ С‡РµСЂРµР· JS) ===== -->
+    <!-- ===== HISTORY (иконки последних выпадений — добавляй через JS) ===== -->
     <section class="history wheel-only" aria-label="Last results">
       <div id="historyList" class="history-list">
         
-        <!-- РїСЂРёРјРµСЂ СЌР»РµРјРµРЅС‚Р° РёСЃС‚РѕСЂРёРё СЃ РёРєРѕРЅРєРѕР№:
+        <!-- пример элемента истории с иконкой:
         <div class="history-item">
           <img src="/images/history/1x_small.png" alt="1x" />
         </div>
@@ -108,7 +108,7 @@
         <div class="wheel-players-panel__head">
           <div class="wheel-players-panel__title">Players</div>
           <button class="wheel-players-panel__hash" id="wheelRoundHashCopy" type="button" aria-label="Copy round hash">
-            <img class="wheel-players-panel__hashIcon" src="/icons/copy.svg" alt="" aria-hidden="true">
+            <img class="wheel-players-panel__hashIcon" src="/icons/ui/copy.svg" alt="" aria-hidden="true">
             <span class="wheel-players-panel__hashText" id="wheelRoundHashLabel">Hash #--</span>
           </button>
           <div class="wheel-players-panel__count" id="wheelGameCounter">Game #1</div>
@@ -118,9 +118,9 @@
 
       <!-- ===== BET OVERLAY ===== -->
       <section id="betOverlay" class="bet-overlay bet-overlay--redesign" aria-label="Betting panel">
-        <!-- РЎРµС‚РєР° Р»РѕС‚РѕРІ (Р±РѕР»СЊС€РёРµ РєР°СЂС‚РёРЅРєРё) + С†РµРЅС‚СЂР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР° СЃС‚Р°РІРѕРє -->
+        <!-- Сетка лотов (большие картинки) + центральная колонка ставок -->
         <div class="bet-grid bet-grid--redesign" role="grid" aria-label="Select segment">
-          <!-- СЂСЏРґ 1 -->
+          <!-- ряд 1 -->
           <button class="bet-tile muted" role="gridcell" data-seg="1.1x">
             <img class="bet-img" src="/images/bets/1.1x.webp" alt="1.1x" />
           </button>
@@ -129,7 +129,7 @@
             <img class="bet-img" src="/images/bets/1.5x.webp" alt="1.5x" />
           </button>
 
-          <!-- СЂСЏРґ 2 -->
+          <!-- ряд 2 -->
           <button class="bet-tile muted" role="gridcell" data-seg="5x">
             <img class="bet-img" src="/images/bets/5x.webp" alt="5x" />
           </button>
@@ -138,7 +138,7 @@
             <img class="bet-img" src="/images/bets/11x.webp" alt="11x" />
           </button>
 
-          <!-- СЂСЏРґ 3 (Р±РѕРЅСѓСЃС‹) -->
+          <!-- ряд 3 (бонусы) -->
           <button class="bet-tile bonus" role="gridcell" data-seg="50&50">
             <img class="bet-img" src="/images/bets/50-50.webp" alt="50&50" />
           </button>
@@ -147,33 +147,33 @@
             <img class="bet-img" src="/images/bets/loot.webp" alt="Loot Rush" />
           </button>
 
-          <!-- Р¦РµРЅС‚СЂР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР°: back/clear + СЃСѓРјРјС‹ -->
+          <!-- Центральная колонка: back/clear + суммы -->
           <div class="bet-center bet-controls" role="presentation" aria-label="Bet controls">
             <button class="clear-bets-btn" data-action="clear" aria-label="Clear bets">
-              <img src="/icons/clear.svg" alt="" />
+              <img src="/icons/ui/clear.svg" alt="" />
             </button>
 
             <div class="bet-amounts bet-amounts--stack" aria-label="Bet amount">
               <button class="amount-btn" data-amount="0.1">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
                 <span class="amount-value">0.1</span>
               </button>
               <button class="amount-btn" data-amount="0.5">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
                 <span class="amount-value">0.5</span>
               </button>
               <button class="amount-btn" data-amount="1">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
                 <span class="amount-value">1</span>
               </button>
               <button class="amount-btn" data-amount="2.5">
-                <img src="/icons/ton.svg" alt="" class="amount-icon" />
+                <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
                 <span class="amount-value">2.5</span>
               </button>
             </div>
           </div>
 
-          <!-- СЂСЏРґ 4 (С€РёСЂРѕРєРёР№ Р±РѕРЅСѓСЃ) -->
+          <!-- ряд 4 (широкий бонус) -->
           <button class="bet-tile bonus wide" role="gridcell" data-seg="Wild Time">
             <img class="bet-img" src="/images/bets/wild.webp" alt="Wild Time" />
           </button>
@@ -209,7 +209,7 @@
 
       <section class="cases" aria-label="Cases">
         <div class="cases-grid" id="casesGrid">
-          <!-- Cases Р±СѓРґСѓС‚ РіРµРЅРµСЂРёСЂРѕРІР°С‚СЊСЃСЏ С‡РµСЂРµР· JS -->
+          <!-- Cases будут генерироваться через JS -->
         </div>
       </section>
     </main>
@@ -220,7 +220,7 @@
 <div id="caseBottomSheet" class="case-bottom-sheet">
   <div class="case-overlay" id="caseOverlay"></div>
   <button id="caseSheetFloatingClose" class="case-sheet-floating-close" type="button" aria-label="Close case">
-    <img src="/icons/close.svg" alt="" aria-hidden="true">
+    <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
   </button>
   
   <div class="case-sheet-panel">
@@ -228,14 +228,14 @@
     <div class="case-sheet-header">
       <h2 id="caseSheetTitle">Case 1</h2>
       <button class="case-sheet-close" id="caseSheetClose" aria-label="Close">
-        <img src="/icons/close.svg" alt="" aria-hidden="true">
+        <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
       </button>
     </div>
 
     <!-- Carousels Container -->
     <div class="case-carousels-section">
       <div id="caseCarouselsWrapper" class="case-carousels-wrapper">
-        <!-- РљР°СЂСѓСЃРµР»Рё РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ JS -->
+        <!-- Карусели генерируются JS -->
       </div>
     </div>
 
@@ -252,7 +252,7 @@
     <div class="case-contents-section">
       <h3 class="case-contents-title">Contents</h3>
       <div id="caseContentsGrid" class="case-contents-grid">
-        <!-- РђР№С‚РµРјС‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ JS -->
+        <!-- Айтемы генерируются JS -->
       </div>
     </div>
 
@@ -262,7 +262,7 @@
         <span>Open</span>
         <span class="case-open-price">
           <span id="casePrice">0.01</span>
-          <img id="caseCurrencyIcon" src="/icons/ton.svg" alt="TON">
+          <img id="caseCurrencyIcon" src="/icons/currency/ton.svg" alt="TON">
         </span>
       </button>
     </div>
@@ -281,11 +281,11 @@
         <div class="task-row">
           <div class="task-left">
             <div class="task-icon task-icon--blue">
-              <img src="/icons/tasks.svg" alt="">
+              <img src="/icons/nav/tasks.svg" alt="">
             </div>
             <div class="task-meta">
               <div class="task-name">Text 1</div>
-              <div class="task-reward"><span class="task-reward-icon">рџЋџпёЏ</span><span class="task-reward-num">1</span></div>
+              <div class="task-reward"><span class="task-reward-icon">🎟️</span><span class="task-reward-num">1</span></div>
             </div>
           </div>
           <button class="task-btn" type="button">Start</button>
@@ -294,11 +294,11 @@
         <div class="task-row">
           <div class="task-left">
             <div class="task-icon task-icon--green">
-              <img src="/icons/cases.svg" alt="">
+              <img src="/icons/nav/cases.svg" alt="">
             </div>
             <div class="task-meta">
               <div class="task-name">Text 2</div>
-              <div class="task-reward"><span class="task-reward-icon">рџЋџпёЏ</span><span class="task-reward-num">1</span></div>
+              <div class="task-reward"><span class="task-reward-icon">🎟️</span><span class="task-reward-num">1</span></div>
             </div>
           </div>
           <button class="task-btn" type="button">Start</button>
@@ -315,7 +315,7 @@
 <!-- ===== PROFILE PAGE - REDESIGNED ===== -->
 <main id="profilePage" class="page">
   <section class="profile-card">
-    <!-- РђРІР°С‚Р°СЂ + РёРјСЏ -->
+    <!-- Аватар + имя -->
     <div class="profile-head">
       <img id="profileAvatar" class="profile-ava" src="/images/avatar-default.png" alt="" />
       <div class="profile-meta">
@@ -324,14 +324,14 @@
       </div>
     </div>
 
-    <!-- РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ РІР°Р»СЋС‚С‹ -->
+    <!-- Переключатель валюты -->
     <div class="currency-switch">
       <button class="curr-btn curr-btn--active" data-currency="ton">
-        <img src="/icons/ton.svg" alt="" class="curr-icon">
+        <img src="/icons/currency/ton.svg" alt="" class="curr-icon">
         <span>TON</span>
       </button>
       <button class="curr-btn" data-currency="stars">
-        <img src="/icons/stars.svg" alt="" class="curr-icon">
+        <img src="/icons/currency/stars.svg" alt="" class="curr-icon">
         <span>Stars</span>
       </button>
     </div>
@@ -375,7 +375,7 @@
 
   <!-- Details section (hidden, legacy) -->
   <div id="walletCardDetails" class="wallet-card__details" hidden>
-    <div class="wallet-card__address" id="walletCardAddress">вЂ”</div>
+    <div class="wallet-card__address" id="walletCardAddress">—</div>
     <div class="wallet-card__actions">
       <button id="walletCardCopy" class="btn-action btn-action--secondary">Copy</button>
       <button id="walletCardDisconnect" class="btn-action btn-action--danger">Disconnect</button>
@@ -388,7 +388,7 @@
     <div class="promo-row">
       <input id="promoInput" class="promo-input" type="text" placeholder="Enter code" maxlength="64" autocomplete="off" />
       <button id="promoApplyBtn" class="promo-btn" type="button" aria-label="Apply" disabled>
-        <img src="/icons/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true" />
+        <img src="/icons/ui/tick.svg" alt="" class="promo-btn__icon" aria-hidden="true" />
       </button>
     </div>
   </div>
@@ -399,7 +399,7 @@
   <div class="profile-invpanel__title">Inventory</div>
 
   <div class="profile-invpanel__icon" aria-hidden="true">
-    <img class="profile-invpanel__img" src="/icons/search.webp" alt="">
+    <img class="profile-invpanel__img" src="/icons/ui/search.webp" alt="">
   </div>
 
   <div class="profile-invpanel__text">No gifts yet.</div>
@@ -416,27 +416,33 @@
 
 
 
-        <!-- ===== BOTTOM NAV (SVG + РїРѕРґРїРёСЃРё) ===== -->
-    <nav class="bottom-nav" role="navigation" aria-label="Bottom navigation">
-      <button class="nav-item active" data-target="gamesPage" aria-label="Games">
-        <img src="/icons/games.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Games</span>
+        <!-- ===== BOTTOM NAV (SVG + подписи) ===== -->
+    <nav class="bottom-nav bottom-nav--capsule" role="navigation" aria-label="Bottom navigation">
+      <button class="nav-item nav-item--edge nav-item--match" data-target="matchPage" aria-label="Match">
+        <img src="/icons/nav/match.svg" alt="" class="nav-icon" onerror="this.onerror=null;this.src='/icons/nav/games.svg';" />
+        <span class="nav-label">Match</span>
       </button>
 
-      <button class="nav-item" data-target="marketPage" aria-label="Market">
-        <img src="/icons/market.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Market</span>
-      </button>
+      <div class="bottom-nav__center">
+        <button class="nav-item nav-item--center active" data-target="gamesPage" aria-label="Games">
+          <img src="/icons/nav/games.svg" alt="" class="nav-icon" />
+          <span class="nav-label">Games</span>
+        </button>
 
-      <button class="nav-item" data-target="tasksPage" aria-label="Tasks">
-        <img src="/icons/tasks.svg" alt="" class="nav-icon" />
-        <span class="nav-label">Tasks</span>
-      </button>
+        <button class="nav-item nav-item--center" data-target="marketPage" aria-label="Market">
+          <img src="/icons/nav/market.svg" alt="" class="nav-icon" />
+          <span class="nav-label">Market</span>
+        </button>
 
-      <button class="nav-item" data-target="profilePage" aria-label="Profile">
-        <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
-        <span class="nav-label">Profile</span>
-      </button>
+        <button class="nav-item nav-item--center" data-target="tasksPage" aria-label="Tasks">
+          <img src="/icons/nav/tasks.svg" alt="" class="nav-icon" />
+          <span class="nav-label">Tasks</span>
+        </button>
+        
+        <button class="nav-item nav-item--center nav-item--profile-inline" data-target="profilePage" aria-label="Profile">
+          <img id="navProfileAvatar" src="/images/avatar-default.png" alt="" class="nav-avatar" />
+        </button>
+      </div>
     </nav>
 
 
@@ -445,7 +451,7 @@
 <div id="openingOverlay" class="opening-overlay" hidden>
   <div class="opening-content">
     <div id="openingReel" class="opening-reel">
-      <!-- РџСЂРёР·С‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ С‡РµСЂРµР· JS -->
+      <!-- Призы генерируются через JS -->
     </div>
   </div>
 </div>
@@ -455,36 +461,36 @@
   <div class="result-modal__backdrop"></div>
   <div class="result-modal__content">
     <button id="resultClose" class="result-modal__close" aria-label="Close">
-      <img src="/icons/close.svg" alt="" aria-hidden="true">
+      <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
     <div class="result-confetti"></div>
     
     <div class="result-gift">
       <div class="result-gift__image">
-        <div id="resultGiftIcon" class="result-gift__icon">рџЋЃ</div>
+        <div id="resultGiftIcon" class="result-gift__icon">🎁</div>
       </div>
       <h3 id="resultGiftName" class="result-gift__name">Gift Name</h3>
       <div id="resultGiftValue" class="result-gift__value">
-        <img src="/icons/stars.svg" alt="" />
+        <img src="/icons/currency/stars.svg" alt="" />
         <span>0</span>
       </div>
     </div>
     
     <button id="resultOpenAnother" class="btn btn--primary btn--large">
-      <span class="btn__text">рџЋЃ Try Again</span>
+      <span class="btn__text">🎁 Try Again</span>
     </button>
   </div>
 </div>
 
-<!-- ===== BONUS 50/50 OVERLAY РЎ BLUR Р­Р¤Р¤Р•РљРўРћРњ ===== -->
-<!-- Р’СЃС‚Р°РІРёС‚СЊ РџРћРЎР›Р• СЃС‚СЂРѕРєРё 468 (РїРѕСЃР»Рµ </div> menu-overlay) -->
+<!-- ===== BONUS 50/50 OVERLAY С BLUR ЭФФЕКТОМ ===== -->
+<!-- Вставить ПОСЛЕ строки 468 (после </div> menu-overlay) -->
 
 <div id="bonus5050Overlay" class="bonus-overlay" style="display: none;">
-  <!-- Р Р°Р·РјС‹С‚С‹Р№ С„РѕРЅ (РїРѕРєР°Р·С‹РІР°РµС‚ РєРѕР»РµСЃРѕ) -->
+  <!-- Размытый фон (показывает колесо) -->
   <div class="bonus-overlay__blur-backdrop"></div>
   
-  <!-- РљРѕРЅС‚РµР№РЅРµСЂ РґР»СЏ Р±РѕРЅСѓСЃР° -->
+  <!-- Контейнер для бонуса -->
   <div id="bonus5050Container" class="bonus-container"></div>
 </div>
 
@@ -493,7 +499,7 @@
 
 
 <!-- ============================================
-     DEPOSIT POPUPS - РљРћРњРџРђРљРўРќРђРЇ Р’Р•Р РЎРРЇ
+     DEPOSIT POPUPS - КОМПАКТНАЯ ВЕРСИЯ
      ============================================ -->
 
 <!-- TON Deposit Popup -->
@@ -501,12 +507,12 @@
   <div class="deposit-popup__backdrop"></div>
   <div class="deposit-popup__content deposit-popup__content--compact">
     <button class="deposit-popup__close" id="tonPopupClose" aria-label="Close">
-      <img src="/icons/close.svg" alt="" aria-hidden="true">
+      <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="deposit-popup__title">Top up TON Balance</h2>
     
-    <!-- РЈРІРµРґРѕРјР»РµРЅРёРµ РѕР± РѕС€РёР±РєРµ -->
+    <!-- Уведомление об ошибке -->
     <div id="tonErrorNotification" class="error-notification" hidden>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
@@ -515,11 +521,11 @@
       <span class="error-text">Minimum deposit: 0.1 TON</span>
     </div>
     
-    <!-- РџРѕР»Рµ РІРІРѕРґР° СЃСѓРјРјС‹ -->
+    <!-- Поле ввода суммы -->
     <div class="deposit-popup__input-group">
       <label class="deposit-popup__label">Amount to deposit</label>
       <div class="deposit-popup__input-wrapper" id="tonInputWrapper">
-        <img src="/icons/ton.svg" alt="TON" class="deposit-popup__input-icon">
+        <img src="/icons/currency/ton.svg" alt="TON" class="deposit-popup__input-icon">
         <input 
           type="text" 
           id="tonAmountInput" 
@@ -532,19 +538,19 @@
       </div>
     </div>
     
-    <!-- Р‘Р°Р»Р°РЅСЃ РєРѕС€РµР»СЊРєР° -->
+    <!-- Баланс кошелька -->
     <div class="deposit-popup__wallet-info">
       <span class="deposit-popup__wallet-icon" aria-hidden="true">
-        <img src="/icons/wallet.svg" class="deposit-popup__wallet-icon-img" alt="">
+        <img src="/icons/ui/wallet.svg" class="deposit-popup__wallet-icon-img" alt="">
       </span>
-      <span id="tonWalletBalance">вЂ”</span>
+      <span id="tonWalletBalance">—</span>
     </div>
     
     <div class="deposit-popup__divider"></div>
     
     <button id="btnConnectTonWallet" class="wt-connect-wallet" type="button">
       <span class="wt-connect-wallet__icon" aria-hidden="true">
-        <img src="/icons/TelegramBlack.svg" class="wt-tgwallet-icon" alt="">
+        <img src="/icons/social/TelegramBlack.svg" class="wt-tgwallet-icon" alt="">
       </span>
       <span class="wt-connect-wallet__text">Connect Wallet</span>
     </button>
@@ -558,25 +564,25 @@
   <div class="deposit-popup__backdrop"></div>
   <div class="deposit-popup__content deposit-popup__content--compact">
     <button class="deposit-popup__close" id="starsPopupClose" aria-label="Close">
-      <img src="/icons/close.svg" alt="" aria-hidden="true">
+      <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
     
-    <!-- РЈРІРµРґРѕРјР»РµРЅРёРµ РѕР± РѕС€РёР±РєРµ -->
+    <!-- Уведомление об ошибке -->
     <div id="starsErrorNotification" class="error-notification" hidden>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="error-icon">
         <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
         <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
-      <span class="error-text">Minimum purchase: 1 в­ђ</span>
+      <span class="error-text">Minimum purchase: 1 ⭐</span>
     </div>
     
-    <!-- РџРѕР»Рµ РІРІРѕРґР° СЃСѓРјРјС‹ -->
+    <!-- Поле ввода суммы -->
     <div class="deposit-popup__input-group">
       <label class="deposit-popup__label">Amount to buy</label>
       <div class="deposit-popup__input-wrapper" id="starsInputWrapper">
-        <img src="/icons/stars.svg" alt="" class="deposit-popup__input-icon deposit-popup__input-icon--stars">
+        <img src="/icons/currency/stars.svg" alt="" class="deposit-popup__input-icon deposit-popup__input-icon--stars">
         <input 
           type="text" 
           id="starsAmountInput" 
@@ -595,7 +601,7 @@
   </div>
 </div>
  <!-- ===== SETTINGS BOTTOM SHEET - COMPLETE VERSION ===== -->
-<!-- Р—Р°РјРµРЅРёС‚Рµ СЌС‚РѕС‚ Р±Р»РѕРє РІ РІР°С€РµРј index.html (РјРµР¶РґСѓ </div> bet-amounts Рё </div> bet-controls) -->
+<!-- Замените этот блок в вашем index.html (между </div> bet-amounts и </div> bet-controls) -->
 
 <div id="settingsSheet" class="settings-sheet">
   <div class="settings-sheet__backdrop"></div>
@@ -604,7 +610,7 @@
     <div class="settings-sheet__handle"></div>
     
     <button type="button" id="settingsCloseBtn" class="settings-sheet__close" aria-label="Close settings">
-      <img src="/icons/close.svg" alt="" aria-hidden="true">
+      <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
     <h2 class="settings-sheet__title">Settings</h2>
@@ -615,7 +621,7 @@
       <div class="settings-item settings-item--clickable" id="languageSwitcher">
         <div class="settings-item__icon">
           <img 
-            src="/icons/english.svg" 
+            src="/icons/flags/english.svg" 
             alt="English" 
             class="settings-flag-img"
           />
@@ -633,7 +639,7 @@
       <div class="settings-item settings-item--clickable" id="supportItem">
         <div class="settings-item__icon settings-item__icon--support">
           <img 
-            src="/icons/support.webp" 
+            src="/icons/social/support.webp" 
             alt="Support" 
             class="settings-icon-img settings-icon-img--support"
           />
@@ -651,7 +657,7 @@
       <div class="settings-item settings-item--clickable" id="aboutItem">
         <div class="settings-item__icon settings-item__icon--about">
           <img 
-            src="/icons/about.svg" 
+            src="/icons/ui/about.svg" 
             alt="About" 
             class="settings-icon-img settings-icon-img--about"
           />
@@ -676,13 +682,13 @@
 
   <div class="tcw-modal__sheet" role="dialog" aria-modal="true" aria-label="Wallet">
     <button class="tcw-modal__close" type="button" data-close="1" aria-label="Close">
-      <img src="/icons/close.svg" alt="" aria-hidden="true">
+      <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
 
     <div class="tcw-modal__title">Your wallet</div>
 
     <div class="tcw-modal__balanceLabel">Balance</div>
-    <div id="walletDisconnectBalance" class="tcw-modal__balance">вЂ”</div>
+    <div id="walletDisconnectBalance" class="tcw-modal__balance">—</div>
 
     <div class="tcw-modal__addrRow">
       <div class="tcw-modal__addrIcon" aria-hidden="true">
@@ -690,12 +696,12 @@
       </div>
 
       <div class="tcw-modal__addrText">
-        <div id="walletDisconnectAddr" class="tcw-modal__addr">вЂ”</div>
+        <div id="walletDisconnectAddr" class="tcw-modal__addr">—</div>
         <div class="tcw-modal__addrHint">Address</div>
       </div>
 
       <button id="walletDisconnectCopy" class="tcw-modal__copy" type="button" aria-label="Copy address">
-        <img class="tcw-modal__copy-icon" src="/icons/copy.svg" alt="">
+        <img class="tcw-modal__copy-icon" src="/icons/ui/copy.svg" alt="">
       </button>
     </div>      
       
