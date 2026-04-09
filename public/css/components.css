@@ -293,7 +293,7 @@
   
           @media (max-width: 380px) {
             .topbar {
-              padding: calc(70px + 2px) 12px 10px;                     /* Компактно, но сохраняем верхнюю линию */
+              padding: var(--wg-topbar-pad-top-compact) 12px 10px;                     /* Компактно, но сохраняем верхнюю линию */
             }
             
             .topbar__left {
@@ -448,19 +448,6 @@
               border: 1px solid rgba(255, 255, 255, 0.15); /* Добавляем границу */
             }
           }
-  
-          /* RIGHT BALANCE PILL */
-          .topbar > .balance {
-            grid-column: 3;
-            justify-self: end;
-            align-self: start;
-            position: static;
-            right: auto;
-            top: auto;
-            margin: 0;
-            transform: translateY(0);
-          }
-
         .topbar .pill{
           display: inline-flex;                            /* Инлайн-флекс */
           align-items: center;                             /* Центрируем по вертикали */

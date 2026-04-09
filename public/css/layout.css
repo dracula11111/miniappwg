@@ -2,12 +2,19 @@
                 TOPBAR WITH LEFT CONTROLS
          ============================================ */
 
+:root {
+  --wg-topbar-pad-top: 86px;
+  --wg-topbar-pad-top-compact: 82px;
+  --wg-topbar-left-offset-y: 0px;
+  --wg-topbar-balance-offset-y: 0px;
+}
+
          .topbar {
           position: relative;                            /* Относительное позиционирование */
           display: grid;                                 /* Grid: left | center | right */
           grid-template-columns: 1fr auto 1fr;
           align-items: start;                            /* Единая верхняя линия */
-          padding: calc(72px + 2px) 14px 10px;                       /* Единый верхний оффсет под логотип */
+          padding: var(--wg-topbar-pad-top) 14px 10px;                       /* Единый верхний оффсет под логотип */
           gap: 12px;                                     /* Расстояние между элементами */
         }
 
@@ -15,7 +22,7 @@
           display: flex;                                 /* Flexbox */
           align-items: center;                           /* Центрируем по вертикали */
           gap: 10px;                                     /* Расстояние между элементами */
-          margin-top: 2px;                               /* Без локального вертикального смещения */
+          margin-top: var(--wg-topbar-left-offset-y);                               /* Возвращаем контролы чуть ниже */
           grid-column: 1;
           justify-self: start;
         }
@@ -144,7 +151,7 @@
           justify-self: end;
           align-self: start;
           margin: 0;
-          transform: translateY(0);
+          transform: translateY(var(--wg-topbar-balance-offset-y));
           position: static;
           right: auto;
           top: auto;

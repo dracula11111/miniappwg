@@ -37,6 +37,7 @@ const DEFAULT_WELCOME_EMOJI_ID = "5330356071364046086";
 const DEFAULT_WELCOME_CTA_EMOJI_ID = "5470177992950946662";
 const DEFAULT_WELCOME_BUTTON_TEXT = "Claim gifts";
 const DEFAULT_WELCOME_BUTTON_STYLE = "danger";
+const DEFAULT_WELCOME_STARTAPP_URL = "https://t.me/wildgiftrobot?startapp=1";
 const DEFAULT_WELCOME_PHOTO_URL = "https://ibb.co/vFzkMcg";
 const DEFAULT_WELCOME_PHOTO_PATH = "/images/bot/startNtf.png";
 // Temporary safety lock: allow market buy/withdraw only for relayer admins.
@@ -8375,7 +8376,26 @@ function getWelcomeMiniAppUrl() {
     ""
   );
   if (preferred) return preferred;
+  const startAppUrl = normalizeTelegramButtonUrl(
+    process.env.TG_WELCOME_STARTAPP_URL ||
+    process.env.TELEGRAM_WELCOME_STARTAPP_URL ||
+    DEFAULT_WELCOME_STARTAPP_URL
+  );
+  if (startAppUrl) return startAppUrl;
   return normalizeTelegramButtonUrl(process.env.WEBAPP_URL || "");
+}
+
+function isTelegramStartAppLink(urlValue) {
+  try {
+    const parsed = new URL(String(urlValue || "").trim());
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "t.me" && host !== "www.t.me" && host !== "telegram.me" && host !== "www.telegram.me") {
+      return false;
+    }
+    return parsed.searchParams.has("startapp");
+  } catch {
+    return false;
+  }
 }
 
 const resolvedTelegramPhotoRefCache = new Map();
@@ -8572,16 +8592,18 @@ function isTelegramWelcomeTrigger(update = {}) {
 
 async function sendTelegramWelcomeMessage(chatId) {
   const buttonText = getWelcomeButtonText();
-  const miniAppUrl = getWelcomeMiniAppUrl();
+  const welcomeEntryUrl = getWelcomeMiniAppUrl();
   const buttonStyle = getWelcomeButtonStyle();
   const captionBothCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: true });
   const captionIntroCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: false });
   const captionFallbackHtml = buildWelcomeMessageText({ introCustom: false, ctaCustom: false });
   const photo = await resolveTelegramPhotoRef(getWelcomePhotoRef());
 
+  const useStartAppUrlButton = isTelegramStartAppLink(welcomeEntryUrl);
   const buildMarkup = (withStyle) => buildTelegramReplyMarkup({
     buttonText,
-    miniAppUrl,
+    miniAppUrl: useStartAppUrlButton ? "" : welcomeEntryUrl,
+    buttonUrl: useStartAppUrlButton ? welcomeEntryUrl : "",
     buttonStyle: withStyle ? buttonStyle : ""
   });
 

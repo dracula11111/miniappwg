@@ -317,19 +317,6 @@ body.page-cases .topbar{
   z-index: 180;
 }
 
-body:has(.page-active#casesPage) .topbar > .topbar__left,
-body.page-cases .topbar > .topbar__left{
-  grid-column: 1;
-}
-
-body:has(.page-active#casesPage) .topbar > .balance,
-body.page-cases .topbar > .balance{
-  grid-column: 3;
-  justify-self: end;
-  align-self: start;
-  transform: translateY(0);
-}
-
 body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
   margin: 0;
   padding: 4px;

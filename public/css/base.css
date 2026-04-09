@@ -194,24 +194,11 @@
                 overscroll-behavior-y: none;
               }
               body.page-match .topbar{
-                display: grid !important;
-                grid-template-columns: 1fr auto 1fr;
-                align-items: start;
-                padding: calc(72px + 2px) 14px 10px;
-                gap: 12px;
                 z-index: 120;
               }
               body.page-match .topbar .cases-topbar-switch,
               body.page-match .topbar .burger-btn{
                 display: none !important;
-              }
-              body.page-match .topbar__left{
-                gap: 10px;
-                margin-top: 2px;
-              }
-              body.page-match .topbar > .balance{
-                justify-self: end;
-                align-self: start;
               }
               body.page-match .topbar .pill{
                 min-height: 0;
