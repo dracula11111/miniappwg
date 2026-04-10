@@ -48,6 +48,30 @@
         min-height: 100dvh;                              /* Точная высота viewport на мобильных */
       }
 
+      /* Runtime performance profile for mobile Telegram WebView and low-end devices */
+      html.wt-touch body,
+      html.wt-lite body {
+        background-attachment: scroll;
+      }
+
+      html.wt-lite *,
+      html.wt-reduced-motion * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+
+      html.wt-lite .logo-header::after,
+      html.wt-reduced-motion .logo-header::after {
+        display: none !important;
+      }
+
+      html.wt-lite .app::before,
+      html.wt-lite .app::after,
+      html.wt-reduced-motion .app::before,
+      html.wt-reduced-motion .app::after {
+        animation: none !important;
+      }
+
       html{
         scrollbar-width: none;
       }
@@ -206,7 +230,8 @@
                 gap: 8px;
                 border-radius: 999px;
                 background: rgba(18, 24, 35, 0.40);
-                border-color: rgba(255, 255, 255, 0.16);
+                --wg-liquid-border-base: rgba(18, 24, 35, 0.40);
+                border-color: transparent;
                 box-shadow:
                   0 6px 14px rgba(0, 0, 0, 0.22),
                   inset 0 1px 0 rgba(255,255,255,.05);

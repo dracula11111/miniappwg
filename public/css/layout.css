@@ -90,9 +90,10 @@
           height: 40px;                                  /* Высота кнопки */
           border-radius: 12px;                           /* Скруглённые углы */
           background: rgba(18, 24, 35, 0.32);           /* Более прозрачный нейтральный фон */
+          --wg-liquid-border-base: rgba(18, 24, 35, 0.32);
           backdrop-filter: blur(14px) saturate(145%);   /* Liquid glass внутри кнопки настроек */
           -webkit-backdrop-filter: blur(14px) saturate(145%);
-          border: 1px solid rgba(255, 255, 255, 0.14);  /* Нейтральная граница */
+          border: 1px solid transparent;                 /* Линию рисуем в ::before цветом панели */
           display: flex;                                 /* Flexbox */
           flex-direction: column;                        /* Вертикальное расположение */
           align-items: center;                           /* Центрируем */
@@ -108,9 +109,17 @@
             inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
+        .burger-btn::before {
+          background:
+            linear-gradient(var(--wg-liquid-border-base), var(--wg-liquid-border-base)),
+            radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0) 40%),
+            radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 44%);
+        }
+
         .burger-btn:hover {
           background: rgba(24, 30, 40, 0.5);            /* Меняем фон при hover */
-          border-color: rgba(255, 255, 255, 0.24);       /* Подсвечиваем границу */
+          --wg-liquid-border-base: rgba(24, 30, 40, 0.5);
+          border-color: transparent;
           transform: translateY(-1px);                   /* Приподнимаем */
           box-shadow:                                    /* Усиливаем тень */
             0 4px 12px rgba(0, 0, 0, 0.3),

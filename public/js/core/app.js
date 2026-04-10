@@ -1,4 +1,4 @@
-// public/js/app.js
+﻿// public/js/app.js
 (() => {
   // Silence client console in production-like environments.
   // Enable logs via ?debug=1 or localStorage.WT_DEBUG_LOGS=1.
@@ -86,7 +86,7 @@
     }
   } catch {}
 
-  // Простые утилы
+  // РџСЂРѕСЃС‚С‹Рµ СѓС‚РёР»С‹
   function crc16Xmodem(bytes){
     let crc=0xffff;
     for (const b of bytes){
@@ -113,9 +113,9 @@
   }
 
   const ensureFriendly = (addr,opts) => !addr ? "" : (/^[UE]Q/.test(addr) ? addr : rawToFriendly(addr,opts));
-  const shortAddr = (addr) => addr ? `${addr.slice(0,4)}…${addr.slice(-4)}` : "Not connected";
+  const shortAddr = (addr) => addr ? `${addr.slice(0,4)}вЂ¦${addr.slice(-4)}` : "Not connected";
 
-  // Глобальчик с утилитами и простым “event bus”
+  // Р“Р»РѕР±Р°Р»СЊС‡РёРє СЃ СѓС‚РёР»РёС‚Р°РјРё Рё РїСЂРѕСЃС‚С‹Рј вЂњevent busвЂќ
   window.WT = window.WT || {};
   WT.utils = { crc16Xmodem, rawToFriendly, ensureFriendly, shortAddr };
   WT.bus   = new EventTarget();
@@ -130,247 +130,249 @@
   const RUSSIAN_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
 
   const I18N_KEYS = {
-    language_english: { en: "English", ru: "Английский" },
-    language_russian: { en: "Russian", ru: "Русский" },
+    language_english: { en: "English", ru: "РђРЅРіР»РёР№СЃРєРёР№" },
+    language_russian: { en: "Russian", ru: "Р СѓСЃСЃРєРёР№" },
     about_popup: {
       en: "WildGift v1.0.0\n\nA Telegram mini app for fun gaming!",
-      ru: "WildGift v1.0.0\n\nTelegram мини-приложение для игр и развлечений!"
+      ru: "WildGift v1.0.0\n\nTelegram РјРёРЅРё-РїСЂРёР»РѕР¶РµРЅРёРµ РґР»СЏ РёРіСЂ Рё СЂР°Р·РІР»РµС‡РµРЅРёР№!"
     }
   };
 
   const I18N_PHRASE_BOOK = [
     ["Match", "\u041c\u044d\u0442\u0447"],
-    ["Games", "Игры"],
-    ["Market", "Маркет"],
-    ["Tasks", "Задания"],
-    ["Profile", "Профиль"],
-    ["Players", "Игроки"],
-    ["History", "История"],
-    ["Contents", "Содержимое"],
-    ["Open", "Открыть"],
-    ["Open, win, repeat", "Открывай, выигрывай, повторяй"],
-    ["Last results", "Последние результаты"],
-    ["Wheel", "Колесо"],
-    ["Select segment", "Выберите сектор"],
-    ["Bet controls", "Управление ставками"],
-    ["Bet amount", "Сумма ставки"],
-    ["Clear bets", "Очистить ставки"],
-    ["Betting panel", "Панель ставок"],
-    ["Cases", "Кейсы"],
-    ["Cases poster", "Постер кейсов"],
-    ["Complete easy tasks to earn tickets. Use tickets to open free cases!", "Выполняйте простые задания и получайте билеты. Используйте билеты для открытия бесплатных кейсов!"],
-    ["Start", "Начать"],
-    ["Wallet", "Кошелек"],
-    ["Not connected", "Не подключен"],
-    ["Disconnect", "Отключить"],
-    ["Connect Wallet", "Подключить кошелек"],
-    ["Your wallet", "Ваш кошелек"],
-    ["Balance", "Баланс"],
-    ["Address", "Адрес"],
-    ["Copy address", "Скопировать адрес"],
-    ["Disconnect this wallet?", "Отключить этот кошелек?"],
-    ["Copy", "Копировать"],
-    ["Promocode", "Промокод"],
-    ["Enter code", "Введите код"],
-    ["Apply", "Применить"],
-    ["Inventory", "Инвентарь"],
-    ["No gifts yet.", "Подарков пока нет."],
-    ["Bottom navigation", "Нижняя навигация"],
-    ["Close", "Закрыть"],
-    ["Try Again", "Попробовать снова"],
-    ["Top up TON Balance", "Пополнить баланс TON"],
-    ["Minimum deposit: 0.1 TON", "Минимальный депозит: 0.1 TON"],
-    ["Amount to deposit", "Сумма пополнения"],
-    ["Deposit TON", "Пополнить TON"],
-    ["Buy Telegram Stars", "Купить Telegram Stars"],
-    ["Minimum purchase: 1 ⭐", "Минимальная покупка: 1 ⭐"],
-    ["Amount to buy", "Сумма покупки"],
-    ["Buy Stars", "Купить Stars"],
-    ["Settings", "Настройки"],
-    ["Language", "Язык"],
-    ["Support", "Поддержка"],
-    ["About", "О приложении"],
-    ["App info", "Информация о приложении"],
-    ["English", "Английский"],
-    ["Russian", "Русский"],
-    ["English Flag", "Флаг Англии"],
-    ["Russian Flag", "Флаг России"],
-    ["Close settings", "Закрыть настройки"],
-    ["Withdraw", "Вывод"],
-    ["Continue", "Продолжить"],
-    ["Processing...", "Обработка..."],
-    ["Loading...", "Загрузка..."],
-    ["Sell", "Продать"],
-    ["Claim", "Получить"],
-    ["Claimed", "Получено"],
-    ["Lost", "Проигрыш"],
-    ["Place Bet", "Сделать ставку"],
-    ["Place bet", "Сделать ставку"],
-    ["Max", "Макс"],
-    ["Deposit", "Пополнить"],
-    ["Connecting...", "Подключение..."],
-    ["Connecting…", "Подключение…"],
-    ["No active players yet", "Пока нет активных игроков"],
-    ["Waiting", "Ожидание"],
-    ["No bets yet", "Ставок пока нет"],
-    ["No bets in this round", "В этом раунде нет ставок"],
-    ["Player", "Игрок"],
-    ["Bet segments", "Секторы ставок"],
-    ["Bonus round in progress", "Бонусный раунд идет"],
-    ["Watch live", "Смотреть"],
-    ["Bonus:", "Бонус:"],
-    ["gifts", "подарки"],
-    ["price", "цена"],
-    ["Gifts", "Подарки"],
-    ["View in", "Открыть в"],
-    ["Gift", "Подарок"],
-    ["Filter Gifts", "Фильтр подарков"],
-    ["Clear All", "Очистить все"],
-    ["Show", "Показать"],
-    ["No gifts available", "Нет доступных подарков"],
-    ["All", "Все"],
-    ["Demo", "Демо"],
-    ["FREE", "БЕСПЛАТНО"],
-    ["Crash chart", "График Crash"],
-    ["Crash theme", "Тема Crash"],
-    ["Crypto theme", "Крипто тема"],
-    ["Space theme", "Космо тема"],
-    ["Currency change is available after the end of the round", "Сменить валюту можно после окончания раунда"],
-    ["Account banned", "Аккаунт заблокирован"],
-    ["Banned account", "Заблокированный аккаунт"],
-    ["Your account has been banned", "Ваш аккаунт заблокирован"],
-    ["If this was done by mistake, contact support.", "Если это произошло по ошибке, обратитесь в поддержку."],
-    ["You could have won", "Вы могли выиграть"],
-    ["You've won!", "Вы выиграли!"],
-    ["Subscribe to Wild Gift", "Подпишитесь на Wild Gift"],
-    ["Invite friend", "Пригласить друга"],
-    ["Top up 0.5 TON", "Пополнить на 0.5 TON"],
-    ["or equivalent in Stars", "или эквивалент в Stars"],
-    ["Win once in Game", "Выиграть один раз в игре"],
-    ["Wheel / Crash", "Колесо / Crash"],
-    ["Checking...", "Проверка..."],
-    ["Check", "Проверить"],
-    ["Reward already claimed.", "Награда уже получена."],
-    ["Subscription confirmed. Tap Claim.", "Подписка подтверждена. Нажмите «Получить»."],
-    ["Subscribe to the channel first, then tap Check.", "Сначала подпишитесь на канал, затем нажмите «Проверить»."],
-    ["Subscribe to the channel first.", "Сначала подпишитесь на канал."],
-    ["Failed to check subscription. Try again.", "Не удалось проверить подписку. Попробуйте снова."],
-    ["Failed to claim reward.", "Не удалось получить награду."],
-    ["Failed to claim reward. Try again.", "Не удалось получить награду. Попробуйте снова."],
-    ["Open deposit panel, top up balance, then tap Check.", "Откройте панель пополнения, пополните баланс и нажмите «Проверить»."],
-    ["Top up at least 0.5 TON or 50 Stars, then tap Check.", "Пополните минимум на 0.5 TON или 50 Stars, затем нажмите «Проверить»."],
-    ["Top up at least 0.5 TON or 50 Stars first.", "Сначала пополните минимум на 0.5 TON или 50 Stars."],
-    ["Top-up confirmed. Tap Claim.", "Пополнение подтверждено. Нажмите «Получить»."],
-    ["Failed to check top-up task. Try again.", "Не удалось проверить задание пополнения. Попробуйте снова."],
-    ["Go to Games, win once in Wheel or Crash, then tap Check.", "Перейдите в Games, выиграйте один раз в Wheel или Crash и нажмите «Проверить»."],
-    ["Win once in Wheel or Crash, then tap Check.", "Выиграйте один раз в Wheel или Crash, затем нажмите «Проверить»."],
-    ["Win once in Wheel or Crash first.", "Сначала выиграйте один раз в Wheel или Crash."],
-    ["Win confirmed. Tap Claim.", "Победа подтверждена. Нажмите «Получить»."],
-    ["Failed to check game task. Try again.", "Не удалось проверить игровое задание. Попробуйте снова."],
-    ["This task will be enabled later.", "Это задание будет доступно позже."],
-    ["Subscribe in the channel, then return and tap Check.", "Подпишитесь на канал, затем вернитесь и нажмите «Проверить»."],
-    ["Failed to connect wallet", "Не удалось подключить кошелек"],
-    ["Opening wallet...", "Открываем кошелек..."],
-    ["Creating invoice...", "Создаем счет..."],
-    ["Opening payment...", "Открываем оплату..."],
-    ["Payment failed. Please try again.", "Оплата не удалась. Попробуйте еще раз."],
-    ["Failed to process payment", "Не удалось обработать платеж"],
-    ["Server not configured. Please contact support.", "Сервер не настроен. Обратитесь в поддержку."],
-    ["Server endpoint not configured. Please contact support.", "Endpoint сервера не настроен. Обратитесь в поддержку."],
-    ["Payment service unavailable. Please contact support.", "Сервис оплаты недоступен. Обратитесь в поддержку."],
-    ["Server error. Please try again later.", "Ошибка сервера. Попробуйте позже."],
-    ["Network error. Please check your connection.", "Ошибка сети. Проверьте подключение."],
-    ["Stars payment only works in Telegram app. Please open this page in Telegram.", "Оплата Stars работает только в приложении Telegram. Откройте эту страницу в Telegram."],
-    ["You must authorize in Telegram first", "Сначала авторизуйтесь в Telegram"],
-    ["Cancelled", "Отменено"],
-    ["Transaction failed", "Транзакция не удалась"],
-    ["✅ Success", "✅ Успешно"],
-    ["Enter a promo code", "Введите промокод"],
-    ["✅ Promocode applied", "✅ Промокод применен"],
-    ["Network error", "Ошибка сети"],
-    ["Sell error: instanceId not found", "Ошибка продажи: instanceId не найден"],
-    ["Sell failed (network)", "Ошибка продажи (сеть)"],
-    ["Sell failed", "Ошибка продажи"],
-    ["Sell-all failed", "Ошибка продажи всех"],
-    ["Return error: item id not found", "Ошибка возврата: id предмета не найден"],
-    ["Return failed (network)", "Ошибка возврата (сеть)"],
-    ["Not enough balance to pay withdraw fee.", "Недостаточно баланса для оплаты комиссии за вывод."],
-    ["Relayer is not configured/reachable.", "Relayer не настроен или недоступен."],
-    ["Failed to withdraw gift.", "Не удалось вывести подарок."],
-    ["Failed to withdraw gift (network).\nContact support @", "Не удалось вывести подарок (сеть).\nСвяжитесь с поддержкой @"],
-    ["Failed to withdraw: item id not found.", "Не удалось вывести: id предмета не найден."],
-    ["Set your Telegram @username in settings and try again.\nTelegram requires resolvable recipient for gift transfer.", "Укажите ваш Telegram @username в настройках и попробуйте снова.\nTelegram требует определяемого получателя для перевода подарка."],
-    ["Cannot resolve recipient in Telegram (TO_ID_INVALID).\nSet @username and try again, then contact support @", "Не удалось определить получателя в Telegram (TO_ID_INVALID).\nУкажите @username и попробуйте снова, затем свяжитесь с поддержкой @"],
-    ["Failed to withdraw gift: relayer has not enough Stars for transfer.\nContact support @", "Не удалось вывести подарок: у relayer недостаточно Stars для перевода.\nСвяжитесь с поддержкой @"],
-    ["This gift is not available in stock (relayer cannot find it).\nContact support @", "Этот подарок недоступен в наличии (relayer не может его найти).\nСвяжитесь с поддержкой @"],
-    ["Invalid response", "Некорректный ответ"],
-    ["Invalid request", "Некорректный запрос"],
-    ["Request timeout", "Таймаут запроса"],
-    ["Connection error", "Ошибка соединения"],
-    ["Failed to create invoice", "Не удалось создать счет"],
-    ["Failed to load", "Не удалось загрузить"],
-    ["unknown error", "неизвестная ошибка"],
-    ["Insufficient balance", "Недостаточно баланса"],
-    ["Insufficient TON balance", "Недостаточно баланса TON"],
-    ["Insufficient STARS balance", "Недостаточно баланса STARS"],
-    ["Bet placed", "Ставка сделана"],
-    ["Bet placed!", "Ставка сделана!"],
-    ["Bet already placed", "Ставка уже сделана"],
-    ["No bets placed", "Ставки не сделаны"],
-    ["Wait next round", "Дождитесь следующего раунда"],
-    ["Next round soon…", "Скоро следующий раунд…"],
-    ["Placing bet…", "Ставка отправляется…"],
-    ["User profile", "Профиль пользователя"],
-    ["Menu", "Меню"],
-    ["User", "Пользователь"],
-    ["Unknown", "Неизвестно"],
-    ["Gift Name", "Название подарка"],
-    ["Open Wheel", "Открыть колесо"],
-    ["Open Crash", "Открыть Crash"],
-    ["Open Cases", "Открыть кейсы"],
-    ["Open Combo", "Открыть Комбо"],
-    ["Wheel canvas", "Холст колеса"],
-    ["Crash", "Краш"],
-    ["Soon", "Скоро"],
-    ["Combo", "Комбо"],
-    ["Error", "Ошибка"],
-    ["Go back", "Назад"],
-    ["Test mode - Ready", "Тестовый режим - готово"],
-    ["🧪 Test Mode: Unlimited Balance", "🧪 Тестовый режим: безлимитный баланс"],
-    ["WildGift v1.0.0\n\nA Telegram mini app for fun gaming!", "WildGift v1.0.0\n\nTelegram мини-приложение для игр и развлечений!"],
-    ["🎁 Try Again", "🎁 Попробовать снова"]
+    ["Games", "РРіСЂС‹"],
+    ["Market", "РњР°СЂРєРµС‚"],
+    ["Tasks", "Р—Р°РґР°РЅРёСЏ"],
+    ["Profile", "РџСЂРѕС„РёР»СЊ"],
+    ["Players", "РРіСЂРѕРєРё"],
+    ["History", "РСЃС‚РѕСЂРёСЏ"],
+    ["Contents", "РЎРѕРґРµСЂР¶РёРјРѕРµ"],
+    ["Open", "РћС‚РєСЂС‹С‚СЊ"],
+    ["Open, win, repeat", "РћС‚РєСЂС‹РІР°Р№, РІС‹РёРіСЂС‹РІР°Р№, РїРѕРІС‚РѕСЂСЏР№"],
+    ["Last results", "РџРѕСЃР»РµРґРЅРёРµ СЂРµР·СѓР»СЊС‚Р°С‚С‹"],
+    ["Wheel", "РљРѕР»РµСЃРѕ"],
+    ["Select segment", "Р’С‹Р±РµСЂРёС‚Рµ СЃРµРєС‚РѕСЂ"],
+    ["Bet controls", "РЈРїСЂР°РІР»РµРЅРёРµ СЃС‚Р°РІРєР°РјРё"],
+    ["Bet amount", "РЎСѓРјРјР° СЃС‚Р°РІРєРё"],
+    ["Clear bets", "РћС‡РёСЃС‚РёС‚СЊ СЃС‚Р°РІРєРё"],
+    ["Betting panel", "РџР°РЅРµР»СЊ СЃС‚Р°РІРѕРє"],
+    ["Cases", "РљРµР№СЃС‹"],
+    ["Cases poster", "РџРѕСЃС‚РµСЂ РєРµР№СЃРѕРІ"],
+    ["Complete easy tasks to earn tickets. Use tickets to open free cases!", "Р’С‹РїРѕР»РЅСЏР№С‚Рµ РїСЂРѕСЃС‚С‹Рµ Р·Р°РґР°РЅРёСЏ Рё РїРѕР»СѓС‡Р°Р№С‚Рµ Р±РёР»РµС‚С‹. РСЃРїРѕР»СЊР·СѓР№С‚Рµ Р±РёР»РµС‚С‹ РґР»СЏ РѕС‚РєСЂС‹С‚РёСЏ Р±РµСЃРїР»Р°С‚РЅС‹С… РєРµР№СЃРѕРІ!"],
+    ["Start", "РќР°С‡Р°С‚СЊ"],
+    ["Wallet", "РљРѕС€РµР»РµРє"],
+    ["Not connected", "РќРµ РїРѕРґРєР»СЋС‡РµРЅ"],
+    ["Disconnect", "РћС‚РєР»СЋС‡РёС‚СЊ"],
+    ["Connect Wallet", "РџРѕРґРєР»СЋС‡РёС‚СЊ РєРѕС€РµР»РµРє"],
+    ["Your wallet", "Р’Р°С€ РєРѕС€РµР»РµРє"],
+    ["Balance", "Р‘Р°Р»Р°РЅСЃ"],
+    ["Address", "РђРґСЂРµСЃ"],
+    ["Copy address", "РЎРєРѕРїРёСЂРѕРІР°С‚СЊ Р°РґСЂРµСЃ"],
+    ["Disconnect this wallet?", "РћС‚РєР»СЋС‡РёС‚СЊ СЌС‚РѕС‚ РєРѕС€РµР»РµРє?"],
+    ["Copy", "РљРѕРїРёСЂРѕРІР°С‚СЊ"],
+    ["Promocode", "РџСЂРѕРјРѕРєРѕРґ"],
+    ["Enter code", "Р’РІРµРґРёС‚Рµ РєРѕРґ"],
+    ["Apply", "РџСЂРёРјРµРЅРёС‚СЊ"],
+    ["Inventory", "РРЅРІРµРЅС‚Р°СЂСЊ"],
+    ["No gifts yet.", "РџРѕРґР°СЂРєРѕРІ РїРѕРєР° РЅРµС‚."],
+    ["Bottom navigation", "РќРёР¶РЅСЏСЏ РЅР°РІРёРіР°С†РёСЏ"],
+    ["Close", "Р—Р°РєСЂС‹С‚СЊ"],
+    ["Try Again", "РџРѕРїСЂРѕР±РѕРІР°С‚СЊ СЃРЅРѕРІР°"],
+    ["Top up TON Balance", "РџРѕРїРѕР»РЅРёС‚СЊ Р±Р°Р»Р°РЅСЃ TON"],
+    ["Minimum deposit: 0.1 TON", "РњРёРЅРёРјР°Р»СЊРЅС‹Р№ РґРµРїРѕР·РёС‚: 0.1 TON"],
+    ["Amount to deposit", "РЎСѓРјРјР° РїРѕРїРѕР»РЅРµРЅРёСЏ"],
+    ["Deposit TON", "РџРѕРїРѕР»РЅРёС‚СЊ TON"],
+    ["Buy Telegram Stars", "РљСѓРїРёС‚СЊ Telegram Stars"],
+    ["Minimum purchase: 1 в­ђ", "РњРёРЅРёРјР°Р»СЊРЅР°СЏ РїРѕРєСѓРїРєР°: 1 в­ђ"],
+    ["Amount to buy", "РЎСѓРјРјР° РїРѕРєСѓРїРєРё"],
+    ["Buy Stars", "РљСѓРїРёС‚СЊ Stars"],
+    ["Settings", "РќР°СЃС‚СЂРѕР№РєРё"],
+    ["Language", "РЇР·С‹Рє"],
+    ["Support", "РџРѕРґРґРµСЂР¶РєР°"],
+    ["Privacy Policy", "РџРѕР»РёС‚РёРєР° РєРѕРЅС„РёРґРµРЅС†РёР°Р»СЊРЅРѕСЃС‚Рё"],
+    ["Legal terms and data", "РџСЂР°РІРѕРІС‹Рµ СѓСЃР»РѕРІРёСЏ Рё РґР°РЅРЅС‹Рµ"],
+    ["About", "Рћ РїСЂРёР»РѕР¶РµРЅРёРё"],
+    ["App info", "РРЅС„РѕСЂРјР°С†РёСЏ Рѕ РїСЂРёР»РѕР¶РµРЅРёРё"],
+    ["English", "РђРЅРіР»РёР№СЃРєРёР№"],
+    ["Russian", "Р СѓСЃСЃРєРёР№"],
+    ["English Flag", "Р¤Р»Р°Рі РђРЅРіР»РёРё"],
+    ["Russian Flag", "Р¤Р»Р°Рі Р РѕСЃСЃРёРё"],
+    ["Close settings", "Р—Р°РєСЂС‹С‚СЊ РЅР°СЃС‚СЂРѕР№РєРё"],
+    ["Withdraw", "Р’С‹РІРѕРґ"],
+    ["Continue", "РџСЂРѕРґРѕР»Р¶РёС‚СЊ"],
+    ["Processing...", "РћР±СЂР°Р±РѕС‚РєР°..."],
+    ["Loading...", "Р—Р°РіСЂСѓР·РєР°..."],
+    ["Sell", "РџСЂРѕРґР°С‚СЊ"],
+    ["Claim", "РџРѕР»СѓС‡РёС‚СЊ"],
+    ["Claimed", "РџРѕР»СѓС‡РµРЅРѕ"],
+    ["Lost", "РџСЂРѕРёРіСЂС‹С€"],
+    ["Place Bet", "РЎРґРµР»Р°С‚СЊ СЃС‚Р°РІРєСѓ"],
+    ["Place bet", "РЎРґРµР»Р°С‚СЊ СЃС‚Р°РІРєСѓ"],
+    ["Max", "РњР°РєСЃ"],
+    ["Deposit", "РџРѕРїРѕР»РЅРёС‚СЊ"],
+    ["Connecting...", "РџРѕРґРєР»СЋС‡РµРЅРёРµ..."],
+    ["ConnectingвЂ¦", "РџРѕРґРєР»СЋС‡РµРЅРёРµвЂ¦"],
+    ["No active players yet", "РџРѕРєР° РЅРµС‚ Р°РєС‚РёРІРЅС‹С… РёРіСЂРѕРєРѕРІ"],
+    ["Waiting", "РћР¶РёРґР°РЅРёРµ"],
+    ["No bets yet", "РЎС‚Р°РІРѕРє РїРѕРєР° РЅРµС‚"],
+    ["No bets in this round", "Р’ СЌС‚РѕРј СЂР°СѓРЅРґРµ РЅРµС‚ СЃС‚Р°РІРѕРє"],
+    ["Player", "РРіСЂРѕРє"],
+    ["Bet segments", "РЎРµРєС‚РѕСЂС‹ СЃС‚Р°РІРѕРє"],
+    ["Bonus round in progress", "Р‘РѕРЅСѓСЃРЅС‹Р№ СЂР°СѓРЅРґ РёРґРµС‚"],
+    ["Watch live", "РЎРјРѕС‚СЂРµС‚СЊ"],
+    ["Bonus:", "Р‘РѕРЅСѓСЃ:"],
+    ["gifts", "РїРѕРґР°СЂРєРё"],
+    ["price", "С†РµРЅР°"],
+    ["Gifts", "РџРѕРґР°СЂРєРё"],
+    ["View in", "РћС‚РєСЂС‹С‚СЊ РІ"],
+    ["Gift", "РџРѕРґР°СЂРѕРє"],
+    ["Filter Gifts", "Р¤РёР»СЊС‚СЂ РїРѕРґР°СЂРєРѕРІ"],
+    ["Clear All", "РћС‡РёСЃС‚РёС‚СЊ РІСЃРµ"],
+    ["Show", "РџРѕРєР°Р·Р°С‚СЊ"],
+    ["No gifts available", "РќРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РїРѕРґР°СЂРєРѕРІ"],
+    ["All", "Р’СЃРµ"],
+    ["Demo", "Р”РµРјРѕ"],
+    ["FREE", "Р‘Р•РЎРџР›РђРўРќРћ"],
+    ["Crash chart", "Р“СЂР°С„РёРє Crash"],
+    ["Crash theme", "РўРµРјР° Crash"],
+    ["Crypto theme", "РљСЂРёРїС‚Рѕ С‚РµРјР°"],
+    ["Space theme", "РљРѕСЃРјРѕ С‚РµРјР°"],
+    ["Currency change is available after the end of the round", "РЎРјРµРЅРёС‚СЊ РІР°Р»СЋС‚Сѓ РјРѕР¶РЅРѕ РїРѕСЃР»Рµ РѕРєРѕРЅС‡Р°РЅРёСЏ СЂР°СѓРЅРґР°"],
+    ["Account banned", "РђРєРєР°СѓРЅС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ"],
+    ["Banned account", "Р—Р°Р±Р»РѕРєРёСЂРѕРІР°РЅРЅС‹Р№ Р°РєРєР°СѓРЅС‚"],
+    ["Your account has been banned", "Р’Р°С€ Р°РєРєР°СѓРЅС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ"],
+    ["If this was done by mistake, contact support.", "Р•СЃР»Рё СЌС‚Рѕ РїСЂРѕРёР·РѕС€Р»Рѕ РїРѕ РѕС€РёР±РєРµ, РѕР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ."],
+    ["You could have won", "Р’С‹ РјРѕРіР»Рё РІС‹РёРіСЂР°С‚СЊ"],
+    ["You've won!", "Р’С‹ РІС‹РёРіСЂР°Р»Рё!"],
+    ["Subscribe to Wild Gift", "РџРѕРґРїРёС€РёС‚РµСЃСЊ РЅР° Wild Gift"],
+    ["Invite friend", "РџСЂРёРіР»Р°СЃРёС‚СЊ РґСЂСѓРіР°"],
+    ["Top up 0.5 TON", "РџРѕРїРѕР»РЅРёС‚СЊ РЅР° 0.5 TON"],
+    ["or equivalent in Stars", "РёР»Рё СЌРєРІРёРІР°Р»РµРЅС‚ РІ Stars"],
+    ["Win once in Game", "Р’С‹РёРіСЂР°С‚СЊ РѕРґРёРЅ СЂР°Р· РІ РёРіСЂРµ"],
+    ["Wheel / Crash", "РљРѕР»РµСЃРѕ / Crash"],
+    ["Checking...", "РџСЂРѕРІРµСЂРєР°..."],
+    ["Check", "РџСЂРѕРІРµСЂРёС‚СЊ"],
+    ["Reward already claimed.", "РќР°РіСЂР°РґР° СѓР¶Рµ РїРѕР»СѓС‡РµРЅР°."],
+    ["Subscription confirmed. Tap Claim.", "РџРѕРґРїРёСЃРєР° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°. РќР°Р¶РјРёС‚Рµ В«РџРѕР»СѓС‡РёС‚СЊВ»."],
+    ["Subscribe to the channel first, then tap Check.", "РЎРЅР°С‡Р°Р»Р° РїРѕРґРїРёС€РёС‚РµСЃСЊ РЅР° РєР°РЅР°Р», Р·Р°С‚РµРј РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Subscribe to the channel first.", "РЎРЅР°С‡Р°Р»Р° РїРѕРґРїРёС€РёС‚РµСЃСЊ РЅР° РєР°РЅР°Р»."],
+    ["Failed to check subscription. Try again.", "РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ РїРѕРґРїРёСЃРєСѓ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°."],
+    ["Failed to claim reward.", "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РЅР°РіСЂР°РґСѓ."],
+    ["Failed to claim reward. Try again.", "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РЅР°РіСЂР°РґСѓ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°."],
+    ["Open deposit panel, top up balance, then tap Check.", "РћС‚РєСЂРѕР№С‚Рµ РїР°РЅРµР»СЊ РїРѕРїРѕР»РЅРµРЅРёСЏ, РїРѕРїРѕР»РЅРёС‚Рµ Р±Р°Р»Р°РЅСЃ Рё РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Top up at least 0.5 TON or 50 Stars, then tap Check.", "РџРѕРїРѕР»РЅРёС‚Рµ РјРёРЅРёРјСѓРј РЅР° 0.5 TON РёР»Рё 50 Stars, Р·Р°С‚РµРј РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Top up at least 0.5 TON or 50 Stars first.", "РЎРЅР°С‡Р°Р»Р° РїРѕРїРѕР»РЅРёС‚Рµ РјРёРЅРёРјСѓРј РЅР° 0.5 TON РёР»Рё 50 Stars."],
+    ["Top-up confirmed. Tap Claim.", "РџРѕРїРѕР»РЅРµРЅРёРµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРѕ. РќР°Р¶РјРёС‚Рµ В«РџРѕР»СѓС‡РёС‚СЊВ»."],
+    ["Failed to check top-up task. Try again.", "РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ Р·Р°РґР°РЅРёРµ РїРѕРїРѕР»РЅРµРЅРёСЏ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°."],
+    ["Go to Games, win once in Wheel or Crash, then tap Check.", "РџРµСЂРµР№РґРёС‚Рµ РІ Games, РІС‹РёРіСЂР°Р№С‚Рµ РѕРґРёРЅ СЂР°Р· РІ Wheel РёР»Рё Crash Рё РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Win once in Wheel or Crash, then tap Check.", "Р’С‹РёРіСЂР°Р№С‚Рµ РѕРґРёРЅ СЂР°Р· РІ Wheel РёР»Рё Crash, Р·Р°С‚РµРј РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Win once in Wheel or Crash first.", "РЎРЅР°С‡Р°Р»Р° РІС‹РёРіСЂР°Р№С‚Рµ РѕРґРёРЅ СЂР°Р· РІ Wheel РёР»Рё Crash."],
+    ["Win confirmed. Tap Claim.", "РџРѕР±РµРґР° РїРѕРґС‚РІРµСЂР¶РґРµРЅР°. РќР°Р¶РјРёС‚Рµ В«РџРѕР»СѓС‡РёС‚СЊВ»."],
+    ["Failed to check game task. Try again.", "РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ РёРіСЂРѕРІРѕРµ Р·Р°РґР°РЅРёРµ. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°."],
+    ["This task will be enabled later.", "Р­С‚Рѕ Р·Р°РґР°РЅРёРµ Р±СѓРґРµС‚ РґРѕСЃС‚СѓРїРЅРѕ РїРѕР·Р¶Рµ."],
+    ["Subscribe in the channel, then return and tap Check.", "РџРѕРґРїРёС€РёС‚РµСЃСЊ РЅР° РєР°РЅР°Р», Р·Р°С‚РµРј РІРµСЂРЅРёС‚РµСЃСЊ Рё РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊВ»."],
+    ["Failed to connect wallet", "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊ РєРѕС€РµР»РµРє"],
+    ["Opening wallet...", "РћС‚РєСЂС‹РІР°РµРј РєРѕС€РµР»РµРє..."],
+    ["Creating invoice...", "РЎРѕР·РґР°РµРј СЃС‡РµС‚..."],
+    ["Opening payment...", "РћС‚РєСЂС‹РІР°РµРј РѕРїР»Р°С‚Сѓ..."],
+    ["Payment failed. Please try again.", "РћРїР»Р°С‚Р° РЅРµ СѓРґР°Р»Р°СЃСЊ. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰Рµ СЂР°Р·."],
+    ["Failed to process payment", "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ РїР»Р°С‚РµР¶"],
+    ["Server not configured. Please contact support.", "РЎРµСЂРІРµСЂ РЅРµ РЅР°СЃС‚СЂРѕРµРЅ. РћР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ."],
+    ["Server endpoint not configured. Please contact support.", "Endpoint СЃРµСЂРІРµСЂР° РЅРµ РЅР°СЃС‚СЂРѕРµРЅ. РћР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ."],
+    ["Payment service unavailable. Please contact support.", "РЎРµСЂРІРёСЃ РѕРїР»Р°С‚С‹ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РћР±СЂР°С‚РёС‚РµСЃСЊ РІ РїРѕРґРґРµСЂР¶РєСѓ."],
+    ["Server error. Please try again later.", "РћС€РёР±РєР° СЃРµСЂРІРµСЂР°. РџРѕРїСЂРѕР±СѓР№С‚Рµ РїРѕР·Р¶Рµ."],
+    ["Network error. Please check your connection.", "РћС€РёР±РєР° СЃРµС‚Рё. РџСЂРѕРІРµСЂСЊС‚Рµ РїРѕРґРєР»СЋС‡РµРЅРёРµ."],
+    ["Stars payment only works in Telegram app. Please open this page in Telegram.", "РћРїР»Р°С‚Р° Stars СЂР°Р±РѕС‚Р°РµС‚ С‚РѕР»СЊРєРѕ РІ РїСЂРёР»РѕР¶РµРЅРёРё Telegram. РћС‚РєСЂРѕР№С‚Рµ СЌС‚Сѓ СЃС‚СЂР°РЅРёС†Сѓ РІ Telegram."],
+    ["You must authorize in Telegram first", "РЎРЅР°С‡Р°Р»Р° Р°РІС‚РѕСЂРёР·СѓР№С‚РµСЃСЊ РІ Telegram"],
+    ["Cancelled", "РћС‚РјРµРЅРµРЅРѕ"],
+    ["Transaction failed", "РўСЂР°РЅР·Р°РєС†РёСЏ РЅРµ СѓРґР°Р»Р°СЃСЊ"],
+    ["вњ… Success", "вњ… РЈСЃРїРµС€РЅРѕ"],
+    ["Enter a promo code", "Р’РІРµРґРёС‚Рµ РїСЂРѕРјРѕРєРѕРґ"],
+    ["вњ… Promocode applied", "вњ… РџСЂРѕРјРѕРєРѕРґ РїСЂРёРјРµРЅРµРЅ"],
+    ["Network error", "РћС€РёР±РєР° СЃРµС‚Рё"],
+    ["Sell error: instanceId not found", "РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё: instanceId РЅРµ РЅР°Р№РґРµРЅ"],
+    ["Sell failed (network)", "РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё (СЃРµС‚СЊ)"],
+    ["Sell failed", "РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё"],
+    ["Sell-all failed", "РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё РІСЃРµС…"],
+    ["Return error: item id not found", "РћС€РёР±РєР° РІРѕР·РІСЂР°С‚Р°: id РїСЂРµРґРјРµС‚Р° РЅРµ РЅР°Р№РґРµРЅ"],
+    ["Return failed (network)", "РћС€РёР±РєР° РІРѕР·РІСЂР°С‚Р° (СЃРµС‚СЊ)"],
+    ["Not enough balance to pay withdraw fee.", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР° РґР»СЏ РѕРїР»Р°С‚С‹ РєРѕРјРёСЃСЃРёРё Р·Р° РІС‹РІРѕРґ."],
+    ["Relayer is not configured/reachable.", "Relayer РЅРµ РЅР°СЃС‚СЂРѕРµРЅ РёР»Рё РЅРµРґРѕСЃС‚СѓРїРµРЅ."],
+    ["Failed to withdraw gift.", "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РІРµСЃС‚Рё РїРѕРґР°СЂРѕРє."],
+    ["Failed to withdraw gift (network).\nContact support @", "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РІРµСЃС‚Рё РїРѕРґР°СЂРѕРє (СЃРµС‚СЊ).\nРЎРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @"],
+    ["Failed to withdraw: item id not found.", "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РІРµСЃС‚Рё: id РїСЂРµРґРјРµС‚Р° РЅРµ РЅР°Р№РґРµРЅ."],
+    ["Set your Telegram @username in settings and try again.\nTelegram requires resolvable recipient for gift transfer.", "РЈРєР°Р¶РёС‚Рµ РІР°С€ Telegram @username РІ РЅР°СЃС‚СЂРѕР№РєР°С… Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.\nTelegram С‚СЂРµР±СѓРµС‚ РѕРїСЂРµРґРµР»СЏРµРјРѕРіРѕ РїРѕР»СѓС‡Р°С‚РµР»СЏ РґР»СЏ РїРµСЂРµРІРѕРґР° РїРѕРґР°СЂРєР°."],
+    ["Cannot resolve recipient in Telegram (TO_ID_INVALID).\nSet @username and try again, then contact support @", "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РїРѕР»СѓС‡Р°С‚РµР»СЏ РІ Telegram (TO_ID_INVALID).\nРЈРєР°Р¶РёС‚Рµ @username Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°, Р·Р°С‚РµРј СЃРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @"],
+    ["Failed to withdraw gift: relayer has not enough Stars for transfer.\nContact support @", "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РІРµСЃС‚Рё РїРѕРґР°СЂРѕРє: Сѓ relayer РЅРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Stars РґР»СЏ РїРµСЂРµРІРѕРґР°.\nРЎРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @"],
+    ["This gift is not available in stock (relayer cannot find it).\nContact support @", "Р­С‚РѕС‚ РїРѕРґР°СЂРѕРє РЅРµРґРѕСЃС‚СѓРїРµРЅ РІ РЅР°Р»РёС‡РёРё (relayer РЅРµ РјРѕР¶РµС‚ РµРіРѕ РЅР°Р№С‚Рё).\nРЎРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @"],
+    ["Invalid response", "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ РѕС‚РІРµС‚"],
+    ["Invalid request", "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ Р·Р°РїСЂРѕСЃ"],
+    ["Request timeout", "РўР°Р№РјР°СѓС‚ Р·Р°РїСЂРѕСЃР°"],
+    ["Connection error", "РћС€РёР±РєР° СЃРѕРµРґРёРЅРµРЅРёСЏ"],
+    ["Failed to create invoice", "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ СЃС‡РµС‚"],
+    ["Failed to load", "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ"],
+    ["unknown error", "РЅРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°"],
+    ["Insufficient balance", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР°"],
+    ["Insufficient TON balance", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР° TON"],
+    ["Insufficient STARS balance", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР° STARS"],
+    ["Bet placed", "РЎС‚Р°РІРєР° СЃРґРµР»Р°РЅР°"],
+    ["Bet placed!", "РЎС‚Р°РІРєР° СЃРґРµР»Р°РЅР°!"],
+    ["Bet already placed", "РЎС‚Р°РІРєР° СѓР¶Рµ СЃРґРµР»Р°РЅР°"],
+    ["No bets placed", "РЎС‚Р°РІРєРё РЅРµ СЃРґРµР»Р°РЅС‹"],
+    ["Wait next round", "Р”РѕР¶РґРёС‚РµСЃСЊ СЃР»РµРґСѓСЋС‰РµРіРѕ СЂР°СѓРЅРґР°"],
+    ["Next round soonвЂ¦", "РЎРєРѕСЂРѕ СЃР»РµРґСѓСЋС‰РёР№ СЂР°СѓРЅРґвЂ¦"],
+    ["Placing betвЂ¦", "РЎС‚Р°РІРєР° РѕС‚РїСЂР°РІР»СЏРµС‚СЃСЏвЂ¦"],
+    ["User profile", "РџСЂРѕС„РёР»СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ"],
+    ["Menu", "РњРµРЅСЋ"],
+    ["User", "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ"],
+    ["Unknown", "РќРµРёР·РІРµСЃС‚РЅРѕ"],
+    ["Gift Name", "РќР°Р·РІР°РЅРёРµ РїРѕРґР°СЂРєР°"],
+    ["Open Wheel", "РћС‚РєСЂС‹С‚СЊ РєРѕР»РµСЃРѕ"],
+    ["Open Crash", "РћС‚РєСЂС‹С‚СЊ Crash"],
+    ["Open Cases", "РћС‚РєСЂС‹С‚СЊ РєРµР№СЃС‹"],
+    ["Open Combo", "РћС‚РєСЂС‹С‚СЊ РљРѕРјР±Рѕ"],
+    ["Wheel canvas", "РҐРѕР»СЃС‚ РєРѕР»РµСЃР°"],
+    ["Crash", "РљСЂР°С€"],
+    ["Soon", "РЎРєРѕСЂРѕ"],
+    ["Combo", "РљРѕРјР±Рѕ"],
+    ["Error", "РћС€РёР±РєР°"],
+    ["Go back", "РќР°Р·Р°Рґ"],
+    ["Test mode - Ready", "РўРµСЃС‚РѕРІС‹Р№ СЂРµР¶РёРј - РіРѕС‚РѕРІРѕ"],
+    ["рџ§Є Test Mode: Unlimited Balance", "рџ§Є РўРµСЃС‚РѕРІС‹Р№ СЂРµР¶РёРј: Р±РµР·Р»РёРјРёС‚РЅС‹Р№ Р±Р°Р»Р°РЅСЃ"],
+    ["WildGift v1.0.0\n\nA Telegram mini app for fun gaming!", "WildGift v1.0.0\n\nTelegram РјРёРЅРё-РїСЂРёР»РѕР¶РµРЅРёРµ РґР»СЏ РёРіСЂ Рё СЂР°Р·РІР»РµС‡РµРЅРёР№!"],
+    ["рџЋЃ Try Again", "рџЋЃ РџРѕРїСЂРѕР±РѕРІР°С‚СЊ СЃРЅРѕРІР°"]
   ];
 
   const I18N_PATTERN_RULES = {
     ru: [
-      { re: /^Bet:\s*(.+)$/i, to: (_m, value) => `Ставка: ${value}` },
-      { re: /^Bonus:\s*(.+)$/i, to: (_m, value) => `Бонус: ${value}` },
-      { re: /^Withdrawal fee:\s*(.+)$/i, to: (_m, value) => `Комиссия за вывод: ${value}` },
-      { re: /^Recipient:\s*(.+)$/i, to: (_m, value) => `Получатель: ${value}` },
-      { re: /^Claim successful:\s*(.+)$/i, to: (_m, value) => `Награда получена: ${value}` },
-      { re: /^Insufficient\s+([A-Z]+)\s+balance$/i, to: (_m, cur) => `Недостаточно баланса ${cur}` },
-      { re: /^Sell failed\s*\((.+)\)$/i, to: (_m, code) => `Ошибка продажи (${code})` },
-      { re: /^Return failed\s*\((.+)\)$/i, to: (_m, code) => `Ошибка возврата (${code})` },
-      { re: /^Error\s*\((.+)\)$/i, to: (_m, code) => `Ошибка (${code})` },
-      { re: /^Contact support @(.+)$/i, to: (_m, uname) => `Свяжитесь с поддержкой @${uname}` },
-      { re: /^Deposited\s+(.+?)\s+TON\s*\n\s*\n\s*Your balance will update automatically\.$/i, to: (_m, amount) => `Пополнено ${amount} TON\n\nБаланс обновится автоматически.` },
-      { re: /^Purchased\s+(.+?)\s+⭐\s+Stars!\s*\n\s*\n\s*Your balance will update automatically\.$/i, to: (_m, amount) => `Куплено ${amount} ⭐ Stars!\n\nБаланс обновится автоматически.` },
-      { re: /^✅\s*Purchased\s+(.+?)\s+⭐\s+Stars!$/i, to: (_m, amount) => `✅ Куплено ${amount} ⭐ Stars!` }
+      { re: /^Bet:\s*(.+)$/i, to: (_m, value) => `РЎС‚Р°РІРєР°: ${value}` },
+      { re: /^Bonus:\s*(.+)$/i, to: (_m, value) => `Р‘РѕРЅСѓСЃ: ${value}` },
+      { re: /^Withdrawal fee:\s*(.+)$/i, to: (_m, value) => `РљРѕРјРёСЃСЃРёСЏ Р·Р° РІС‹РІРѕРґ: ${value}` },
+      { re: /^Recipient:\s*(.+)$/i, to: (_m, value) => `РџРѕР»СѓС‡Р°С‚РµР»СЊ: ${value}` },
+      { re: /^Claim successful:\s*(.+)$/i, to: (_m, value) => `РќР°РіСЂР°РґР° РїРѕР»СѓС‡РµРЅР°: ${value}` },
+      { re: /^Insufficient\s+([A-Z]+)\s+balance$/i, to: (_m, cur) => `РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР° ${cur}` },
+      { re: /^Sell failed\s*\((.+)\)$/i, to: (_m, code) => `РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё (${code})` },
+      { re: /^Return failed\s*\((.+)\)$/i, to: (_m, code) => `РћС€РёР±РєР° РІРѕР·РІСЂР°С‚Р° (${code})` },
+      { re: /^Error\s*\((.+)\)$/i, to: (_m, code) => `РћС€РёР±РєР° (${code})` },
+      { re: /^Contact support @(.+)$/i, to: (_m, uname) => `РЎРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @${uname}` },
+      { re: /^Deposited\s+(.+?)\s+TON\s*\n\s*\n\s*Your balance will update automatically\.$/i, to: (_m, amount) => `РџРѕРїРѕР»РЅРµРЅРѕ ${amount} TON\n\nР‘Р°Р»Р°РЅСЃ РѕР±РЅРѕРІРёС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.` },
+      { re: /^Purchased\s+(.+?)\s+в­ђ\s+Stars!\s*\n\s*\n\s*Your balance will update automatically\.$/i, to: (_m, amount) => `РљСѓРїР»РµРЅРѕ ${amount} в­ђ Stars!\n\nР‘Р°Р»Р°РЅСЃ РѕР±РЅРѕРІРёС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.` },
+      { re: /^вњ…\s*Purchased\s+(.+?)\s+в­ђ\s+Stars!$/i, to: (_m, amount) => `вњ… РљСѓРїР»РµРЅРѕ ${amount} в­ђ Stars!` }
     ],
     en: [
-      { re: /^Ставка:\s*(.+)$/i, to: (_m, value) => `Bet: ${value}` },
-      { re: /^Бонус:\s*(.+)$/i, to: (_m, value) => `Bonus: ${value}` },
-      { re: /^Комиссия за вывод:\s*(.+)$/i, to: (_m, value) => `Withdrawal fee: ${value}` },
-      { re: /^Получатель:\s*(.+)$/i, to: (_m, value) => `Recipient: ${value}` },
-      { re: /^Награда получена:\s*(.+)$/i, to: (_m, value) => `Claim successful: ${value}` },
-      { re: /^Недостаточно баланса\s+([A-Z]+)$/i, to: (_m, cur) => `Insufficient ${cur} balance` },
-      { re: /^Ошибка продажи\s*\((.+)\)$/i, to: (_m, code) => `Sell failed (${code})` },
-      { re: /^Ошибка возврата\s*\((.+)\)$/i, to: (_m, code) => `Return failed (${code})` },
-      { re: /^Ошибка\s*\((.+)\)$/i, to: (_m, code) => `Error (${code})` },
-      { re: /^Свяжитесь с поддержкой @(.+)$/i, to: (_m, uname) => `Contact support @${uname}` },
-      { re: /^Пополнено\s+(.+?)\s+TON\s*\n\s*\n\s*Баланс обновится автоматически\.$/i, to: (_m, amount) => `Deposited ${amount} TON\n\nYour balance will update automatically.` },
-      { re: /^Куплено\s+(.+?)\s+⭐\s+Stars!\s*\n\s*\n\s*Баланс обновится автоматически\.$/i, to: (_m, amount) => `Purchased ${amount} ⭐ Stars!\n\nYour balance will update automatically.` },
-      { re: /^✅\s*Куплено\s+(.+?)\s+⭐\s+Stars!$/i, to: (_m, amount) => `✅ Purchased ${amount} ⭐ Stars!` }
+      { re: /^РЎС‚Р°РІРєР°:\s*(.+)$/i, to: (_m, value) => `Bet: ${value}` },
+      { re: /^Р‘РѕРЅСѓСЃ:\s*(.+)$/i, to: (_m, value) => `Bonus: ${value}` },
+      { re: /^РљРѕРјРёСЃСЃРёСЏ Р·Р° РІС‹РІРѕРґ:\s*(.+)$/i, to: (_m, value) => `Withdrawal fee: ${value}` },
+      { re: /^РџРѕР»СѓС‡Р°С‚РµР»СЊ:\s*(.+)$/i, to: (_m, value) => `Recipient: ${value}` },
+      { re: /^РќР°РіСЂР°РґР° РїРѕР»СѓС‡РµРЅР°:\s*(.+)$/i, to: (_m, value) => `Claim successful: ${value}` },
+      { re: /^РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ Р±Р°Р»Р°РЅСЃР°\s+([A-Z]+)$/i, to: (_m, cur) => `Insufficient ${cur} balance` },
+      { re: /^РћС€РёР±РєР° РїСЂРѕРґР°Р¶Рё\s*\((.+)\)$/i, to: (_m, code) => `Sell failed (${code})` },
+      { re: /^РћС€РёР±РєР° РІРѕР·РІСЂР°С‚Р°\s*\((.+)\)$/i, to: (_m, code) => `Return failed (${code})` },
+      { re: /^РћС€РёР±РєР°\s*\((.+)\)$/i, to: (_m, code) => `Error (${code})` },
+      { re: /^РЎРІСЏР¶РёС‚РµСЃСЊ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ @(.+)$/i, to: (_m, uname) => `Contact support @${uname}` },
+      { re: /^РџРѕРїРѕР»РЅРµРЅРѕ\s+(.+?)\s+TON\s*\n\s*\n\s*Р‘Р°Р»Р°РЅСЃ РѕР±РЅРѕРІРёС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё\.$/i, to: (_m, amount) => `Deposited ${amount} TON\n\nYour balance will update automatically.` },
+      { re: /^РљСѓРїР»РµРЅРѕ\s+(.+?)\s+в­ђ\s+Stars!\s*\n\s*\n\s*Р‘Р°Р»Р°РЅСЃ РѕР±РЅРѕРІРёС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё\.$/i, to: (_m, amount) => `Purchased ${amount} в­ђ Stars!\n\nYour balance will update automatically.` },
+      { re: /^вњ…\s*РљСѓРїР»РµРЅРѕ\s+(.+?)\s+в­ђ\s+Stars!$/i, to: (_m, amount) => `вњ… Purchased ${amount} в­ђ Stars!` }
     ]
   };
 
@@ -523,6 +525,8 @@
   let currentLanguage = "en";
   let i18nObserver = null;
   let i18nApplying = false;
+  let i18nFlushHandle = 0;
+  const i18nQueuedNodes = new Set();
   let lastServerPersistedLanguage = "";
   let pendingServerLanguage = "";
   let languagePersistInFlight = false;
@@ -589,6 +593,28 @@
     if (root === document) translateSubtree(document.body || document.documentElement, lang);
   }
 
+  function queueI18nTranslate(node) {
+    if (!node) return;
+    i18nQueuedNodes.add(node);
+    if (i18nFlushHandle) return;
+
+    const schedule = typeof window.requestAnimationFrame === "function"
+      ? window.requestAnimationFrame.bind(window)
+      : (cb) => window.setTimeout(cb, 16);
+
+    i18nFlushHandle = schedule(() => {
+      i18nFlushHandle = 0;
+      if (i18nApplying) {
+        queueI18nTranslate(document.body || document.documentElement);
+        return;
+      }
+
+      const queue = Array.from(i18nQueuedNodes);
+      i18nQueuedNodes.clear();
+      queue.forEach((entry) => translateSubtree(entry, currentLanguage));
+    });
+  }
+
   function ensureI18nObserver() {
     if (i18nObserver || typeof MutationObserver !== "function" || !document.body) return;
 
@@ -596,15 +622,11 @@
       if (i18nApplying) return;
       for (const mutation of mutations) {
         if (mutation.type === "childList") {
-          mutation.addedNodes.forEach((node) => translateSubtree(node, currentLanguage));
-          continue;
-        }
-        if (mutation.type === "characterData") {
-          translateTextNode(mutation.target, currentLanguage);
+          mutation.addedNodes.forEach((node) => queueI18nTranslate(node));
           continue;
         }
         if (mutation.type === "attributes" && mutation.target instanceof Element) {
-          translateElementAttributes(mutation.target, currentLanguage);
+          queueI18nTranslate(mutation.target);
         }
       }
     });
@@ -612,7 +634,6 @@
     i18nObserver.observe(document.body, {
       childList: true,
       subtree: true,
-      characterData: true,
       attributes: true,
       attributeFilter: I18N_ATTRS
     });
@@ -823,25 +844,25 @@
     if (!msg) return '';
 
     if (
-      msg.includes('❌') ||
+      msg.includes('вќЊ') ||
       /(^|\s)(error|failed|timeout|insufficient|unavailable)(\s|$)/i.test(msg) ||
-      /(ошибк|не удалось|недостаточно|недоступ|устарел|таймаут)/i.test(msg)
+      /(РѕС€РёР±Рє|РЅРµ СѓРґР°Р»РѕСЃСЊ|РЅРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ|РЅРµРґРѕСЃС‚СѓРї|СѓСЃС‚Р°СЂРµР»|С‚Р°Р№РјР°СѓС‚)/i.test(msg)
     ) {
       return 'error';
     }
 
     if (
-      msg.includes('⚠') ||
+      msg.includes('вљ ') ||
       /(^|\s)(warning|refreshing|retry)(\s|$)/i.test(msg) ||
-      /(вниман|обнов|повторите)/i.test(msg)
+      /(РІРЅРёРјР°РЅ|РѕР±РЅРѕРІ|РїРѕРІС‚РѕСЂРёС‚Рµ)/i.test(msg)
     ) {
       return 'warning';
     }
 
     if (
-      msg.includes('✅') ||
+      msg.includes('вњ…') ||
       /(^|\s)(success|successful|purchased|sold|saved|applied|credited|claimed)(\s|$)/i.test(msg) ||
-      /(успеш|куплен|куплено|сохранен|сохранено|сохранены|применен|применено|начислен|начислено|продан|продано)/i.test(msg)
+      /(СѓСЃРїРµС€|РєСѓРїР»РµРЅ|РєСѓРїР»РµРЅРѕ|СЃРѕС…СЂР°РЅРµРЅ|СЃРѕС…СЂР°РЅРµРЅРѕ|СЃРѕС…СЂР°РЅРµРЅС‹|РїСЂРёРјРµРЅРµРЅ|РїСЂРёРјРµРЅРµРЅРѕ|РЅР°С‡РёСЃР»РµРЅ|РЅР°С‡РёСЃР»РµРЅРѕ|РїСЂРѕРґР°РЅ|РїСЂРѕРґР°РЅРѕ)/i.test(msg)
     ) {
       return 'success';
     }
@@ -907,8 +928,343 @@
   ];
   const TILE_ROTATE_MIN_SEC = 8;
   const TILE_ROTATE_MAX_SEC = 14;
+  const GAMES_ONBOARDING_TEST_ALWAYS = true;
+  const GAMES_ONBOARDING_STORAGE_KEY_PREFIX = "wt:games:onboarding:v2:";
+  const GAMES_ONBOARDING_BANNER_HINT = "1200x350 px";
+  const GAMES_ONBOARDING_STEPS = {
+    wheelPage: {
+      ru: [
+        {
+          banner: "/images/games/onboarding/wheel-1.webp",
+          text: "Р’С‹Р±РµСЂРё СЃСѓРјРјСѓ Рё РІР°Р»СЋС‚Сѓ РґР»СЏ СЃС‚Р°РІРєРё.",
+          button: "РљР°Рє СЌС‚Рѕ СЂР°Р±РѕС‚Р°РµС‚?"
+        },
+        {
+          banner: "/images/games/onboarding/wheel-2.webp",
+          text: "РљРѕР»РµСЃРѕ РєСЂСѓС‚РёС‚СЃСЏ, РјРЅРѕР¶РёС‚РµР»СЊ РІС‹РїР°РґР°РµС‚ СЃР»СѓС‡Р°Р№РЅРѕ.",
+          button: "Р”Р°Р»СЊС€Рµ"
+        },
+        {
+          banner: "/images/games/onboarding/wheel-3.webp",
+          text: "РџРѕРїР°Р» РІ СЃРµРєС‚РѕСЂ, РїРѕР»СѓС‡Р°РµС€СЊ РІС‹РёРіСЂС‹С€.",
+          button: "РќР°С‡Р°С‚СЊ РёРіСЂСѓ"
+        }
+      ],
+      en: [
+        {
+          banner: "/images/games/onboarding/wheel-1.webp",
+          text: "Choose stake amount and currency.",
+          button: "How it works?"
+        },
+        {
+          banner: "/images/games/onboarding/wheel-2.webp",
+          text: "The wheel spins and a random multiplier lands.",
+          button: "Next"
+        },
+        {
+          banner: "/images/games/onboarding/wheel-3.webp",
+          text: "Hit the sector and get your payout.",
+          button: "Start game"
+        }
+      ]
+    },
+    crashPage: {
+      ru: [
+        {
+          banner: "/images/games/onboarding/crash-1.webp",
+          text: "РџРѕСЃС‚Р°РІСЊ СЃСѓРјРјСѓ РґРѕ РЅР°С‡Р°Р»Р° СЂР°СѓРЅРґР°.",
+          button: "РљР°Рє СЌС‚Рѕ СЂР°Р±РѕС‚Р°РµС‚?"
+        },
+        {
+          banner: "/images/games/onboarding/crash-2.webp",
+          text: "РњРЅРѕР¶РёС‚РµР»СЊ СЂР°СЃС‚РµС‚, СЂРёСЃРє С‚РѕР¶Рµ СЂР°СЃС‚РµС‚.",
+          button: "Р”Р°Р»СЊС€Рµ"
+        },
+        {
+          banner: "/images/games/onboarding/crash-3.webp",
+          text: "Р—Р°Р±РµСЂРё РґРѕ РєСЂР°С€Р°, РёРЅР°С‡Рµ РїСЂРѕРёРіСЂС‹С€.",
+          button: "РќР°С‡Р°С‚СЊ РёРіСЂСѓ"
+        }
+      ],
+      en: [
+        {
+          banner: "/images/games/onboarding/crash-1.webp",
+          text: "Place your stake before the round starts.",
+          button: "How it works?"
+        },
+        {
+          banner: "/images/games/onboarding/crash-2.webp",
+          text: "Multiplier grows fast and risk grows too.",
+          button: "Next"
+        },
+        {
+          banner: "/images/games/onboarding/crash-3.webp",
+          text: "Cash out before crash or lose the bet.",
+          button: "Start game"
+        }
+      ]
+    },
+    casesPage: {
+      ru: [
+        {
+          banner: "/images/games/onboarding/cases-1.webp",
+          text: "Р’С‹Р±РµСЂРё РєРµР№СЃ Рё С†РµРЅСѓ РѕС‚РєСЂС‹С‚РёСЏ.",
+          button: "РљР°Рє СЌС‚Рѕ СЂР°Р±РѕС‚Р°РµС‚?"
+        },
+        {
+          banner: "/images/games/onboarding/cases-2.webp",
+          text: "РћС‚РєСЂРѕР№ РєРµР№СЃ, РґСЂРѕРї СЃР»СѓС‡Р°Р№РЅС‹Р№.",
+          button: "Р”Р°Р»СЊС€Рµ"
+        },
+        {
+          banner: "/images/games/onboarding/cases-3.webp",
+          text: "РЎРѕС…СЂР°РЅРё РїСЂРёР· РёР»Рё РїСЂРѕРґР°Р№ РµРіРѕ.",
+          button: "РќР°С‡Р°С‚СЊ РёРіСЂСѓ"
+        }
+      ],
+      en: [
+        {
+          banner: "/images/games/onboarding/cases-1.webp",
+          text: "Pick a case and opening price.",
+          button: "How it works?"
+        },
+        {
+          banner: "/images/games/onboarding/cases-2.webp",
+          text: "Open case and get a random drop.",
+          button: "Next"
+        },
+        {
+          banner: "/images/games/onboarding/cases-3.webp",
+          text: "Keep the prize or sell it.",
+          button: "Start game"
+        }
+      ]
+    }
+  };
   let casesTileRotationTimer = null;
   let crashTileRotationTimer = null;
+  let gamesOnboardingNode = null;
+  let gamesOnboardingCloseTimer = null;
+  const gamesOnboardingState = {
+    stepIndex: 0,
+    steps: [],
+    gameId: ""
+  };
+
+  function getGamesOnboardingLanguage() {
+    try {
+      const fromI18n = String(WT?.i18n?.getLanguage?.() || "").toLowerCase();
+      if (fromI18n.startsWith("ru")) return "ru";
+      if (fromI18n.startsWith("en")) return "en";
+
+      const fallback = String(
+        document.body?.getAttribute?.("data-wt-lang") ||
+        document.documentElement?.lang ||
+        navigator?.language ||
+        "en"
+      ).toLowerCase();
+      return fallback.startsWith("ru") ? "ru" : "en";
+    } catch {
+      return "en";
+    }
+  }
+
+  function normalizeOnboardingGameId(pageId) {
+    return GAMES_CHILD_PAGES.has(pageId) ? String(pageId) : "";
+  }
+
+  function getOnboardingStorageKey(pageId) {
+    const gameId = normalizeOnboardingGameId(pageId);
+    return gameId ? `${GAMES_ONBOARDING_STORAGE_KEY_PREFIX}${gameId}` : "";
+  }
+
+  function hasSeenGamesOnboarding(pageId) {
+    const key = getOnboardingStorageKey(pageId);
+    if (!key) return false;
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markGamesOnboardingSeen(pageId) {
+    const key = getOnboardingStorageKey(pageId);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, "1");
+    } catch {}
+  }
+
+  function shouldOpenGamesOnboarding(pageId) {
+    const gameId = normalizeOnboardingGameId(pageId);
+    if (!gameId) return false;
+    if (GAMES_ONBOARDING_TEST_ALWAYS) return true;
+    return !hasSeenGamesOnboarding(gameId);
+  }
+
+  function buildGamesOnboardingSteps(pageId) {
+    const gameId = normalizeOnboardingGameId(pageId);
+    const gameConfig = gameId ? GAMES_ONBOARDING_STEPS[gameId] : null;
+    if (!gameConfig) return [];
+
+    const lang = getGamesOnboardingLanguage();
+    const source = Array.isArray(gameConfig[lang]) ? gameConfig[lang] : gameConfig.en;
+    if (!Array.isArray(source)) return [];
+    return source.map((step) => ({
+      banner: String(step?.banner || "").trim(),
+      text: String(step?.text || "").trim(),
+      button: String(step?.button || "").trim()
+    }));
+  }
+
+  function ensureGamesOnboardingModal() {
+    if (gamesOnboardingNode && document.body.contains(gamesOnboardingNode)) return gamesOnboardingNode;
+
+    const modal = document.createElement("div");
+    modal.id = "gamesOnboardingModal";
+    modal.className = "games-onboarding";
+    modal.setAttribute("data-wt-i18n-ignore", "1");
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="games-onboarding__backdrop" data-games-onboarding-close="1"></div>
+      <section class="games-onboarding__sheet" role="dialog" aria-modal="true" aria-labelledby="gamesOnboardingText">
+        <div class="games-onboarding__handle" aria-hidden="true"></div>
+        <button class="games-onboarding__close" type="button" aria-label="Close" data-games-onboarding-close="1">×</button>
+
+        <div class="games-onboarding__bannerWrap">
+          <img
+            class="games-onboarding__banner"
+            id="gamesOnboardingBanner"
+            src="/images/games/onboarding/wheel-1.webp"
+            alt="Game instruction banner"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+
+        <p class="games-onboarding__bannerHint">Banner slot: ${GAMES_ONBOARDING_BANNER_HINT}</p>
+
+        <p class="games-onboarding__text" id="gamesOnboardingText"></p>
+
+        <div class="games-onboarding__dots" id="gamesOnboardingDots" aria-hidden="true"></div>
+
+        <button class="games-onboarding__next" type="button" data-games-onboarding-next="1"></button>
+      </section>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener("click", (event) => {
+      const closeBtn = event.target?.closest?.("[data-games-onboarding-close='1']");
+      if (closeBtn) {
+        closeGamesOnboarding();
+        return;
+      }
+
+      const nextBtn = event.target?.closest?.("[data-games-onboarding-next='1']");
+      if (!nextBtn) return;
+
+      const maxIndex = Math.max(0, gamesOnboardingState.steps.length - 1);
+      if (gamesOnboardingState.stepIndex < maxIndex) {
+        gamesOnboardingState.stepIndex += 1;
+        renderGamesOnboardingStep();
+        return;
+      }
+
+      closeGamesOnboarding();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && gamesOnboardingNode && !gamesOnboardingNode.hidden) {
+        closeGamesOnboarding();
+      }
+    });
+
+    gamesOnboardingNode = modal;
+    return modal;
+  }
+
+  function renderGamesOnboardingStep() {
+    const modal = ensureGamesOnboardingModal();
+    const bannerEl = modal.querySelector("#gamesOnboardingBanner");
+    const textEl = modal.querySelector("#gamesOnboardingText");
+    const dotsEl = modal.querySelector("#gamesOnboardingDots");
+    const nextBtn = modal.querySelector("[data-games-onboarding-next='1']");
+    const bannerHintEl = modal.querySelector(".games-onboarding__bannerHint");
+    if (!textEl || !dotsEl || !nextBtn) return;
+
+    const safeSteps = Array.isArray(gamesOnboardingState.steps) && gamesOnboardingState.steps.length
+      ? gamesOnboardingState.steps
+      : buildGamesOnboardingSteps(gamesOnboardingState.gameId);
+
+    const maxIndex = Math.max(0, safeSteps.length - 1);
+    const currentIndex = Math.min(Math.max(0, gamesOnboardingState.stepIndex), maxIndex);
+    gamesOnboardingState.stepIndex = currentIndex;
+    gamesOnboardingState.steps = safeSteps;
+
+    const step = safeSteps[currentIndex];
+    textEl.textContent = String(step?.text || "");
+    nextBtn.textContent = String(
+      step?.button ||
+      (getGamesOnboardingLanguage() === "ru" ? "Р”Р°Р»СЊС€Рµ" : "Next")
+    );
+    if (bannerEl) {
+      const src = String(step?.banner || "").trim();
+      if (src) bannerEl.setAttribute("src", src);
+      bannerEl.setAttribute("alt", `Game instruction slide ${currentIndex + 1}`);
+    }
+    if (bannerHintEl) {
+      bannerHintEl.textContent = getGamesOnboardingLanguage() === "ru"
+        ? `РЎР»РѕС‚ Р±Р°РЅРЅРµСЂР°: ${GAMES_ONBOARDING_BANNER_HINT}`
+        : `Banner slot: ${GAMES_ONBOARDING_BANNER_HINT}`;
+    }
+
+    dotsEl.innerHTML = "";
+    safeSteps.forEach((_item, index) => {
+      const dot = document.createElement("span");
+      dot.className = "games-onboarding__dot";
+      if (index === currentIndex) dot.classList.add("is-active");
+      dotsEl.appendChild(dot);
+    });
+  }
+
+  function closeGamesOnboarding() {
+    if (!gamesOnboardingNode) return;
+
+    gamesOnboardingNode.classList.remove("is-open");
+    document.body.classList.remove("games-onboarding-open");
+
+    if (gamesOnboardingCloseTimer) clearTimeout(gamesOnboardingCloseTimer);
+    gamesOnboardingCloseTimer = window.setTimeout(() => {
+      if (gamesOnboardingNode && !gamesOnboardingNode.classList.contains("is-open")) {
+        gamesOnboardingNode.hidden = true;
+      }
+    }, 180);
+  }
+
+  function openGamesOnboarding(pageId) {
+    const gameId = normalizeOnboardingGameId(pageId);
+    if (!shouldOpenGamesOnboarding(gameId)) return;
+
+    const modal = ensureGamesOnboardingModal();
+    if (!modal) return;
+
+    if (!GAMES_ONBOARDING_TEST_ALWAYS) markGamesOnboardingSeen(gameId);
+
+    gamesOnboardingState.gameId = gameId;
+    gamesOnboardingState.steps = buildGamesOnboardingSteps(gameId);
+    gamesOnboardingState.stepIndex = 0;
+    renderGamesOnboardingStep();
+
+    if (gamesOnboardingCloseTimer) {
+      clearTimeout(gamesOnboardingCloseTimer);
+      gamesOnboardingCloseTimer = null;
+    }
+
+    modal.hidden = false;
+    requestAnimationFrame(() => modal.classList.add("is-open"));
+    document.body.classList.add("games-onboarding-open");
+  }
 
   function getRandomTileRotateDelayMs(minSec = TILE_ROTATE_MIN_SEC, maxSec = TILE_ROTATE_MAX_SEC) {
     const min = Number.isFinite(minSec) ? Math.max(1, Math.floor(minSec)) : TILE_ROTATE_MIN_SEC;
@@ -976,6 +1332,11 @@
   function scheduleNextCasesTileRotation() {
     const delayMs = getRandomTileRotateDelayMs();
     casesTileRotationTimer = window.setTimeout(() => {
+      if (document.hidden || getActivePageId() !== GAMES_PAGE_ID) {
+        scheduleNextCasesTileRotation();
+        return;
+      }
+
       const tile = document.querySelector(".game-tile--cases");
       if (!tile) {
         scheduleNextCasesTileRotation();
@@ -1013,6 +1374,11 @@
   function scheduleNextCrashTileRotation() {
     const delayMs = getRandomTileRotateDelayMs();
     crashTileRotationTimer = window.setTimeout(() => {
+      if (document.hidden || getActivePageId() !== GAMES_PAGE_ID) {
+        scheduleNextCrashTileRotation();
+        return;
+      }
+
       const tile = document.querySelector(".game-tile--crash");
       if (!tile) {
         scheduleNextCrashTileRotation();
@@ -1106,14 +1472,81 @@
 
   const IS_MOBILE_IOS_OR_ANDROID = detectMobileIosOrAndroid();
 
-  // какие страницы считаем "внутри Games" (в навбаре подсвечиваем Games)
+  // РєР°РєРёРµ СЃС‚СЂР°РЅРёС†С‹ СЃС‡РёС‚Р°РµРј "РІРЅСѓС‚СЂРё Games" (РІ РЅР°РІР±Р°СЂРµ РїРѕРґСЃРІРµС‡РёРІР°РµРј Games)
   const NAV_ALIAS = {
     crashPage: GAMES_PAGE_ID,
     casesPage: GAMES_PAGE_ID,
     wheelPage: GAMES_PAGE_ID
   };
   const navKeyForPage = (id) => NAV_ALIAS[id] || id;
-  const getActivePageId = () => document.querySelector(".page.page-active")?.id || null;
+  let activePageIdCache = null;
+  let activePageElCache = null;
+  let activeBodyPageClass = "";
+  let activeNavKeyCache = null;
+
+  function getActivePageId() {
+    if (
+      activePageElCache &&
+      activePageIdCache &&
+      activePageElCache.id === activePageIdCache &&
+      activePageElCache.classList.contains("page-active")
+    ) {
+      return activePageIdCache;
+    }
+
+    const active = document.querySelector(".page.page-active");
+    activePageElCache = active || null;
+    activePageIdCache = active?.id || null;
+    return activePageIdCache;
+  }
+
+  function pageIdToBodyClass(pageId) {
+    const pageKey = String(pageId || "")
+      .replace(/Page$/,'')
+      .replace(/Page/i,'')
+      .toLowerCase();
+    return pageKey ? `page-${pageKey}` : "";
+  }
+
+  function setBodyPageClass(pageId) {
+    const body = document.body;
+    if (!body) return;
+
+    const nextClass = pageIdToBodyClass(pageId);
+    const pageClasses = Array.from(body.classList).filter((cls) => cls.startsWith("page-"));
+
+    if (!activeBodyPageClass && pageClasses.length) {
+      pageClasses.forEach((cls) => {
+        if (cls !== nextClass) body.classList.remove(cls);
+      });
+      activeBodyPageClass = pageClasses.find((cls) => cls === nextClass) || "";
+    }
+
+    if (activeBodyPageClass && activeBodyPageClass !== nextClass) {
+      body.classList.remove(activeBodyPageClass);
+    }
+
+    if (nextClass && !body.classList.contains(nextClass)) {
+      body.classList.add(nextClass);
+    }
+
+    activeBodyPageClass = nextClass;
+  }
+
+  function setActiveNavItem(navKey) {
+    if (!navKey) return;
+
+    const navSelector = ".bottom-nav .nav-item";
+    if (!activeNavKeyCache) {
+      document.querySelectorAll(navSelector).forEach((item) => item.classList.remove("active"));
+    } else if (activeNavKeyCache !== navKey) {
+      document.querySelector(`${navSelector}[data-target="${activeNavKeyCache}"]`)?.classList.remove("active");
+    }
+
+    document.querySelector(`${navSelector}[data-target="${navKey}"]`)?.classList.add("active");
+    activeNavKeyCache = navKey;
+  }
+
   const MIN_GAMES_LAYOUT_SCALE = 0.42;
   let gamesFitRafId = null;
 
@@ -1311,7 +1744,7 @@
     if (bottomNav) appRoot.insertBefore(page, bottomNav);
     else appRoot.appendChild(page);
 
-    // клики по постерам -> открываем выбранную игру
+    // РєР»РёРєРё РїРѕ РїРѕСЃС‚РµСЂР°Рј -> РѕС‚РєСЂС‹РІР°РµРј РІС‹Р±СЂР°РЅРЅСѓСЋ РёРіСЂСѓ
     page.querySelectorAll("[data-go]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const target = btn.getAttribute("data-go");
@@ -1327,7 +1760,7 @@
     return page;
   }
 
-  // Навигация между страницами
+  // РќР°РІРёРіР°С†РёСЏ РјРµР¶РґСѓ СЃС‚СЂР°РЅРёС†Р°РјРё
   function activatePage(id, options = {}){
     const { fromHistory = false } = options;
     const pg = document.getElementById(id);
@@ -1338,6 +1771,13 @@
 
     const currentId = getActivePageId();
     normalizeLockedViewportForPage(id);
+
+    if (currentId === id) {
+      setBodyPageClass(id);
+      setActiveNavItem(navKeyForPage(id));
+      syncTelegramMiniGameBackButton(id);
+      return;
+    }
 
     if (
       !fromHistory &&
@@ -1350,30 +1790,25 @@
       return;
     }
 
-    document.querySelectorAll(".page").forEach(p=>p.classList.remove("page-active"));
+    const currentPage = currentId ? document.getElementById(currentId) : activePageElCache;
+    if (currentPage && currentPage !== pg) {
+      currentPage.classList.remove("page-active");
+    } else if (!currentPage) {
+      document.querySelectorAll(".page.page-active").forEach((pageNode) => {
+        if (pageNode !== pg) pageNode.classList.remove("page-active");
+      });
+    }
     pg.classList.add("page-active");
+    activePageElCache = pg;
+    activePageIdCache = id;
 
-    // выставляем класс страницы на body (для page-specific CSS)
-    // пример: wheelPage -> body.page-wheel
-    try {
-      const body = document.body;
-      // удаляем старые page-* классы
-      body.className = body.className
-        .split(/\s+/)
-        .filter(c => c && !c.startsWith('page-'))
-        .join(' ');
-
-      const pageKey = String(id)
-        .replace(/Page$/,'')
-        .replace(/Page/i,'')
-        .toLowerCase();
-      body.classList.add(`page-${pageKey}`);
-    } catch {}
+    // РІС‹СЃС‚Р°РІР»СЏРµРј РєР»Р°СЃСЃ СЃС‚СЂР°РЅРёС†С‹ РЅР° body (РґР»СЏ page-specific CSS)
+    // РїСЂРёРјРµСЂ: wheelPage -> body.page-wheel
+    setBodyPageClass(id);
 
     // nav highlight (Crash/Cases/Wheel -> Games)
     const navKey = navKeyForPage(id);
-    document.querySelectorAll(".bottom-nav .nav-item").forEach(i=>i.classList.remove("active"));
-    document.querySelector(`.bottom-nav .nav-item[data-target="${navKey}"]`)?.classList.add("active");
+    setActiveNavItem(navKey);
     syncTelegramMiniGameBackButton(id);
 
     if (!fromHistory) {
@@ -1389,10 +1824,13 @@
       }
     }
 
+    if (GAMES_CHILD_PAGES.has(id)) openGamesOnboarding(id);
+    else closeGamesOnboarding();
+
     WT.bus.dispatchEvent(new CustomEvent("page:change", { detail:{ id } }));
   }
 
-  // Экспортируем навигацию (чтобы другие модули могли дергать при необходимости)
+  // Р­РєСЃРїРѕСЂС‚РёСЂСѓРµРј РЅР°РІРёРіР°С†РёСЋ (С‡С‚РѕР±С‹ РґСЂСѓРіРёРµ РјРѕРґСѓР»Рё РјРѕРіР»Рё РґРµСЂРіР°С‚СЊ РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё)
   WT.activatePage = activatePage;
   WT.navigate = activatePage;
 
@@ -1410,13 +1848,13 @@
     }
   });
 
-  // Делегируем клики по нижней навигации (так работает и для динамически добавленных пунктов)
+  // Р”РµР»РµРіРёСЂСѓРµРј РєР»РёРєРё РїРѕ РЅРёР¶РЅРµР№ РЅР°РІРёРіР°С†РёРё (С‚Р°Рє СЂР°Р±РѕС‚Р°РµС‚ Рё РґР»СЏ РґРёРЅР°РјРёС‡РµСЃРєРё РґРѕР±Р°РІР»РµРЅРЅС‹С… РїСѓРЅРєС‚РѕРІ)
   const bottomNav = document.querySelector(".bottom-nav");
   bottomNav?.addEventListener("click", (e) => {
     const btn = e.target?.closest?.(".nav-item");
     if (!btn || !bottomNav.contains(btn)) return;
 
-    // если нав-айтем — ссылка, не даём браузеру прыгать по href
+    // РµСЃР»Рё РЅР°РІ-Р°Р№С‚РµРј вЂ” СЃСЃС‹Р»РєР°, РЅРµ РґР°С‘Рј Р±СЂР°СѓР·РµСЂСѓ РїСЂС‹РіР°С‚СЊ РїРѕ href
     try {
       const tag = String(btn.tagName || "").toUpperCase();
       if (tag === "A" || btn.getAttribute("href")) e.preventDefault();
@@ -1426,14 +1864,14 @@
     if (target) activatePage(target);
   });
 
-  // Создаём Games-хаб и пункт в навбаре (если его ещё нет)
+  // РЎРѕР·РґР°С‘Рј Games-С…Р°Р± Рё РїСѓРЅРєС‚ РІ РЅР°РІР±Р°СЂРµ (РµСЃР»Рё РµРіРѕ РµС‰С‘ РЅРµС‚)
   ensureMatchPage();
   const gamesPage = ensureGamesPage();
   setupCasesTileRotation(gamesPage);
   setupCrashTileRotation(gamesPage);
   scheduleGamesViewportFit();
 
-  // Если при старте нет активной — активируем Games (или первую)
+  // Р•СЃР»Рё РїСЂРё СЃС‚Р°СЂС‚Рµ РЅРµС‚ Р°РєС‚РёРІРЅРѕР№ вЂ” Р°РєС‚РёРІРёСЂСѓРµРј Games (РёР»Рё РїРµСЂРІСѓСЋ)
   if(!document.querySelector(".page.page-active")){
     const games = document.getElementById(GAMES_PAGE_ID);
     if (games) activatePage(GAMES_PAGE_ID);
@@ -1442,7 +1880,12 @@
       if(first) activatePage(first.id);
     }
   } else {
-    normalizeLockedViewportForPage(getActivePageId());
+    const initialPageId = getActivePageId();
+    normalizeLockedViewportForPage(initialPageId);
+    if (initialPageId) {
+      setBodyPageClass(initialPageId);
+      setActiveNavItem(navKeyForPage(initialPageId));
+    }
   }
 
   setupTelegramMiniGameBackButton();
@@ -1459,3 +1902,4 @@
   window.addEventListener("orientationchange", scheduleGamesViewportFit, { passive: true });
   window.addEventListener("load", scheduleGamesViewportFit);
 })();
+

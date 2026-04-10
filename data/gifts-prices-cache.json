@@ -1,281 +1,281 @@
 {
-  "updatedAt": 1775764563575,
-  "catalogUpdatedAt": 1775764563574,
+  "updatedAt": 1775855791801,
+  "catalogUpdatedAt": 1775855791801,
   "prices": [
     {
       "name": "Stellar Rocket",
-      "priceTon": 3.76,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.94,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Instant Ramen",
-      "priceTon": 2.79,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.77,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Ice Cream",
-      "priceTon": 2.66,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.79,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Berry Box",
-      "priceTon": 7.29,
-      "updatedAt": 1775764563575,
+      "priceTon": 7.36,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Lol Pop",
-      "priceTon": 3.17,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.1,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Cookie Heart",
-      "priceTon": 4.03,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.84,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Mousse Cake",
-      "priceTon": 3.54,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.77,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Electric Skull",
-      "priceTon": 32.96,
-      "updatedAt": 1775764563575,
+      "priceTon": 30.49,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Vintage Cigar",
-      "priceTon": 32.36,
-      "updatedAt": 1775764563575,
+      "priceTon": 32.48,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Voodoo Doll",
-      "priceTon": 30.69,
-      "updatedAt": 1775764563575,
+      "priceTon": 30.86,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Flying Broom",
-      "priceTon": 10.22,
-      "updatedAt": 1775764563575,
+      "priceTon": 12.34,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Hex Pot",
       "priceTon": 4.13,
-      "updatedAt": 1775764563575,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Mighty Arm",
-      "priceTon": 151.79,
-      "updatedAt": 1775764563575,
+      "priceTon": 144.99,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Scared Cat",
-      "priceTon": 169.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 162.99,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Bonded Ring",
-      "priceTon": 38.78,
-      "updatedAt": 1775764563575,
+      "priceTon": 38.59,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Genie Lamp",
-      "priceTon": 44.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 43.99,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Jack-in-the-Box",
-      "priceTon": 3.4,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.56,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Winter Wreath",
-      "priceTon": 2.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.95,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Snoop Dogg",
-      "priceTon": 4.6,
-      "updatedAt": 1775764563575,
+      "priceTon": 4.79,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Neko Helmet",
-      "priceTon": 32.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 32.67,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Pet Snake",
-      "priceTon": 2.79,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.99,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Xmas Stocking",
-      "priceTon": 2.5,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.55,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Pool Float",
-      "priceTon": 2.46,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.49,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Mood Pack",
-      "priceTon": 3.15,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.24,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "B-Day Candle",
-      "priceTon": 3.63,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.78,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Snake Box",
-      "priceTon": 2.67,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.59,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Lunar Snake",
-      "priceTon": 2.58,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.63,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Happy Brownie",
-      "priceTon": 3.2,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.41,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Ginger Cookie",
-      "priceTon": 3.61,
-      "updatedAt": 1775764563575,
+      "priceTon": 4.18,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Whip Cupcake",
-      "priceTon": 2.72,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.8,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Desk Calendar",
-      "priceTon": 5.56,
-      "updatedAt": 1775764563575,
+      "priceTon": 6.07,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Fresh Socks",
-      "priceTon": 3.43,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.39,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Jester Hat",
-      "priceTon": 3.06,
-      "updatedAt": 1775764563575,
+      "priceTon": 3.35,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Bow Tie",
-      "priceTon": 4.26,
-      "updatedAt": 1775764563575,
+      "priceTon": 4.03,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Restless Jar",
-      "priceTon": 4.32,
-      "updatedAt": 1775764563575,
+      "priceTon": 4.19,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Chill Flame",
-      "priceTon": 2.45,
-      "updatedAt": 1775764563575,
+      "priceTon": 2.38,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Jolly Chimp",
-      "priceTon": 6.69,
-      "updatedAt": 1775764563575,
+      "priceTon": 6.5,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Gem Signet",
-      "priceTon": 58,
-      "updatedAt": 1775764563575,
+      "priceTon": 58.95,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Timeless Book",
-      "priceTon": 4.2,
-      "updatedAt": 1775764563575,
+      "priceTon": 4.38,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Astral Shard",
-      "priceTon": 164.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 157.89,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Perfume Bottle",
-      "priceTon": 78.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 79.99,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Precious Peach",
-      "priceTon": 395.99,
-      "updatedAt": 1775764563575,
+      "priceTon": 384.89,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Signet Ring",
-      "priceTon": 31.49,
-      "updatedAt": 1775764563575,
+      "priceTon": 33.89,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Plush Pepe",
       "priceTon": 7300,
-      "updatedAt": 1775764563575,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Heroic Helmet",
       "priceTon": 206.84,
-      "updatedAt": 1775764563575,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     },
     {
       "name": "Durov's Cap",
-      "priceTon": 621.74,
-      "updatedAt": 1775764563575,
+      "priceTon": 610,
+      "updatedAt": 1775855791801,
       "source": "portals.tg"
     }
   ],

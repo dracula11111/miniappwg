@@ -518,7 +518,7 @@ const ICON_TON = "/icons/currency/tgTonWhite.svg";
         }
         return isLiteRuntime() ? (1000 / 36) : (1000 / 55);
       }
-      return hasActiveCrashBet() ? (1000 / 10) : (1000 / 4);
+      return hasActiveCrashBet() ? (1000 / 6) : (1000 / 1);
     }
 
     function makeStarPool(count = 96) {

@@ -13,14 +13,24 @@
   const deviceMemory = Number(window.navigator?.deviceMemory || 0);
   const hardwareConcurrency = Number(window.navigator?.hardwareConcurrency || 0);
   const saveData = Boolean(window.navigator?.connection?.saveData);
+  const ua = String(window.navigator?.userAgent || "").toLowerCase();
+  const platform = String(window.navigator?.platform || "").toLowerCase();
+  const touchPoints = Number(window.navigator?.maxTouchPoints || 0);
+  const isAndroid = ua.includes("android");
+  const isIOS = /iphone|ipod|ipad/.test(ua) || (platform === "macintel" && touchPoints > 1);
+  const isMobilePlatform = isAndroid || isIOS;
+  const isTelegramWebView = Boolean(window.Telegram?.WebApp);
+  const forceLiteOnMobile = isMobilePlatform && (isTelegramWebView || Boolean(coarsePointerQuery?.matches));
 
   const isLowPowerDevice =
+    forceLiteOnMobile ||
     saveData ||
     (deviceMemory > 0 && deviceMemory <= 4) ||
     (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
 
   const applyRuntimeClasses = () => {
     root.classList.toggle("wt-lite", isLowPowerDevice);
+    root.classList.toggle("wt-mobile", isMobilePlatform);
     root.classList.toggle("wt-touch", Boolean(coarsePointerQuery?.matches));
     root.classList.toggle("wt-reduced-motion", Boolean(reducedMotionQuery?.matches));
   };

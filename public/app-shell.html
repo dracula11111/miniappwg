@@ -653,18 +653,18 @@
         </svg>
       </div>
       
-      <!-- About -->
+      <!-- Privacy Policy -->
       <div class="settings-item settings-item--clickable" id="aboutItem">
         <div class="settings-item__icon settings-item__icon--about">
           <img 
             src="/icons/ui/about.svg" 
-            alt="About" 
+            alt="Privacy Policy" 
             class="settings-icon-img settings-icon-img--about"
           />
         </div>
         <div class="settings-item__info">
-          <div class="settings-item__label">About</div>
-          <div class="settings-item__value">App info</div>
+          <div class="settings-item__label">Privacy Policy</div>
+          <div class="settings-item__value">Legal terms and data</div>
         </div>
         <svg class="settings-item__chevron" width="20" height="20" viewBox="0 0 24 24" fill="none">
           <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -673,6 +673,25 @@
       
     </div>
   </div>
+</div>
+
+<div
+  class="wt-terms-sheet"
+  id="settingsPolicySheet"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="settingsPolicyTitle"
+  data-wt-i18n-ignore="1"
+  hidden
+>
+  <button type="button" class="wt-terms-sheet__backdrop" id="settingsPolicyBackdrop" aria-label="Close policy"></button>
+  <article class="wt-terms-sheet__panel" role="document" tabindex="-1">
+    <header class="wt-terms-sheet__header">
+      <h2 class="wt-terms-sheet__title" id="settingsPolicyTitle">WildGift Privacy Policy &amp; Terms</h2>
+      <button type="button" class="wt-terms-sheet__close" id="settingsPolicyCloseBtn" aria-label="Close">Close</button>
+    </header>
+    <div class="wt-terms-sheet__body" id="settingsPolicyBody"></div>
+  </article>
 </div>
 
 

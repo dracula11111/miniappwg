@@ -364,12 +364,24 @@
         btn.classList.remove('curr-btn--active');
       }
     });
+    syncCurrencySwitchVisualState();
+
     
     updateTopbarIcon();
     applyCurrencyTheme();
     
     console.log('[Switch] ✅ UI initialized');
   }
+
+  function syncCurrencySwitchVisualState() {
+    const switches = document.querySelectorAll('.currency-switch');
+    const starsActive = currentCurrency === 'stars';
+    switches.forEach((sw) => {
+      sw.classList.toggle('currency-switch--stars', starsActive);
+    });
+  }
+
+
 
   // ================== EVENT LISTENERS ==================
   function attachEventListeners() {
@@ -742,6 +754,8 @@
         btn.classList.remove('curr-btn--active');
       }
     });
+    syncCurrencySwitchVisualState();
+
 
     updateTopbarIcon();
     applyCurrencyTheme();
@@ -1252,7 +1266,7 @@
 }
 
 /* Индикатор для Stars */
-.currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active)::before {
+.currency-switch.currency-switch--stars::before {
   background: linear-gradient(
     135deg, 
     rgba(255, 193, 7, 0.28) 0%,
@@ -1264,7 +1278,7 @@
     0 1px 2px rgba(255, 255, 255, 0.15) inset;
 }
 
-.currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active) {
+.currency-switch.currency-switch--stars {
   --wt-indicator-x: calc(100% + 4px);
 }
 

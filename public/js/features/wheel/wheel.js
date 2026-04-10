@@ -1795,10 +1795,11 @@ function isWheelLiteRuntime() {
   return !!(wheelRootEl?.classList?.contains('wt-lite') || wheelRootEl?.classList?.contains('wt-reduced-motion'));
 }
 
-function getWheelFrameIntervalMs(isVisibleWheel, isAnimating) {
+function getWheelFrameIntervalMs(isVisibleWheel, isAnimating, hasLiveBets) {
   if (isVisibleWheel) return isWheelLiteRuntime() ? (1000 / 36) : (1000 / 55);
-  if (isAnimating) return 1000 / 12;
-  return 1000 / 4;
+  if (isAnimating) return 1000 / 8;
+  if (hasLiveBets) return 1000 / 2;
+  return 1000 / 1;
 }
 
 function tick(ts){
@@ -1806,8 +1807,14 @@ function tick(ts){
   const dt = Math.min(0.033, (ts - lastTs)/1000);
   lastTs = ts;
 
-  // Keep betting countdown smooth even if server doesn't broadcast every second
-  updateWheelCountdownUI();
+  const isVisibleWheel = !document.hidden && isWheelPageActive();
+  const isAnimating = phase === 'decelerate' || phase === 'accelerate';
+  const hasLiveBets = betsMap.size > 0 || phase === 'betting' || phase === 'waiting';
+
+  // Countdown doesn't need per-frame updates while the page is hidden and no live bets.
+  if (isVisibleWheel || hasLiveBets) {
+    updateWheelCountdownUI();
+  }
 
   if (phase === 'decelerate' && decel){
     const elapsed = ts - decel.t0;
@@ -1964,10 +1971,9 @@ function tick(ts){
     // Do nothing - wheel stays at current angle
   }
 
-  const isVisibleWheel = !document.hidden && isWheelPageActive();
-  const isAnimating = phase === 'decelerate' || phase === 'accelerate';
-  const frameInterval = getWheelFrameIntervalMs(isVisibleWheel, isAnimating);
-  if (!lastDrawAt || (ts - lastDrawAt) >= frameInterval) {
+  const frameInterval = getWheelFrameIntervalMs(isVisibleWheel, isAnimating, hasLiveBets);
+  const shouldDrawWheel = isVisibleWheel || isAnimating || hasLiveBets;
+  if (shouldDrawWheel && (!lastDrawAt || (ts - lastDrawAt) >= frameInterval)) {
     drawWheel(currentAngle);
     lastDrawAt = ts;
   }

@@ -140,7 +140,7 @@ body.wt-unauth-mode.wt-terms-open {
 .wt-terms-sheet {
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 10000020;
   display: flex;
   align-items: flex-end;
   justify-content: center;
