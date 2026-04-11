@@ -489,6 +489,24 @@
           border-color: transparent;
           transform: translateY(-1px);                     /* Приподнимаем */
         }
+        /* Topbar balance pill: lighter blur + glints only */
+        .topbar .pill {
+          background: rgba(10, 18, 12, 0.22);
+          backdrop-filter: blur(10px) saturate(150%);
+          -webkit-backdrop-filter: blur(10px) saturate(150%);
+          border: 1px solid transparent;
+          box-shadow:
+            0 8px 16px rgba(0, 0, 0, 0.20),
+            inset 0 1px 0 rgba(255,255,255,.02);
+        }
+        .topbar .pill::before {
+          background:
+            radial-gradient(circle at 14% 8%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 34%),
+            radial-gradient(circle at 88% 92%, rgba(255,255,255,.20) 0%, rgba(255,255,255,0) 38%);
+        }
+        .topbar .pill:hover {
+          background: rgba(255, 255, 255, 0.06);
+        }
         .topbar .pill-icon{
           width:16px;                                      /* Ширина иконки */
           height:16px;                                     /* Высота иконки */

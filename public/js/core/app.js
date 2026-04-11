@@ -1121,8 +1121,16 @@
     'url("/images/games/crash1.webp")',
     'url("/images/games/crash2.webp")'
   ];
+  const GAMES_BANNER_SLIDES = [
+    "/images/games/banners/banner-1.webp",
+    "/images/games/banners/banner-2.webp"
+  ];
   const TILE_ROTATE_MIN_SEC = 8;
   const TILE_ROTATE_MAX_SEC = 14;
+  const GAMES_BANNER_AUTO_MS = 4000;
+  const GAMES_BANNER_SWIPE_MS = 320;
+  const GAMES_BANNER_MIN_SWIPE_PX = 44;
+  const GAMES_BANNER_SWIPE_RATIO = 0.14;
   const GAMES_ONBOARDING_TEST_ALWAYS = false;
   const GAMES_ONBOARDING_STORAGE_KEY_PREFIX = "wt:games:onboarding:v2:";
   const GAMES_ONBOARDING_AUTO_ADVANCE_MS = 5000;
@@ -1267,6 +1275,14 @@
     }
   }
 
+  function syncGamesHubTitle(scope = document) {
+    const root = (scope && typeof scope.querySelector === "function") ? scope : document;
+    const title = root.querySelector("[data-games-hub-title='1']") || document.querySelector("[data-games-hub-title='1']");
+    if (!title) return;
+    const lang = getGamesOnboardingLanguage();
+    title.textContent = lang === "ru" ? "Игры" : "Games";
+  }
+
   function normalizeOnboardingGameId(pageId) {
     return GAMES_CHILD_PAGES.has(pageId) ? String(pageId) : "";
   }
@@ -1347,6 +1363,16 @@
     const textEl = gamesOnboardingNode.querySelector("#gamesOnboardingText");
     if (!bannerWrap || !textEl) return;
 
+    const bannerRect = bannerWrap.getBoundingClientRect?.();
+    const viewportWidth = Math.max(
+      1,
+      Number(window.innerWidth) || Number(document.documentElement?.clientWidth) || 1
+    );
+    const startOffsetX = Math.max(
+      24,
+      Math.round(viewportWidth - Number(bannerRect?.left || 0) + 24)
+    );
+
     try {
       bannerWrap.getAnimations?.().forEach((anim) => anim.cancel());
       textEl.getAnimations?.().forEach((anim) => anim.cancel());
@@ -1354,7 +1380,7 @@
 
     bannerWrap.animate(
       [
-        { opacity: 0.64, transform: "translateX(20px)" },
+        { opacity: 1, transform: `translateX(${startOffsetX}px)` },
         { opacity: 1, transform: "translateX(0)" }
       ],
       {
@@ -1762,6 +1788,208 @@
     scheduleNextCrashTileRotation();
   }
 
+  function setupGamesBannerCarousel(scope = document) {
+    const root = (scope && typeof scope.querySelector === "function") ? scope : document;
+    const carousel = root.querySelector("[data-games-banners='1']") || document.querySelector("[data-games-banners='1']");
+    if (!carousel) return;
+    if (carousel.dataset.carouselReady === "1") return;
+
+    const viewport = carousel.querySelector("[data-games-banners-viewport='1']");
+    const track = carousel.querySelector("[data-games-banners-track='1']");
+    if (!viewport || !track) return;
+
+    const baseSlides = Array.from(track.children || []);
+    const slideCount = baseSlides.length;
+    if (!slideCount) return;
+
+    if (slideCount > 1) {
+      const firstClone = baseSlides[0].cloneNode(true);
+      const lastClone = baseSlides[slideCount - 1].cloneNode(true);
+      firstClone.dataset.bannerClone = "first";
+      lastClone.dataset.bannerClone = "last";
+      track.appendChild(firstClone);
+      track.insertBefore(lastClone, track.firstChild);
+    }
+
+    let trackIndex = slideCount > 1 ? 1 : 0;
+    let autoTimer = null;
+    let dragStartX = 0;
+    let dragOffsetX = 0;
+    let isDragging = false;
+    let isMouseDragBound = false;
+    let viewportWidth = Math.max(1, Math.round(viewport.getBoundingClientRect().width || 1));
+    let slideStep = viewportWidth;
+
+    const getRealIndex = (value) => {
+      if (slideCount <= 1) return 0;
+      return ((value - 1) % slideCount + slideCount) % slideCount;
+    };
+
+    const syncViewportWidth = () => {
+      viewportWidth = Math.max(1, Math.round(viewport.getBoundingClientRect().width || 1));
+      const trackStyles = window.getComputedStyle(track);
+      const rawGap = String(trackStyles.gap || trackStyles.columnGap || "0").trim();
+      const firstGapToken = rawGap.split(/\s+/)[0] || "0";
+      const gap = Number.parseFloat(firstGapToken);
+      const safeGap = Number.isFinite(gap) ? Math.max(0, gap) : 0;
+      slideStep = viewportWidth + safeGap;
+    };
+
+    const render = ({ animate = true, dragOffset = 0, recalc = true } = {}) => {
+      if (recalc || viewportWidth <= 1) syncViewportWidth();
+      track.style.transitionDuration = animate ? `${GAMES_BANNER_SWIPE_MS}ms` : "0ms";
+      track.style.transform = `translate3d(${-(trackIndex * slideStep) + dragOffset}px, 0, 0)`;
+      carousel.dataset.bannerIndex = String(getRealIndex(trackIndex));
+    };
+
+    const normalizeLoopPosition = () => {
+      if (slideCount <= 1) return;
+      if (trackIndex <= 0) {
+        trackIndex = slideCount;
+        render({ animate: false, recalc: false });
+        return;
+      }
+      if (trackIndex >= slideCount + 1) {
+        trackIndex = 1;
+        render({ animate: false, recalc: false });
+      }
+    };
+
+    const moveBy = (delta) => {
+      if (slideCount <= 1) return;
+      trackIndex += delta;
+      render({ animate: true, recalc: false });
+    };
+
+    const stopAuto = () => {
+      if (autoTimer !== null) {
+        clearInterval(autoTimer);
+        autoTimer = null;
+      }
+    };
+
+    const startAuto = () => {
+      stopAuto();
+      if (slideCount < 2) return;
+      autoTimer = window.setInterval(() => {
+        if (document.hidden || getActivePageId() !== GAMES_PAGE_ID || isDragging) return;
+        // Auto always moves to the right.
+        moveBy(-1);
+      }, GAMES_BANNER_AUTO_MS);
+    };
+
+    const releaseMouseDrag = () => {
+      if (!isMouseDragBound) return;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      isMouseDragBound = false;
+    };
+
+    const beginDrag = (startX) => {
+      if (slideCount < 2) return;
+      normalizeLoopPosition();
+      syncViewportWidth();
+      isDragging = true;
+      dragStartX = startX;
+      dragOffsetX = 0;
+      track.style.transitionDuration = "0ms";
+      stopAuto();
+      carousel.classList.add("is-dragging");
+    };
+
+    const updateDrag = (clientX) => {
+      if (!isDragging) return;
+      const maxOffset = Math.round(viewportWidth * 1.08);
+      const rawOffset = clientX - dragStartX;
+      dragOffsetX = Math.max(-maxOffset, Math.min(maxOffset, rawOffset));
+      render({ animate: false, dragOffset: dragOffsetX, recalc: false });
+    };
+
+    const finishSwipe = () => {
+      if (!isDragging) return;
+
+      isDragging = false;
+      carousel.classList.remove("is-dragging");
+      releaseMouseDrag();
+
+      const swipeThreshold = Math.max(
+        GAMES_BANNER_MIN_SWIPE_PX,
+        Math.round(viewportWidth * GAMES_BANNER_SWIPE_RATIO)
+      );
+
+      if (Math.abs(dragOffsetX) >= swipeThreshold) {
+        if (dragOffsetX > 0) moveBy(-1);
+        else moveBy(1);
+      } else {
+        render({ animate: true, recalc: false });
+      }
+
+      dragOffsetX = 0;
+      startAuto();
+    };
+
+    function onMouseMove(event) {
+      if (!isDragging) return;
+      updateDrag(event.clientX);
+      event.preventDefault();
+    }
+
+    function onMouseUp() {
+      finishSwipe();
+    }
+
+    viewport.addEventListener("touchstart", (event) => {
+      if (!event.touches || event.touches.length !== 1) return;
+      beginDrag(event.touches[0].clientX);
+    }, { passive: true });
+
+    viewport.addEventListener("touchmove", (event) => {
+      if (!isDragging || !event.touches || event.touches.length !== 1) return;
+      updateDrag(event.touches[0].clientX);
+    }, { passive: true });
+
+    viewport.addEventListener("touchend", finishSwipe, { passive: true });
+    viewport.addEventListener("touchcancel", finishSwipe, { passive: true });
+
+    viewport.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) return;
+      beginDrag(event.clientX);
+      if (!isDragging) return;
+      if (!isMouseDragBound) {
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+        isMouseDragBound = true;
+      }
+      event.preventDefault();
+    });
+
+    viewport.addEventListener("dragstart", (event) => {
+      event.preventDefault();
+    });
+
+    carousel.addEventListener("mouseenter", stopAuto);
+    carousel.addEventListener("mouseleave", () => {
+      if (!isDragging) startAuto();
+    });
+
+    track.addEventListener("transitionend", (event) => {
+      if (event.target !== track || event.propertyName !== "transform") return;
+      normalizeLoopPosition();
+    });
+
+    const syncLayout = () => {
+      normalizeLoopPosition();
+      render({ animate: false, recalc: true });
+    };
+
+    window.addEventListener("resize", syncLayout, { passive: true });
+    carousel.__wtGamesBannerSync = syncLayout;
+
+    carousel.dataset.carouselReady = "1";
+    render({ animate: false, recalc: true });
+    startAuto();
+  }
+
   function detectMobileIosOrAndroid() {
     try {
       const ua = String(navigator.userAgent || "").toLowerCase();
@@ -2014,31 +2242,48 @@
     page = document.createElement("main");
     page.id = GAMES_PAGE_ID;
     page.className = "page";
+    const gamesBannerSlidesMarkup = GAMES_BANNER_SLIDES.map((bannerSrc, index) => `
+                <div class="games-banners__slide">
+                  <div
+                    class="games-banners__card"
+                    role="img"
+                    aria-label="Games banner ${index + 1}"
+                    style="--games-banner-image:url('${bannerSrc}');"
+                  ></div>
+                </div>
+              `).join("");
 
     page.innerHTML = `
       <section class="games">
         <div class="games__fit">
-          <header class="games__head">
-            <h1 class="games__title">Games</h1>
-          </header>
+          <section class="games-banners" data-games-banners="1" aria-label="Games banners">
+            <div class="games-banners__viewport" data-games-banners-viewport="1">
+              <div class="games-banners__track" data-games-banners-track="1">
+                ${gamesBannerSlidesMarkup}
+              </div>
+            </div>
+          </section>
 
-          <div class="games-grid">
-            <button class="game-tile game-tile--wheel" type="button" data-go="wheelPage" aria-label="Open Wheel">
-              <span class="game-tile__label" aria-hidden="true">Wheel</span>
-            </button>
+          <section class="games-panels" aria-label="Games panels">
+            <h2 class="games-panels__title" data-games-hub-title="1">Games</h2>
+            <div class="games-grid">
+              <button class="game-tile game-tile--wheel" type="button" data-go="wheelPage" aria-label="Open Wheel">
+                <span class="game-tile__label" aria-hidden="true">Wheel</span>
+              </button>
 
-            <button class="game-tile game-tile--crash" type="button" data-go="crashPage" aria-label="Open Crash">
-              <span class="game-tile__label" aria-hidden="true">Crash</span>
-            </button>
+              <button class="game-tile game-tile--crash" type="button" data-go="crashPage" aria-label="Open Crash">
+                <span class="game-tile__label" aria-hidden="true">Crash</span>
+              </button>
 
-            <button class="game-tile game-tile--cases" type="button" data-go="casesPage" aria-label="Open Cases">
-              <span class="game-tile__label" aria-hidden="true">Cases</span>
-            </button>
+              <button class="game-tile game-tile--cases" type="button" data-go="casesPage" aria-label="Open Cases">
+                <span class="game-tile__label" aria-hidden="true">Cases</span>
+              </button>
 
-            <button class="game-tile game-tile--soon" type="button" disabled aria-disabled="true">
-              <span class="game-tile__label" aria-hidden="true">Soon</span>
-            </button>
-          </div>
+              <button class="game-tile game-tile--soon" type="button" disabled aria-disabled="true">
+                <span class="game-tile__label" aria-hidden="true">Soon</span>
+              </button>
+            </div>
+          </section>
 
         </div>
       </section>
@@ -2061,6 +2306,8 @@
         activatePage(target);
       });
     });
+
+    syncGamesHubTitle(page);
 
     return page;
   }
@@ -2172,6 +2419,7 @@
   // РЎРѕР·РґР°С‘Рј Games-С…Р°Р± Рё РїСѓРЅРєС‚ РІ РЅР°РІР±Р°СЂРµ (РµСЃР»Рё РµРіРѕ РµС‰С‘ РЅРµС‚)
   ensureMatchPage();
   const gamesPage = ensureGamesPage();
+  setupGamesBannerCarousel(gamesPage);
   setupCasesTileRotation(gamesPage);
   setupCrashTileRotation(gamesPage);
   scheduleGamesViewportFit();
@@ -2198,14 +2446,26 @@
 
   WT.bus.addEventListener("page:change", (event) => {
     if (event?.detail?.id === GAMES_PAGE_ID) {
+      document.querySelector("[data-games-banners='1']")?.__wtGamesBannerSync?.();
       scheduleGamesViewportFit();
       setTimeout(scheduleGamesViewportFit, 120);
+      syncGamesHubTitle(document.getElementById(GAMES_PAGE_ID));
     }
+  });
+
+  window.addEventListener("language:changed", () => {
+    syncGamesHubTitle(document.getElementById(GAMES_PAGE_ID));
   });
 
   window.addEventListener("resize", scheduleGamesViewportFit, { passive: true });
   window.addEventListener("orientationchange", scheduleGamesViewportFit, { passive: true });
   window.addEventListener("load", scheduleGamesViewportFit);
+  window.addEventListener("load", () => {
+    document.querySelector("[data-games-banners='1']")?.__wtGamesBannerSync?.();
+  });
+  requestAnimationFrame(() => {
+    document.querySelector("[data-games-banners='1']")?.__wtGamesBannerSync?.();
+  });
 })();
 
 

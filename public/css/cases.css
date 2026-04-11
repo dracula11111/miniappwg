@@ -135,13 +135,14 @@ body.page-cases #casesThemeBackdrop{
 /* Keep long backdrop behavior and add extra bottom reserve under nav. */
 html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage) #casesThemeBackdrop,
 html:is(.currency-stars,.currency-ton) body.page-cases #casesThemeBackdrop{
+  --stars-bg-bottom-bleed: 24px; /* tiny extra image reserve to avoid bottom seam on scroll end */
   height: max(
-    var(--stars-bg-h, 2400px),
-    100dvh
+    calc(var(--stars-bg-h, 2400px) + var(--stars-bg-bottom-bleed)),
+    calc(100dvh + var(--stars-bg-bottom-bleed))
   );
   min-height: max(
-    var(--stars-bg-h, 2400px),
-    100dvh
+    calc(var(--stars-bg-h, 2400px) + var(--stars-bg-bottom-bleed)),
+    calc(100dvh + var(--stars-bg-bottom-bleed))
   );
 }
 
@@ -317,60 +318,96 @@ body.page-cases .topbar{
   z-index: 180;
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch,
+body.page-cases .topbar .cases-topbar-switch .currency-switch{
   margin: 0;
   padding: 4px;
   gap: 4px;
   min-width: 108px;
   border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(8, 21, 48, 0.44);
+  border: 1px solid transparent;
+  background: rgba(10, 18, 12, 0.22);
   box-shadow:
-    0 10px 24px rgba(5, 15, 34, 0.42),
-    inset 0 1px 0 rgba(255,255,255,0.11);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+    0 8px 16px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255,255,255,.02);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
   transition: border-color .22s ease, box-shadow .22s ease, background .22s ease;
   transform: translateZ(0);
+  overflow: hidden;
+  isolation: isolate;
   /* Cases order is Stars (left) -> TON (right), so TON active should be on the right */
   --wt-indicator-x: calc(100% + 4px);
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch::before{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch::after,
+body.page-cases .topbar .cases-topbar-switch .currency-switch::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 14% 8%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 34%),
+    radial-gradient(circle at 88% 92%, rgba(255,255,255,.20) 0%, rgba(255,255,255,0) 38%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+  opacity: .86;
+}
+
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch::before,
+body.page-cases .topbar .cases-topbar-switch .currency-switch::before{
   top: 4px;
   bottom: 4px;
   left: 4px;
   width: calc(50% - 6px);
   border-radius: 12px;
+  background: rgba(255,255,255,.06);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+  backdrop-filter: blur(8px) saturate(135%);
+  -webkit-backdrop-filter: blur(8px) saturate(135%);
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch:has(.curr-btn[data-currency="stars"].curr-btn--active){
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch.currency-switch--stars,
+body.page-cases .topbar .cases-topbar-switch .currency-switch.currency-switch--stars{
   --wt-indicator-x: 0px;
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn,
+body.page-cases .topbar .cases-topbar-switch .curr-btn{
   min-height: 36px;
   min-width: 46px;
   padding: 8px;
   border-radius: 12px;
   gap: 0;
+  z-index: 3;
 }
 
 body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:hover,
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:active{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:active,
+body.page-cases .topbar .cases-topbar-switch .curr-btn:hover,
+body.page-cases .topbar .cases-topbar-switch .curr-btn:active{
   transform: none;
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-icon{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-icon,
+body.page-cases .topbar .cases-topbar-switch .curr-icon{
   width: 18px;
   height: 18px;
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:hover .curr-icon{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn:hover .curr-icon,
+body.page-cases .topbar .cases-topbar-switch .curr-btn:hover .curr-icon{
   transform: translateZ(0) scale(1.02);
 }
 
-body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
+body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active .curr-icon,
+body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
   animation: none;
 }
 
@@ -379,13 +416,15 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
     top: calc(var(--wg-topbar-pad-top-compact, 82px) + 8px);
   }
 
-  body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
+  body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch,
+  body.page-cases .topbar .cases-topbar-switch .currency-switch{
     min-width: 100px;
     padding: 3px;
     gap: 3px;
   }
 
-  body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn{
+  body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn,
+  body.page-cases .topbar .cases-topbar-switch .curr-btn{
     min-height: 34px;
     min-width: 42px;
     padding: 7px;
@@ -888,7 +927,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 html:is(.currency-stars,.currency-ton) #casesPage #casesGrid.cases-path,
 html:is(.currency-stars,.currency-ton) #casesPage .cases-path{
   --stars-grid-top-offset: 118px;   /* topbar/logo zone */
-  --stars-grid-bottom-offset: calc(72px + env(safe-area-inset-bottom, 0px)); /* capsule nav + safe-area */
+  --stars-grid-bottom-offset: var(--wt-app-bottom-inset, calc(90px + env(safe-area-inset-bottom, 0px))); /* keep in sync with real app bottom inset */
   --stars-grid-h: calc(var(--stars-bg-h) - var(--stars-grid-top-offset) - var(--stars-grid-bottom-offset));
   position: relative;
   isolation: isolate;

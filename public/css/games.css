@@ -7,8 +7,9 @@
 
    .games{
     /* Нижний отступ под nav уже даёт .app, тут оставляем только контентный */
-    padding: 16px 16px 14px;
+    padding: 16px 16px 10px;
     --games-layout-scale: 1;
+    height: 100%;
   }
 
   body.page-games{
@@ -19,6 +20,10 @@
     overflow: hidden;
   }
 
+  body.page-games .topbar{
+    padding-bottom: 4px;
+  }
+
   body.page-games #gamesPage.page-active{
     height: var(--games-available-height, auto);
     overflow: hidden;
@@ -26,16 +31,25 @@
   }
 
   body.page-games .games{
-    padding-top: 16px;
-    padding-bottom: 14px;
+    padding-top: 2px;
+    padding-bottom: 10px;
     margin-top: 0;
+    height: 100%;
+  }
+
+  .games__fit{
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: calc(10px * var(--games-layout-scale, 1));
   }
   
   .games__head{
     display:flex;
     align-items:center;
     justify-content:center;
-    margin: 0 0 calc(6px * var(--games-layout-scale, 1));
+    margin: 0 0 calc(8px * var(--games-layout-scale, 1));
   }
   
   .games__title{
@@ -47,6 +61,96 @@
     width: 100%;
     text-align: center;
   }
+
+  .games-banners{
+    width: 100%;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .games-panels{
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: calc(8px * var(--games-layout-scale, 1));
+    min-height: 0;
+  }
+
+  .games-panels__title{
+    margin: 0;
+    text-align: left;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    font-size: calc(20px * var(--games-layout-scale, 1));
+    line-height: 1;
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.16),
+      0 6px 16px rgba(0, 0, 0, 0.34);
+  }
+
+  .games-banners__viewport{
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1200 / 300;
+    overflow: hidden;
+    --games-banner-panel-gap: 0px;
+    background: var(--bg, #0d0e0f);
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none;
+  }
+
+  .games-banners.is-dragging .games-banners__viewport{
+    cursor: grabbing;
+  }
+
+  .games-banners__track{
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: var(--games-banner-panel-gap);
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    transition-property: transform;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    transition-duration: 320ms;
+  }
+
+  .games-banners__slide{
+    flex: 0 0 100%;
+    min-width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .games-banners__card{
+    width: 100%;
+    height: 100%;
+    position: relative;
+    border-radius: calc(16px * var(--games-layout-scale, 1));
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background-image:
+      linear-gradient(160deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 45%),
+      var(--games-banner-image);
+    background-size: cover, cover;
+    background-repeat: no-repeat, no-repeat;
+    background-position: center, center;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 8px 24px rgba(0, 0, 0, 0.24);
+  }
+
+  .games-banners__card::after{
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 38%, rgba(0, 0, 0, 0.26) 100%);
+    pointer-events: none;
+  }
   
   /* ===== GRID LAYOUT =====
      Важно: высоты считаем от 100vw, чтобы не зависеть от “разрешения телефона”,
@@ -54,10 +158,11 @@
   */
   .games-grid{
     --scale: var(--games-layout-scale, 1);
-    --gap: calc(9px * var(--scale));
+    --gap: calc(8px * var(--scale));
     --padX: 32px;                  /* .games: 16px + 16px */
     --wheelW: calc(var(--wt-layout-w, 100vw) - var(--padX));
     --colW: calc((var(--wt-layout-w, 100vw) - var(--padX) - var(--gap)) / 2);
+    margin-top: 0;
   
     display:grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

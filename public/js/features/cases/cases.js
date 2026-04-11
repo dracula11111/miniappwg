@@ -2342,13 +2342,31 @@ function getBalanceSafe(currency) {
     if (!window.history || typeof window.history.pushState !== 'function') return;
     if (isCaseSheetHistoryState()) return;
 
-    const baseState = (window.history.state && typeof window.history.state === 'object')
+    let baseState = (window.history.state && typeof window.history.state === 'object')
       ? window.history.state
       : {};
     const activePageId = document.querySelector('.page.page-active')?.id || 'casesPage';
+
+    // Keep the current history entry bound to the actually active page.
+    // Without this, Back from sheet can jump to games when previous state is stale or empty.
+    if (baseState[APP_PAGE_HISTORY_KEY] !== activePageId) {
+      const normalizedBaseState = {
+        ...baseState,
+        [APP_PAGE_HISTORY_KEY]: activePageId
+      };
+      if (typeof window.history.replaceState === 'function') {
+        try {
+          window.history.replaceState(normalizedBaseState, '', window.location.href);
+          baseState = normalizedBaseState;
+        } catch (_) {
+          baseState = normalizedBaseState;
+        }
+      }
+    }
+
     const nextState = {
       ...baseState,
-      [APP_PAGE_HISTORY_KEY]: baseState[APP_PAGE_HISTORY_KEY] || activePageId,
+      [APP_PAGE_HISTORY_KEY]: activePageId,
       [CASE_SHEET_HISTORY_KEY]: 1
     };
 

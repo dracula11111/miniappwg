@@ -177,6 +177,29 @@
           margin: 0;
         }
 
-        
+        /* Topbar glass refinement: remove dark ring, keep subtle diagonal glints */
+        .topbar .avatar-btn,
+        .topbar .burger-btn {
+          background: rgba(10, 18, 12, 0.22);
+          backdrop-filter: blur(10px) saturate(150%);
+          -webkit-backdrop-filter: blur(10px) saturate(150%);
+          border: 1px solid transparent;
+          box-shadow:
+            0 8px 16px rgba(0, 0, 0, 0.20),
+            inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        }
 
+        .topbar .avatar-btn::before,
+        .topbar .burger-btn::before {
+          background:
+            radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 34%),
+            radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0) 38%);
+        }
 
+        .topbar .avatar-btn:hover,
+        .topbar .burger-btn:hover {
+          background: rgba(255, 255, 255, 0.06);
+          box-shadow:
+            0 8px 16px rgba(0, 0, 0, 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }

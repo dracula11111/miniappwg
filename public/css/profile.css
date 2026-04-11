@@ -5391,14 +5391,13 @@ html[data-currency="stars"] .promo-btn__icon{
   position: relative;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(22, 22, 22, 0.50);
-  --wg-liquid-border-base: rgba(22, 22, 22, 0.50);
-  backdrop-filter: blur(12px) saturate(175%);
-  -webkit-backdrop-filter: blur(12px) saturate(175%);
+  background: rgba(10, 18, 12, 0.22);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
   border: 1px solid transparent;
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255,255,255,.04);
+    0 8px 16px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255,255,255,.02);
 }
 
 .bottom-nav--capsule .bottom-nav__center::before{
@@ -5407,11 +5406,9 @@ html[data-currency="stars"] .promo-btn__icon{
   inset: 0;
   padding: 1px;
   border-radius: 999px;
-  border-radius: 999px;
   background:
-    linear-gradient(var(--wg-liquid-border-base), var(--wg-liquid-border-base)),
-    radial-gradient(circle at 14% 8%, rgba(255,255,255,.36) 0%, rgba(255,255,255,0) 40%),
-    radial-gradient(circle at 88% 92%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 44%);
+    radial-gradient(circle at 14% 8%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 34%),
+    radial-gradient(circle at 88% 92%, rgba(255,255,255,.20) 0%, rgba(255,255,255,0) 38%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -5419,6 +5416,7 @@ html[data-currency="stars"] .promo-btn__icon{
   mask-composite: exclude;
   pointer-events: none;
   z-index: 1;
+  opacity: 0.86;
 }
 
 .bottom-nav--capsule .nav-item{
@@ -5465,15 +5463,14 @@ html[data-currency="stars"] .promo-btn__icon{
 
 .bottom-nav--capsule .nav-item--center.active{
   color: #ffffff;
-  background: rgba(18, 24, 35, 0.34);
-  --wg-liquid-border-base: rgba(18, 24, 35, 0.34);
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px) saturate(135%);
+  -webkit-backdrop-filter: blur(8px) saturate(135%);
   border-color: transparent;
   isolation: isolate;
   overflow: hidden;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .bottom-nav--capsule .nav-item--center.active::before{
@@ -5483,9 +5480,8 @@ html[data-currency="stars"] .promo-btn__icon{
   padding: 1px;
   border-radius: inherit;
   background:
-    linear-gradient(var(--wg-liquid-border-base), var(--wg-liquid-border-base)),
-    radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.50) 0%, rgba(255, 255, 255, 0) 40%),
-    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 44%);
+    radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0) 34%),
+    radial-gradient(circle at 88% 92%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 38%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -5493,6 +5489,7 @@ html[data-currency="stars"] .promo-btn__icon{
   mask-composite: exclude;
   pointer-events: none;
   z-index: 1;
+  opacity: 0.9;
 }
 
 .bottom-nav--capsule .nav-item--center.active > *{
@@ -5511,14 +5508,13 @@ html[data-currency="stars"] .promo-btn__icon{
   justify-self: center;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(22, 22, 22, 0.50);
-  --wg-liquid-border-base: rgba(22, 22, 22, 0.50);
-  backdrop-filter: blur(12px) saturate(175%);
-  -webkit-backdrop-filter: blur(12px) saturate(175%);
+  background: rgba(10, 18, 12, 0.22);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
   border: 1px solid transparent;
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255,255,255,.04);
+    0 8px 16px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255,255,255,.02);
 }
 
 .bottom-nav--capsule .nav-item--edge::before{
@@ -5528,9 +5524,8 @@ html[data-currency="stars"] .promo-btn__icon{
   padding: 1px;
   border-radius: 999px;
   background:
-    linear-gradient(var(--wg-liquid-border-base), var(--wg-liquid-border-base)),
-    radial-gradient(circle at 14% 8%, rgba(255,255,255,.36) 0%, rgba(255,255,255,0) 40%),
-    radial-gradient(circle at 88% 92%, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 44%);
+    radial-gradient(circle at 14% 8%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 34%),
+    radial-gradient(circle at 88% 92%, rgba(255,255,255,.20) 0%, rgba(255,255,255,0) 38%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -5538,18 +5533,18 @@ html[data-currency="stars"] .promo-btn__icon{
   mask-composite: exclude;
   pointer-events: none;
   z-index: 1;
+  opacity: 0.86;
 }
 
 .bottom-nav--capsule .nav-item--edge.active{
   color: #ffffff;
-  --wg-liquid-border-base: rgba(18, 24, 35, 0.34);
   border-color: transparent;
-  background: rgba(18, 24, 35, 0.34);
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px) saturate(135%);
+  -webkit-backdrop-filter: blur(8px) saturate(135%);
   box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 8px 16px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .bottom-nav--capsule .nav-item--edge.active .nav-icon{
