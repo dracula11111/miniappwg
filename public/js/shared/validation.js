@@ -49,6 +49,7 @@
     const starsWrapper = document.getElementById('starsInputWrapper');
     const starsNotification = document.getElementById('starsErrorNotification');
     const btnBuyStars = document.getElementById('btnBuyStars');
+    const starsTermsAgree = document.getElementById('starsTermsAgree');
     
     const MIN_STARS = 1;
   
@@ -64,10 +65,17 @@
         }
       });
     }
+
+    if (starsTermsAgree) {
+      starsTermsAgree.addEventListener('change', () => {
+        validateStarsAmount();
+      });
+    }
   
     function validateStarsAmount() {
       const value = starsInput.value.replace(/[^0-9]/g, '');
       const amount = parseInt(value) || 0;
+      const hasTermsConsent = !!starsTermsAgree?.checked;
       
       // Убираем предыдущее состояние
       clearValidation(starsWrapper, starsNotification);
@@ -75,7 +83,7 @@
       if (amount >= MIN_STARS) {
         // Успешная валидация
         starsWrapper.classList.add('success');
-        if (btnBuyStars) btnBuyStars.disabled = false;
+        if (btnBuyStars) btnBuyStars.disabled = !hasTermsConsent;
       } else if (amount > 0) {
         // Ошибка - меньше минимума (но пока не показываем)
         if (btnBuyStars) btnBuyStars.disabled = true;

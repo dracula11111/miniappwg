@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1775855803401,
+  "updatedAt": 1775903008575,
   "providerStats": {
     "telegram-resale": {
       "weight": 100,
@@ -133,130 +133,130 @@
   },
   "prices": {
     "stellar-rocket": {
-      "price": 3.94,
+      "price": 3.91,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Stellar Rocket",
       "giftId": null
     },
     "instant-ramen": {
-      "price": 2.77,
+      "price": 2.69,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Instant Ramen",
       "giftId": null
     },
     "ice-cream": {
-      "price": 2.79,
+      "price": 2.83,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Ice Cream",
       "giftId": null
     },
     "berry-box": {
-      "price": 7.36,
+      "price": 6.62,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Berry Box",
       "giftId": null
     },
     "lol-pop": {
-      "price": 3.1,
+      "price": 3.13,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Lol Pop",
       "giftId": null
     },
     "cookie-heart": {
-      "price": 3.84,
+      "price": 3.9,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Cookie Heart",
       "giftId": null
     },
     "mousse-cake": {
-      "price": 3.77,
+      "price": 3.76,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Mousse Cake",
       "giftId": null
     },
     "electric-skull": {
-      "price": 30.49,
+      "price": 30.87,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Electric Skull",
       "giftId": null
     },
     "vintage-cigar": {
-      "price": 32.48,
+      "price": 32.39,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Vintage Cigar",
       "giftId": null
     },
     "voodoo-doll": {
-      "price": 30.86,
+      "price": 29.99,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Voodoo Doll",
       "giftId": null
     },
     "flying-broom": {
-      "price": 12.34,
+      "price": 11.89,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Flying Broom",
       "giftId": null
     },
     "hex-pot": {
-      "price": 4.13,
+      "price": 3.83,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Hex Pot",
       "giftId": null
     },
     "mighty-arm": {
-      "price": 144.99,
+      "price": 153.99,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Mighty Arm",
       "giftId": null
     },
     "scared-cat": {
-      "price": 162.99,
+      "price": 157.99,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Scared Cat",
       "giftId": null
     },
     "bonded-ring": {
-      "price": 38.59,
+      "price": 39.21,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Bonded Ring",
       "giftId": null
     },
     "genie-lamp": {
-      "price": 43.99,
+      "price": 47.88,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Genie Lamp",
       "giftId": null
     },
@@ -264,143 +264,143 @@
       "price": 3.56,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Jack-in-the-Box",
       "giftId": null
     },
     "winter-wreath": {
-      "price": 2.95,
+      "price": 2.93,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Winter Wreath",
       "giftId": null
     },
     "snoop-dogg": {
-      "price": 4.79,
+      "price": 4.75,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Snoop Dogg",
       "giftId": null
     },
     "neko-helmet": {
-      "price": 32.67,
+      "price": 32.89,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Neko Helmet",
       "giftId": null
     },
     "pet-snake": {
-      "price": 2.99,
+      "price": 2.94,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Pet Snake",
       "giftId": null
     },
     "xmas-stocking": {
-      "price": 2.55,
+      "price": 2.5,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Xmas Stocking",
       "giftId": null
     },
     "pool-float": {
-      "price": 2.49,
+      "price": 2.39,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Pool Float",
       "giftId": null
     },
     "mood-pack": {
-      "price": 3.24,
+      "price": 3.18,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Mood Pack",
       "giftId": null
     },
     "b-day-candle": {
-      "price": 3.78,
+      "price": 3.64,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "B-Day Candle",
       "giftId": null
     },
     "snake-box": {
-      "price": 2.59,
+      "price": 2.49,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Snake Box",
       "giftId": null
     },
     "lunar-snake": {
-      "price": 2.63,
+      "price": 2.61,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Lunar Snake",
       "giftId": null
     },
     "happy-brownie": {
-      "price": 3.41,
+      "price": 3.35,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Happy Brownie",
       "giftId": null
     },
     "ginger-cookie": {
-      "price": 4.18,
+      "price": 4.12,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Ginger Cookie",
       "giftId": null
     },
     "whip-cupcake": {
-      "price": 2.8,
+      "price": 2.64,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Whip Cupcake",
       "giftId": null
     },
     "desk-calendar": {
-      "price": 6.07,
+      "price": 5.97,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Desk Calendar",
       "giftId": null
     },
     "fresh-socks": {
-      "price": 3.39,
+      "price": 3.09,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Fresh Socks",
       "giftId": null
     },
     "jester-hat": {
-      "price": 3.35,
+      "price": 3.34,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Jester Hat",
       "giftId": null
     },
     "bow-tie": {
-      "price": 4.03,
+      "price": 4.25,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Bow Tie",
       "giftId": null
     },
@@ -408,23 +408,23 @@
       "price": 4.19,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Restless Jar",
       "giftId": null
     },
     "chill-flame": {
-      "price": 2.38,
+      "price": 2.39,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Chill Flame",
       "giftId": null
     },
     "jolly-chimp": {
-      "price": 6.5,
+      "price": 6.48,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Jolly Chimp",
       "giftId": null
     },
@@ -432,55 +432,55 @@
       "price": 58.95,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Gem Signet",
       "giftId": null
     },
     "timeless-book": {
-      "price": 4.38,
+      "price": 4.2,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Timeless Book",
       "giftId": null
     },
     "astral-shard": {
-      "price": 157.89,
+      "price": 154.99,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Astral Shard",
       "giftId": null
     },
     "perfume-bottle": {
-      "price": 79.99,
+      "price": 76.99,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Perfume Bottle",
       "giftId": null
     },
     "precious-peach": {
-      "price": 384.89,
+      "price": 370,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Precious Peach",
       "giftId": null
     },
     "signet-ring": {
-      "price": 33.89,
+      "price": 31.96,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Signet Ring",
       "giftId": null
     },
     "plush-pepe": {
-      "price": 7300,
+      "price": 7240,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Plush Pepe",
       "giftId": null
     },
@@ -488,15 +488,15 @@
       "price": 206.84,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Heroic Helmet",
       "giftId": null
     },
     "durov-s-cap": {
-      "price": 610,
+      "price": 624.89,
       "currency": "TON",
       "source": "portals.tg",
-      "ts": 1775855791801,
+      "ts": 1775902998338,
       "name": "Durov's Cap",
       "giftId": null
     }

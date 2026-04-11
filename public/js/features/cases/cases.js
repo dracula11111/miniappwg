@@ -318,7 +318,7 @@
   let activeSpin = null; // locks demo/currency for current spin
   let pendingCurrencyChange = false;
   let casesLowMotion = false;
-
+  const caseIconPreloadCache = new Map();
   let pendingRound = null; // { roundId, currency, demo, ... }
 
   let carousels = [];
@@ -335,25 +335,147 @@
     try {
       if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return true;
       const coarse = !!window.matchMedia?.('(pointer: coarse)')?.matches;
-      const narrow = !!window.matchMedia?.('(max-width: 900px)')?.matches;
-      const lowCpu = Number(navigator.hardwareConcurrency || 8) <= 4;
+      const narrowMq = !!window.matchMedia?.('(max-width: 900px)')?.matches;
+      const touchPoints = Number(navigator.maxTouchPoints || 0);
+      const touchCapable = coarse || touchPoints > 0 || ('ontouchstart' in window);
+      const viewportW = Math.min(
+        Number(window.innerWidth || 0) || Infinity,
+        Number(window.visualViewport?.width || 0) || Infinity
+      );
+      const viewportH = Math.min(
+        Number(window.innerHeight || 0) || Infinity,
+        Number(window.visualViewport?.height || 0) || Infinity
+      );
+      const narrowViewport = Number.isFinite(viewportW) && viewportW <= 900;
+      const shortViewport = Number.isFinite(viewportH) && viewportH <= 900;
+      const narrow = narrowMq || narrowViewport || shortViewport;
+      const lowCpu = Number(navigator.hardwareConcurrency || 8) <= 6;
       const mem = Number(navigator.deviceMemory);
-      const lowMem = Number.isFinite(mem) && mem > 0 && mem <= 4;
-      return coarse && (narrow || lowCpu || lowMem);
+      const lowMem = Number.isFinite(mem) && mem > 0 && mem <= 6;
+      return touchCapable && (narrow || lowCpu || lowMem);
     } catch {
       return false;
     }
   }
-
-  function applyCasesPerformanceProfile() {
+function applyCasesPerformanceProfile() {
     casesLowMotion = detectCasesLowMotion();
     try {
       document.documentElement.classList.toggle('cases-low-motion', casesLowMotion);
       document.body.classList.toggle('cases-low-motion', casesLowMotion);
+      if (document.body.classList.contains('case-sheet-open')) {
+        const currency = window.WildTimeCurrency?.current || 'ton';
+        updateCarouselPerformanceClass(currency, selectedCount);
+      }
     } catch (_) {}
   }
 
-  function isStarsCarouselPerfStress() {
+  
+  function updateCarouselPerformanceClass(currency, count = selectedCount) {
+    const normalizedCount = Math.max(1, Math.min(3, Number(count) || 1));
+    const isMeadowCurrency = currency === 'stars' || currency === 'ton';
+    const isStress = !!(isMeadowCurrency && (normalizedCount >= 3 || casesLowMotion));
+    try {
+      document.body.classList.toggle('case-carousel-perf-stress', isStress);
+    } catch (_) {}
+  }
+
+  function shouldRenderCaseContents(currency) {
+    const isMeadowCurrency = currency === 'stars' || currency === 'ton';
+    if (!isMeadowCurrency) return true;
+    if (!document.body.classList.contains('case-sheet-open')) return true;
+    if (!sheetPanel?.classList?.contains('active')) return true;
+    const contentsSection = contentsGrid?.closest?.('.case-contents-section');
+    if (!contentsSection) return true;
+    try {
+      return getComputedStyle(contentsSection).display !== 'none';
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function preloadImageAsset(src, options = null) {
+    const key = String(src || '').trim();
+    if (!key) return Promise.resolve(false);
+    if (caseIconPreloadCache.has(key)) return caseIconPreloadCache.get(key);
+
+    const opts = (options && typeof options === 'object') ? options : {};
+    const highPriority = !!opts.highPriority;
+    const timeoutMs = Math.max(120, Number(opts.timeoutMs) || 900);
+
+    const pending = new Promise((resolve) => {
+      let settled = false;
+      let timer = 0;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = 0;
+        }
+        resolve(true);
+      };
+
+      try {
+        const img = new Image();
+        try {
+          img.decoding = 'async';
+          if (highPriority) {
+            img.loading = 'eager';
+            img.fetchPriority = 'high';
+          } else {
+            img.loading = 'eager';
+            img.fetchPriority = 'auto';
+          }
+        } catch (_) {}
+        img.onload = done;
+        img.onerror = done;
+        timer = setTimeout(done, timeoutMs);
+        img.src = key;
+        if (img.complete && img.naturalWidth > 0) done();
+      } catch (_) {
+        done();
+      }
+    }).catch(() => true);
+
+    caseIconPreloadCache.set(key, pending);
+    return pending;
+  }
+
+  function collectCaseItemIconSources(caseData, currency) {
+    if (!caseData || !Array.isArray(caseData.items)) return [];
+    const uniq = new Set();
+    const out = [];
+    for (let i = 0; i < caseData.items.length; i++) {
+      const item = normalizeItemForCurrency(caseData.items[i], currency);
+      const src = itemIconPath(item);
+      if (!src || uniq.has(src)) continue;
+      uniq.add(src);
+      out.push(src);
+    }
+    return out;
+  }
+
+  function preloadCurrentCaseItemIcons(currency, options = null) {
+    if (!currentCase) return Promise.resolve();
+    const opts = (options && typeof options === 'object') ? options : {};
+    const maxItems = Math.max(4, Number(opts.maxItems) || 24);
+    const srcList = collectCaseItemIconSources(currentCase, currency).slice(0, maxItems);
+    if (!srcList.length) return Promise.resolve();
+    return Promise.allSettled(srcList.map((src) => preloadImageAsset(src, opts))).then(() => {});
+  }
+
+  async function warmupCaseAssetsBeforeSpin(currency) {
+    const budgetMs = casesLowMotion ? 150 : 220;
+    const preloadPromise = preloadCurrentCaseItemIcons(currency, {
+      highPriority: true,
+      maxItems: selectedCount >= 3 ? 18 : 26,
+      timeoutMs: casesLowMotion ? 750 : 1000
+    });
+    try {
+      await Promise.race([preloadPromise, delay(budgetMs)]);
+    } catch (_) {}
+  }
+function isStarsCarouselPerfStress() {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const count = Math.max(1, Math.min(3, Number(selectedCount) || 1));
     const isMeadowCurrency = currency === 'stars' || currency === 'ton';
@@ -1736,7 +1858,10 @@ function getBalanceSafe(currency) {
         if (prev !== casesLowMotion) {
           generateCasesGrid();
           if (currentCase && sheetPanel?.classList.contains('active')) {
-            renderContents(window.WildTimeCurrency?.current || 'ton');
+            const activeCurrency = window.WildTimeCurrency?.current || 'ton';
+            if (shouldRenderCaseContents(activeCurrency)) {
+              renderContents(activeCurrency);
+            }
           }
         }
         if (document.body.classList.contains('case-sheet-open')) {
@@ -2348,6 +2473,7 @@ function getBalanceSafe(currency) {
     pushCaseSheetHistoryState();
 
     updateSheetContent();
+    try { void preloadCurrentCaseItemIcons(window.WildTimeCurrency?.current || 'ton', { highPriority: false, maxItems: 18, timeoutMs: 700 }); } catch (_) {}
 
     overlay?.classList.add('active');
 
@@ -2396,6 +2522,7 @@ function getBalanceSafe(currency) {
       }
       if (isMeadowClose) hideCaseSheetLayerImmediately();
       unlockCaseSheetScreen();
+      try { document.body.classList.remove('case-carousel-perf-stress'); } catch (_) {}
       isAnimating = false;
       currentCase = null;
       caseSheetBackNavPending = false;
@@ -2417,6 +2544,7 @@ function getBalanceSafe(currency) {
     if (currentCase?.id && activeCases[currentCase.id]) currentCase = activeCases[currentCase.id];
     const price = currentCase.price[currency];
     const icon = currency === 'ton' ? assetUrl('icons/currency/ton.svg') : assetUrl('icons/currency/tgStarsWhite.svg');
+    try { void preloadCurrentCaseItemIcons(currency, { highPriority: false, maxItems: 20, timeoutMs: 700 }); } catch (_) {}
   
     const title = document.getElementById('caseSheetTitle');
     if (title) title.textContent = currentCase.name;
@@ -2451,7 +2579,9 @@ function getBalanceSafe(currency) {
         ensurePeekFloorsLoaded().then(() => {
           if (!currentCase) return;
           const cur = window.WildTimeCurrency?.current || 'ton';
-          renderContents(cur);
+          if (shouldRenderCaseContents(cur)) {
+            renderContents(cur);
+          }
           refreshCarouselValuePills(cur);
         });
 
@@ -2519,7 +2649,7 @@ function getBalanceSafe(currency) {
       : '';
 
     return `<div class="case-carousel-item${pill ? ' case-carousel-item--has-value-pill' : ''}" data-item-id="${id}" data-item-type="${type}" data-rarity="${rarity}">
-      <img class="case-carousel-item__img" src="${itemIconPath(item)}" alt="${id}" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+      <img class="case-carousel-item__img" src="${itemIconPath(item)}" alt="${id}" loading="eager" decoding="async" onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
       ${pillHtml}
     </div>`;
   }
@@ -2541,10 +2671,23 @@ function getBalanceSafe(currency) {
     }
 
     const imgSrc = itemIconPath(dataItem);
-    mainImg.onerror = null;
-    mainImg.src = imgSrc;
+    const prevSrcKey = String((mainImg.dataset && mainImg.dataset.srcKey) || '');
+    const currentAttrSrc = String(mainImg.getAttribute('src') || '');
+
+    try {
+      mainImg.decoding = 'async';
+      if (!mainImg.loading) mainImg.loading = 'eager';
+    } catch (_) {}
+
     mainImg.alt = id;
     mainImg.onerror = function () { this.onerror = null; this.src = ITEM_ICON_FALLBACK; };
+
+    const shouldSetSrc = !currentAttrSrc || prevSrcKey !== imgSrc || currentAttrSrc === ITEM_ICON_FALLBACK;
+    if (shouldSetSrc) {
+      mainImg.src = imgSrc;
+    }
+    try { mainImg.dataset.srcKey = imgSrc; } catch (_) {}
+
     applyAdaptiveStarsGlow(node, imgSrc, currency);
 
     const pillData = getCarouselValuePillData(dataItem, currency);
@@ -2618,6 +2761,7 @@ function getBalanceSafe(currency) {
       'case-carousels-wrapper--count-3'
     );
     const normalizedCount = Math.max(1, Math.min(3, Number(count) || 1));
+    updateCarouselPerformanceClass(currency, normalizedCount);
     carouselsWrapper.classList.add(`case-carousels-wrapper--count-${normalizedCount}`);
     carouselsWrapper.dataset.count = String(normalizedCount);
     carousels = [];
@@ -2805,8 +2949,9 @@ function getBalanceSafe(currency) {
     if (!metrics || !Number.isFinite(metrics.itemWidth) || metrics.itemWidth <= 0 || !Number.isFinite(metrics.step) || metrics.step <= 0) return;
 
     const perfStress = isStarsCarouselPerfStress();
-    const minDeltaPx = perfStress ? 1 : 0.35;
-    const minIntervalMs = perfStress ? 30 : 14;
+    const hardCullOnly = perfStress || casesLowMotion;
+    const minDeltaPx = hardCullOnly ? 2.2 : 0.35;
+    const minIntervalMs = hardCullOnly ? 46 : 14;
     const ts = Number.isFinite(now) ? now : performance.now();
     const pos = Number(carousel.position || 0);
     const prevPos = Number(carousel._lastCullPos);
@@ -2825,13 +2970,29 @@ function getBalanceSafe(currency) {
     // Use tracked scroll position instead of per-frame viewport rect reads.
     const leftViewportX = pos - (Number(metrics.leftInset) || 0);
     const fadeStartBoundary = leftViewportX + 6;
-    const fadeEndBoundary = leftViewportX - 10;
+    const fadeEndBoundary = hardCullOnly ? (leftViewportX - 2) : (leftViewportX - 10);
     const fadeSpan = Math.max(1, fadeStartBoundary - fadeEndBoundary);
     const firstRight = Number(metrics.firstRight) || ((Number(metrics.firstOffset) || 0) + metrics.itemWidth);
 
     for (let i = 0; i < cont.children.length; i++) {
       const el = cont.children[i];
       const rightEdge = firstRight + i * metrics.step;
+
+      if (hardCullOnly) {
+        const shouldCull = rightEdge <= fadeEndBoundary;
+        if (shouldCull) {
+          if (!el.classList.contains('case-carousel-item--culled-left')) {
+            el.classList.add('case-carousel-item--culled-left');
+          }
+          if (el.style.opacity !== '0') el.style.opacity = '0';
+        } else {
+          if (el.classList.contains('case-carousel-item--culled-left')) {
+            el.classList.remove('case-carousel-item--culled-left');
+          }
+          if (el.style.opacity) el.style.opacity = '';
+        }
+        continue;
+      }
 
       if (rightEdge <= fadeEndBoundary) {
         if (!el.classList.contains('case-carousel-item--culled-left')) {
@@ -2996,6 +3157,7 @@ function getBalanceSafe(currency) {
     if (!contentsGrid) return;
   
     const icon = currency === 'ton' ? assetUrl('icons/currency/ton.svg') : assetUrl('icons/currency/tgStarsWhite.svg');
+    try { void preloadCurrentCaseItemIcons(currency, { highPriority: false, maxItems: 20, timeoutMs: 700 }); } catch (_) {}
   
     contentsGrid.innerHTML = currentCase.items.map(raw => {
       const item = normalizeItemForCurrency(raw, currency);
@@ -3306,7 +3468,8 @@ function getBalanceSafe(currency) {
       scrollCarouselToCenter();
       
       // Небольшая задержка для плавного перехода UI
-      await delay(casesLowMotion ? 280 : 600);
+      await warmupCaseAssetsBeforeSpin(currency);
+      await delay(casesLowMotion ? 180 : 420);
 
 
       // 3) Wait for stable layout, then spin
@@ -3394,11 +3557,11 @@ function getBalanceSafe(currency) {
 
     const starsPerfMode = (currency === 'stars' || currency === 'ton') && (carousels.length >= 3 || isStarsCarouselPerfStress());
     const MIN_STRIP_LENGTH = starsPerfMode
-      ? (casesLowMotion ? 116 : 140)
-      : (casesLowMotion ? 128 : 170);
+      ? (casesLowMotion ? 84 : 108)
+      : (casesLowMotion ? 96 : 132);
     const TAIL_AFTER_WIN = starsPerfMode
-      ? (casesLowMotion ? 20 : 26)
-      : (casesLowMotion ? 24 : 32);
+      ? (casesLowMotion ? 14 : 20)
+      : (casesLowMotion ? 18 : 24);
 
     const spinPromises = carousels.map((carousel, index) => {
       return new Promise(async (resolve) => {
@@ -3470,7 +3633,10 @@ function getBalanceSafe(currency) {
             const node = document.createElement('div');
             node.innerHTML = createCarouselItemMarkup(dataItem, currency);
             const actualNode = node.firstElementChild;
-            if (actualNode) cont.appendChild(actualNode);
+            if (actualNode) {
+              cont.appendChild(actualNode);
+              syncCarouselItemNode(actualNode, dataItem, currency);
+            }
           }
         }
 
@@ -3540,7 +3706,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         targetPosition = Math.max(0, Math.min(targetPosition, maxTarget));
 
         // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
-        const minTravel = step * 20;
+        const minTravel = step * (casesLowMotion ? 12 : 16);
         if (targetPosition - startPosition < minTravel) {
           targetPosition = Math.min(maxTarget, startPosition + minTravel);
         }
@@ -3548,7 +3714,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         const totalDistance = targetPosition - startPosition;
 
         // 11) Плавная анимация
-        const duration = (casesLowMotion ? 3600 : 5200) + index * (casesLowMotion ? 180 : 250) + Math.random() * (casesLowMotion ? 320 : 600);
+        const duration = (casesLowMotion ? 2500 : (starsPerfMode ? 3600 : 4300)) + index * (casesLowMotion ? 110 : 170) + Math.random() * (casesLowMotion ? 240 : 420);
         const startTime = performance.now();
         let lastHaptic = 0;
 

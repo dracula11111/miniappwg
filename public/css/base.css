@@ -14,6 +14,9 @@
         --glow-soft:rgba(21,32,51,.6);                   /* Мягкое свечение */
         --danger:#ff4d4f;                                /* Цвет ошибок */
         --ok:#27c93f;                                    /* Цвет успеха */
+        --wt-app-max-width: 430px;
+        --wt-layout-w: min(100vw, var(--wt-app-max-width));
+        --wt-vw: 1vw;
       }
 
       *{
@@ -46,6 +49,35 @@
         overflow-x: clip;
         min-height: 100vh;                               /* Fallback для старых браузеров */
         min-height: 100dvh;                              /* Точная высота viewport на мобильных */
+      }
+
+      #root {
+        width: var(--wt-layout-w);
+        max-width: var(--wt-app-max-width);
+        min-height: 100dvh;
+        margin: 0 auto;
+        position: relative;
+      }
+
+      @media (min-width: 768px) {
+        :root {
+          --wt-vw: calc(var(--wt-layout-w) / 100);
+        }
+
+        body::before,
+        body::after {
+          content: "";
+          position: fixed;
+          top: 0;
+          bottom: 0;
+          width: max(0px, calc((100vw - var(--wt-layout-w)) / 2 + 1px));
+          background: #000;
+          pointer-events: none;
+          z-index: 2147482000;
+        }
+
+        body::before { left: 0; }
+        body::after { right: 0; }
       }
 
       /* Runtime performance profile for mobile Telegram WebView and low-end devices */
@@ -117,6 +149,8 @@
         .app {
                                    /* Макс. ширина как у телефона */
           --wt-app-bottom-inset: calc(90px + env(safe-area-inset-bottom, 0px));
+          width: 100%;
+          max-width: var(--wt-app-max-width);
           margin: 0 auto;                                /* Центрируем */
           min-height: calc(100vh - 90px);                /* Fallback без dvh */
           min-height: calc(100dvh - var(--wt-app-bottom-inset)); /* Убираем пустой скролл снизу */

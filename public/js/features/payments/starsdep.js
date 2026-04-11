@@ -18,6 +18,12 @@
   const inputWrapper = document.getElementById("starsInputWrapper");
   const errorNotification = document.getElementById("starsErrorNotification");
   const btnBuy = document.getElementById("btnBuyStars");
+  const termsCheckbox = document.getElementById("starsTermsAgree");
+  const termsLink = document.getElementById("starsTermsLink");
+  const rulesSheet = document.getElementById("starsRulesSheet");
+  const rulesBackdrop = document.getElementById("starsRulesBackdrop");
+  const rulesCloseBtn = document.getElementById("starsRulesCloseBtn");
+  const rulesPanel = rulesSheet?.querySelector(".wt-terms-sheet__panel");
 
   // ====== TELEGRAM ======
   const tg = window.Telegram?.WebApp;
@@ -30,6 +36,48 @@
 
   // ====== STATE ======
   let platformBalance = 0;
+  let isBuyingInProgress = false;
+  let rulesHideTimer = 0;
+
+  function isTermsAccepted() {
+    return !!termsCheckbox?.checked;
+  }
+
+  function syncBuyButtonState() {
+    const amount = parseInt(amountInput?.value, 10) || 0;
+    const canBuy = amount >= MIN_STARS && isTermsAccepted() && !isBuyingInProgress;
+    if (btnBuy) btnBuy.disabled = !canBuy;
+    return canBuy;
+  }
+
+  function openRulesSheet(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!rulesSheet) return;
+    if (rulesHideTimer) {
+      clearTimeout(rulesHideTimer);
+      rulesHideTimer = 0;
+    }
+    rulesSheet.hidden = false;
+    window.requestAnimationFrame(() => {
+      rulesSheet.classList.add('is-open');
+      rulesPanel?.focus();
+    });
+    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  }
+
+  function closeRulesSheet() {
+    if (!rulesSheet) return;
+    rulesSheet.classList.remove('is-open');
+    if (rulesHideTimer) {
+      clearTimeout(rulesHideTimer);
+    }
+    rulesHideTimer = window.setTimeout(() => {
+      if (!rulesSheet.classList.contains('is-open')) {
+        rulesSheet.hidden = true;
+      }
+    }, 260);
+  }
 
   // ====== VALIDATION ======
   function validateAmount() {
@@ -44,13 +92,13 @@
     
     if (amount >= MIN_STARS) {
       if (inputWrapper) inputWrapper.classList.add('success');
-      if (btnBuy) btnBuy.disabled = false;
+      syncBuyButtonState();
       return true;
     } else if (amount > 0) {
-      if (btnBuy) btnBuy.disabled = true;
+      syncBuyButtonState();
       return false;
     } else {
-      if (btnBuy) btnBuy.disabled = true;
+      syncBuyButtonState();
       return false;
     }
   }
@@ -88,10 +136,22 @@
     popup.classList.remove('deposit-popup--open');
     if (inputWrapper) inputWrapper.classList.remove('error', 'success');
     if (errorNotification) errorNotification.hidden = true;
+    if (termsCheckbox) termsCheckbox.checked = false;
+    closeRulesSheet();
+    updateUI();
   }
 
   backdrop?.addEventListener('click', closePopup);
   btnClose?.addEventListener('click', closePopup);
+  termsLink?.addEventListener('click', openRulesSheet);
+  rulesBackdrop?.addEventListener('click', closeRulesSheet);
+  rulesCloseBtn?.addEventListener('click', closeRulesSheet);
+  rulesSheet?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeRulesSheet();
+    }
+  });
 
   // ====== INPUT ======
   amountInput?.addEventListener('input', () => {
@@ -99,6 +159,10 @@
     amountInput.value = amountInput.value.replace(/[^0-9]/g, "");
     try { amountInput.setSelectionRange(caret, caret); } catch {}
     validateAmount();
+  });
+
+  termsCheckbox?.addEventListener('change', () => {
+    syncBuyButtonState();
   });
   
   amountInput?.addEventListener('blur', () => {
@@ -111,7 +175,21 @@
   // ====== UI ======
   function updateUI() {
     const valid = validateAmount();
-    console.log('[STARS] UI:', { valid });
+    const termsAccepted = isTermsAccepted();
+    console.log('[STARS] UI:', { valid, termsAccepted });
+  }
+
+  function showTermsRequiredError() {
+    const raw = 'Please agree with the Stars top-up rules first.';
+    const msg = window.WT?.i18n?.translate?.(raw) || raw;
+    if (tg?.showAlert) {
+      tg.showAlert(msg);
+    } else {
+      alert(msg);
+    }
+    if (tg?.HapticFeedback) {
+      tg.HapticFeedback.notificationOccurred('warning');
+    }
   }
 
   // ====== UPDATE BALANCE ======
@@ -180,6 +258,11 @@
       return;
     }
 
+    if (!isTermsAccepted()) {
+      showTermsRequiredError();
+      return;
+    }
+
     if (!tg?.openInvoice) {
       const msg = 'Stars payment only works in Telegram app. Please open this page in Telegram.';
       if (tg?.showAlert) {
@@ -204,7 +287,8 @@
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
     const oldText = btnBuy.textContent;
-    btnBuy.disabled = true;
+    isBuyingInProgress = true;
+    syncBuyButtonState();
     btnBuy.textContent = 'Creating invoice...';
 
     try {
@@ -241,29 +325,33 @@
           // No need to reload manually
 
           setTimeout(() => {
-            closePopup();
             if (amountInput) amountInput.value = '';
             btnBuy.textContent = oldText;
-            btnBuy.disabled = false;
+            closePopup();
+            isBuyingInProgress = false;
+            syncBuyButtonState();
           }, 1500);
 
         } else if (status === 'cancelled') {
           console.log('[STARS] ⚠️ Payment cancelled by user');
           if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
           btnBuy.textContent = oldText;
-          btnBuy.disabled = false;
+          isBuyingInProgress = false;
+          syncBuyButtonState();
 
         } else if (status === 'failed') {
           console.error('[STARS] ❌ Payment failed');
           if (tg?.showAlert) tg.showAlert('Payment failed. Please try again.');
           if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
           btnBuy.textContent = oldText;
-          btnBuy.disabled = false;
+          isBuyingInProgress = false;
+          syncBuyButtonState();
           
         } else {
           console.warn('[STARS] ⚠️ Unknown status:', status);
           btnBuy.textContent = oldText;
-          btnBuy.disabled = false;
+          isBuyingInProgress = false;
+          syncBuyButtonState();
         }
       });
 
@@ -293,7 +381,8 @@
       if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
 
       btnBuy.textContent = oldText;
-      btnBuy.disabled = false;
+      isBuyingInProgress = false;
+      syncBuyButtonState();
     }
   });
 

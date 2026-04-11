@@ -118,7 +118,9 @@ function renderUnauthorizedScreen(loginUrl) {
         <article class="wt-terms-sheet__panel" role="document" tabindex="-1">
           <header class="wt-terms-sheet__header">
             <h2 class="wt-terms-sheet__title" id="wtTermsTitle">WildGift App Terms &amp; Privacy Policy</h2>
-            <button type="button" class="wt-terms-sheet__close" id="wtTermsCloseBtn" aria-label="Close terms">Close</button>
+            <button type="button" class="wt-terms-sheet__close" id="wtTermsCloseBtn" aria-label="Close terms">
+              <img src="/icons/ui/close.svg" alt="" aria-hidden="true" />
+            </button>
           </header>
           <div class="wt-terms-sheet__body">
             <section class="wt-terms-sheet__section">

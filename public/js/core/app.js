@@ -128,6 +128,172 @@
   const I18N_SUPPORTED = new Set(["en", "ru"]);
   const RUSSIAN_LANGUAGE_CODES = new Set(["ru", "uk", "be", "kk"]);
   const RUSSIAN_REGION_CODES = new Set(["RU", "BY", "KZ", "UA"]);
+  const MOJIBAKE_MARKER_RE = /[\u0402-\u040F\u0452-\u045F\u0490\u0491\u0404\u0454\u0406\u0456\u0407\u0457\u2116\u00C0-\u00FF]/;
+  const CP1251_HIGH_CHARS =
+    "\u0402\u0403\u201A\u0453\u201E\u2026\u2020\u2021\u20AC\u2030\u0409\u2039\u040A\u040C\u040B\u040F" +
+    "\u0452\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u0000\u2122\u0459\u203A\u045A\u045C\u045B\u045F" +
+    "\u00A0\u040E\u045E\u0408\u00A4\u0490\u00A6\u00A7\u0401\u00A9\u0404\u00AB\u00AC\u00AD\u00AE\u0407" +
+    "\u00B0\u00B1\u0406\u0456\u0491\u00B5\u00B6\u00B7\u0451\u2116\u0454\u00BB\u0458\u0405\u0455\u0457" +
+    "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418\u0419\u041A\u041B\u041C\u041D\u041E\u041F" +
+    "\u0420\u0421\u0422\u0423\u0424\u0425\u0426\u0427\u0428\u0429\u042A\u042B\u042C\u042D\u042E\u042F" +
+    "\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438\u0439\u043A\u043B\u043C\u043D\u043E\u043F" +
+    "\u0440\u0441\u0442\u0443\u0444\u0445\u0446\u0447\u0448\u0449\u044A\u044B\u044C\u044D\u044E\u044F";
+  const CP1251_BYTE_BY_CHAR = new Map();
+  for (let i = 0; i < CP1251_HIGH_CHARS.length; i += 1) {
+    const ch = CP1251_HIGH_CHARS[i];
+    if (ch !== "\u0000" && !CP1251_BYTE_BY_CHAR.has(ch)) {
+      CP1251_BYTE_BY_CHAR.set(ch, 0x80 + i);
+    }
+  }
+  const UTF8_DECODER = typeof TextDecoder === "function"
+    ? new TextDecoder("utf-8", { fatal: false })
+    : null;
+
+  function mojibakeScore(text) {
+    const value = String(text || "");
+    if (!value) return 0;
+    const chars = Array.from(value);
+    let score = 0;
+    let controls = 0;
+    let rareCyr = 0;
+    let suspiciousLead = 0;
+
+    for (let i = 0; i < chars.length; i += 1) {
+      const cp = chars[i].codePointAt(0);
+      if (!Number.isFinite(cp)) continue;
+
+      if (cp >= 0x80 && cp <= 0x9F) controls += 1;
+
+      const isCyr = cp >= 0x400 && cp <= 0x4FF;
+      const isCommonRu = (cp >= 0x410 && cp <= 0x44F) || cp === 0x401 || cp === 0x451;
+      if (isCyr && !isCommonRu) rareCyr += 1;
+
+      if (i + 1 >= chars.length) continue;
+      const next = chars[i + 1].codePointAt(0);
+      const isLead = cp === 0x420 || cp === 0x421 || cp === 0x00D0 || cp === 0x00D1;
+      const isSuspiciousTail =
+        (next >= 0x80 && next <= 0xBF) ||
+        (next >= 0x450 && next <= 0x45F) ||
+        next === 0x00BB ||
+        next === 0x00B5 ||
+        next === 0x2039 ||
+        next === 0x203A ||
+        next === 0x2116;
+      if (isLead && isSuspiciousTail) suspiciousLead += 1;
+    }
+
+    score += controls * 3;
+    score += rareCyr * 2;
+    score += suspiciousLead * 2;
+
+    if (/[РС][^ \n\r\t]{0,2}[РС]/.test(value)) score += 3;
+    if (/[ÐÑ][^ \n\r\t]{0,2}[ÐÑ]/.test(value)) score += 3;
+    if (value.includes("вЂ") || value.includes("рџ")) score += 4;
+    if (/[âÃÂ][\x80-\xBF]/.test(value)) score += 3;
+    if (/[\uFFFD]/.test(value)) score += 2;
+    return score;
+  }
+
+  function decodeCp1251Mojibake(rawValue) {
+    const text = String(rawValue ?? "");
+    if (!text || !UTF8_DECODER) return text;
+    if (!MOJIBAKE_MARKER_RE.test(text) && !text.includes("вЂ") && !text.includes("рџ")) return text;
+
+    const bytes = [];
+    for (const ch of text) {
+      const code = ch.codePointAt(0);
+      if (!Number.isFinite(code)) return text;
+      if (code <= 0x7F) {
+        bytes.push(code);
+        continue;
+      }
+
+      const mapped = CP1251_BYTE_BY_CHAR.get(ch);
+      if (mapped != null) {
+        bytes.push(mapped);
+        continue;
+      }
+
+      if (code >= 0x0410 && code <= 0x042F) {
+        bytes.push(code - 0x0410 + 0xC0);
+        continue;
+      }
+      if (code >= 0x0430 && code <= 0x044F) {
+        bytes.push(code - 0x0430 + 0xE0);
+        continue;
+      }
+      if (code === 0x0401) {
+        bytes.push(0xA8);
+        continue;
+      }
+      if (code === 0x0451) {
+        bytes.push(0xB8);
+        continue;
+      }
+      if (code <= 0xFF) {
+        bytes.push(code & 0xFF);
+        continue;
+      }
+
+      return text;
+    }
+
+    try {
+      const decoded = UTF8_DECODER.decode(Uint8Array.from(bytes));
+      if (!decoded || decoded.includes("\uFFFD")) return text;
+      return decoded.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "") || text;
+    } catch (_) { return text; }
+  }
+
+  function decodeLatin1Mojibake(rawValue) {
+    const text = String(rawValue ?? "");
+    if (!text || !UTF8_DECODER) return text;
+    if (!/[ÐÑâÃÂ]/.test(text)) return text;
+
+    const bytes = [];
+    for (const ch of text) {
+      const code = ch.codePointAt(0);
+      if (!Number.isFinite(code) || code > 0xFF) return text;
+      bytes.push(code & 0xFF);
+    }
+
+    try {
+      const decoded = UTF8_DECODER.decode(Uint8Array.from(bytes));
+      if (!decoded || decoded.includes("\uFFFD")) return text;
+      return decoded.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "") || text;
+    } catch (_) { return text; }
+  }
+
+  function decodeMojibakeText(rawValue) {
+    const text = String(rawValue ?? "");
+    if (!text) return text;
+
+    let best = text;
+    let bestScore = mojibakeScore(text);
+
+    const candidates = [
+      decodeCp1251Mojibake(text),
+      decodeLatin1Mojibake(text)
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate || candidate === best) continue;
+      const score = mojibakeScore(candidate);
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+
+    const secondPass = best === text
+      ? best
+      : decodeLatin1Mojibake(decodeCp1251Mojibake(best));
+    if (secondPass && secondPass !== best && mojibakeScore(secondPass) < bestScore) {
+      best = secondPass;
+    }
+
+    return best;
+  }
 
   const I18N_KEYS = {
     language_english: { en: "English", ru: "РђРЅРіР»РёР№СЃРєРёР№" },
@@ -186,6 +352,17 @@
     ["Minimum purchase: 1 в­ђ", "РњРёРЅРёРјР°Р»СЊРЅР°СЏ РїРѕРєСѓРїРєР°: 1 в­ђ"],
     ["Amount to buy", "РЎСѓРјРјР° РїРѕРєСѓРїРєРё"],
     ["Buy Stars", "РљСѓРїРёС‚СЊ Stars"],
+    ["I agree with", "Я согласен с"],
+    ["Stars top up rules", "правилами пополнения Stars"],
+    ["Close rules", "Закрыть правила"],
+    ["Important before buying Stars", "Важно перед покупкой Stars"],
+    ["Top up Stars only through official payment methods and only using your own payment instruments.", "Пополняйте Stars только через официальные способы оплаты и только со своих платежных средств."],
+    ["If Stars source is suspicious", "Если Stars сомнительного происхождения"],
+    ["If there is a fraud risk, payment refund, or chargeback, withdrawal can be temporarily restricted.", "Если есть риск фрода, возврата платежа или чарджбэка, вывод может быть временно ограничен."],
+    ["If we are not sure about the quality of Stars, we may request additional verification.", "Если мы не уверены в качестве Stars, мы можем запросить дополнительную проверку."],
+    ["If abuse is confirmed, access to withdrawals may be restricted.", "При подтвержденном злоупотреблении доступ к выводу может быть ограничен."],
+    ["If you have questions about top up or withdrawal, contact support:", "Если возникли вопросы по пополнению или выводу, напишите в поддержку:"],
+    ["Please agree with the Stars top-up rules first.", "Пожалуйста, сначала подтвердите согласие с правилами пополнения Stars."],
     ["Settings", "РќР°СЃС‚СЂРѕР№РєРё"],
     ["Language", "РЇР·С‹Рє"],
     ["Support", "РџРѕРґРґРµСЂР¶РєР°"],
@@ -376,6 +553,19 @@
     ]
   };
 
+  for (const entry of Object.values(I18N_KEYS)) {
+    if (!entry || typeof entry !== "object") continue;
+    if (typeof entry.en === "string") entry.en = decodeMojibakeText(entry.en);
+    if (typeof entry.ru === "string") entry.ru = decodeMojibakeText(entry.ru);
+  }
+
+  for (let i = 0; i < I18N_PHRASE_BOOK.length; i += 1) {
+    const pair = I18N_PHRASE_BOOK[i];
+    if (!Array.isArray(pair) || pair.length < 2) continue;
+    pair[0] = decodeMojibakeText(pair[0]);
+    pair[1] = decodeMojibakeText(pair[1]);
+  }
+
   function normalizeLanguage(value) {
     const lang = String(value || "").trim().toLowerCase();
     if (lang.startsWith("ru")) return "ru";
@@ -410,13 +600,13 @@
   function applyPatternRules(text, targetLanguage) {
     const rules = I18N_PATTERN_RULES[targetLanguage] || [];
     for (const rule of rules) {
-      if (rule.re.test(text)) return text.replace(rule.re, rule.to);
+      if (rule.re.test(text)) return decodeMojibakeText(text.replace(rule.re, rule.to));
     }
     return text;
   }
 
   function translateText(rawText, targetLanguage) {
-    const text = String(rawText ?? "");
+    const text = decodeMojibakeText(String(rawText ?? ""));
     const lang = normalizeLanguage(targetLanguage) || "en";
     if (!text.trim()) return text;
 
@@ -431,9 +621,9 @@
 
   function translateByKey(key, fallback = "", targetLanguage = "en") {
     const entry = I18N_KEYS[key];
-    if (!entry) return String(fallback || "");
+    if (!entry) return decodeMojibakeText(String(fallback || ""));
     const lang = normalizeLanguage(targetLanguage) || "en";
-    return String(entry[lang] || fallback || entry.en || "");
+    return decodeMojibakeText(String(entry[lang] || fallback || entry.en || ""));
   }
 
   function detectLanguageFromLocale(locale) {
@@ -627,6 +817,10 @@
         }
         if (mutation.type === "attributes" && mutation.target instanceof Element) {
           queueI18nTranslate(mutation.target);
+          continue;
+        }
+        if (mutation.type === "characterData" && mutation.target) {
+          queueI18nTranslate(mutation.target);
         }
       }
     });
@@ -634,6 +828,7 @@
     i18nObserver.observe(document.body, {
       childList: true,
       subtree: true,
+      characterData: true,
       attributes: true,
       attributeFilter: I18N_ATTRS
     });
@@ -844,7 +1039,7 @@
     if (!msg) return '';
 
     if (
-      msg.includes('вќЊ') ||
+      msg.includes('\u274C') ||
       /(^|\s)(error|failed|timeout|insufficient|unavailable)(\s|$)/i.test(msg) ||
       /(РѕС€РёР±Рє|РЅРµ СѓРґР°Р»РѕСЃСЊ|РЅРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ|РЅРµРґРѕСЃС‚СѓРї|СѓСЃС‚Р°СЂРµР»|С‚Р°Р№РјР°СѓС‚)/i.test(msg)
     ) {
@@ -852,7 +1047,7 @@
     }
 
     if (
-      msg.includes('вљ ') ||
+      msg.includes('\u26A0') ||
       /(^|\s)(warning|refreshing|retry)(\s|$)/i.test(msg) ||
       /(РІРЅРёРјР°РЅ|РѕР±РЅРѕРІ|РїРѕРІС‚РѕСЂРёС‚Рµ)/i.test(msg)
     ) {
@@ -860,7 +1055,7 @@
     }
 
     if (
-      msg.includes('вњ…') ||
+      msg.includes('\u2705') ||
       /(^|\s)(success|successful|purchased|sold|saved|applied|credited|claimed)(\s|$)/i.test(msg) ||
       /(СѓСЃРїРµС€|РєСѓРїР»РµРЅ|РєСѓРїР»РµРЅРѕ|СЃРѕС…СЂР°РЅРµРЅ|СЃРѕС…СЂР°РЅРµРЅРѕ|СЃРѕС…СЂР°РЅРµРЅС‹|РїСЂРёРјРµРЅРµРЅ|РїСЂРёРјРµРЅРµРЅРѕ|РЅР°С‡РёСЃР»РµРЅ|РЅР°С‡РёСЃР»РµРЅРѕ|РїСЂРѕРґР°РЅ|РїСЂРѕРґР°РЅРѕ)/i.test(msg)
     ) {
@@ -928,9 +1123,10 @@
   ];
   const TILE_ROTATE_MIN_SEC = 8;
   const TILE_ROTATE_MAX_SEC = 14;
-  const GAMES_ONBOARDING_TEST_ALWAYS = true;
+  const GAMES_ONBOARDING_TEST_ALWAYS = false;
   const GAMES_ONBOARDING_STORAGE_KEY_PREFIX = "wt:games:onboarding:v2:";
-  const GAMES_ONBOARDING_BANNER_HINT = "1200x350 px";
+  const GAMES_ONBOARDING_AUTO_ADVANCE_MS = 5000;
+  const GAMES_ONBOARDING_SWIPE_MS = 320;
   const GAMES_ONBOARDING_STEPS = {
     wheelPage: {
       ru: [
@@ -1048,7 +1244,9 @@
   const gamesOnboardingState = {
     stepIndex: 0,
     steps: [],
-    gameId: ""
+    gameId: "",
+    progressRafId: null,
+    progressStartedAt: 0
   };
 
   function getGamesOnboardingLanguage() {
@@ -1111,11 +1309,128 @@
     const lang = getGamesOnboardingLanguage();
     const source = Array.isArray(gameConfig[lang]) ? gameConfig[lang] : gameConfig.en;
     if (!Array.isArray(source)) return [];
+    const safeStepText = (value) => decodeMojibakeText(String(value || "").trim());
     return source.map((step) => ({
       banner: String(step?.banner || "").trim(),
-      text: String(step?.text || "").trim(),
-      button: String(step?.button || "").trim()
+      text: safeStepText(step?.text),
+      button: safeStepText(step?.button)
     }));
+  }
+
+  function stopGamesOnboardingAutoAdvance() {
+    if (gamesOnboardingState.progressRafId !== null) {
+      cancelAnimationFrame(gamesOnboardingState.progressRafId);
+      gamesOnboardingState.progressRafId = null;
+    }
+    gamesOnboardingState.progressStartedAt = 0;
+  }
+
+  function updateGamesOnboardingDotsProgress(progress = 0) {
+    if (!gamesOnboardingNode) return;
+
+    const dots = gamesOnboardingNode.querySelectorAll(".games-onboarding__dot");
+    const currentIndex = gamesOnboardingState.stepIndex;
+    const activeProgress = Math.max(0, Math.min(1, Number(progress) || 0));
+
+    dots.forEach((dot, index) => {
+      const fill = index < currentIndex ? 1 : (index === currentIndex ? activeProgress : 0);
+      dot.style.setProperty("--dot-fill", String(fill));
+      dot.classList.toggle("is-active", index === currentIndex);
+    });
+  }
+
+  function animateGamesOnboardingStepIn() {
+    if (!gamesOnboardingNode || gamesOnboardingNode.hidden) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+
+    const bannerWrap = gamesOnboardingNode.querySelector(".games-onboarding__bannerWrap");
+    const textEl = gamesOnboardingNode.querySelector("#gamesOnboardingText");
+    if (!bannerWrap || !textEl) return;
+
+    try {
+      bannerWrap.getAnimations?.().forEach((anim) => anim.cancel());
+      textEl.getAnimations?.().forEach((anim) => anim.cancel());
+    } catch {}
+
+    bannerWrap.animate(
+      [
+        { opacity: 0.64, transform: "translateX(20px)" },
+        { opacity: 1, transform: "translateX(0)" }
+      ],
+      {
+        duration: GAMES_ONBOARDING_SWIPE_MS,
+        easing: "cubic-bezier(0.2, 0.9, 0.2, 1)",
+        fill: "both"
+      }
+    );
+
+    textEl.animate(
+      [
+        { opacity: 0.18, transform: "translateX(14px)" },
+        { opacity: 1, transform: "translateX(0)" }
+      ],
+      {
+        duration: GAMES_ONBOARDING_SWIPE_MS + 60,
+        delay: 36,
+        easing: "cubic-bezier(0.2, 0.9, 0.2, 1)",
+        fill: "both"
+      }
+    );
+  }
+
+  function startGamesOnboardingAutoAdvance() {
+    stopGamesOnboardingAutoAdvance();
+
+    if (!gamesOnboardingNode || gamesOnboardingNode.hidden) return;
+
+    const maxIndex = Math.max(0, gamesOnboardingState.steps.length - 1);
+    if (gamesOnboardingState.stepIndex >= maxIndex) {
+      updateGamesOnboardingDotsProgress(1);
+      return;
+    }
+
+    gamesOnboardingState.progressStartedAt = performance.now();
+    const durationMs = GAMES_ONBOARDING_AUTO_ADVANCE_MS;
+
+    const tick = (now) => {
+      if (!gamesOnboardingNode || gamesOnboardingNode.hidden) {
+        stopGamesOnboardingAutoAdvance();
+        return;
+      }
+
+      const elapsed = now - gamesOnboardingState.progressStartedAt;
+      const progress = Math.max(0, Math.min(1, elapsed / durationMs));
+      updateGamesOnboardingDotsProgress(progress);
+
+      if (progress >= 1) {
+        gamesOnboardingState.progressRafId = null;
+        goToNextGamesOnboardingStep({ fromAuto: true });
+        return;
+      }
+
+      gamesOnboardingState.progressRafId = requestAnimationFrame(tick);
+    };
+
+    gamesOnboardingState.progressRafId = requestAnimationFrame(tick);
+  }
+
+  function goToNextGamesOnboardingStep({ fromAuto = false } = {}) {
+    const maxIndex = Math.max(0, gamesOnboardingState.steps.length - 1);
+
+    if (gamesOnboardingState.stepIndex < maxIndex) {
+      gamesOnboardingState.stepIndex += 1;
+      renderGamesOnboardingStep({ animate: true });
+      return true;
+    }
+
+    if (!fromAuto) {
+      closeGamesOnboarding();
+      return true;
+    }
+
+    updateGamesOnboardingDotsProgress(1);
+    stopGamesOnboardingAutoAdvance();
+    return false;
   }
 
   function ensureGamesOnboardingModal() {
@@ -1127,10 +1442,12 @@
     modal.setAttribute("data-wt-i18n-ignore", "1");
     modal.hidden = true;
     modal.innerHTML = `
-      <div class="games-onboarding__backdrop" data-games-onboarding-close="1"></div>
+      <div class="games-onboarding__backdrop"></div>
       <section class="games-onboarding__sheet" role="dialog" aria-modal="true" aria-labelledby="gamesOnboardingText">
         <div class="games-onboarding__handle" aria-hidden="true"></div>
-        <button class="games-onboarding__close" type="button" aria-label="Close" data-games-onboarding-close="1">×</button>
+        <button class="games-onboarding__close" type="button" aria-label="Close" data-games-onboarding-close="1">
+          <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+        </button>
 
         <div class="games-onboarding__bannerWrap">
           <img
@@ -1142,8 +1459,6 @@
             decoding="async"
           />
         </div>
-
-        <p class="games-onboarding__bannerHint">Banner slot: ${GAMES_ONBOARDING_BANNER_HINT}</p>
 
         <p class="games-onboarding__text" id="gamesOnboardingText"></p>
 
@@ -1163,34 +1478,21 @@
 
       const nextBtn = event.target?.closest?.("[data-games-onboarding-next='1']");
       if (!nextBtn) return;
-
-      const maxIndex = Math.max(0, gamesOnboardingState.steps.length - 1);
-      if (gamesOnboardingState.stepIndex < maxIndex) {
-        gamesOnboardingState.stepIndex += 1;
-        renderGamesOnboardingStep();
-        return;
-      }
-
-      closeGamesOnboarding();
-    });
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && gamesOnboardingNode && !gamesOnboardingNode.hidden) {
-        closeGamesOnboarding();
-      }
+      goToNextGamesOnboardingStep({ fromAuto: false });
     });
 
     gamesOnboardingNode = modal;
     return modal;
   }
 
-  function renderGamesOnboardingStep() {
+  function renderGamesOnboardingStep(options = {}) {
+    const animate = options?.animate !== false;
+    const restartProgress = options?.restartProgress !== false;
     const modal = ensureGamesOnboardingModal();
     const bannerEl = modal.querySelector("#gamesOnboardingBanner");
     const textEl = modal.querySelector("#gamesOnboardingText");
     const dotsEl = modal.querySelector("#gamesOnboardingDots");
     const nextBtn = modal.querySelector("[data-games-onboarding-next='1']");
-    const bannerHintEl = modal.querySelector(".games-onboarding__bannerHint");
     if (!textEl || !dotsEl || !nextBtn) return;
 
     const safeSteps = Array.isArray(gamesOnboardingState.steps) && gamesOnboardingState.steps.length
@@ -1203,22 +1505,16 @@
     gamesOnboardingState.steps = safeSteps;
 
     const step = safeSteps[currentIndex];
-    textEl.textContent = String(step?.text || "");
-    nextBtn.textContent = String(
+    textEl.textContent = decodeMojibakeText(String(step?.text || ""));
+    nextBtn.textContent = decodeMojibakeText(String(
       step?.button ||
-      (getGamesOnboardingLanguage() === "ru" ? "Р”Р°Р»СЊС€Рµ" : "Next")
-    );
+      (getGamesOnboardingLanguage() === "ru" ? "Дальше" : "Next")
+    ));
     if (bannerEl) {
       const src = String(step?.banner || "").trim();
       if (src) bannerEl.setAttribute("src", src);
       bannerEl.setAttribute("alt", `Game instruction slide ${currentIndex + 1}`);
     }
-    if (bannerHintEl) {
-      bannerHintEl.textContent = getGamesOnboardingLanguage() === "ru"
-        ? `РЎР»РѕС‚ Р±Р°РЅРЅРµСЂР°: ${GAMES_ONBOARDING_BANNER_HINT}`
-        : `Banner slot: ${GAMES_ONBOARDING_BANNER_HINT}`;
-    }
-
     dotsEl.innerHTML = "";
     safeSteps.forEach((_item, index) => {
       const dot = document.createElement("span");
@@ -1226,11 +1522,16 @@
       if (index === currentIndex) dot.classList.add("is-active");
       dotsEl.appendChild(dot);
     });
+
+    updateGamesOnboardingDotsProgress(0);
+    if (animate) animateGamesOnboardingStepIn();
+    if (restartProgress) startGamesOnboardingAutoAdvance();
   }
 
   function closeGamesOnboarding() {
     if (!gamesOnboardingNode) return;
 
+    stopGamesOnboardingAutoAdvance();
     gamesOnboardingNode.classList.remove("is-open");
     document.body.classList.remove("games-onboarding-open");
 
@@ -1254,7 +1555,7 @@
     gamesOnboardingState.gameId = gameId;
     gamesOnboardingState.steps = buildGamesOnboardingSteps(gameId);
     gamesOnboardingState.stepIndex = 0;
-    renderGamesOnboardingStep();
+    stopGamesOnboardingAutoAdvance();
 
     if (gamesOnboardingCloseTimer) {
       clearTimeout(gamesOnboardingCloseTimer);
@@ -1262,7 +1563,11 @@
     }
 
     modal.hidden = false;
-    requestAnimationFrame(() => modal.classList.add("is-open"));
+    renderGamesOnboardingStep({ animate: false, restartProgress: false });
+    requestAnimationFrame(() => {
+      modal.classList.add("is-open");
+      startGamesOnboardingAutoAdvance();
+    });
     document.body.classList.add("games-onboarding-open");
   }
 
@@ -1902,4 +2207,5 @@
   window.addEventListener("orientationchange", scheduleGamesViewportFit, { passive: true });
   window.addEventListener("load", scheduleGamesViewportFit);
 })();
+
 

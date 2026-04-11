@@ -81,7 +81,7 @@ body:has(.page-active#casesPage)::before{
 
 /* Stars palette: forest atmosphere for Cases page */
 html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage){
-  --stars-layout-w: min(100vw, 430px);
+  --stars-layout-w: var(--wt-layout-w, min(100vw, 430px));
   --stars-image-ratio: 5.72067; /* starsbackimg.png = 716x4096 */
   --stars-bg-h: calc(var(--stars-layout-w) * var(--stars-image-ratio));
   --stars-price-ink: #ffffff;
@@ -100,7 +100,7 @@ html.currency-ton body:has(.page-active#casesPage){
 }
 
 html:is(.currency-stars,.currency-ton) body.page-cases{
-  --stars-layout-w: min(100vw, 430px);
+  --stars-layout-w: var(--wt-layout-w, min(100vw, 430px));
   background: #272727;
 }
 
@@ -113,7 +113,7 @@ body.page-cases .app{
   position: absolute;
   top: 0;
   left: 50%;
-  width: var(--stars-layout-w, min(100vw, 430px));
+  width: var(--stars-layout-w, var(--wt-layout-w, min(100vw, 430px)));
   height: max(var(--stars-bg-h, 2400px), 100vh);
   transform: translateX(-50%);
   display: none;
@@ -149,7 +149,7 @@ html:is(.currency-stars,.currency-ton) body.page-cases #casesThemeBackdrop{
   position: absolute;
   inset: 0;
   background-position: center -1px;
-  background-size: calc(var(--stars-layout-w, min(100vw, 430px)) + 4px) auto;
+  background-size: calc(var(--stars-layout-w, var(--wt-layout-w, min(100vw, 430px))) + 4px) auto;
   background-repeat: no-repeat;
   will-change: opacity, transform;
   transition:
@@ -254,7 +254,7 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
 
 #casesPage{
   width: 100%;
-  max-width: 100vw;
+  max-width: var(--wt-layout-w, 100vw);
   overflow-x: hidden;
   overflow-x: clip;
   position: relative;
@@ -272,7 +272,7 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
   display: none;
   position: absolute;
   left: 50%;
-  top: 70px;
+  top: calc(var(--wg-topbar-pad-top, 86px) + 8px);
   transform: translateX(-50%);
   z-index: 24;
   margin: 0;
@@ -376,7 +376,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
 @media (max-width: 420px){
   .topbar .cases-topbar-switch{
-    top: 68px;
+    top: calc(var(--wg-topbar-pad-top-compact, 82px) + 8px);
   }
 
   body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch{
@@ -398,7 +398,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
 #casesPage{
   width: 100%;
-  max-width: 100vw;
+  max-width: var(--wt-layout-w, 100vw);
   overflow-x: hidden;
   position: relative;
 }
@@ -457,7 +457,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 #casesPage .cases-path{
   position: relative;
   width: 100%;
-  max-width: 100vw;
+  max-width: var(--wt-layout-w, 100vw);
   padding: 18px 0 120px; /* bottom safe for navbar */
   min-height: 100dvh;
   overflow-x: hidden !important;
@@ -497,7 +497,7 @@ body:has(.page-active#casesPage) .topbar .cases-topbar-switch .curr-btn--active 
 
 @supports (-webkit-touch-callout: none){
   #casesPage .case-path-item::after{
-    width: min(1100px, 100vw);
+    width: min(1100px, var(--wt-layout-w, 100vw));
   }
 }
 
@@ -3893,7 +3893,7 @@ html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-open-price img
 
   :root {
     --case-sheet-ui-left: 0px;
-    --case-sheet-ui-width: 100vw;
+    --case-sheet-ui-width: var(--wt-layout-w, 100vw);
     --case-sheet-balance-left: auto;
     --case-sheet-balance-top: calc(env(safe-area-inset-top, 0px) + 72px);
     --case-sheet-balance-width: auto;
@@ -4111,4 +4111,36 @@ html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-open-price img
 
   .cases-low-motion .case-contents-grid .case-content-item[data-item-type="nft"] .case-nft-sparks {
     display: none !important;
+  }
+
+  /* ===== Extra mobile perf profile for case spin ===== */
+  body.case-carousel-perf-stress.case-sheet-open .case-carousel-item {
+    transition: none !important;
+  }
+
+  html:is(.currency-stars,.currency-ton) body.cases-low-motion.case-sheet-open .case-carousel-item .case-carousel-item__img {
+    filter: none !important;
+  }
+
+  html:is(.currency-stars,.currency-ton) body.case-carousel-perf-stress.case-sheet-open .case-carousel-item .case-carousel-item__img {
+    filter: drop-shadow(0 6px 11px rgba(0,0,0,0.20));
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  html:is(.currency-stars,.currency-ton) body.case-carousel-perf-stress.case-sheet-open .case-carousel-item[data-item-type="gift"] .case-carousel-item__img {
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.18));
+  }
+
+  html:is(.currency-stars,.currency-ton) body.case-carousel-perf-stress.case-sheet-open .case-carousels-wrapper--count-3 .case-carousel-item[data-item-type="gift"] .case-carousel-item__img {
+    filter: none;
+  }
+
+  html:is(.currency-stars,.currency-ton) body.case-carousel-perf-stress.case-sheet-open .case-carousel-indicator {
+    box-shadow: 0 0 10px rgba(255, 198, 120, 0.42);
+  }
+
+  body.case-carousel-perf-stress.case-sheet-open .case-carousel-item__img {
+    opacity: 1 !important;
+    visibility: visible !important;
   }

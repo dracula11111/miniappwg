@@ -845,7 +845,7 @@
   left: 50%;
   transform: translate3d(-50%, -12px, 0);
   z-index: 11000;
-  width: min(92vw, 460px);
+  width: min(460px, calc(var(--wt-layout-w, 100vw) - 16px));
   min-height: 44px;
   padding: 12px 16px;
   border-radius: 16px;
@@ -910,6 +910,20 @@
 #wt-toast-host.is-out {
   opacity: 0;
   transform: translate3d(-50%, -12px, 0);
+}
+
+@media (min-width: 768px) {
+  .settings-sheet__panel {
+    left: 50%;
+    right: auto;
+    width: var(--wt-layout-w, 100vw);
+    max-width: var(--wt-app-max-width, 430px);
+    transform: translate(-50%, 100%);
+  }
+
+  .settings-sheet--open .settings-sheet__panel {
+    transform: translate(-50%, 0);
+  }
 }
 
 @media (max-width: 520px) {

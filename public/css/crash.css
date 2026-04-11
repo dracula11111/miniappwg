@@ -862,7 +862,7 @@
     pointer-events: none;
     transform: translateZ(0);
   }
-  
+
   .crash-controls__bar {
     border-radius: 28px;
     border: 1px solid rgba(0,212,255,0.20);
@@ -1314,7 +1314,7 @@
 }
 
 .crash-timer.is-label {
-  font-size: clamp(24px, 7.6vw, 36px);
+  font-size: clamp(24px, calc(7.6 * var(--wt-vw, 1vw)), 36px);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1607,12 +1607,12 @@ display: inline-flex;
 align-items: center;
 flex-wrap: nowrap;
 gap: 8px;
-max-width: calc(100vw - 20px);
+max-width: calc(var(--wt-layout-w, 100vw) - 20px);
 overflow: hidden;
 padding: 12px 14px;
 border-radius: 14px;
 font-weight: 800;
-font-size: clamp(11px, 3.4vw, 14px);
+font-size: clamp(11px, calc(3.4 * var(--wt-vw, 1vw)), 14px);
 letter-spacing: 0.2px;
 color: rgba(255,255,255,0.96);
 white-space: nowrap;
@@ -2678,5 +2678,15 @@ html.wt-reduced-motion .crash-canvasWrap::after {
 
 #crashPage .crash-helpRow {
   display: none !important;
+}
+
+@media (min-width: 768px) {
+  .crash-controls {
+    left: 50% !important;
+    right: auto !important;
+    width: var(--wt-layout-w, 100vw);
+    max-width: var(--wt-app-max-width, 430px);
+    transform: translateX(-50%) translateZ(0) !important;
+  }
 }
 

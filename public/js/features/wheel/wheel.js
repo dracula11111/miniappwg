@@ -306,6 +306,29 @@ let wheelBettingLeftMs = null;
 let wheelBettingLeftAt = 0;
 let wheelLastTimerSec = null;
 
+function getWheelLanguage() {
+  try {
+    const raw =
+      window?.WT?.i18n?.getLanguage?.() ||
+      window?.WT?.getLanguage?.() ||
+      document?.body?.getAttribute?.('data-wt-lang') ||
+      document?.documentElement?.lang ||
+      '';
+    const normalized = String(raw || '').trim().toLowerCase();
+    return normalized.startsWith('ru') ? 'ru' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function wheelTranslate(text) {
+  try {
+    const translated = window?.WT?.i18n?.translate?.(text, getWheelLanguage());
+    if (typeof translated === 'string' && translated.trim()) return translated;
+  } catch {}
+  return String(text || '');
+}
+
 function cacheWheelCountdownFromState(state) {
   if (state && state.phase === 'betting' && typeof state.bettingLeftMs === 'number' && Number.isFinite(state.bettingLeftMs)) {
     wheelBettingLeftMs = state.bettingLeftMs;
@@ -343,7 +366,13 @@ function updateWheelCountdownUI() {
   if (wheelServerState?.phase === 'waiting') {
     wheelLastTimerSec = null;
     countdownBox.classList.add('is-waiting');
-    countNumEl.textContent = 'WAITING';
+    const waitingLabelRaw = wheelTranslate('Waiting');
+    const waitingLabel = getWheelLanguage() === 'en'
+      ? waitingLabelRaw.toUpperCase()
+      : waitingLabelRaw;
+    if (countNumEl.textContent !== waitingLabel) {
+      countNumEl.textContent = waitingLabel;
+    }
     countdownBox.classList.add('visible');
     return;
   }
@@ -376,7 +405,7 @@ function renderWheelPlayersFromServer(players) {
   if (!players || players.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'wheel-player__empty';
-    empty.textContent = 'No bets yet';
+    empty.textContent = wheelTranslate('No bets yet');
     wheelPlayersList.appendChild(empty);
     return;
   }
@@ -402,7 +431,7 @@ function renderWheelPlayersFromServer(players) {
 
     const name = document.createElement('div');
     name.className = 'wheel-player__name';
-    name.textContent = p.name || 'Player';
+    name.textContent = p.name || wheelTranslate('Player');
 
     const sum = document.createElement('div');
     sum.className = 'wheel-player__sum';
@@ -2853,7 +2882,7 @@ function renderWheelPlayers(players) {
   if (!list.length) {
     const empty = document.createElement('div');
     empty.className = 'wheel-players-panel__empty';
-    empty.textContent = 'No bets in this round';
+    empty.textContent = wheelTranslate('No bets in this round');
     wheelPlayersList.appendChild(empty);
     return;
   }

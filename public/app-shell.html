@@ -594,11 +594,58 @@
         <span class="deposit-popup__input-currency">Stars</span>
       </div>
     </div>
+
+    <div class="stars-terms">
+      <label class="stars-terms__label" for="starsTermsAgree">
+        <input type="checkbox" id="starsTermsAgree" class="stars-terms__checkbox">
+        <span class="stars-terms__text">
+          I agree with
+          <a id="starsTermsLink" class="stars-terms__link" href="#" role="button">Stars top up rules</a>
+        </span>
+      </label>
+    </div>
     
     <div class="deposit-popup__divider"></div>
     
     <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
   </div>
+</div>
+
+<div
+  class="wt-terms-sheet"
+  id="starsRulesSheet"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="starsRulesTitle"
+  hidden
+>
+  <button type="button" class="wt-terms-sheet__backdrop" id="starsRulesBackdrop" aria-label="Close rules"></button>
+  <article class="wt-terms-sheet__panel" role="document" tabindex="-1">
+    <header class="wt-terms-sheet__header">
+      <h2 class="wt-terms-sheet__title" id="starsRulesTitle">Stars top up rules</h2>
+      <button type="button" class="wt-terms-sheet__close" id="starsRulesCloseBtn" aria-label="Close">
+        <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+      </button>
+    </header>
+    <div class="wt-terms-sheet__body" id="starsRulesBody">
+      <section class="wt-terms-sheet__section">
+        <h3>Important before buying Stars</h3>
+        <p>Top up Stars only through official payment methods and only using your own payment instruments.</p>
+      </section>
+      <section class="wt-terms-sheet__section">
+        <h3>If Stars source is suspicious</h3>
+        <ul>
+          <li>If there is a fraud risk, payment refund, or chargeback, withdrawal can be temporarily restricted.</li>
+          <li>If we are not sure about the quality of Stars, we may request additional verification.</li>
+          <li>If abuse is confirmed, access to withdrawals may be restricted.</li>
+        </ul>
+      </section>
+      <section class="wt-terms-sheet__section">
+        <h3>Support</h3>
+        <p>If you have questions about top up or withdrawal, contact support: <a href="https://t.me/wildgift_support" target="_blank" rel="noopener noreferrer">@wildgift_support</a>.</p>
+      </section>
+    </div>
+  </article>
 </div>
  <!-- ===== SETTINGS BOTTOM SHEET - COMPLETE VERSION ===== -->
 <!-- Замените этот блок в вашем index.html (между </div> bet-amounts и </div> bet-controls) -->
@@ -688,7 +735,9 @@
   <article class="wt-terms-sheet__panel" role="document" tabindex="-1">
     <header class="wt-terms-sheet__header">
       <h2 class="wt-terms-sheet__title" id="settingsPolicyTitle">WildGift Privacy Policy &amp; Terms</h2>
-      <button type="button" class="wt-terms-sheet__close" id="settingsPolicyCloseBtn" aria-label="Close">Close</button>
+      <button type="button" class="wt-terms-sheet__close" id="settingsPolicyCloseBtn" aria-label="Close">
+        <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+      </button>
     </header>
     <div class="wt-terms-sheet__body" id="settingsPolicyBody"></div>
   </article>
