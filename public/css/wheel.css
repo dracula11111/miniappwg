@@ -1261,27 +1261,45 @@
 /* в”Ђв”Ђ right section: segment icons в”Ђв”Ђ */
 .wheel-player-pill__segments {
   display: flex;
-  align-items: center;
-  gap: 5px;
+  align-items: flex-start;
+  gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  max-width: 160px;
-  padding-bottom: 1px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.32) transparent;
+  max-width: 190px;
+  padding-bottom: 3px;
   flex-shrink: 0;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
 }
 
-.wheel-player-pill__segments::-webkit-scrollbar { display: none; }
+.wheel-player-pill__segments::-webkit-scrollbar { height: 4px; }
+.wheel-player-pill__segments::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+}
+
+.wheel-player-pill__segItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  min-width: 28px;
+  scroll-snap-align: start;
+}
 
 /* individual segment chip вЂ” mini frosted tile */
 .wheel-player-pill__segIcon {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 9px;
   overflow: hidden;
-    position: relative;
-flex: 0 0 auto;
+  position: relative;
+  flex: 0 0 auto;
 
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.11);
@@ -1311,23 +1329,23 @@ flex: 0 0 auto;
 
 /* per-segment amount badge (server-driven players list) */
 .wheel-player-pill__segAmt {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
+  position: static;
+  min-width: 24px;
+  max-width: 48px;
+  padding: 0 4px;
+  border-radius: 7px;
 
-  max-width: 26px;
-  padding: 0 3px;
-  border-radius: 6px;
-
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 900;
-  line-height: 12px;
+  line-height: 13px;
+  text-align: center;
   color: rgba(255,255,255,0.95);
   text-shadow: 0 1px 2px rgba(0,0,0,0.55);
 
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.52);
   border: 1px solid rgba(255,255,255,0.18);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1335,10 +1353,14 @@ flex: 0 0 auto;
   pointer-events: none;
 }
 
+.wheel-player-pill__segAmt:empty {
+  display: none;
+}
+
 /* в”Ђв”Ђ responsive в”Ђв”Ђ */
 @media (max-width: 360px) {
   .wheel-player-pill__name      { max-width: 105px; }
-  .wheel-player-pill__segments  { max-width: 120px; }
+  .wheel-player-pill__segments  { max-width: 132px; }
   .wheel-players-panel__hash    { max-width: 50%; opacity: 0.34; }
   .wheel-players-panel__count   { font-size: 10px; }
 }
@@ -2751,6 +2773,53 @@ flex: 0 0 auto;
   filter: brightness(0) saturate(100%) invert(47%) sepia(96%) saturate(2572%) 
           hue-rotate(335deg) brightness(100%) contrast(92%)
           drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Mobile/lite stability: disable aggressive pill animations that cause visible jitter */
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-btn,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-btn,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-btn {
+  animation: none !important;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-btn:hover,
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-btn:active,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-btn:hover,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-btn:active,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-btn:hover,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-btn:active {
+  transform: none !important;
+  animation: none !important;
+}
+
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-btn::before,
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-btn::after,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-btn::before,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-btn::after,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-btn::before,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-btn::after {
+  animation: none !important;
+}
+
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-value,
+html.wt-mobile .bet-overlay--redesign .bet-center .amount-icon,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-value,
+html.wt-lite .bet-overlay--redesign .bet-center .amount-icon,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-value,
+html.wt-reduced-motion .bet-overlay--redesign .bet-center .amount-icon {
+  transition: none !important;
+  transform: none !important;
+  text-shadow: none !important;
+}
+
+html.wt-mobile .bet-pill,
+html.wt-mobile .bet-pill.is-updating,
+html.wt-lite .bet-pill,
+html.wt-lite .bet-pill.is-updating,
+html.wt-reduced-motion .bet-pill,
+html.wt-reduced-motion .bet-pill.is-updating {
+  animation: none !important;
 }
 
 

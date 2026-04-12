@@ -1671,12 +1671,19 @@ const WHEEL_DECEL_MAX_MS = 7000;     // ms
 const WHEEL_EXTRA_TURNS = 4;
 const WHEEL_RESULT_TIME = 2500;      // ms
 const WHEEL_BONUS_TYPES = new Set(['50&50','Loot Rush','Wild Time']);
+function wheelClampBonusMs(raw, fallbackMs) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallbackMs;
+  return Math.max(12000, Math.min(45000, Math.round(n)));
+}
 const WHEEL_BONUS_TIME_BY_TYPE = {
-  '50&50': 14000,
-  'Loot Rush': 15000,
-  'Wild Time': 15000
+  // Keep bonus phase longer than visual overlays (including close animations),
+  // so the next round never starts while a bonus is still finishing.
+  '50&50': wheelClampBonusMs(process.env.WHEEL_BONUS_5050_MS, 17000),
+  'Loot Rush': wheelClampBonusMs(process.env.WHEEL_BONUS_LOOTRUSH_MS, 17000),
+  'Wild Time': wheelClampBonusMs(process.env.WHEEL_BONUS_WILDTIME_MS, 18000)
 };
-const WHEEL_BONUS_FALLBACK_MS = 15000;
+const WHEEL_BONUS_FALLBACK_MS = wheelClampBonusMs(process.env.WHEEL_BONUS_FALLBACK_MS, 18000);
 const WHEEL_SEGMENT_MULTIPLIERS = Object.freeze({
   '1.1x': 1.1,
   '1.5x': 1.5,

@@ -472,40 +472,52 @@ function renderWheelPlayersFromServer(players) {
 async function startSpinFromServer(spin) {
   if (!spin) return;
 
-  // prevent double-start for same round
-  if (wheelSpinStartedForRound === wheelServerState?.roundId) return;
-  wheelSpinStartedForRound = wheelServerState?.roundId;
+  const roundId = Number(wheelServerState?.roundId || 0) || null;
+  const alreadyStartedThisRound = wheelSpinStartedForRound === roundId;
+  const localSpinIsActive = phase === 'accelerate' || phase === 'decelerate' || !!decel;
+
+  // Prevent duplicate spin starts, but allow recovering animation after reconnect/lost frame.
+  if (alreadyStartedThisRound && localSpinIsActive) return;
+  wheelSpinStartedForRound = roundId;
 
   setBetPanel(false);
 
-  const accelMs = Number(spin.accelMs || 1200);
-  const decelMs = Number(spin.decelMs || 6000);
+  const accelMs = Math.max(450, Number(spin.accelMs || 1200));
+  const decelMs = Math.max(2400, Number(spin.decelMs || 6000));
+  const extraTurns = Math.max(2, Number(spin.extraTurns || 4));
   const totalMs = accelMs + decelMs;
 
   // If user refreshed mid-spin, try to fit animation into remaining time
   const startedAt = Number(spin.spinStartAt || 0);
   const elapsed = startedAt ? (Date.now() - startedAt) : 0;
-  const remaining = Math.max(0, totalMs - Math.max(0, elapsed));
+  const remainingTotal = Math.max(0, totalMs - Math.max(0, elapsed));
+  const freshFromBetting = wheelPrevPhase === 'waiting' || wheelPrevPhase === 'betting';
 
   try {
-    if (elapsed > accelMs) {
-      // already in decel part → skip accel
-      const turns = Math.max(1, Math.round((spin.extraTurns || 4) * (remaining / totalMs)));
+    decel = null;
+
+    if (!freshFromBetting && elapsed > accelMs) {
+      // Mid-spin recovery path (reconnect/background resume): always keep visible decel.
+      const remainingDecel = Math.max(0, decelMs - (elapsed - accelMs));
+      const safeDecelMs = Math.max(1200, Math.min(decelMs, remainingDecel || remainingTotal || decelMs));
+      const turnsRatio = Math.max(0.35, Math.min(1, safeDecelMs / decelMs));
+      const turns = Math.max(2, Math.round(extraTurns * turnsRatio));
+
       setPhase('decelerate');
       await decelerateToSlice(
         spin.sliceIndex,
-        Math.max(250, remaining || 250),
+        safeDecelMs,
         turns,
         spin.type
       );
     } else {
-      // start normally
+      // Fresh round start: always run full smooth spin, no instant snap.
       setPhase('accelerate');
       await accelerateTo(FAST_OMEGA, accelMs);
       await decelerateToSlice(
         spin.sliceIndex,
         decelMs,
-        spin.extraTurns || 4,
+        extraTurns,
         spin.type
       );
     }
@@ -1419,6 +1431,17 @@ function getCurrencyIconWhite(currency) {
   return currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/tgTonWhite.svg';
 }
 
+function isWheelLowMotionRuntime() {
+  try {
+    const root = document.documentElement;
+    if (root?.classList?.contains('wt-lite')) return true;
+    if (root?.classList?.contains('wt-mobile')) return true;
+    if (root?.classList?.contains('wt-reduced-motion')) return true;
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+  } catch {}
+  return false;
+}
+
 function ensureBetPill(tile, seg) {
   // remove legacy badge if it exists
   const legacy = tile.querySelector('.bet-badge');
@@ -1463,7 +1486,7 @@ function setBetPill(tile, seg, amount, currency) {
   pill.style.zIndex = '100';
 
   // Subtle update pop only when pill already exists.
-  if (!isNew) {
+  if (!isNew && !isWheelLowMotionRuntime()) {
     pill.classList.remove('is-updating');
     void pill.offsetWidth;
     pill.classList.add('is-updating');
@@ -2658,24 +2681,29 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
     outcome: bonusState?.outcome || null
   };
 
-  // We don't force-lock UI here — server already pauses the round
-  if (t === '50&50' && typeof window.start5050Bonus === 'function') {
-    await window.start5050Bonus(betAmount, bonusOpts);
-    return;
-  }
+  wheelBonusOverlayActive = true;
+  try {
+    // We don't force-lock UI here — server already pauses the round
+    if (t === '50&50' && typeof window.start5050Bonus === 'function') {
+      await window.start5050Bonus(betAmount, bonusOpts);
+      return;
+    }
 
-  if (t === 'Loot Rush' && typeof window.startLootRushBonus === 'function') {
-    await window.startLootRushBonus(betAmount, bonusOpts);
-    return;
-  }
+    if (t === 'Loot Rush' && typeof window.startLootRushBonus === 'function') {
+      await window.startLootRushBonus(betAmount, bonusOpts);
+      return;
+    }
 
-  if (t === 'Wild Time' && typeof window.startWildTimeBonus === 'function') {
-    await window.startWildTimeBonus(betAmount, bonusOpts);
-    return;
-  }
+    if (t === 'Wild Time' && typeof window.startWildTimeBonus === 'function') {
+      await window.startWildTimeBonus(betAmount, bonusOpts);
+      return;
+    }
 
-  if (typeof window.showBonusNotification === 'function') {
-    window.showBonusNotification(t);
+    if (typeof window.showBonusNotification === 'function') {
+      window.showBonusNotification(t);
+    }
+  } finally {
+    wheelBonusOverlayActive = false;
   }
 }
 
@@ -2917,11 +2945,14 @@ function renderWheelPlayers(players) {
       const cur = p.currency || currentCurrency;
       const amtText = hasAmt ? formatWheelAmount(amt, cur) : '';
 
-      const title = key;
+      const title = hasAmt ? `${key}: ${amtText}` : key;
 
       return `
-        <div class="wheel-player-pill__segIcon" title="${title}">
-          <img src="${src}" alt="${key}" />
+        <div class="wheel-player-pill__segItem" title="${title}">
+          <div class="wheel-player-pill__segIcon">
+            <img src="${src}" alt="${key}" />
+          </div>
+          <div class="wheel-player-pill__segAmt">${amtText || ''}</div>
         </div>
       `;
     }).join('');
@@ -3295,12 +3326,26 @@ let __wheelWinToastTimer = null;
 
 function isAnyWheelBonusOverlayActive() {
   const b5050 = document.getElementById('bonus5050Overlay');
-  const b5050Active = !!(b5050 && b5050.classList.contains('bonus-overlay--active'));
+  const b5050Active = !!(
+    b5050 && (
+      b5050.classList.contains('bonus-overlay--active') ||
+      b5050.classList.contains('bonus-overlay--leave') ||
+      b5050.style.display === 'flex'
+    )
+  );
 
   const wild = document.getElementById('wildTimeOverlay');
-  const wildActive = !!(wild && (wild.classList.contains('wt-active') || wild.style.display === 'flex'));
+  const wildActive = !!(
+    wild && (
+      wild.classList.contains('wt-active') ||
+      wild.classList.contains('wt-leave') ||
+      wild.style.display === 'flex'
+    )
+  );
 
-  return b5050Active || wildActive;
+  const docBonusActive = document.documentElement.classList.contains('bonus-active') || document.body.classList.contains('bonus-active');
+
+  return b5050Active || wildActive || docBonusActive || wheelBonusOverlayActive === true;
 }
 
 function renderWinToast(winAmount, currency = currentCurrency) {
