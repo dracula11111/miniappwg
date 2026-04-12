@@ -8,7 +8,6 @@ import "../css/unauthorized.css";
 
 import "./core/perf.js";
 import { blockNonTelegramBrowserInProd } from "./shared/telegram-entry-guard.js";
-import "./core/perf.js";
 
 // Mount the large HTML shell into #root before feature scripts run.
 import "./app-shell.js";
@@ -101,11 +100,8 @@ window.WT?.bus?.addEventListener?.("page:change", (event) => {
   void ensurePageFeatures(id);
 });
 
-// Keep frequent pages warm, but do it after first interaction window.
+// Keep only lightweight pages warm. Heavy bundles stay on-demand to avoid startup jank.
 scheduleIdle(() => { void ensurePageFeatures("profilePage"); }, 700);
-scheduleIdle(() => { void ensurePageFeatures("wheelPage"); }, 1100);
-scheduleIdle(() => { void ensurePageFeatures("casesPage"); }, 1800);
-scheduleIdle(() => { void ensurePageFeatures("crashPage"); }, 2600);
 
 // Render Unauthorized screen for non-Telegram browsers in production.
 blockNonTelegramBrowserInProd();

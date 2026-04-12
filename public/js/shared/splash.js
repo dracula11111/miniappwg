@@ -1,33 +1,17 @@
-// public/js/splash.js - FIXED (No Overflow)
+// public/js/shared/splash.js
 (function () {
-  console.log('[SPLASH] 🎨 Initializing splash (1.2s)');
+  const splash = document.getElementById("splash");
+  if (!splash) return;
 
-  const splash = document.getElementById('splash');
-  if (!splash) {
-    console.warn('[SPLASH] Splash element not found');
-    return;
-  }
+  const fill = document.getElementById("splash-fill");
+  const percentEl = document.getElementById("splash-percent");
+  const canRenderProgress = !!fill;
 
-  const fill = document.getElementById('splash-fill');
-  const percentEl = document.getElementById('splash-percent');
-  
-  if (!fill) {
-    console.warn('[SPLASH] Progress fill element not found');
-    return;
-  }
-
-  // ====== CONFIG ======
-  const TOTAL_DURATION = 1200; // 1.2 seconds
+  const TOTAL_DURATION = 1200;
   const HIDE_DELAY = 200;
   const REMOVE_DELAY = 300;
+  const FORCE_COMPLETE_MS = 6500;
 
-  let currentProgress = 0;
-  let isComplete = false;
-  let startTime = performance.now();
-  let animationFrame = null;
-  let loadComplete = document.readyState === 'complete';
-
-  // ====== PROGRESS STAGES ======
   const stages = [
     { percent: 20, time: 150 },
     { percent: 40, time: 300 },
@@ -38,12 +22,26 @@
     { percent: 100, time: 1200 }
   ];
 
-  // ====== CALCULATE PROGRESS ======
+  let currentProgress = 0;
+  let isComplete = false;
+  let startTime = performance.now();
+  let animationFrame = 0;
+  let forceTimer = 0;
+  let loadComplete = document.readyState === "complete";
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function easeInOutCubic(t) {
+    const v = clamp(t, 0, 1);
+    return v < 0.5
+      ? 4 * v * v * v
+      : 1 - Math.pow(-2 * v + 2, 3) / 2;
+  }
+
   function calculateProgress(elapsed) {
-    // 🔥 FIX: Cap at 100%
-    if (elapsed >= TOTAL_DURATION) {
-      return 100;
-    }
+    if (elapsed >= TOTAL_DURATION) return 100;
 
     let prevStage = { percent: 0, time: 0 };
     let nextStage = stages[0];
@@ -57,48 +55,64 @@
       prevStage = stages[i];
     }
 
-    const stageDuration = nextStage.time - prevStage.time;
+    const stageDuration = Math.max(1, nextStage.time - prevStage.time);
     const stageElapsed = elapsed - prevStage.time;
-    const stageProgress = Math.min(1, stageElapsed / stageDuration); // 🔥 FIX: Cap at 1
-
+    const stageProgress = clamp(stageElapsed / stageDuration, 0, 1);
     const easedProgress = easeInOutCubic(stageProgress);
-    
     const percentDiff = nextStage.percent - prevStage.percent;
-    const progress = prevStage.percent + (percentDiff * easedProgress);
 
-    // 🔥 FIX: Strict clamping
-    return Math.min(100, Math.max(0, progress));
+    return clamp(prevStage.percent + (percentDiff * easedProgress), 0, 100);
   }
 
-  // ====== EASING ======
-  function easeInOutCubic(t) {
-    // 🔥 FIX: Ensure t is between 0 and 1
-    t = Math.min(1, Math.max(0, t));
-    return t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
-
-  // ====== UPDATE UI ======
   function updateUI(progress) {
-    // 🔥 FIX: Strict clamping before display
-    const clampedProgress = Math.min(100, Math.max(0, progress));
-    const p = Math.round(clampedProgress);
-    
-    // 🔥 FIX: Set width with explicit bounds
-    fill.style.width = p + '%';
-    
-    if (percentEl && !percentEl.hidden) {
-      percentEl.textContent = p + '%';
+    const p = Math.round(clamp(progress, 0, 100));
+    if (canRenderProgress) {
+      fill.style.width = p + "%";
     }
-
-    // Debug: warn if trying to overflow
-    if (progress > 100) {
-      console.warn('[SPLASH] ⚠️ Progress overflow prevented:', progress, '-> 100%');
+    if (percentEl && !percentEl.hidden) {
+      percentEl.textContent = p + "%";
     }
   }
 
-  // ====== ANIMATE ======
+  function removeSplashNow() {
+    try {
+      splash.remove();
+    } catch {
+      splash.style.display = "none";
+    }
+    window.dispatchEvent(new Event("splash:complete"));
+  }
+
+  function completeSplash() {
+    if (isComplete) return;
+
+    isComplete = true;
+    currentProgress = 100;
+    updateUI(100);
+
+    if (animationFrame) {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+    }
+    if (forceTimer) {
+      clearTimeout(forceTimer);
+      forceTimer = 0;
+    }
+
+    setTimeout(() => {
+      splash.classList.add("splash--hide");
+      setTimeout(removeSplashNow, REMOVE_DELAY);
+    }, HIDE_DELAY);
+  }
+
+  function forceComplete(reason) {
+    if (isComplete) return;
+    try {
+      console.warn("[SPLASH] Force complete:", reason);
+    } catch {}
+    completeSplash();
+  }
+
   function animate() {
     if (isComplete) return;
 
@@ -118,90 +132,43 @@
     animationFrame = requestAnimationFrame(animate);
   }
 
-  // ====== COMPLETE ======
-  function completeSplash() {
-    if (isComplete) return;
-    
-    console.log('[SPLASH] ✅ Complete! (', Math.round(performance.now() - startTime), 'ms)');
-    
-    isComplete = true;
-    
-    // 🔥 FIX: Final update with strict 100%
-    currentProgress = 100;
-    updateUI(100);
-    
-    setTimeout(() => {
-      splash.classList.add('splash--hide');
-      
-      setTimeout(() => {
-        if (animationFrame) {
-          cancelAnimationFrame(animationFrame);
-        }
-        splash.remove();
-        console.log('[SPLASH] Removed from DOM');
-        
-        window.dispatchEvent(new Event('splash:complete'));
-      }, REMOVE_DELAY);
-    }, HIDE_DELAY);
+  if (!canRenderProgress) {
+    try {
+      console.warn("[SPLASH] #splash-fill not found, running fallback mode");
+    } catch {}
+  } else {
+    fill.style.width = "0%";
   }
 
-  // ====== PUBLIC API ======
-  window.setSplashProgress = function (p) {
-    console.log('[SPLASH] Manual progress ignored in timed mode:', p + '%');
-  };
-
-  window.completeSplash = completeSplash;
-
-  // ====== LOAD EVENT ======
-  window.addEventListener('load', () => {
+  window.addEventListener("load", () => {
     loadComplete = true;
-    console.log('[SPLASH] Page loaded at', Math.round(performance.now() - startTime), 'ms');
-    
     const elapsed = performance.now() - startTime;
     if (elapsed >= TOTAL_DURATION || currentProgress >= 98) {
       completeSplash();
     }
   });
 
-  // ====== SAFETY TIMEOUT ======
-  const safetyTimeout = setTimeout(() => {
-    if (!isComplete) {
-      console.warn('[SPLASH] ⏱️ Safety timeout - force complete');
-      completeSplash();
-    }
-  }, 15000);
+  window.addEventListener("error", () => {
+    setTimeout(() => forceComplete("window error"), 0);
+  }, { once: true });
 
-  // ====== START ======
-  console.log('[SPLASH] Starting animation (target: ' + TOTAL_DURATION + 'ms)');
+  window.addEventListener("unhandledrejection", () => {
+    setTimeout(() => forceComplete("unhandled rejection"), 0);
+  }, { once: true });
+
+  forceTimer = setTimeout(() => {
+    forceComplete("timeout");
+  }, FORCE_COMPLETE_MS);
+
   startTime = performance.now();
-  
-  // 🔥 FIX: Start from 0
-  fill.style.width = '0%';
-  
   animate();
 
-  // ====== EXPORT ======
+  window.setSplashProgress = function () {};
+  window.completeSplash = completeSplash;
   window.WTSplash = {
     complete: completeSplash,
     getCurrentProgress: () => Math.min(100, Math.round(currentProgress)),
     getElapsedTime: () => Math.round(performance.now() - startTime),
     getDuration: () => TOTAL_DURATION
   };
-
-  // ====== DEBUG ======
-  if (window.location.search.includes('debug')) {
-    console.log('[SPLASH] Debug mode enabled');
-    if (percentEl) percentEl.hidden = false;
-    
-    const debugInterval = setInterval(() => {
-      if (isComplete) {
-        clearInterval(debugInterval);
-        return;
-      }
-      const elapsed = performance.now() - startTime;
-      console.log('[SPLASH] Progress:', Math.round(currentProgress) + '%', 'Time:', Math.round(elapsed) + 'ms');
-    }, 100);
-  }
-
-  console.log('[SPLASH] ✅ Initialized');
 })();
