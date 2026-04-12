@@ -8,7 +8,6 @@ import "../css/unauthorized.css";
 
 import "./core/perf.js";
 import { blockNonTelegramBrowserInProd } from "./shared/telegram-entry-guard.js";
-import "./core/perf.js";
 
 // Mount the large HTML shell into #root before feature scripts run.
 import "./app-shell.js";
