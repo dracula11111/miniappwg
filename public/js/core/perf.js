@@ -19,13 +19,14 @@
   const isAndroid = ua.includes("android");
   const isIOS = /iphone|ipod|ipad/.test(ua) || (platform === "macintel" && touchPoints > 1);
   const isMobilePlatform = isAndroid || isIOS;
-  const lowMemoryDevice = (deviceMemory > 0 && deviceMemory <= 4);
-  const lowCpuDevice = (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
+  const isTelegramWebView = Boolean(window.Telegram?.WebApp);
+  const forceLiteOnMobile = isMobilePlatform && (isTelegramWebView || Boolean(coarsePointerQuery?.matches));
 
   const isLowPowerDevice =
+    forceLiteOnMobile ||
     saveData ||
-    lowMemoryDevice ||
-    lowCpuDevice;
+    (deviceMemory > 0 && deviceMemory <= 4) ||
+    (hardwareConcurrency > 0 && hardwareConcurrency <= 4);
 
   const applyRuntimeClasses = () => {
     root.classList.toggle("wt-lite", isLowPowerDevice);

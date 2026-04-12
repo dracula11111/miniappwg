@@ -42,36 +42,36 @@ const TEST_MODE = (() => {
 window.TEST_MODE = TEST_MODE;
 
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р… wheel.js РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… 10
+// Добавьте эти функции в ваш wheel.js после строки 10
 
 /* ===== PERSISTENCE - Save/Load State ===== */
 const WHEEL_STORAGE_KEY = 'wheel_game_state';
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Сохранить состояние игры
 function saveWheelState() {
   try {
     const state = {
-      bets: Array.from(betsMap.entries()), // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… Map РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-      history: [], // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      bets: Array.from(betsMap.entries()), // Конвертируем Map в массив
+      history: [], // Сохраняем историю
       currency: currentCurrency,
       amount: currentAmount,
       timestamp: Date.now()
     };
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… DOM
+    // Получаем историю из DOM
     if (historyList) {
       const historyItems = Array.from(historyList.querySelectorAll('.history-item img'));
       state.history = historyItems.map(img => img.alt).slice(0, 20);
     }
     
     localStorage.setItem(WHEEL_STORAGE_KEY, JSON.stringify(state));
-    console.log('[Wheel] ?? State saved:', state);
+    console.log('[Wheel] 💾 State saved:', state);
   } catch (e) {
     console.warn('[Wheel] Failed to save state:', e);
   }
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Загрузить состояние игры
 function loadWheelState() {
   try {
     const saved = localStorage.getItem(WHEEL_STORAGE_KEY);
@@ -82,15 +82,15 @@ function loadWheelState() {
     
     const state = JSON.parse(saved);
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… 24 РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
-    const maxAge = 24 * 60 * 60 * 1000; // 24 РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Проверяем, не слишком ли старое состояние (например, старше 24 часов)
+    const maxAge = 24 * 60 * 60 * 1000; // 24 часа
     if (Date.now() - state.timestamp > maxAge) {
       console.log('[Wheel] Saved state too old, clearing');
       localStorage.removeItem(WHEEL_STORAGE_KEY);
       return null;
     }
     
-    console.log('[Wheel] ?? State loaded:', state);
+    console.log('[Wheel] 📂 State loaded:', state);
     return state;
   } catch (e) {
     console.warn('[Wheel] Failed to load state:', e);
@@ -98,28 +98,31 @@ function loadWheelState() {
   }
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Очистить сохраненное состояние
 function clearWheelState() {
   localStorage.removeItem(WHEEL_STORAGE_KEY);
-  console.log('[Wheel] ??? State cleared');
+  console.log('[Wheel] 🗑️ State cleared');
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Восстановить ставки из сохраненного состояния
 function restoreBetsFromState(state) {
   if (!state || !state.bets) return;
   
-  console.log('[Wheel] ?? Restoring bets from saved state');
+  console.log('[Wheel] 🔄 Restoring bets from saved state');
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Очищаем текущие ставки
   betsMap.clear();
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Восстанавливаем ставки
   for (const [segment, amount] of state.bets) {
     if (amount > 0) {
       betsMap.set(segment, amount);
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… UI РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-      const tile = getBetTileBySegment(segment);
+      // Обновляем UI для каждой ставки
+      const tile = betTiles.find(t => {
+        const seg = t.dataset.segment;
+        return normSeg(seg) === normSeg(segment);
+      });
       
       if (tile) {
         tile.classList.add('active', 'has-bet');
@@ -128,24 +131,24 @@ function restoreBetsFromState(state) {
     }
   }
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Показываем компактные карточки если есть ставки
   if (betsMap.size > 0) {
     showCompactBetCards();
   }
   
-  console.log('[Wheel] ? Bets restored:', Array.from(betsMap.entries()));
+  console.log('[Wheel] ✅ Bets restored:', Array.from(betsMap.entries()));
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Восстановить историю из сохраненного состояния
 function restoreHistoryFromState(state) {
   if (!state || !state.history || !historyList) return;
   
-  console.log('[Wheel] ?? Restoring history from saved state');
+  console.log('[Wheel] 🔄 Restoring history from saved state');
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Очищаем текущую историю
   historyList.innerHTML = '';
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Восстанавливаем историю
   const historyIcons = {
     '1.1x': '/images/history/1.1x_small.png',
     '1.5x': '/images/history/1.5x_small.png',
@@ -164,12 +167,14 @@ function restoreHistoryFromState(state) {
     historyList.appendChild(item);
   }
   
-  console.log('[Wheel] ? History restored:', state.history.length, 'items');
+  console.log('[Wheel] ✅ History restored:', state.history.length, 'items');
 }
 
 
 // ===== Wheel WebSocket state (server-driven) =====
 let wheelWs = null;
+let wheelWsReconnectTimer = 0;
+let wheelWsShouldRun = false;
 let wheelServerState = null;
 let wheelLastRoundId = null;
 let wheelSpinStartedForRound = null;
@@ -177,16 +182,14 @@ let wheelSpinStartedForRound = null;
 let wheelLastSettledKey = null;
 let wheelPrevPhase = null;
 let wheelPrevBonusId = null;
-let wheelBonusOverlayActive = false;  // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-window.__bonusOverlayOpenedFor = null; // ?? ID РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+let wheelBonusOverlayActive = false;  // 🔥 отслеживает открыт ли оверлей
+window.__bonusOverlayOpenedFor = null; // 🔥 ID бонуса для которого открыт оверлей
 window.__wheelPayoutMode = window.__wheelPayoutMode || 'client';
 let wheelPendingState = null;
 let wheelStateRaf = 0;
 let wheelPlayersRenderSig = null;
 let wheelHistoryRenderSig = null;
 let wheelMyBetsSig = null;
-const wheelBonusOpenedSentIds = new Set();
-const wheelBonusDoneSentIds = new Set();
 
 function queueWheelServerState(state) {
   wheelPendingState = state;
@@ -245,6 +248,9 @@ function buildMyBetsSignature(players) {
 
 
 function connectWheelWS() {
+  if (!wheelWsShouldRun) return;
+  if (wheelWs && (wheelWs.readyState === WebSocket.OPEN || wheelWs.readyState === WebSocket.CONNECTING)) return;
+
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const url = `${proto}//${location.host}/ws/wheel`;
 
@@ -255,8 +261,14 @@ function connectWheelWS() {
   };
 
   wheelWs.onclose = () => {
+    wheelWs = null;
+    if (!wheelWsShouldRun) return;
     console.log('[WheelWS] disconnected, reconnecting...');
-    setTimeout(connectWheelWS, 1000);
+    if (wheelWsReconnectTimer) clearTimeout(wheelWsReconnectTimer);
+    wheelWsReconnectTimer = setTimeout(() => {
+      wheelWsReconnectTimer = 0;
+      connectWheelWS();
+    }, 1000);
   };
 
   wheelWs.onerror = (e) => {
@@ -282,53 +294,9 @@ function wheelWsSend(payload) {
   if (wheelWs && wheelWs.readyState === WebSocket.OPEN) {
     wheelWs.send(JSON.stringify(payload));
   } else {
-    console.warn('[WheelWS] Cannot send - socket not open (readyState=' + (wheelWs?.readyState ?? 'null') + '). Payload dropped:', payload);
+    console.warn('[WheelWS] Cannot send — socket not open (readyState=' + (wheelWs?.readyState ?? 'null') + '). Payload dropped:', payload);
   }
 }
-
-function normalizeBonusOverlayId(bonusId) {
-  const id = String(bonusId || '').trim();
-  return id || null;
-}
-
-function notifyBonusOverlayOpened(bonusId) {
-  const id = normalizeBonusOverlayId(bonusId);
-  if (!id) return;
-  if (wheelBonusOpenedSentIds.has(id)) return;
-  if (!wheelWs || wheelWs.readyState !== WebSocket.OPEN) return;
-  const userId = String(getWheelUserId() || '').trim();
-  const initData = String(window?.Telegram?.WebApp?.initData || '');
-  if (!userId || !initData) return;
-  wheelBonusOpenedSentIds.add(id);
-  wheelWsSend({
-    type: 'bonusOverlayOpened',
-    bonusId: id,
-    userId,
-    initData
-  });
-}
-
-function notifyBonusOverlayDone(bonusId) {
-  const id = normalizeBonusOverlayId(bonusId);
-  if (!id) return;
-  if (wheelBonusDoneSentIds.has(id)) return;
-  if (!wheelWs || wheelWs.readyState !== WebSocket.OPEN) return;
-  const userId = String(getWheelUserId() || '').trim();
-  const initData = String(window?.Telegram?.WebApp?.initData || '');
-  if (!userId || !initData) return;
-  wheelBonusDoneSentIds.add(id);
-  wheelWsSend({
-    type: 'bonusOverlayDone',
-    bonusId: id,
-    userId,
-    initData
-  });
-}
-
-window.__notifyBonusOverlayDone = notifyBonusOverlayDone;
-window.__getBonusOverlayDonePromise = window.__getBonusOverlayDonePromise || function __getBonusOverlayDonePromise() {
-  return Promise.resolve();
-};
 
 function setCountdownFromMs(msLeft) {
   if (!countdownBox || !countNumEl) return;
@@ -478,7 +446,7 @@ function renderWheelPlayersFromServer(players) {
 
     const sum = document.createElement('div');
     sum.className = 'wheel-player__sum';
-    const cur = (p.currency === 'stars') ? 'STARS' : 'TON';
+    const cur = (p.currency === 'stars') ? '⭐' : 'TON';
     sum.textContent = `${p.totalAmount} ${cur}`;
 
     meta.appendChild(name);
@@ -490,7 +458,7 @@ function renderWheelPlayersFromServer(players) {
     const segWrap = document.createElement('div');
     segWrap.className = 'wheel-player__segments';
 
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // просто картинки сегментов, без сумм
     const segs = p.segments || [];
     for (const segEntry of segs) {
       const segName = (typeof segEntry === 'string') ? segEntry : (segEntry?.segment || segEntry?.name);
@@ -529,15 +497,23 @@ async function startSpinFromServer(spin) {
   const startedAt = Number(spin.spinStartAt || 0);
   const elapsed = startedAt ? (Date.now() - startedAt) : 0;
   const remaining = Math.max(0, totalMs - Math.max(0, elapsed));
+  const shouldKeepVisualSpin = isWheelPageActive() && !document.hidden;
+  const minVisualSpinMs = shouldKeepVisualSpin
+    ? (isWheelLiteRuntime() ? 1400 : 1900)
+    : 250;
 
   try {
     if (elapsed > accelMs) {
-      // already in decel part > skip accel
-      const turns = Math.max(1, Math.round((spin.extraTurns || 4) * (remaining / totalMs)));
+      // already in decel part → skip accel
+      const fittedRemaining = Math.max(minVisualSpinMs, remaining || 0);
+      const turns = Math.max(
+        shouldKeepVisualSpin ? 2 : 1,
+        Math.round((spin.extraTurns || 4) * (fittedRemaining / Math.max(totalMs, 1)))
+      );
       setPhase('decelerate');
       await decelerateToSlice(
         spin.sliceIndex,
-        Math.max(250, remaining || 250),
+        Math.max(minVisualSpinMs, fittedRemaining || minVisualSpinMs),
         turns,
         spin.type
       );
@@ -582,8 +558,6 @@ function applyWheelServerState(state) {
     // cancel any in-flight decel to avoid fighting the server
     decel = null;
     clearBets();
-    wheelBonusOpenedSentIds.clear();
-    wheelBonusDoneSentIds.clear();
 
     // allow settlement again for the new round
     wheelLastSettledKey = null;
@@ -626,27 +600,27 @@ function applyWheelServerState(state) {
     if (state.bonus) showWheelBonusBar(state.bonus);
     else if (state.spin?.type) showWheelBonusBar({ type: state.spin.type, id: `fallback:${state.roundId}` });
 
-    // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // 🔥 ИСПРАВЛЕНИЕ: проверяем новый бонус и автооткрытие с учётом истекшего времени
     const nowBonusId = state.bonus?.id;
     const isNewBonus = nowBonusId && nowBonusId !== prevBonusId;
     
     if (isNewBonus) {
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Показываем уведомление только при новом бонусе
       try {
         if (typeof window.showBonusNotification === 'function') {
           window.showBonusNotification(normSeg(state.bonus.type));
         }
       } catch (_) {}
 
-      // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… elapsedMs РїС—Р…РїС—Р…РїС—Р… remainingMs РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // 🔥 КРИТИЧНО: автооткрытие для ВСЕХ игроков, даже без ставки
+      // Используем elapsedMs или remainingMs с сервера для точной проверки
       const elapsedMs = state.bonus?.elapsedMs ?? getBonusElapsedMs(state.bonus);
       const hasEnoughTimeLeft = !Number.isFinite(elapsedMs) || elapsedMs < 2000;
       
       if (isWheelPageActive() && hasEnoughTimeLeft) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
         
-        // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… myBet = 0)
+        // 🔥 ИСПРАВЛЕНИЕ: открываем бонус для всех (даже с myBet = 0)
         window.__bonusOverlayOpenedFor = nowBonusId;
         
         setTimeout(() => {
@@ -687,24 +661,24 @@ function applyWheelServerState(state) {
         void checkBetsAndShowResult(resultType);
       }
     } else {
-      // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (prevPhase === 'bonus')
+      // 🔥 КРИТИЧНО: бонусные сегменты - выплата только ПОСЛЕ закрытия оверлея
+      // Проверяем что бонус закончился (prevPhase === 'bonus')
       const bonusJustEnded = prevPhase === 'bonus' && state.phase === 'result';
       
       if (bonusJustEnded && wheelLastSettledKey !== settleKey) {
         wheelLastSettledKey = settleKey;
         
-        // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+        // 🔥 ИСПРАВЛЕНИЕ: если оверлей был открыт - ждём его закрытия перед выплатой
         const wasOverlayOpened = window.__bonusOverlayOpenedFor === prevBonusId;
         
         if (wasOverlayOpened) {
-          // РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (300ms РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… + РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+          // Даём время на закрытие оверлея (300ms анимация + запас)
           setTimeout(() => {
             void checkBetsAndShowResult(resultType);
             window.__bonusOverlayOpenedFor = null;
           }, 500);
         } else {
-          // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+          // Оверлей не открывался - выплачиваем сразу
           void checkBetsAndShowResult(resultType);
         }
       }
@@ -741,13 +715,13 @@ function applyWheelServerState(state) {
 }
 
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р… TEST_MODE РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Если TEST_MODE включен, экспортируем дополнительные функции
 if (window.TEST_MODE) {
-  console.log('[Wheel] ?? TEST MODE ACTIVE - Exporting admin functions');
+  console.log('[Wheel] 🔧 TEST MODE ACTIVE - Exporting admin functions');
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Создаем глобальный объект для админских функций
   window.WheelAdmin = {
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Текущие параметры
     getCurrentState: function() {
       return {
         testMode: window.TEST_MODE,
@@ -758,19 +732,19 @@ if (window.TEST_MODE) {
       };
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Принудительное выпадение сегмента
     forceNextSegment: function(segmentName) {
       window.forcedNextSegment = segmentName;
       console.log('[WheelAdmin] Next segment forced to:', segmentName);
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Сброс принудительного выпадения
     clearForcedSegment: function() {
       window.forcedNextSegment = null;
       console.log('[WheelAdmin] Forced segment cleared');
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Изменение скорости колеса
     setWheelSpeed: function(speed) {
       if (speed === 'fast') {
         window.setOmega ? window.setOmega(9.0, { force: true }) : (window.omega = 9.0);
@@ -782,14 +756,14 @@ if (window.TEST_MODE) {
       console.log('[WheelAdmin] Wheel speed set to:', window.omega);
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Мгновенная остановка колеса
     stopWheel: function() {
       window.setOmega ? window.setOmega(0, { force: true }) : (window.omega = 0);
       window.setPhase ? window.setPhase('betting', { force: true }) : (window.phase = 'betting');
       console.log('[WheelAdmin] Wheel stopped');
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Запуск нового раунда
     startNewRound: function() {
       if (window.startCountdown) {
         window.startCountdown(9);
@@ -797,11 +771,11 @@ if (window.TEST_MODE) {
       }
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Симуляция выпадения сегмента
     simulateSegmentWin: function(segmentName, betAmount = 1) {
       console.log('[WheelAdmin] Simulating win for:', segmentName, 'with bet:', betAmount);
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Отправляем событие выпадения
       window.dispatchEvent(new CustomEvent('wheel:landed', {
         detail: {
           segment: segmentName,
@@ -810,7 +784,7 @@ if (window.TEST_MODE) {
         }
       }));
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Обрабатываем в зависимости от типа сегмента
       const multipliers = {
         '1.1x': 1.1,
         '1.5x': 1.5,
@@ -819,20 +793,20 @@ if (window.TEST_MODE) {
       };
       
       if (multipliers[segmentName]) {
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+        // Обычный множитель
         const winAmount = betAmount * multipliers[segmentName];
         
         if (window.showWinNotification) {
           window.showWinNotification(winAmount);
         }
         
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+        // Добавляем к балансу
         if (window.TEST_MODE && window.addWinAmount) {
           window.addWinAmount(winAmount, window.currentCurrency || 'ton');
         }
         
       } else if (segmentName === '50&50') {
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… 50/50
+        // Запуск бонуса 50/50
         if (window.stopOnSegment) window.stopOnSegment('50&50');
         else if (window.bonusLockStart) {
         const wp = document.getElementById('wheelPage');
@@ -845,13 +819,13 @@ if (window.TEST_MODE) {
           });
         }
       } else if (segmentName === 'Loot Rush') {
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… Loot Rush (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+        // Бонус Loot Rush (заглушка)
         console.log('[WheelAdmin] Loot Rush bonus not implemented yet');
         if (window.showBonusNotification) {
           window.showBonusNotification('Loot Rush');
         }
       } else if (segmentName === 'Wild Time') {
-        console.log('[WheelAdmin] ?? Starting Wild Time bonus.');
+        console.log('[WheelAdmin] 🐾 Starting Wild Time bonus.');
         const betOnWildTime = betAmount || 0;
 
         (async () => {
@@ -872,13 +846,13 @@ if (window.TEST_MODE) {
         })();
       }
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Добавляем в историю
       this.addToHistory(segmentName);
     },
     
 
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Добавление в историю
     addToHistory: function(segmentName) {
       const historyList = document.getElementById('historyList');
       if (!historyList) return;
@@ -899,13 +873,13 @@ if (window.TEST_MODE) {
       historyItem.innerHTML = `<img src="${historyIcons[segmentName] || '/images/history/1x_small.png'}" alt="${segmentName}" />`;
       historyList.insertBefore(historyItem, historyList.firstChild);
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… 10 РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Ограничиваем историю 10 элементами
       while (historyList.children.length > 10) {
         historyList.removeChild(historyList.lastChild);
       }
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Сброс баланса
     resetBalance: function() {
       if (window.TEST_MODE) {
         window.userBalance = { ton: 999, stars: 999 };
@@ -923,7 +897,7 @@ if (window.TEST_MODE) {
       }
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Очистка истории
     clearHistory: function() {
       const historyList = document.getElementById('historyList');
       if (historyList) {
@@ -932,7 +906,7 @@ if (window.TEST_MODE) {
       }
     },
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Переключение валюты
     switchCurrency: function() {
       if (window.WildTimeCurrency) {
         const current = window.WildTimeCurrency.current;
@@ -943,9 +917,9 @@ if (window.TEST_MODE) {
     }
   };
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…-РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Экспортируем глобальные переменные для админ-панели
   window.addEventListener('DOMContentLoaded', () => {
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Делаем переменные доступными глобально после инициализации
     setTimeout(() => {
       if (typeof userBalance !== 'undefined') window.userBalance = userBalance;
       if (typeof currentCurrency !== 'undefined') window.currentCurrency = currentCurrency;
@@ -959,12 +933,12 @@ if (window.TEST_MODE) {
       if (typeof startCountdown !== 'undefined') window.startCountdown = startCountdown;
       if (typeof updateTestBalance !== 'undefined') window.updateTestBalance = updateTestBalance;
       
-      console.log('[WheelAdmin] ? Admin functions exported successfully');
+      console.log('[WheelAdmin] ✅ Admin functions exported successfully');
     }, 1000);
   });
 }
 
-// ===== РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… =====
+// ===== КОНЕЦ ПАТЧА =====
 
 const WHEEL_ORDER = [
   '1.1x','1.5x','Loot Rush','1.1x','5x','50&50','1.1x',
@@ -1009,8 +983,8 @@ const BONUS_TEXT_IMAGES = (window.WHEEL_BONUS_TEXT_IMAGES || {
   'Wild Time': '/images/wheel/WildTimeText.webp'
 });
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-// heightFactor: 1.0 == "РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…"; >1.0 == РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Настройки позиционирования вертикального текста бонусов поверх секторов
+// heightFactor: 1.0 == "точно в сектор"; >1.0 == немного заходит на соседние сектора
 const BONUS_TEXT_STYLE_DEFAULT = {
   heightFactor: 1.22,
   radialPos: 0.22,
@@ -1018,7 +992,7 @@ const BONUS_TEXT_STYLE_DEFAULT = {
 };
 
 const LABELS = { 
-  '1.1x':'1.1x','1.5x':'1.5x','5x':'5x','11x':'11x',
+  '1.1x':'1.1×','1.5x':'1.5x','5x':'5×','11x':'11×',
   '50&50':'50&50','Loot Rush':'Loot','Wild Time':'Wild' 
 };
 
@@ -1028,32 +1002,19 @@ const wheelRootEl = document.documentElement;
 let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
-let selectedAmountBtn = null;
-const betTileBySeg = new Map();
 let wheelPlayersPanel, wheelPlayersList, wheelGameCounterEl, wheelRoundHashCopyBtn, wheelRoundHashLabelEl;
 let wheelRoundHashRaw = '';
-
-function getBetTileBySegment(segment) {
-  const key = normSeg(segment);
-  if (!key) return null;
-
-  const cached = betTileBySeg.get(key);
-  if (cached) return cached;
-
-  const fallback = betTiles.find((tile) => {
-    const seg = tile?.dataset?.seg || tile?.dataset?.segment;
-    return normSeg(seg) === key;
-  }) || null;
-
-  if (fallback) betTileBySeg.set(key, fallback);
-  return fallback;
-}
 
 /* ===== wheel state ===== */
 let currentAngle = 0;
 let rafId = 0;
 let lastTs = 0;
 let lastDrawAt = 0;
+let wheelRuntimeStarted = false;
+let wheelInitStarted = false;
+let wheelStaticCanvas = null;
+let wheelStaticCtx = null;
+let wheelStaticDirty = true;
 
 document.addEventListener('visibilitychange', () => {
   lastTs = 0;
@@ -1090,6 +1051,21 @@ window.phase = phase;
 window.setOmega = setOmega;
 window.setPhase = setPhase;
 
+function ensureWheelRuntimeStarted() {
+  if (wheelRuntimeStarted || !canvas) return;
+  wheelRuntimeStarted = true;
+  wheelWsShouldRun = true;
+  if (wheelWsReconnectTimer) {
+    clearTimeout(wheelWsReconnectTimer);
+    wheelWsReconnectTimer = 0;
+  }
+  connectWheelWS();
+  lastTs = performance.now();
+  lastDrawAt = 0;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(tick);
+}
+
 /* ===== SNAP / STOP ON SEGMENT (for bonuses/admin/console) ===== */
 function __normAngle(a) {
   const TAU = Math.PI * 2;
@@ -1100,7 +1076,7 @@ function __angleForSegmentAtPointer(segmentName) {
   const idx = WHEEL_ORDER.indexOf(segmentName);
   if (idx < 0) return null;
   const segCenter = (idx + 0.5) * SLICE_ANGLE;
-  // Want: currentAngle + segCenter == POINTER_ANGLE  (mod 2?)
+  // Want: currentAngle + segCenter == POINTER_ANGLE  (mod 2π)
   return __normAngle(POINTER_ANGLE - segCenter);
 }
 
@@ -1127,7 +1103,7 @@ window.stopOnSegment = function stopOnSegment(segmentName) {
   window.currentAngle = currentAngle;
 
   try { drawWheel(currentAngle); } catch (_) {}
-  console.log('[Wheel] ? Stopped on segment:', segmentName);
+  console.log('[Wheel] ✅ Stopped on segment:', segmentName);
   return true;
 };
 
@@ -1149,7 +1125,7 @@ window.bonusLockStart = function bonusLockStart() {
     try { window.stopCountdown(); } catch (_) {}
   }
 
-  console.log('[Wheel] ?? Bonus lock ON');
+  console.log('[Wheel] 🧊 Bonus lock ON');
 };
 
 window.bonusLockEnd = function bonusLockEnd(next = {}) {
@@ -1165,21 +1141,21 @@ window.bonusLockEnd = function bonusLockEnd(next = {}) {
   window.__bonusLock.prevOmega = null;
   window.__bonusLock.prevPhase = null;
 
-  console.log('[Wheel] ?? Bonus lock OFF');
+  console.log('[Wheel] 🔥 Bonus lock OFF');
 };
 
-/* ===== РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… ===== */
+/* ===== Ставки ===== */
 const betsMap = new Map();
 let currentAmount = 0.5;
 let currentCurrency = 'ton';
 let lastRoundResult = null;
 let bettingLocked = false;
 
-/* ===== ?? TEST MODE BALANCE ===== */
+/* ===== 🔥 TEST MODE BALANCE ===== */
 function initTestModeBalance() {
   if (!TEST_MODE) return;
   
-  console.log('[Wheel] ?? Initializing test mode with 999 TON and 999 Stars');
+  console.log('[Wheel] 🧪 Initializing test mode with 999 TON and 999 Stars');
   
   userBalance.ton = 999;
   userBalance.stars = 999;
@@ -1203,36 +1179,27 @@ function initTestModeBalance() {
     detail: { ton: 999, stars: 999, _testMode: true }
   }));
   
-  console.log('[Wheel] ? Test balance set:', userBalance);
+  console.log('[Wheel] ✅ Test balance set:', userBalance);
 }
 
-/* ===== ?? DEDUCT BET AMOUNT ===== */
+/* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  const safeAmount = currency === 'stars'
-    ? Math.round(Number(amount) || 0)
-    : +(Number(amount) || 0).toFixed(2);
-  if (!(safeAmount > 0)) return;
-
+  console.log('[Wheel] 💸 DEDUCT START!', { 
+    amount, 
+    currency, 
+    TEST_MODE,
+    balanceBefore: {...userBalance}
+  });
+  // Всегда снимаем локально
   if (currency === 'ton') {
-    userBalance.ton = Math.max(0, userBalance.ton - safeAmount);
+    userBalance.ton = Math.max(0, userBalance.ton - amount);
   } else {
-    userBalance.stars = Math.max(0, userBalance.stars - safeAmount);
+    userBalance.stars = Math.max(0, userBalance.stars - amount);
   }
+  
   updateTestBalance();
-}
-
-function refundBetAmount(amount, currency) {
-  const safeAmount = currency === 'stars'
-    ? Math.round(Number(amount) || 0)
-    : +(Number(amount) || 0).toFixed(2);
-  if (!(safeAmount > 0)) return;
-
-  if (currency === 'ton') {
-    userBalance.ton += safeAmount;
-  } else {
-    userBalance.stars += safeAmount;
-  }
-  updateTestBalance();
+  
+  console.log('[Wheel] ✅ Balance after deduction:', userBalance);
 }
 
 
@@ -1267,6 +1234,8 @@ window.addWinAmount = addWinAmount;
 
 /* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
+  console.log('[Wheel] 📊 Updating balance UI:', userBalance);
+  
   // Update currency system
   if (window.WildTimeCurrency) {
     window.WildTimeCurrency.setBalance('ton', userBalance.ton);
@@ -1289,11 +1258,13 @@ function updateTestBalance() {
       _testMode: TEST_MODE
     }
   }));
+  
+  console.log('[Wheel] ✅ Balance UI updated:', userBalance);
 }
 
 
 
-/* ===== РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… ===== */
+/* ===== Предзагрузка изображений ===== */
 const loadedImages = new Map();
 const loadedBonusTextImages = new Map();
 let imagesLoaded = false;
@@ -1326,7 +1297,7 @@ function preloadImages() {
 
   return Promise.all(tasks).then(() => {
     imagesLoaded = true;
-    console.log('[Wheel] ? All wheel images loaded');
+    console.log('[Wheel] ✅ All wheel images loaded');
   });
 }
 
@@ -1334,7 +1305,10 @@ function preloadImages() {
 
 /* ===== Init ===== */
 
-window.addEventListener('DOMContentLoaded', async () => {
+async function initWheelModule() {
+  if (wheelInitStarted) return;
+  wheelInitStarted = true;
+
   canvas       = document.getElementById('wheelCanvas');
   betOverlay   = document.getElementById('betOverlay');
   historyList  = document.getElementById('historyList');
@@ -1350,24 +1324,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!wheelRoundHashRaw) return;
     await copyWheelHashToClipboard(wheelRoundHashRaw);
   });
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+  // Берём элементы ставок только из оверлея (чтобы не цеплять элементы с других страниц)
   const __betScope = betOverlay || document;
   amountBtns = Array.from(__betScope.querySelectorAll('.amount-btn'));
   betTiles   = Array.from(__betScope.querySelectorAll('.bet-tile'));
-  betTileBySeg.clear();
-  betTiles.forEach((tile) => {
-    const seg = tile?.dataset?.seg || tile?.dataset?.segment;
-    const key = normSeg(seg);
-    if (key && !betTileBySeg.has(key)) betTileBySeg.set(key, tile);
-  });
 
   if (!canvas) return;
 
 
 
-  // ?? TEST MODE INIT
+  // 🔥 TEST MODE INIT
   if (TEST_MODE) {
-    console.log('[Wheel] ?? TEST MODE ACTIVE');
+    console.log('[Wheel] 🧪 TEST MODE ACTIVE');
     showTestModeNotification();
     
     // Initialize test balance
@@ -1388,15 +1356,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     syncWithCurrencySystem();
   }, 150);
 
-  lastTs = performance.now();
-  rafId = requestAnimationFrame(tick);
-
-  connectWheelWS();
-
   if (window.WT?.bus) {
     window.WT.bus.addEventListener('page:change', (e) => {
       if (e?.detail?.id === 'wheelPage') {
         refreshWheelBonusBarFromState();
+        ensureWheelRuntimeStarted();
       } else {
         hideWheelBonusBar();
       }
@@ -1414,8 +1378,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }, { passive: true });
   
+  if (isWheelPageActive()) {
+    ensureWheelRuntimeStarted();
+  }
+
   checkHistoryVisibility();
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    void initWheelModule();
+  }, { once: true });
+} else {
+  void initWheelModule();
+}
 
 
 
@@ -1423,26 +1399,21 @@ window.addEventListener('DOMContentLoaded', async () => {
 /* ===== CURRENCY SYNC ===== */
 function syncWithCurrencySystem() {
   if (!window.WildTimeCurrency) {
-    console.warn('[Wheel] ?? Currency system not ready yet');
+    console.warn('[Wheel] ⚠️ Currency system not ready yet');
     return;
   }
 
   const savedCurrency = window.WildTimeCurrency.current;
-  console.log('[Wheel] ?? Syncing with currency system:', savedCurrency);
+  console.log('[Wheel] 🔄 Syncing with currency system:', savedCurrency);
   
   currentCurrency = savedCurrency;
   updateAmountButtonsUI(savedCurrency);
   
-  console.log('[Wheel] ? Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
+  console.log('[Wheel] ✅ Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
 }
 
 function updateAmountButtonsUI(currency) {
-  if (!amountBtns || !amountBtns.length) return;
-
-  amountBtns.forEach((btn) => {
-    btn.classList.remove('active', 'selected');
-    btn.removeAttribute('data-selected');
-  });
+  console.log('[Wheel] 💰 Updating bet buttons for:', currency);
   
   if (currency === 'ton') {
     const tonAmounts = [0.1, 0.5, 1, 2.5];
@@ -1459,9 +1430,7 @@ function updateAmountButtonsUI(currency) {
     
     const firstBtn = amountBtns[0];
     if (firstBtn) {
-      firstBtn.classList.add('active', 'selected');
-      firstBtn.setAttribute('data-selected', 'true');
-      selectedAmountBtn = firstBtn;
+      firstBtn.classList.add('active');
       currentAmount = 0.1;
     }
     
@@ -1480,12 +1449,12 @@ function updateAmountButtonsUI(currency) {
     
     const firstBtn = amountBtns[0];
     if (firstBtn) {
-      firstBtn.classList.add('active', 'selected');
-      firstBtn.setAttribute('data-selected', 'true');
-      selectedAmountBtn = firstBtn;
+      firstBtn.classList.add('active');
       currentAmount = 1;
     }
   }
+  
+  console.log('[Wheel] ✅ Buttons updated, currentAmount:', currentAmount);
 }
 
 // ===========================
@@ -1495,7 +1464,7 @@ function getCurrencyIconSrc(currency) {
   return currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/ton.svg';
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… badge (РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+// Отдельная функция для белых иконок в badge (на компактных карточках)
 function getCurrencyIconWhite(currency) {
   return currency === 'stars' ? '/icons/currency/stars.svg' : '/icons/currency/tgTonWhite.svg';
 }
@@ -1546,9 +1515,8 @@ function setBetPill(tile, seg, amount, currency) {
   // Subtle update pop only when pill already exists.
   if (!isNew) {
     pill.classList.remove('is-updating');
-    if (!isWheelLiteRuntime()) {
-      requestAnimationFrame(() => pill.classList.add('is-updating'));
-    }
+    void pill.offsetWidth;
+    pill.classList.add('is-updating');
   } else {
     pill.classList.remove('is-updating');
   }
@@ -1556,57 +1524,53 @@ function setBetPill(tile, seg, amount, currency) {
 
 window.updateCurrentAmount = function(amount) {
   currentAmount = amount;
+  console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
 };
 
 
 /* ===== Betting UI ===== */
 function initBettingUI(){
-  selectedAmountBtn = amountBtns.find((btn) =>
-    btn.classList.contains('selected') || btn.getAttribute('data-selected') === 'true'
-  ) || amountBtns[0] || null;
 
-  if (selectedAmountBtn) {
-    selectedAmountBtn.classList.add('selected');
-    selectedAmountBtn.setAttribute('data-selected', 'true');
-  }
-
+  console.log('[Wheel] 🎮 Init Betting UI, userBalance:', userBalance);
   // ===== AMOUNT BUTTONS WITH SELECTION HIGHLIGHT =====
-  amountBtns.forEach((btn) => {
+  amountBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       if (phase !== 'betting' && phase !== 'waiting') return;
-
-      if (selectedAmountBtn && selectedAmountBtn !== btn) {
-        selectedAmountBtn.classList.remove('selected');
-        selectedAmountBtn.removeAttribute('data-selected');
-      }
-
-      selectedAmountBtn = btn;
+      
+      // Убираем selected со всех кнопок
+      amountBtns.forEach(b => {
+        b.classList.remove('selected');
+        b.removeAttribute('data-selected');
+      });
+      
+      // Добавляем selected к текущей кнопке
       btn.classList.add('selected');
       btn.setAttribute('data-selected', 'true');
-
-      const parsedAmount = Number.parseFloat(btn.dataset.amount);
-      if (Number.isFinite(parsedAmount) && parsedAmount > 0) {
-        currentAmount = parsedAmount;
-      }
+      
+      currentAmount = parseFloat(btn.dataset.amount);
+      
+      console.log('[Wheel] 🎯 Amount selected:', currentAmount, currentCurrency);
     });
   });
 
   // Balance events
   window.addEventListener('balance:loaded', (e) => {
     if (TEST_MODE) return;
-
+    
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
       userBalance.stars = e.detail.stars || 0;
+      console.log('[Wheel] Balance loaded:', userBalance);
     }
   });
 
   window.addEventListener('balance:update', (e) => {
     if (TEST_MODE && !e.detail._testMode) return;
-
+    
     if (e.detail) {
       if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
       if (e.detail.stars !== undefined) userBalance.stars = e.detail.stars;
+      console.log('[Wheel] Balance updated:', userBalance);
     }
   });
 
@@ -1614,6 +1578,7 @@ function initBettingUI(){
   window.addEventListener('currency:changed', (e) => {
     if (e.detail && e.detail.currency) {
       const newCurrency = e.detail.currency;
+      console.log('[Wheel] 🔄 Currency changed to:', newCurrency);
       currentCurrency = newCurrency;
       updateAmountButtonsUI(newCurrency);
 
@@ -1626,33 +1591,36 @@ function initBettingUI(){
     }
   });
 
-  // BET TILES WITH TEST MODE BALANCE CHECK
-  betTiles.forEach((tile) => {
+  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
+  betTiles.forEach(tile => {
     tile.addEventListener('click', async () => {
       if (bettingLocked) {
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
         return;
       }
-
+      
       if (phase !== 'betting' && phase !== 'waiting') return;
-
+      
       const seg = normSeg(tile.dataset.seg);
-      if (!seg) return;
-
-      const betAmount = currentAmount;
-      const betCurrency = currentCurrency;
-      const cur = Number(betsMap.get(seg) || 0);
-
-      // Balance check
-      const balance = Number(userBalance[betCurrency] || 0);
-      if (balance < betAmount) {
+      const cur = betsMap.get(seg) || 0;
+      
+      // 🔥 Balance check
+      const balance = userBalance[currentCurrency] || 0;
+      
+      if (balance < currentAmount) {
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
         showInsufficientBalanceNotification();
         return;
       }
-
+  
+      // ✅ Add bet locally
+      const next = currentCurrency === 'stars' 
+        ? Math.round(cur + currentAmount)
+        : +(cur + currentAmount).toFixed(2);
+      betsMap.set(seg, next);
+      // SEND BET TO SERVER FIRST (authoritative debit), then to shared WS state
       const tgApp = window.Telegram?.WebApp;
       const tgUser = tgApp?.initDataUnsafe?.user;
       const initData = tgApp?.initData || '';
@@ -1661,54 +1629,27 @@ function initBettingUI(){
 
       if (!TEST_MODE) {
         if (userId === 'guest' || !initData) {
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
           showInsufficientBalanceNotification();
           return;
         }
 
         if (!wheelWs || wheelWs.readyState !== WebSocket.OPEN) {
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
           showInsufficientBalanceNotification();
           return;
         }
-      }
 
-      // Optimistic update: instant tactile response on mobile
-      const next = betCurrency === 'stars'
-        ? Math.max(0, Math.round(cur + betAmount))
-        : Math.max(0, +(cur + betAmount).toFixed(2));
-      betsMap.set(seg, next);
-      deductBetAmount(betAmount, betCurrency);
-      setBetPill(tile, seg, next, betCurrency);
-      tile.classList.add('has-bet');
-
-      const rollbackOptimisticBet = () => {
-        const latest = Number(betsMap.get(seg) || 0);
-        const rolled = betCurrency === 'stars'
-          ? Math.max(0, Math.round(latest - betAmount))
-          : Math.max(0, +(latest - betAmount).toFixed(2));
-
-        if (rolled > 0) {
-          betsMap.set(seg, rolled);
-          setBetPill(tile, seg, rolled, betCurrency);
-          tile.classList.add('has-bet');
-        } else {
-          betsMap.delete(seg);
-          const pill = tile.querySelector('.bet-pill');
-          if (pill) pill.remove();
-          tile.classList.remove('has-bet', 'active');
-        }
-
-        refundBetAmount(betAmount, betCurrency);
-      };
-
-      if (!TEST_MODE) {
         try {
           const response = await fetch('/api/deposit-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId,
-              amount: -betAmount,
-              currency: betCurrency,
+              amount: -currentAmount,
+              currency: currentCurrency,
               type: 'wheel_bet',
               roundId,
               initData,
@@ -1721,13 +1662,15 @@ function initBettingUI(){
           const result = await response.json().catch(() => ({}));
           if (!response.ok || !result.ok) {
             console.error('[Wheel] Server rejected bet:', result.error || response.status);
-            rollbackOptimisticBet();
+            if (next === currentAmount) betsMap.delete(seg);
+            else betsMap.set(seg, cur);
             showInsufficientBalanceNotification();
             return;
           }
         } catch (error) {
           console.error('[Wheel] Failed to send bet to server:', error);
-          rollbackOptimisticBet();
+          if (next === currentAmount) betsMap.delete(seg);
+          else betsMap.set(seg, cur);
           showInsufficientBalanceNotification();
           return;
         }
@@ -1741,185 +1684,226 @@ function initBettingUI(){
           userAvatar: getWheelUserAvatar() || null,
           initData,
           segment: seg,
-          amount: betAmount,
-          currency: betCurrency,
+          amount: currentAmount,
+          currency: currentCurrency,
           roundId
         });
       } catch (wsErr) {
         console.warn('[WheelWS] Failed to send placeBet:', wsErr);
-        rollbackOptimisticBet();
+        if (next === currentAmount) betsMap.delete(seg);
+        else betsMap.set(seg, cur);
         showInsufficientBalanceNotification();
         return;
       }
-
+      deductBetAmount(currentAmount, currentCurrency);
+      setBetPill(tile, seg, next, currentCurrency);
+      tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
     });
   });
 }
 
+
+
 /* ===== Canvas ===== */
-function prepareCanvas(){
-  DPR = window.devicePixelRatio || 1;
+function getWheelRenderDpr() {
+  const nativeDpr = window.devicePixelRatio || 1;
+  if (isWheelLiteRuntime()) return Math.max(1, Math.min(nativeDpr, 1.35));
+  if (wheelRootEl?.classList?.contains('wt-mobile')) return Math.max(1, Math.min(nativeDpr, 1.75));
+  return Math.max(1, Math.min(nativeDpr, 2));
+}
+
+function prepareCanvas() {
+  DPR = getWheelRenderDpr();
   const cssW = canvas.clientWidth || 420;
-  const cssH = canvas.clientHeight|| 420;
-  canvas.width  = Math.round(cssW * DPR);
+  const cssH = canvas.clientHeight || 420;
+  canvas.width = Math.round(cssW * DPR);
   canvas.height = Math.round(cssH * DPR);
-  ctx = canvas.getContext('2d');
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  if (!ctx) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  if (!wheelStaticCanvas) wheelStaticCanvas = document.createElement('canvas');
+  wheelStaticCanvas.width = canvas.width;
+  wheelStaticCanvas.height = canvas.height;
+  wheelStaticCtx = wheelStaticCanvas.getContext('2d', { alpha: true, desynchronized: true });
+  wheelStaticDirty = true;
   lastDrawAt = 0;
 }
 
-
-
-
-
-
-
-function drawWheel(angle=0){
-  if (!ctx) return;
-  const w = canvas.width / DPR, h = canvas.height / DPR;
-  const cx = w/2, cy = h/2, R  = Math.min(cx,cy) - 6;
-
-  ctx.save();
-  ctx.clearRect(0,0,w,h);
-
-  const g = ctx.createRadialGradient(cx,cy,R*0.25, cx,cy,R);
-  g.addColorStop(0,'rgba(0,170,255,.12)');
-  g.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle = g; 
-  ctx.fillRect(0,0,w,h);
-
-  ctx.translate(cx,cy);
-  ctx.rotate(angle);
-
-  for (let i=0; i<SLICE_COUNT; i++){
-    const key = WHEEL_ORDER[i];
-    const col = COLORS[key] || { fill:'#333', text:'#fff' };
-    const a0 = i*SLICE_ANGLE, a1 = a0+SLICE_ANGLE;
-
-    ctx.save();
-    
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,R,a0,a1,false);
-    ctx.closePath();
-    
-    if (imagesLoaded && loadedImages.has(key)) {
-      const img = loadedImages.get(key);
-      
-      ctx.save();
-      ctx.clip();
-      
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      
-      const imgWidth = R * 1.15;
-      const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.4;
-      
-      ctx.drawImage(
-        img, 
-        0, -imgHeight/2,
-        imgWidth, imgHeight
-      );
-      
-      ctx.restore();
-    } else {
-      ctx.fillStyle = col.fill; 
-      ctx.fill();
-      
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      ctx.textAlign='right';
-      ctx.textBaseline='middle';
-      ctx.fillStyle = col.text;
-      ctx.font='bold 16px mf, system-ui, sans-serif';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(LABELS[key] || key, R-16, 0);
-      ctx.shadowBlur = 0;
-    }
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255,255,255,.2)';
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-
-
-// --- Bonus vertical text overlays (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…; РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
-if (imagesLoaded && loadedBonusTextImages && loadedBonusTextImages.size) {
-  const TAU = Math.PI * 2;
-  const sliceThickness = R * Math.tan(SLICE_ANGLE / 2) * 2;
-
-const style = (window.WHEEL_BONUS_TEXT_STYLE && typeof window.WHEEL_BONUS_TEXT_STYLE === 'object')
-  ? window.WHEEL_BONUS_TEXT_STYLE
-  : BONUS_TEXT_STYLE_DEFAULT;
-
-const heightFactor = (typeof style.heightFactor === 'number')
-  ? style.heightFactor
-  : BONUS_TEXT_STYLE_DEFAULT.heightFactor;
-const radialPos = (typeof style.radialPos === 'number')
-  ? style.radialPos
-  : BONUS_TEXT_STYLE_DEFAULT.radialPos;
-const alpha = (typeof style.alpha === 'number')
-  ? style.alpha
-  : BONUS_TEXT_STYLE_DEFAULT.alpha;
-
-  const textHBase = sliceThickness * heightFactor;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, R, 0, TAU);
-  ctx.clip();
-
-  const prevAlpha = ctx.globalAlpha;
-  ctx.globalAlpha = alpha;
-
+function drawWheelDisk(drawCtx, R) {
   for (let i = 0; i < SLICE_COUNT; i++) {
     const key = WHEEL_ORDER[i];
-    if (!loadedBonusTextImages.has(key)) continue;
+    const col = COLORS[key] || { fill: '#333', text: '#fff' };
+    const a0 = i * SLICE_ANGLE;
+    const a1 = a0 + SLICE_ANGLE;
 
-    const img = loadedBonusTextImages.get(key);
-    if (!img) continue;
+    drawCtx.save();
 
-    const mid = i * SLICE_ANGLE + SLICE_ANGLE / 2;
-    const aspect = (img.width && img.height) ? (img.width / img.height) : 0.25;
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, 0);
+    drawCtx.arc(0, 0, R, a0, a1, false);
+    drawCtx.closePath();
 
-    const textH = textHBase;
-    const textW = textH * aspect;
+    if (imagesLoaded && loadedImages.has(key)) {
+      const img = loadedImages.get(key);
 
-    ctx.save();
-    ctx.rotate(mid);
+      drawCtx.save();
+      drawCtx.clip();
 
-    // x РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (0..R). y РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р….
-    const x = R * radialPos;
-    const y = -textH / 2;
+      const mid = a0 + SLICE_ANGLE / 2;
+      drawCtx.rotate(mid);
 
-    ctx.drawImage(img, x, y, textW, textH);
-    ctx.restore();
+      const imgWidth = R * 1.15;
+      const imgHeight = R * Math.tan(SLICE_ANGLE / 2) * 2.4;
+
+      drawCtx.drawImage(
+        img,
+        0, -imgHeight / 2,
+        imgWidth, imgHeight
+      );
+
+      drawCtx.restore();
+    } else {
+      drawCtx.fillStyle = col.fill;
+      drawCtx.fill();
+
+      const mid = a0 + SLICE_ANGLE / 2;
+      drawCtx.rotate(mid);
+      drawCtx.textAlign = 'right';
+      drawCtx.textBaseline = 'middle';
+      drawCtx.fillStyle = col.text;
+      drawCtx.font = 'bold 16px mf, system-ui, sans-serif';
+      drawCtx.shadowColor = 'rgba(0,0,0,0.8)';
+      drawCtx.shadowBlur = 4;
+      drawCtx.fillText(LABELS[key] || key, R - 16, 0);
+      drawCtx.shadowBlur = 0;
+    }
+
+    drawCtx.lineWidth = 2;
+    drawCtx.strokeStyle = 'rgba(255,255,255,.2)';
+    drawCtx.stroke();
+
+    drawCtx.restore();
   }
 
-  ctx.globalAlpha = prevAlpha;
-  ctx.restore();
+  if (imagesLoaded && loadedBonusTextImages && loadedBonusTextImages.size) {
+    const TAU = Math.PI * 2;
+    const sliceThickness = R * Math.tan(SLICE_ANGLE / 2) * 2;
+
+    const style = (window.WHEEL_BONUS_TEXT_STYLE && typeof window.WHEEL_BONUS_TEXT_STYLE === 'object')
+      ? window.WHEEL_BONUS_TEXT_STYLE
+      : BONUS_TEXT_STYLE_DEFAULT;
+
+    const heightFactor = (typeof style.heightFactor === 'number')
+      ? style.heightFactor
+      : BONUS_TEXT_STYLE_DEFAULT.heightFactor;
+    const radialPos = (typeof style.radialPos === 'number')
+      ? style.radialPos
+      : BONUS_TEXT_STYLE_DEFAULT.radialPos;
+    const alpha = (typeof style.alpha === 'number')
+      ? style.alpha
+      : BONUS_TEXT_STYLE_DEFAULT.alpha;
+
+    const textHBase = sliceThickness * heightFactor;
+
+    drawCtx.save();
+    drawCtx.beginPath();
+    drawCtx.arc(0, 0, R, 0, TAU);
+    drawCtx.clip();
+
+    const prevAlpha = drawCtx.globalAlpha;
+    drawCtx.globalAlpha = alpha;
+
+    for (let i = 0; i < SLICE_COUNT; i++) {
+      const key = WHEEL_ORDER[i];
+      if (!loadedBonusTextImages.has(key)) continue;
+
+      const img = loadedBonusTextImages.get(key);
+      if (!img) continue;
+
+      const mid = i * SLICE_ANGLE + SLICE_ANGLE / 2;
+      const aspect = (img.width && img.height) ? (img.width / img.height) : 0.25;
+
+      const textH = textHBase;
+      const textW = textH * aspect;
+
+      drawCtx.save();
+      drawCtx.rotate(mid);
+
+      const x = R * radialPos;
+      const y = -textH / 2;
+
+      drawCtx.drawImage(img, x, y, textW, textH);
+      drawCtx.restore();
+    }
+
+    drawCtx.globalAlpha = prevAlpha;
+    drawCtx.restore();
+  }
+
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, 20, 0, 2 * Math.PI);
+  drawCtx.fillStyle = '#121212';
+  drawCtx.fill();
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeStyle = 'rgba(255,255,255,.25)';
+  drawCtx.stroke();
 }
 
-  ctx.beginPath(); 
-  ctx.arc(0,0,20,0,2*Math.PI);
-  ctx.fillStyle='#121212'; 
-  ctx.fill();
-  ctx.lineWidth=2; 
-  ctx.strokeStyle='rgba(255,255,255,.25)'; 
-  ctx.stroke();
+function rebuildWheelStaticLayer() {
+  if (!wheelStaticCtx || !wheelStaticCanvas) return;
+
+  const sctx = wheelStaticCtx;
+  const w = wheelStaticCanvas.width / DPR;
+  const h = wheelStaticCanvas.height / DPR;
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(cx, cy) - 6;
+
+  sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  sctx.clearRect(0, 0, w, h);
+  sctx.save();
+  sctx.translate(cx, cy);
+  drawWheelDisk(sctx, R);
+  sctx.restore();
+
+  wheelStaticDirty = false;
+}
+
+function drawWheel(angle = 0) {
+  if (!ctx) return;
+
+  const w = canvas.width / DPR;
+  const h = canvas.height / DPR;
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(cx, cy) - 6;
+
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+
+  const g = ctx.createRadialGradient(cx, cy, R * 0.25, cx, cy, R);
+  g.addColorStop(0, 'rgba(0,170,255,.12)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  if (wheelStaticDirty) rebuildWheelStaticLayer();
+
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  if (wheelStaticCanvas) {
+    ctx.drawImage(
+      wheelStaticCanvas,
+      -w / 2, -h / 2,
+      w, h
+    );
+  }
 
   ctx.restore();
 }
-
-
-
-
-
-
 
 /* ===== Animation loop ===== */
 function isWheelLiteRuntime() {
@@ -1940,7 +1924,7 @@ function tick(ts){
 
   const isVisibleWheel = !document.hidden && isWheelPageActive();
   const isAnimating = phase === 'decelerate' || phase === 'accelerate';
-  const hasLiveBets = betsMap.size > 0 || phase === 'betting' || phase === 'waiting';
+  const hasLiveBets = betsMap.size > 0 || (isVisibleWheel && (phase === 'betting' || phase === 'waiting'));
 
   // Countdown doesn't need per-frame updates while the page is hidden and no live bets.
   if (isVisibleWheel || hasLiveBets) {
@@ -1960,7 +1944,7 @@ function tick(ts){
       const resolveFn = decel.resolve;
       decel = null;
 
-      // ?? NEW: Set to result_waiting instead of betting
+      // 🔥 NEW: Set to result_waiting instead of betting
       setPhase('result_waiting');
       setOmega(0); // Keep wheel stopped
       setBetPanel(false); // Keep panel disabled
@@ -1969,27 +1953,27 @@ function tick(ts){
         if (!wheelServerState) {
         checkBetsAndShowResult(typeFinished);
         
-        // ?? SPECIAL HANDLING FOR 50/50 BONUS
+        // 🔥 SPECIAL HANDLING FOR 50/50 BONUS
         if (typeFinished === '50&50') {
           setTimeout(async () => {
-            console.log('[Wheel] ?? Starting 50/50 bonus...');
+            console.log('[Wheel] 🎰 Starting 50/50 bonus...');
             const betOn5050 = betsMap.get('50&50') || 0;
 
-            // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+            // 🔥 НОВАЯ ЛОГИКА: проверка ставки и автопереключение
             if (betOn5050 > 0 && window.BonusManager) {
-              // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… BonusManager
-              // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… Wheel РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-              // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+              // 🎯 Есть ставка - используем BonusManager
+              // Автоматически переключит на Wheel если нужно
+              // Заблокирует навигацию
               await window.BonusManager.startBonus('50&50', betOn5050);
             } else {
-              // ?? РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… wheel
+              // 🎯 Нет ставки - показываем только если на wheel
               if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
-                console.log('[Wheel] ?? No bet on 50&50, skipping bonus on other page');
+                console.log('[Wheel] ⏭️ No bet on 50&50, skipping bonus on other page');
                 clientRoundReset(typeFinished);
             return;
               }
 
-              // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р… BonusManager)
+              // Обычный запуск (без BonusManager)
               if (window.bonusLockStart) {
         const wp = document.getElementById('wheelPage');
         if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
@@ -2008,15 +1992,15 @@ function tick(ts){
             }, 2000);
         } else if (typeFinished === 'Loot Rush') {
           setTimeout(async () => {
-            console.log('[Wheel] ?? Starting Loot Rush bonus...');
+            console.log('[Wheel] 🎁 Starting Loot Rush bonus...');
             const betOnLootRush = betsMap.get('Loot Rush') || 0;
 
-            // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+            // 🔥 НОВАЯ ЛОГИКА: проверка ставки и автопереключение
             if (betOnLootRush > 0 && window.BonusManager) {
               await window.BonusManager.startBonus('Loot Rush', betOnLootRush);
             } else {
               if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
-                console.log('[Wheel] ?? No bet on Loot Rush, skipping bonus on other page');
+                console.log('[Wheel] ⏭️ No bet on Loot Rush, skipping bonus on other page');
                 clientRoundReset(typeFinished);
             return;
               }
@@ -2029,7 +2013,7 @@ function tick(ts){
               if (window.startLootRushBonus) {
                 await window.startLootRushBonus(betOnLootRush);
               } else {
-                console.warn('[Wheel] ?? startLootRushBonus is not defined');
+                console.warn('[Wheel] ⚠️ startLootRushBonus is not defined');
               }
 
               if (window.bonusLockEnd) {
@@ -2041,24 +2025,24 @@ function tick(ts){
             }, 2000);
 	        } else if (typeFinished === 'Wild Time') {
 	          setTimeout(async () => {
-	            console.log('[Wheel] ?? Starting Wild Time bonus...');
+	            console.log('[Wheel] 🐾 Starting Wild Time bonus...');
 	            const betOnWildTime = betsMap.get('Wild Time') || 0;
 
-	            // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… BonusManager (РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…), РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… wildtime.js
+	            // 🔥 НОВАЯ ЛОГИКА: пробуем BonusManager (если поддерживает), иначе локальный бонус wildtime.js
 	            if (betOnWildTime > 0 && window.BonusManager && typeof window.BonusManager.startBonus === 'function') {
 	              try {
 	                await window.BonusManager.startBonus('Wild Time', betOnWildTime);
 	              } catch (e) {
-	                console.warn('[Wheel] ?? BonusManager Wild Time failed РїС—Р… fallback to local bonus', e);
+	                console.warn('[Wheel] ⚠️ BonusManager Wild Time failed — fallback to local bonus', e);
 	                if (window.startWildTimeBonus) {
 	                  await window.startWildTimeBonus(betOnWildTime);
 	                } else {
-	                  console.warn('[Wheel] ?? startWildTimeBonus is not defined');
+	                  console.warn('[Wheel] ⚠️ startWildTimeBonus is not defined');
 	                }
 	              }
 	            } else {
 	              if (window.BonusManager && typeof window.BonusManager.isOnWheelPage === 'function' && !window.BonusManager.isOnWheelPage()) {
-	                console.log('[Wheel] ?? No bet on Wild Time, skipping bonus on other page');
+	                console.log('[Wheel] ⏭️ No bet on Wild Time, skipping bonus on other page');
 	                clientRoundReset(typeFinished);
             return;
 	              }
@@ -2071,7 +2055,7 @@ function tick(ts){
 	              if (window.startWildTimeBonus) {
 	                await window.startWildTimeBonus(betOnWildTime);
 	              } else {
-	                console.warn('[Wheel] ?? startWildTimeBonus is not defined');
+	                console.warn('[Wheel] ⚠️ startWildTimeBonus is not defined');
 	              }
 
 	              if (window.bonusLockEnd) {
@@ -2082,7 +2066,7 @@ function tick(ts){
 	            clientRoundReset(typeFinished);
             }, 2000);
 	        } else {
-          // ?? NORMAL RESULT - NO BONUS
+          // 🔥 NORMAL RESULT - NO BONUS
           setTimeout(() => {
             clientRoundReset(typeFinished);
             }, 3000);
@@ -2097,13 +2081,13 @@ function tick(ts){
   } else if (phase === 'betting' || phase === 'accelerate') {
     currentAngle += omega * dt;
   }
-  // ?? NEW: Keep wheel frozen during result_waiting and bonus_waiting
+  // 🔥 NEW: Keep wheel frozen during result_waiting and bonus_waiting
   else if (phase === 'result_waiting' || phase === 'bonus_waiting') {
     // Do nothing - wheel stays at current angle
   }
 
   const frameInterval = getWheelFrameIntervalMs(isVisibleWheel, isAnimating, hasLiveBets);
-  const shouldDrawWheel = isVisibleWheel || isAnimating || hasLiveBets;
+  const shouldDrawWheel = isVisibleWheel || isAnimating || betsMap.size > 0;
   if (shouldDrawWheel && (!lastDrawAt || (ts - lastDrawAt) >= frameInterval)) {
     drawWheel(currentAngle);
     lastDrawAt = ts;
@@ -2131,24 +2115,24 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
   
   const isBonusRound = ['50&50', 'Loot Rush', 'Wild Time'].includes(resultType);
   
-  // ?? FIX: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // 🔥 FIX: Начисляем выигрыш за ставку на бонус ПЕРЕД запуском бонуса
   if (isBonusRound) {
-    console.log('[Wheel] ?? BONUS ROUND!', resultType);
+    console.log('[Wheel] 🎰 BONUS ROUND!', resultType);
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Показываем уведомление о бонусе
     if (window.BonusManager && window.BonusManager.isOnWheelPage()) {
       showBonusNotification(resultType);
     }
     
-    // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // 🔥 НОВОЕ: Проверяем есть ли ставка на бонус
     const betOnBonus = betsMap.get(resultType) || 0;
     
     if (betOnBonus > 0) {
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… + РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+      // Множитель за попадание в бонус (возвращаем ставку + небольшой бонус)
       const multiplier = getMultiplier(resultType);
       const winAmount = betOnBonus * multiplier;
       
-      console.log('[Wheel] ?? Bonus bet win!', {
+      console.log('[Wheel] 💰 Bonus bet win!', {
         bonus: resultType,
         betAmount: betOnBonus,
         multiplier,
@@ -2160,16 +2144,16 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
         console.log('[Wheel] Server payout mode active; bonus payout handled on backend');
       }
       
-      // ?? Add win to balance in test mode
+      // 🔥 Add win to balance in test mode
       if (TEST_MODE) {
         addWinAmount(winAmount, currentCurrency);
       }
       
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Показываем уведомление о выигрыше за ставку
       showWinNotification(winAmount);
     }
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Теперь можно запускать бонус
     return;
   }
   
@@ -2184,7 +2168,7 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
     const multiplier = getMultiplier(resultType);
     const winAmount = betOnResult * multiplier;
     
-    console.log('[Wheel] ?? WIN!', {
+    console.log('[Wheel] 🎉 WIN!', {
       result: resultType,
       betAmount: betOnResult,
       multiplier,
@@ -2197,7 +2181,7 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
       console.log('[Wheel] Server payout mode active; win payout handled on backend');
     }
     
-    // ?? Add win to balance in test mode
+    // 🔥 Add win to balance in test mode
     if (TEST_MODE) {
       addWinAmount(winAmount, currentCurrency);
     }
@@ -2255,7 +2239,7 @@ function startCountdown(sec=9){
     if (left <= 0) {
       stopCountdown();
 
-      // ?? Hide countdown during spin
+      // 🔥 Hide countdown during spin
       if (countdownBox) {
         countdownBox.classList.remove('visible');
       }
@@ -2313,10 +2297,10 @@ function accelerateTo(targetOmega=FAST_OMEGA, ms=1200){
 
 function decelerateToSlice(sliceIndex, ms=6000, extraTurns=4, typeForHistory=null){
   return new Promise(resolve=>{
-    // ? normalize server type (supports old keys)
+    // ✅ normalize server type (supports old keys)
     const serverType = typeForHistory ? normSeg(typeForHistory) : null;
 
-    // ? auto-fix РїС—Р…off by oneРїС—Р… if serverType matches neighbor
+    // ✅ auto-fix “off by one” if serverType matches neighbor
     let idx = sliceIndex;
 
     if (serverType && WHEEL_ORDER[idx] !== serverType) {
@@ -2363,7 +2347,7 @@ function pickSliceIndexByLabel(label) {
   }
   if (!indices.length) return 0;
 
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р… "РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…" РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+  // берём "ближайший" по углу (чтобы докрутка была логичной)
   const normalizedCurrent = currentAngle % (2 * Math.PI);
   let best = indices[0];
   let bestAbs = Infinity;
@@ -2380,13 +2364,13 @@ function pickSliceIndexByLabel(label) {
 }
 
 window.run5050BonusManual = async function run5050BonusManual(betAmount = 0) {
-  // 1) РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… 50&50
+  // 1) докрутить колесо до 50&50
   const idx = pickSliceIndexByLabel('50&50');
 
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // короткая докрутка, чтобы было видно, что оно реально встало на сектор
   await decelerateToSlice(idx, 1400, 1, '50&50');
 
-  // 2) РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // 2) заморозить и запустить бонус
   if (window.bonusLockStart) {
         const wp = document.getElementById('wheelPage');
         if (wp && wp.classList.contains('page-active')) window.bonusLockStart();
@@ -2397,7 +2381,7 @@ window.run5050BonusManual = async function run5050BonusManual(betAmount = 0) {
       await window.start5050Bonus(betAmount);
     }
   } finally {
-    // 3) РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // 3) вернуть колесо в обычный режим
     if (window.bonusLockEnd) window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
   }
 };
@@ -2438,7 +2422,7 @@ function easeInQuad(t){ return t*t; }
 
 /* ===== Bet panel modes ===== */
 function setBetPanel(enabled){
-  // betOverlay РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // betOverlay может быть объявлен выше
   const overlay = (typeof betOverlay !== 'undefined' && betOverlay)
     ? betOverlay
     : document.querySelector('.bet-overlay');
@@ -2447,12 +2431,12 @@ function setBetPanel(enabled){
 
   const app = document.querySelector('.app');
   if (app){
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… > РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (is-betting)
+    // Ставки открыты → панель поднимается (is-betting)
     app.classList.toggle('is-betting', !!enabled);
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… > РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…/РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (is-spinning)
+    // Раунд крутится → панель опускается/темнеет (is-spinning)
     app.classList.toggle('is-spinning', !enabled);
     
-    // ?? During spin show Players panel (Crash-style)
+    // 🔥 During spin show Players panel (Crash-style)
     if (!enabled) {
       showWheelPlayersPanel();
     } else {
@@ -2460,7 +2444,7 @@ function setBetPanel(enabled){
     }
   }
 
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+  // Лочим скролл только во время фазы ставок (чтобы не нужно было скроллить вниз)
   document.body.classList.toggle('wheel-lock', !!enabled);
 }
 
@@ -2537,7 +2521,8 @@ function getBonusRemainingMs(bonus, now = Date.now()) {
 
 function formatBonusRemaining(remainingMs) {
   if (!Number.isFinite(remainingMs)) return '';
-  return '';
+  const sec = Math.max(0, Math.ceil(remainingMs / 1000));
+  return `${sec}s left`;
 }
 
 function ensureWheelBonusBarStyles() {
@@ -2616,7 +2601,7 @@ function ensureWheelBonusBar() {
       <img class="wbb-icon" alt="bonus" />
       <div class="wbb-text">
         <div class="wbb-title">Bonus round in progress</div>
-        <div class="wbb-sub">-</div>
+        <div class="wbb-sub">—</div>
       </div>
     </div>
     <button class="wbb-btn" type="button">Watch live</button>
@@ -2639,7 +2624,9 @@ function showWheelBonusBar(bonus) {
   const type = normSeg(bonus.type);
   const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
   if (icon) icon.src = iconSrc;
-  if (sub) sub.textContent = `Bonus: ${type}`;
+  const liveBonusNow = wheelServerState?.bonus || bonus;
+  const remaining = formatBonusRemaining(getBonusRemainingMs(liveBonusNow));
+  if (sub) sub.textContent = remaining ? `Bonus: ${type} • ${remaining}` : `Bonus: ${type}`;
 
   // bind click once per bonus id
   const bonusId = String(bonus.id || `${bonus.type}:${bonus.startedAt || ''}`);
@@ -2649,7 +2636,7 @@ function showWheelBonusBar(bonus) {
     if (btn) {
       btn.onclick = async () => {
         try {
-          // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… wheelServerState
+          // 🔥 ИСПРАВЛЕНИЕ: используем актуальное состояние из wheelServerState
           const currentBonus = wheelServerState?.bonus || bonus;
           const myBet = getMyBetAmountFromServer(wheelServerState?.players, type);
           await openBonusOverlay(type, myBet, currentBonus);
@@ -2661,6 +2648,18 @@ function showWheelBonusBar(bonus) {
   }
 
   el.classList.add('active');
+
+  if (__wheelBonusBarTimer) clearInterval(__wheelBonusBarTimer);
+  __wheelBonusBarTimer = setInterval(() => {
+    if (!wheelServerState || wheelServerState.phase !== 'bonus') {
+      clearInterval(__wheelBonusBarTimer);
+      __wheelBonusBarTimer = null;
+      return;
+    }
+    const liveBonus = wheelServerState?.bonus || bonus;
+    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(liveBonus));
+    if (sub && nextRemaining) sub.textContent = `Bonus: ${type} • ${nextRemaining}`;
+  }, 1000);
 }
 
 function hideWheelBonusBar() {
@@ -2733,11 +2732,9 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const t = normSeg(type);
   
   const remainingMs = getBonusRemainingMs(bonusState);
-  const remainingSec = (Number.isFinite(remainingMs) && remainingMs > 0)
-    ? Math.max(1, Math.ceil(remainingMs / 1000))
-    : null;
+  const remainingSec = Number.isFinite(remainingMs) ? Math.max(1, Math.ceil(remainingMs / 1000)) : null;
   
-  // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… hasBet РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // 🔥 КРИТИЧНО: передаём hasBet для корректной работы бонусов
   const hasBet = betAmount > 0;
   const bonusOpts = {
     bonusId: bonusState?.id ?? null,
@@ -2747,11 +2744,7 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
     outcome: bonusState?.outcome || null
   };
 
-  if (bonusOpts.bonusId) {
-    notifyBonusOverlayOpened(bonusOpts.bonusId);
-  }
-
-  // We don't force-lock UI here РїС—Р… server already pauses the round
+  // We don't force-lock UI here — server already pauses the round
   if (t === '50&50' && typeof window.start5050Bonus === 'function') {
     await window.start5050Bonus(betAmount, bonusOpts);
     return;
@@ -2775,7 +2768,7 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
 
 // ===== Server-controlled wheel helpers (Crash-style) =====
 function isWheelServerControlled() {
-  // If we have a live WS state from server РїС—Р… server is the source of truth.
+  // If we have a live WS state from server — server is the source of truth.
   return !!wheelServerState && typeof wheelServerState.roundId !== 'undefined';
 }
 
@@ -2830,7 +2823,7 @@ function restoreMyBetsFromServer(players) {
     if (a > 0) serverBets.set(key, a);
   }
 
-  // If local already matches server РїС—Р… do nothing
+  // If local already matches server — do nothing
   if (betsMap.size) {
     let same = true;
     if (betsMap.size !== serverBets.size) same = false;
@@ -2843,7 +2836,7 @@ function restoreMyBetsFromServer(players) {
       // If pills are missing from DOM, rebuild from server state
       let missingPill = false;
       for (const [seg] of serverBets.entries()) {
-        const tile = getBetTileBySegment(seg);
+        const tile = Array.from(betTiles).find(t => normSeg(t?.dataset?.seg) === seg);
         if (tile && !tile.querySelector('.bet-pill')) {
           missingPill = true;
           break;
@@ -2859,7 +2852,7 @@ function restoreMyBetsFromServer(players) {
 
   for (const [seg, amount] of serverBets.entries()) {
     betsMap.set(seg, amount);
-    const tile = getBetTileBySegment(seg);
+    const tile = Array.from(betTiles).find(t => normSeg(t?.dataset?.seg) === seg);
     if (!tile) continue;
     tile.classList.add('active', 'has-bet');
     setBetPill(tile, seg, amount, me.currency || currentCurrency);
@@ -2945,8 +2938,8 @@ function syncWheelPlayersPanelMeta(state = wheelServerState) {
 }
 
 function getWheelPlayersSnapshot() {
-  // Right now wheel bets are local on client > РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р….
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…/WS РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р….
+  // Right now wheel bets are local on client → показываем хотя бы текущего игрока.
+  // Позже можно заменить на мультиплеер/WS и передавать массив игроков.
   const total = Array.from(betsMap.values()).reduce((sum, v) => sum + (Number(v) || 0), 0);
   const segmentsOrdered = ['1.1x','1.5x','5x','11x','50&50','Loot Rush','Wild Time']
     .filter(seg => (betsMap.get(seg) || 0) > 0);
@@ -3055,12 +3048,12 @@ function getWheelPlayersForPanel() {
 }
 
 function showWheelPlayersPanel() {
-  // CSS shows/hides the panel. Here we only render РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р….
+  // CSS shows/hides the panel. Here we only render актуальные данные.
   if (!wheelPlayersPanel) return;
   const players = getWheelPlayersForPanel();
   renderWheelPlayers(players);
 
-  // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… "0" РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // 🔥 Скрываем счётчик "0" в правом углу панели
   hidePlayersPanelCounter();
 }
 
@@ -3069,9 +3062,9 @@ function hideWheelPlayersPanel() {
   if (wheelPlayersList) wheelPlayersList.innerHTML = '';
 }
 
-/* ===== ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…) ===== */
+/* ===== 🔥 КОМПАКТНЫЕ КАРТОЧКИ СТАВОК (показываются при спине) ===== */
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…/РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Создаем/получаем контейнер для компактных карточек
 function getCompactCardsContainer() {
   let container = document.getElementById('betCardsCompact');
   
@@ -3080,12 +3073,12 @@ function getCompactCardsContainer() {
     container.id = 'betCardsCompact';
     container.className = 'bet-cards-compact';
     
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… wheel, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // Добавляем в секцию wheel, чтобы карточки были ПОД колесом
     const wheelSection = document.querySelector('.wheel');
     if (wheelSection) {
       wheelSection.appendChild(container);
     } else {
-      // Fallback - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… body РїС—Р…РїС—Р…РїС—Р…РїС—Р… wheel РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Fallback - добавляем в body если wheel не найден
       document.body.appendChild(container);
     }
   }
@@ -3093,20 +3086,20 @@ function getCompactCardsContainer() {
   return container;
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Показываем компактные карточки с текущими ставками
 function showCompactBetCards() {
   const container = getCompactCardsContainer();
-  container.innerHTML = ''; // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  container.innerHTML = ''; // Очищаем
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… betsMap
+  // Собираем все ставки из betsMap
   const bets = Array.from(betsMap.entries()).filter(([seg, amount]) => amount > 0);
   
   if (bets.length === 0) {
-    console.log('[Wheel] ?? No bets to show in compact view');
+    console.log('[Wheel] 🎴 No bets to show in compact view');
     return;
   }
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Маппинг сегментов на иконки
   const segmentImages = {
     '1.1x': '/images/bets/1.1x.webp',
     '1.5x': '/images/bets/1.5x.webp',
@@ -3117,16 +3110,16 @@ function showCompactBetCards() {
     'Wild Time': '/images/bets/wild.webp'
   };
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… badge
+  // Иконка текущей валюты - используем белую версию для badge
   const currencyIcon = getCurrencyIconWhite(currentCurrency);
   
-  console.log('[Wheel] ?? Creating compact cards for', bets.length, 'bets');
+  console.log('[Wheel] 🎴 Creating compact cards for', bets.length, 'bets');
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… 3 РїС—Р… РїС—Р…РїС—Р…РїС—Р…)
+  // Создаем карточки (максимум 3 в ряд)
   bets.forEach(([segment, amount]) => {
     const card = document.createElement('div');
     card.className = 'bet-card-compact';
-    card.dataset.segment = segment; // РїС—Р…РїС—Р…РїС—Р… CSS РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    card.dataset.segment = segment; // Для CSS селектора
     
     const imgSrc = segmentImages[segment] || '/images/bets/1.1x.webp';
     
@@ -3145,30 +3138,30 @@ function showCompactBetCards() {
     container.appendChild(card);
   });
   
-  console.log('[Wheel] ? Compact cards created');
+  console.log('[Wheel] ✅ Compact cards created');
 }
 
-// РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+// Скрываем и очищаем компактные карточки
 function hideCompactBetCards() {
   const container = document.getElementById('betCardsCompact');
   if (container) {
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… CSS transition
+    // Плавное исчезновение через CSS transition
     setTimeout(() => {
       container.innerHTML = '';
-    }, 500); // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    }, 500); // Задержка для анимации
   }
-  console.log('[Wheel] ?? Compact cards hidden');
+  console.log('[Wheel] 🎴 Compact cards hidden');
 }
 
 
-/* ===== ?? HISTORY - ONLY ON WHEEL PAGE ===== */
+/* ===== 🔥 HISTORY - ONLY ON WHEEL PAGE ===== */
 function checkHistoryVisibility() {
   const wheelPage = document.getElementById('wheelPage');
   const historySection = document.querySelector('.history');
   
   if (!historySection) return;
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… observer РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Создаем observer для отслеживания видимости страницы колеса
   const observer = new MutationObserver(() => {
     const isWheelActive = wheelPage?.classList.contains('page-active');
     
@@ -3179,7 +3172,7 @@ function checkHistoryVisibility() {
     }
   });
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Наблюдаем за изменениями класса
   if (wheelPage) {
     observer.observe(wheelPage, {
       attributes: true,
@@ -3187,11 +3180,11 @@ function checkHistoryVisibility() {
     });
   }
   
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Начальная проверка
   const isWheelActive = wheelPage?.classList.contains('page-active');
   historySection.style.display = isWheelActive ? 'block' : 'none';
   
-  console.log('[Wheel] ?? History visibility tracking enabled');
+  console.log('[Wheel] 📜 History visibility tracking enabled');
 }
 
 function pushHistory(typeKey){
@@ -3213,19 +3206,19 @@ function pushHistory(typeKey){
   const iconSrc = historyIcons[typeKey] || '/images/history/1.1x_small.png';
   console.log('[History] Adding:', typeKey, '| Path:', iconSrc);
   
-  item.innerHTML = `<img src="${iconSrc}" alt="${typeKey}" onerror="console.error('Failed to load:', this.src)" />`;
+  item.innerHTML = `<img src="${iconSrc}" alt="${typeKey}" onerror="console.error('❌ Failed to load:', this.src)" />`;
   
   historyList.prepend(item);
   
   const all = historyList.querySelectorAll('.history-item');
   if (all.length > 20) all[all.length-1].remove();
   
-  // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
-  console.log('[Wheel] ? Betting unlocked - history updated');
+  // 🔥 Разблокируем ставки после добавления в историю
+  console.log('[Wheel] ✅ Betting unlocked - history updated');
 }
 
 function clearBets(){
-  console.log('[Wheel] ?? Clearing all bets');
+  console.log('[Wheel] 🧹 Clearing all bets');
   betsMap.clear();
   betTiles.forEach(tile=>{
     const pill = tile.querySelector('.bet-pill');
@@ -3234,7 +3227,7 @@ function clearBets(){
   });
 }
 
-/* ===== Export РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… ===== */
+/* ===== Export для других модулей ===== */
 window.WheelGame = {
   getCurrentCurrency: () => currentCurrency,
   getCurrentAmount: () => currentAmount,
@@ -3244,14 +3237,14 @@ window.WheelGame = {
   },
   clearBets: clearBets,
   
-  // ?? FIXED: addWinAmount now works in both test and production
+  // 🔥 FIXED: addWinAmount now works in both test and production
   addWinAmount: async function(amount, currency) {
-    console.log('[WheelGame] ?? Adding win via export:', amount, currency);
+    console.log('[WheelGame] 💰 Adding win via export:', amount, currency);
     await addWinAmount(amount, currency);
   }
 };
 
-console.log('[Wheel] ? WheelGame exported with fixed addWinAmount');
+console.log('[Wheel] ✅ WheelGame exported with fixed addWinAmount');
 
 /* ===== Inject Animation Styles ===== */
 if (!document.getElementById('wheel-animations')) {
@@ -3378,11 +3371,11 @@ window.WheelGame.getCurrentCurrency = function() {
   return window.currentCurrency || 'ton';
 };
 
-console.log('[Wheel] ? Bonus integration ready');
+console.log('[Wheel] ✅ Bonus integration ready');
 
 // wheel.js - NOTIFICATION FUNCTIONS - Telegram Style
 
-/* ===== ?? WIN NOTIFICATION - CLEAN STYLE ===== */
+/* ===== 🔥 WIN NOTIFICATION - CLEAN STYLE ===== */
 const __wheelWinToastQueue = [];
 let __wheelWinToastTimer = null;
 
@@ -3463,7 +3456,7 @@ function showWinNotification(winAmount, opts = {}) {
   renderWinToast(amount, currency);
 }
 
-/* ===== ?? INSUFFICIENT BALANCE - CLEAN ===== */
+/* ===== 🔥 INSUFFICIENT BALANCE - CLEAN ===== */
 function showInsufficientBalanceNotification() {
   const wheelPage = document.getElementById('wheelPage');
   const isWheelActive = wheelPage?.classList.contains('page-active');
@@ -3485,20 +3478,20 @@ function showInsufficientBalanceNotification() {
   }, 2000);
 }
 
-/* ===== ?? BONUS NOTIFICATION - CLEAN ===== */
+/* ===== 🔥 BONUS NOTIFICATION - CLEAN ===== */
 function showBonusNotification(bonusType) {
-  // ?? РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… BonusManager
+  // 🔥 ИЗМЕНЕНО: проверка через BonusManager
   if (window.BonusManager && !window.BonusManager.isOnWheelPage()) {
-    console.log('[Bonus] ?? Bonus notification skipped - not on wheel page');
+    console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
     return;
   }
 
-  // Fallback (РїС—Р…РїС—Р…РїС—Р…РїС—Р… BonusManager РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+  // Fallback (если BonusManager не подключён)
   if (!window.BonusManager) {
     const wheelPage = document.getElementById('wheelPage');
     const isWheelActive = wheelPage?.classList.contains('page-active');
     if (!isWheelActive) {
-      console.log('[Bonus] ?? Bonus notification skipped - not on wheel page');
+      console.log('[Bonus] ⚠️ Bonus notification skipped - not on wheel page');
       return;
     }
   }
@@ -3519,14 +3512,14 @@ function showBonusNotification(bonusType) {
   }, 1500);
 }
 
-/* ===== ?? TEST MODE NOTIFICATION ===== */
+/* ===== 🔥 TEST MODE NOTIFICATION ===== */
 function showTestModeNotification() {
   const existing = document.getElementById('test-mode-toast');
   if (existing) return;
   
   const toast = document.createElement('div');
   toast.id = 'test-mode-toast';
-  toast.textContent = 'Test Mode: Unlimited Balance';
+  toast.textContent = '🧪 Test Mode: Unlimited Balance';
   
   document.body.appendChild(toast);
   
@@ -3536,8 +3529,8 @@ function showTestModeNotification() {
   }, 5000);
 }
 
-/* ===== ?? CHECK BETS AND SHOW RESULT - SIMPLIFIED ===== */
-/* ===== ?? MULTIPLIER HELPER ===== */
+/* ===== 🔥 CHECK BETS AND SHOW RESULT - SIMPLIFIED ===== */
+/* ===== 🔥 MULTIPLIER HELPER ===== */
 function getMultiplier(type) {
   const multipliers = {
     '1.1x': 1.1,
@@ -3563,7 +3556,7 @@ function getMultiplier(type) {
   function ensureBonusOverlay() {
     let overlay = document.getElementById('bonus5050Overlay');
     if (overlay) {
-      // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… Back, РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р… - РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+      // Проверяем, есть ли кнопка Back, если нет - добавляем
       let backBtn = overlay.querySelector('.universal-back-btn');
       if (!backBtn) {
         const backdrop = overlay.querySelector('.bonus-overlay__blur-backdrop');
@@ -3578,14 +3571,14 @@ function getMultiplier(type) {
           <span class="universal-back-text">Back</span>
         `;
         
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… backdrop
+        // Добавляем кнопку после backdrop
         if (backdrop && backdrop.nextSibling) {
           overlay.insertBefore(backBtn, backdrop.nextSibling);
         } else {
           overlay.appendChild(backBtn);
         }
         
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+        // Привязываем обработчик
         backBtn.addEventListener('click', () => {
           try {
             if (typeof window.__bonusBackHandler === 'function') {
@@ -3594,9 +3587,9 @@ function getMultiplier(type) {
             }
           } catch (_) {}
 
-          console.log('[Wheel] ?? Back: no active handler, closing overlay');
+          console.log('[Wheel] 🔙 Back: no active handler, closing overlay');
 
-          // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+          // Фолбэк: просто закрываем оверлей (если бонус не зарегистрировал обработчик)
           overlay.classList.add('bonus-overlay--leave');
 
           setTimeout(() => {
@@ -3618,7 +3611,7 @@ function getMultiplier(type) {
     overlay.innerHTML = `
       <div class="bonus-overlay__blur-backdrop"></div>
       
-      <!-- РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… Back РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… -->
+      <!-- Универсальная кнопка Back для всех бонусов -->
       <button class="universal-back-btn" id="bonusBackBtn" aria-label="Go back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -3629,7 +3622,7 @@ function getMultiplier(type) {
       <div class="bonus-container"></div>
     `;
 
-    // BACK (РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…): РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // BACK (универсальный): отдаём управление активному бонусу, иначе просто закрываем оверлей
     const backBtn = overlay.querySelector('#bonusBackBtn');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
@@ -3640,9 +3633,9 @@ function getMultiplier(type) {
           }
         } catch (_) {}
 
-        console.log('[Wheel] ?? Back: no active handler, closing overlay');
+        console.log('[Wheel] 🔙 Back: no active handler, closing overlay');
 
-        // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…: РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… (РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…)
+        // Фолбэк: просто закрываем оверлей (если бонус не зарегистрировал обработчик)
         overlay.classList.add('bonus-overlay--leave');
 
         setTimeout(() => {
@@ -3666,7 +3659,7 @@ function getMultiplier(type) {
     return overlay;
   }
 
-  // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…, РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…-РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…/РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+  // Экспортируем, чтобы другие бонус-скрипты могли создать/получить общий оверлей
   window.ensureBonusOverlay = ensureBonusOverlay;
 
   function loadScriptOnce(src) {
@@ -3684,7 +3677,7 @@ function getMultiplier(type) {
   async function ensureBonusClass() {
     if (window.Bonus5050) return;
 
-    // РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р…РїС—Р… РїС—Р…РїС—Р…РїС—Р…РїС—Р…
+    // попробуем самые частые пути
     const candidates = ['/js/bonus-5050.js', '/public/js/bonus-5050.js', '/bonus-5050.js'];
     for (const src of candidates) {
       try {
@@ -3704,7 +3697,7 @@ function getMultiplier(type) {
     const sessions = window.__wheelBonusSessions || (window.__wheelBonusSessions = {});
     const sessionKey = `50&50:${bonusId || 'noid'}`;
 
-    // ? Reuse running session: Back hides overlay, Watch should resume (no restart)
+    // ✅ Reuse running session: Back hides overlay, Watch should resume (no restart)
     const existing = sessions[sessionKey];
     if (existing && !existing.done) {
       wheelBonusOverlayActive = true;
@@ -3737,7 +3730,7 @@ function getMultiplier(type) {
       outcome: opts?.outcome || null,
 
       onComplete: (result) => {
-        console.log('[Wheel] ?? Bonus 50/50 finished, result:', result);
+        console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);
         wheelBonusOverlayActive = false;
 
         if (sessions[sessionKey]) {
@@ -3745,12 +3738,10 @@ function getMultiplier(type) {
           try { delete sessions[sessionKey]; } catch (_) {}
         }
 
-        try { if (bonusId) notifyBonusOverlayDone(bonusId); } catch (_) {}
-
         resolvePromise(result);
       },
 
-      // ? Back now means "hide" (resume later), NOT cancel/restart
+      // ✅ Back now means "hide" (resume later), NOT cancel/restart
       onBack: () => {
         wheelBonusOverlayActive = false;
       }
@@ -3761,8 +3752,8 @@ function getMultiplier(type) {
     return p;
   };})();
 
-console.log('[Wheel] ? Notification functions loaded');
-console.log('[Wheel] ? Module loaded - Fixed version without duplication');
+console.log('[Wheel] ✅ Notification functions loaded');
+console.log('[Wheel] ✅ Module loaded - Fixed version without duplication');
 
 
 /* ===== BONUS UI VISIBILITY: keep overlays inside Wheel page ===== */
@@ -3785,7 +3776,7 @@ console.log('[Wheel] ? Module loaded - Fixed version without duplication');
       id.includes('lootrush');
 
     if (isToast || isOverlay) {
-      // If already inside wheelPage РїС—Р… ok
+      // If already inside wheelPage — ok
       if (wheelPage.contains(node)) return;
       try { wheelPage.appendChild(node); } catch (_) {}
     }
@@ -3815,7 +3806,5 @@ console.log('[Wheel] ? Module loaded - Fixed version without duplication');
   } catch (_) {}
   
 })();
-
-
 
 

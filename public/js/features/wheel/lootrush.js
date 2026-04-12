@@ -37,8 +37,6 @@ class LootRush {
     this._tiles = [];
     this._selectedIndex = -1;
     this._selectEnabled = false;
-    this._selectionLocked = false;
-    this._lastSelectionAt = 0;
     this._multipliers = [];
     this._spinning = false;
     this._spinTimer = null;
@@ -466,30 +464,20 @@ class LootRush {
 
   _enableSelection() {
     this._selectEnabled = true;
-    this._selectionLocked = false;
     this._selectedIndex = -1;
 
     this._tiles.forEach((tile, i) => {
       tile.classList.add('lr-selectable');
-      const handleSelect = (ev) => {
-        if (ev && typeof ev.preventDefault === 'function' && ev.cancelable) ev.preventDefault();
-        if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
-
+      tile.onclick = () => {
         // Watch-only mode: no bet -> cannot select.
         if (this.options.hasBet === false) {
           this._notifyNoBet(tile);
           return;
         }
-        if (!this._selectEnabled || this._selectionLocked) return;
+        if (!this._selectEnabled) return;
         this._selectedIndex = i;
-        this._lastSelectionAt = Date.now();
         this._applySelection();
       };
-
-      // Mobile-safe: pointer/touch fires immediately, click can be delayed in WebView.
-      tile.onpointerdown = handleSelect;
-      tile.ontouchstart = handleSelect;
-      tile.onclick = handleSelect;
     });
 
     this._applySelection();
@@ -532,13 +520,6 @@ class LootRush {
     };
 
     await tick();
-
-    // Freeze selected index at timer end so late click events cannot overwrite it.
-    this._selectionLocked = true;
-    this._selectEnabled = false;
-    this._tiles.forEach((tile) => {
-      if (tile) tile.classList.remove('lr-selectable');
-    });
     return this._selectedIndex;
   }
 
@@ -662,7 +643,6 @@ class LootRush {
       }
 
       const serverPayoutMode = window.__wheelPayoutMode === 'server';
-      const hasServerOutcome = Number.isFinite(this._forcedMultiplier) || Number.isInteger(this._forcedPickIndex);
       const hasPickedIndex = Number.isInteger(pickedIdx);
       const revealIndex = hasPickedIndex ? pickedIdx : this._sharedWinnerIndex;
 
@@ -670,7 +650,6 @@ class LootRush {
       // We remap multiplier into picked slot so visual pick and outcome never diverge.
       if (
         serverPayoutMode &&
-        hasServerOutcome &&
         hasPickedIndex &&
         Number.isInteger(this._sharedWinnerIndex) &&
         this._sharedWinnerIndex >= 0 &&
@@ -739,11 +718,7 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
 
     const bonusId = opts?.bonusId ?? null;
     const sessions = window.__wheelBonusSessions || (window.__wheelBonusSessions = {});
-    const explicitSessionKey = (opts && typeof opts.sessionKey === 'string' && opts.sessionKey.trim())
-      ? opts.sessionKey.trim()
-      : null;
-    const randomSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    const sessionKey = explicitSessionKey || (bonusId ? `LootRush:${bonusId}` : `LootRush:local:${randomSuffix}`);
+    const sessionKey = `LootRush:${bonusId || 'noid'}`;
 
     // ✅ Reuse running session: Back hides overlay, Watch should resume (no restart)
     const existing = sessions[sessionKey];
@@ -846,12 +821,6 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
           sessions[sessionKey].done = true;
           try { delete sessions[sessionKey]; } catch (_) {}
         }
-
-        try {
-          if (bonusId && typeof window.__notifyBonusOverlayDone === 'function') {
-            window.__notifyBonusOverlayDone(bonusId);
-          }
-        } catch (_) {}
 
         resolvePromise(xStr);
       }

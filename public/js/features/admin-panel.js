@@ -5,42 +5,13 @@
     ? window.__SERVER_TEST_MODE
     : !!window.TEST_MODE;
   const host = String(window.location?.hostname || '').toLowerCase();
-  const isLocalHost =
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '0.0.0.0' ||
-    host === '::1' ||
-    host.endsWith('.local');
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
   const allowLocalTestPanel = isTest && isLocalHost;
 
-  const SEGMENTS = ['1.1x', '1.5x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
-  const SEGMENT_ALIAS = Object.freeze({
-    '1.1x': '1.1x',
-    '1x': '1.1x',
-    '1.5x': '1.5x',
-    '1.5': '1.5x',
-    '1,5x': '1.5x',
-    '3x': '1.5x',
-    '5x': '5x',
-    '11x': '11x',
-    '50&50': '50&50',
-    '50/50': '50&50',
-    '50-50': '50&50',
-    'loot rush': 'Loot Rush',
-    'lootrush': 'Loot Rush',
-    'wild time': 'Wild Time',
-    'wildtime': 'Wild Time'
-  });
+  const SEGMENTS = ['1.1x', '3x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
   let panelUnlocked = false;
   let panelAdminKey = '';
   let panelMode = allowLocalTestPanel ? 'LOCAL_TEST' : 'ADMIN';
-
-  function normSeg(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return '';
-    const key = raw.toLowerCase();
-    return SEGMENT_ALIAS[raw] || SEGMENT_ALIAS[key] || raw;
-  }
 
   // ===== Utils =====
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -59,13 +30,7 @@
 
   async function ensureLootRushLoaded() {
     if (typeof window.startLootRushBonus === 'function') return true;
-    const candidates = [
-      '/js/features/wheel/lootrush.js',
-      '/js/lootrush.js',
-      '/public/js/features/wheel/lootrush.js',
-      '/public/js/lootrush.js',
-      '/lootrush.js'
-    ];
+    const candidates = ['/js/lootrush.js', '/public/js/lootrush.js', '/lootrush.js'];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -78,13 +43,7 @@
   async function ensure5050Loaded() {
     if (typeof window.start5050Bonus === 'function') return true;
     // bonus-5050.js already подключён в index.html, но на всякий случай:
-    const candidates = [
-      '/js/features/wheel/bonus-5050.js',
-      '/js/bonus-5050.js',
-      '/public/js/features/wheel/bonus-5050.js',
-      '/public/js/bonus-5050.js',
-      '/bonus-5050.js'
-    ];
+    const candidates = ['/js/bonus-5050.js', '/public/js/bonus-5050.js', '/bonus-5050.js'];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -96,13 +55,7 @@
 
   async function ensureWildTimeLoaded() {
     if (typeof window.startWildTimeBonus === 'function') return true;
-    const candidates = [
-      '/js/features/wheel/wildtime.js',
-      '/js/wildtime.js',
-      '/public/js/features/wheel/wildtime.js',
-      '/public/js/wildtime.js',
-      '/wildtime.js'
-    ];
+    const candidates = ['/js/wildtime.js', '/public/js/wildtime.js', '/wildtime.js'];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -979,7 +932,7 @@
     }
 
     // Fallback: just show win toast if exists
-    const multipliers = { '1.1x': 1.1, '1.5x': 1.5, '5x': 5, '11x': 11 };
+    const multipliers = { '1.1x': 1.1, '3x': 3, '5x': 5, '11x': 11 };
     const m = multipliers[seg] || 1;
     const bet = 1;
     const win = bet * m;
