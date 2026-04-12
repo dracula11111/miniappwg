@@ -26,8 +26,11 @@ function rotateServerSeed() {
 // =====================
 const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
+const IS_DEV = NODE_ENV === "development";
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
+// Dev QoL: skip "waiting" game phase to speed up local testing loops.
+const SKIP_GAME_WAITING_PHASE = IS_DEV;
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
@@ -1341,6 +1344,11 @@ function startCrashWaitingRound() {
 
   crashLog(`[Crash] Round ${crashGame.roundId} waiting for first bet`);
 
+  if (SKIP_GAME_WAITING_PHASE) {
+    startBetting();
+    return;
+  }
+
   broadcastGameState();
 }
 
@@ -1376,7 +1384,7 @@ function startBetting() {
 
 function startRunning() {
   if (crashGame.phase !== 'betting') return;
-  if (!Array.isArray(crashGame.players) || crashGame.players.length === 0) {
+  if ((!Array.isArray(crashGame.players) || crashGame.players.length === 0) && !SKIP_GAME_WAITING_PHASE) {
     crashGame.phase = 'waiting';
     crashGame.phaseStart = Date.now();
     crashGame.currentMult = 1.0;
@@ -1677,6 +1685,10 @@ const WHEEL_BONUS_TIME_BY_TYPE = {
   'Wild Time': 15000
 };
 const WHEEL_BONUS_FALLBACK_MS = 15000;
+const WHEEL_BONUS_HARD_TIMEOUT_MS = Math.max(
+  20_000,
+  Number(process.env.WHEEL_BONUS_HARD_TIMEOUT_MS || 45_000) || 45_000
+);
 const WHEEL_SEGMENT_MULTIPLIERS = Object.freeze({
   '1.1x': 1.1,
   '1.5x': 1.5,
@@ -1695,7 +1707,7 @@ const wheelGame = {
   players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
   history: [],
   spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
-  bonus: null,               // { id,type,startedAt,durationMs,endsAt,outcome }
+  bonus: null,                // { id,type,startedAt,durationMs,hardTimeoutAt,outcome,requiredDoneCount,pendingDoneUsers,doneUsers,openedUsers }
   settlement: null,          // { roundId,resultType,multiplier,winnersCount,paidTon,paidStars,bonusOutcome }
   settlementPromise: null,
   phaseTimeout: null
@@ -2034,16 +2046,28 @@ function buildWheelState(now = Date.now()) {
   let bonusData = null;
   if (wheelGame.bonus) {
     const elapsed = now - wheelGame.bonus.startedAt;
-    const remaining = Math.max(0, wheelGame.bonus.endsAt - now);
+    const requiredDoneCount = Number(wheelGame.bonus.requiredDoneCount || 0);
+    const pendingDoneCount = wheelGame.bonus.pendingDoneUsers instanceof Set
+      ? wheelGame.bonus.pendingDoneUsers.size
+      : Math.max(0, requiredDoneCount);
+    const doneCount = wheelGame.bonus.doneUsers instanceof Set
+      ? wheelGame.bonus.doneUsers.size
+      : 0;
+    const openedCount = wheelGame.bonus.openedUsers instanceof Set
+      ? wheelGame.bonus.openedUsers.size
+      : 0;
 
     bonusData = {
       id: wheelGame.bonus.id,
       type: wheelGame.bonus.type,
       startedAt: wheelGame.bonus.startedAt,
       durationMs: wheelGame.bonus.durationMs,
-      endsAt: wheelGame.bonus.endsAt,
-      elapsedMs: elapsed,
-      remainingMs: remaining,
+      hardTimeoutAt: wheelGame.bonus.hardTimeoutAt || null,
+      elapsedMs: Math.max(0, elapsed),
+      requiredDoneCount,
+      pendingDoneCount,
+      doneCount,
+      openedCount,
       outcome: wheelBuildClientBonusOutcome(wheelGame.bonus.outcome)
     };
   }
@@ -2110,6 +2134,11 @@ function wheelStartWaitingRound() {
   wheelGame.settlementPromise = null;
   wheelGame.players.clear();
 
+  if (SKIP_GAME_WAITING_PHASE) {
+    wheelStartBetting();
+    return;
+  }
+
   broadcastWheelState();
 }
 
@@ -2136,7 +2165,7 @@ function wheelPickResult() {
 
 function wheelStartSpin() {
   if (wheelGame.phase !== 'betting') return;
-  if ((wheelGame.players?.size || 0) <= 0) {
+  if ((wheelGame.players?.size || 0) <= 0 && !SKIP_GAME_WAITING_PHASE) {
     wheelClearPhaseTimeout();
     wheelGame.phase = 'waiting';
     wheelGame.phaseStart = Date.now();
@@ -2218,12 +2247,78 @@ function wheelStartResultPhase() {
   }, WHEEL_RESULT_TIME);
 }
 
+function wheelCollectBonusPendingUsers(type) {
+  const target = normWheelSeg(type);
+  const pending = new Set();
+  if (!target) return pending;
+
+  for (const [userId, player] of wheelGame.players.entries()) {
+    const segAmount = Number(player?.segments?.get?.(target) || 0);
+    if (Number.isFinite(segAmount) && segAmount > 0) {
+      pending.add(String(userId));
+    }
+  }
+
+  return pending;
+}
+
+function wheelResolveActiveBonusById(bonusId) {
+  if (wheelGame.phase !== 'bonus' || !wheelGame.bonus) return null;
+  const expectedId = String(wheelGame.bonus.id || '');
+  const incomingId = String(bonusId || '').trim();
+  if (!incomingId || incomingId === expectedId) return wheelGame.bonus;
+  return null;
+}
+
+function wheelMarkBonusClientOpened(userId, bonusId) {
+  const bonus = wheelResolveActiveBonusById(bonusId);
+  const uid = String(userId || '').trim();
+  if (!bonus || !uid) return false;
+
+  if (!(bonus.openedUsers instanceof Set)) bonus.openedUsers = new Set();
+  const prev = bonus.openedUsers.size;
+  bonus.openedUsers.add(uid);
+  return bonus.openedUsers.size !== prev;
+}
+
+function wheelMarkBonusClientDone(userId, bonusId) {
+  const bonus = wheelResolveActiveBonusById(bonusId);
+  const uid = String(userId || '').trim();
+  if (!bonus || !uid) return false;
+
+  if (!(bonus.doneUsers instanceof Set)) bonus.doneUsers = new Set();
+  if (bonus.doneUsers.has(uid)) return false;
+
+  const requiredDoneCount = Number(bonus.requiredDoneCount || 0);
+  if (!(bonus.pendingDoneUsers instanceof Set)) {
+    bonus.pendingDoneUsers = new Set();
+  }
+
+  if (requiredDoneCount > 0) {
+    if (!bonus.pendingDoneUsers.has(uid)) return false;
+    bonus.pendingDoneUsers.delete(uid);
+  }
+
+  bonus.doneUsers.add(uid);
+
+  if (requiredDoneCount > 0) {
+    if (bonus.pendingDoneUsers.size <= 0) {
+      wheelEndBonus('all-required-clients-done');
+    }
+  } else {
+    wheelEndBonus('first-client-done');
+  }
+
+  return true;
+}
+
 function wheelStartBonus(type) {
   wheelClearPhaseTimeout();
 
   const now = Date.now();
   const durationMs = Number(WHEEL_BONUS_TIME_BY_TYPE[type]) || WHEEL_BONUS_FALLBACK_MS;
   const outcome = wheelPickBonusOutcome(type);
+  const pendingDoneUsers = wheelCollectBonusPendingUsers(type);
 
   wheelGame.phase = 'bonus';
   wheelGame.phaseStart = now;
@@ -2232,19 +2327,25 @@ function wheelStartBonus(type) {
     type,
     startedAt: now,
     durationMs,
-    endsAt: now + durationMs,
-    outcome
+    hardTimeoutAt: now + WHEEL_BONUS_HARD_TIMEOUT_MS,
+    outcome,
+    requiredDoneCount: pendingDoneUsers.size,
+    pendingDoneUsers,
+    doneUsers: new Set(),
+    openedUsers: new Set()
   };
 
   broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
-    wheelEndBonus();
-  }, durationMs);
+    wheelEndBonus('hard-timeout');
+  }, WHEEL_BONUS_HARD_TIMEOUT_MS);
 }
 
-function wheelEndBonus() {
+function wheelEndBonus(reason = 'client-done') {
+  if (wheelGame.phase !== 'bonus') return;
   wheelClearPhaseTimeout();
+  console.log(`[Wheel] Bonus finished (${reason}) for round ${wheelGame.roundId}`);
 
   // After bonus: settle wins first, then show result, then next round.
   void wheelFinalizeRoundAndStartResult();
@@ -2347,12 +2448,53 @@ wheelWss.on('connection', (ws) => {
         }
       }
 
+      if (msg.type === 'bonusOverlayOpened' || msg.type === 'bonusOverlayDone') {
+        if (wheelGame.phase !== 'bonus' || !wheelGame.bonus) return;
+
+        const userId = String(msg.userId || '').trim();
+        if (!userId) return;
+
+        const initData = String(msg.initData || "");
+        if (!initData || !process.env.BOT_TOKEN) return;
+
+        const initCheck = verifyInitData(initData, process.env.BOT_TOKEN, 24 * 60 * 60);
+        if (!initCheck.ok) return;
+
+        let wsUser = null;
+        try {
+          wsUser = JSON.parse(initCheck.params.user || "null");
+        } catch {
+          wsUser = null;
+        }
+        if (!wsUser?.id || String(wsUser.id) !== userId) return;
+
+        const bonusId = String(msg.bonusId || '').trim();
+        if (msg.type === 'bonusOverlayOpened') {
+          const changed = wheelMarkBonusClientOpened(userId, bonusId);
+          if (changed && wheelGame.phase === 'bonus') {
+            broadcastWheelState();
+          }
+          return;
+        }
+
+        const changed = wheelMarkBonusClientDone(userId, bonusId);
+        if (changed && wheelGame.phase === 'bonus') {
+          broadcastWheelState();
+        }
+        return;
+      }
+
       if (msg.type === 'clearBets') {
         if (wheelGame.phase !== 'betting') return;
         const userId = String(msg.userId || '').trim();
         if (!userId) return;
         wheelGame.players.delete(userId);
         if ((wheelGame.players?.size || 0) <= 0) {
+          if (SKIP_GAME_WAITING_PHASE) {
+            // In dev we keep current betting countdown, then spin even with empty pool.
+            broadcastWheelState();
+            return;
+          }
           wheelClearPhaseTimeout();
           wheelGame.phase = 'waiting';
           wheelGame.phaseStart = Date.now();

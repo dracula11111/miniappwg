@@ -785,6 +785,11 @@ console.log('[LootRush] ✅ Class exported to window.LootRush');
 
       onComplete: (xStr, mult) => {
         console.log('[LootRush] ✅ Completed:', xStr, 'multiplier:', mult);
+        try {
+          if (bonusId && typeof window.__notifyBonusOverlayDone === 'function') {
+            window.__notifyBonusOverlayDone(bonusId);
+          }
+        } catch (_) {}
 
         const serverPayoutMode = window.__wheelPayoutMode === 'server';
         const currency = window.currentCurrency || 'ton';

@@ -41,8 +41,8 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: calc(10px * var(--games-layout-scale, 1));
+    justify-content: flex-start;
+    gap: calc(8px * var(--games-layout-scale, 1));
   }
   
   .games__head{
@@ -72,7 +72,7 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: calc(8px * var(--games-layout-scale, 1));
+    gap: calc(6px * var(--games-layout-scale, 1));
     min-height: 0;
   }
 
@@ -94,7 +94,7 @@
     width: 100%;
     aspect-ratio: 1200 / 300;
     overflow: hidden;
-    --games-banner-panel-gap: 0px;
+    --games-banner-panel-gap: calc(8px * var(--games-layout-scale, 1));
     background: var(--bg, #0d0e0f);
     touch-action: pan-y;
     cursor: grab;

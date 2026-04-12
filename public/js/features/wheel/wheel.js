@@ -101,7 +101,6 @@ function loadWheelState() {
 // Очистить сохраненное состояние
 function clearWheelState() {
   localStorage.removeItem(WHEEL_STORAGE_KEY);
-  console.log('[Wheel] 🗑️ State cleared');
 }
 
 // Восстановить ставки из сохраненного состояния
@@ -119,10 +118,7 @@ function restoreBetsFromState(state) {
       betsMap.set(segment, amount);
       
       // Обновляем UI для каждой ставки
-      const tile = betTiles.find(t => {
-        const seg = t.dataset.segment;
-        return normSeg(seg) === normSeg(segment);
-      });
+      const tile = getBetTileBySegment(segment);
       
       if (tile) {
         tile.classList.add('active', 'has-bet');
@@ -135,8 +131,6 @@ function restoreBetsFromState(state) {
   if (betsMap.size > 0) {
     showCompactBetCards();
   }
-  
-  console.log('[Wheel] ✅ Bets restored:', Array.from(betsMap.entries()));
 }
 
 // Восстановить историю из сохраненного состояния
@@ -166,8 +160,6 @@ function restoreHistoryFromState(state) {
     item.innerHTML = `<img src="${iconSrc}" alt="${typeKey}" />`;
     historyList.appendChild(item);
   }
-  
-  console.log('[Wheel] ✅ History restored:', state.history.length, 'items');
 }
 
 
@@ -181,6 +173,8 @@ let wheelLastSettledKey = null;
 let wheelPrevPhase = null;
 let wheelPrevBonusId = null;
 let wheelBonusOverlayActive = false;  // 🔥 отслеживает открыт ли оверлей
+const wheelBonusOpenedSentIds = new Set();
+const wheelBonusDoneSentIds = new Set();
 window.__bonusOverlayOpenedFor = null; // 🔥 ID бонуса для которого открыт оверлей
 window.__wheelPayoutMode = window.__wheelPayoutMode || 'client';
 let wheelPendingState = null;
@@ -282,10 +276,54 @@ function connectWheelWS() {
 function wheelWsSend(payload) {
   if (wheelWs && wheelWs.readyState === WebSocket.OPEN) {
     wheelWs.send(JSON.stringify(payload));
+    return true;
   } else {
     console.warn('[WheelWS] Cannot send — socket not open (readyState=' + (wheelWs?.readyState ?? 'null') + '). Payload dropped:', payload);
+    return false;
   }
 }
+
+function getWheelInitData() {
+  return String(window.Telegram?.WebApp?.initData || '').trim();
+}
+
+function notifyBonusOverlayOpened(bonusId) {
+  const id = String(bonusId || '').trim();
+  if (!id || wheelBonusOpenedSentIds.has(id)) return false;
+
+  const userId = String(getWheelUserId() || '').trim();
+  const initData = getWheelInitData();
+  if (!userId || userId === 'guest' || !initData) return false;
+
+  const sent = wheelWsSend({
+    type: 'bonusOverlayOpened',
+    bonusId: id,
+    userId,
+    initData
+  });
+  if (sent) wheelBonusOpenedSentIds.add(id);
+  return sent;
+}
+
+function notifyBonusOverlayDone(bonusId) {
+  const id = String(bonusId || '').trim();
+  if (!id || wheelBonusDoneSentIds.has(id)) return false;
+
+  const userId = String(getWheelUserId() || '').trim();
+  const initData = getWheelInitData();
+  if (!userId || userId === 'guest' || !initData) return false;
+
+  const sent = wheelWsSend({
+    type: 'bonusOverlayDone',
+    bonusId: id,
+    userId,
+    initData
+  });
+  if (sent) wheelBonusDoneSentIds.add(id);
+  return sent;
+}
+
+window.__notifyBonusOverlayDone = notifyBonusOverlayDone;
 
 function setCountdownFromMs(msLeft) {
   if (!countdownBox || !countNumEl) return;
@@ -542,6 +580,9 @@ function applyWheelServerState(state) {
 
     // allow settlement again for the new round
     wheelLastSettledKey = null;
+    wheelBonusOpenedSentIds.clear();
+    wheelBonusDoneSentIds.clear();
+    window.__bonusOverlayOpenedFor = null;
   }
 
   // Players list + History from server (so refresh does NOT reset UI)
@@ -594,11 +635,7 @@ function applyWheelServerState(state) {
       } catch (_) {}
 
       // 🔥 КРИТИЧНО: автооткрытие для ВСЕХ игроков, даже без ставки
-      // Используем elapsedMs или remainingMs с сервера для точной проверки
-      const elapsedMs = state.bonus?.elapsedMs ?? getBonusElapsedMs(state.bonus);
-      const hasEnoughTimeLeft = !Number.isFinite(elapsedMs) || elapsedMs < 2000;
-      
-      if (isWheelPageActive() && hasEnoughTimeLeft) {
+      if (isWheelPageActive()) {
         const myBet = getMyBetAmountFromServer(state.players, state.bonus.type);
         
         // 🔥 ИСПРАВЛЕНИЕ: открываем бонус для всех (даже с myBet = 0)
@@ -983,8 +1020,26 @@ const wheelRootEl = document.documentElement;
 let userBalance = { ton: 0, stars: 0 };
 let betOverlay, historyList, countdownBox, countNumEl;
 let amountBtns = [], betTiles = [];
+let selectedAmountBtn = null;
+const betTileBySeg = new Map();
 let wheelPlayersPanel, wheelPlayersList, wheelGameCounterEl, wheelRoundHashCopyBtn, wheelRoundHashLabelEl;
 let wheelRoundHashRaw = '';
+
+function getBetTileBySegment(segment) {
+  const key = normSeg(segment);
+  if (!key) return null;
+
+  const cached = betTileBySeg.get(key);
+  if (cached) return cached;
+
+  const fallback = betTiles.find((tile) => {
+    const seg = tile?.dataset?.seg || tile?.dataset?.segment;
+    return normSeg(seg) === key;
+  }) || null;
+
+  if (fallback) betTileBySeg.set(key, fallback);
+  return fallback;
+}
 
 /* ===== wheel state ===== */
 let currentAngle = 0;
@@ -1085,8 +1140,6 @@ window.bonusLockStart = function bonusLockStart() {
   if (typeof window.stopCountdown === 'function') {
     try { window.stopCountdown(); } catch (_) {}
   }
-
-  console.log('[Wheel] 🧊 Bonus lock ON');
 };
 
 window.bonusLockEnd = function bonusLockEnd(next = {}) {
@@ -1101,8 +1154,6 @@ window.bonusLockEnd = function bonusLockEnd(next = {}) {
 
   window.__bonusLock.prevOmega = null;
   window.__bonusLock.prevPhase = null;
-
-  console.log('[Wheel] 🔥 Bonus lock OFF');
 };
 
 /* ===== Ставки ===== */
@@ -1139,33 +1190,38 @@ function initTestModeBalance() {
   window.dispatchEvent(new CustomEvent('balance:update', {
     detail: { ton: 999, stars: 999, _testMode: true }
   }));
-  
-  console.log('[Wheel] ✅ Test balance set:', userBalance);
 }
 
 /* ===== 🔥 DEDUCT BET AMOUNT ===== */
 function deductBetAmount(amount, currency) {
-  console.log('[Wheel] 💸 DEDUCT START!', { 
-    amount, 
-    currency, 
-    TEST_MODE,
-    balanceBefore: {...userBalance}
-  });
-  // Всегда снимаем локально
+  const safeAmount = currency === 'stars'
+    ? Math.round(Number(amount) || 0)
+    : +(Number(amount) || 0).toFixed(2);
+  if (!(safeAmount > 0)) return;
+
   if (currency === 'ton') {
-    userBalance.ton = Math.max(0, userBalance.ton - amount);
+    userBalance.ton = Math.max(0, userBalance.ton - safeAmount);
   } else {
-    userBalance.stars = Math.max(0, userBalance.stars - amount);
+    userBalance.stars = Math.max(0, userBalance.stars - safeAmount);
   }
-  
+
   updateTestBalance();
-  
-  console.log('[Wheel] ✅ Balance after deduction:', userBalance);
 }
 
+function refundBetAmount(amount, currency) {
+  const safeAmount = currency === 'stars'
+    ? Math.round(Number(amount) || 0)
+    : +(Number(amount) || 0).toFixed(2);
+  if (!(safeAmount > 0)) return;
 
+  if (currency === 'ton') {
+    userBalance.ton += safeAmount;
+  } else {
+    userBalance.stars += safeAmount;
+  }
 
-
+  updateTestBalance();
+}
 /* =====  ADD WIN AMOUNT ===== */
 async function addWinAmount(amount, currency) {
   console.log('[Wheel] Adding win:', amount, currency);
@@ -1181,7 +1237,6 @@ async function addWinAmount(amount, currency) {
   }
 
   // Server handles wheel payouts. Client just waits for live balance sync.
-  console.log('[Wheel] Server payout mode active; client payout request skipped');
 }
 
 // Make sure it's exported globally
@@ -1195,8 +1250,6 @@ window.addWinAmount = addWinAmount;
 
 /* =====  UPDATE TEST BALANCE UI ===== */
 function updateTestBalance() {
-  console.log('[Wheel] 📊 Updating balance UI:', userBalance);
-  
   // Update currency system
   if (window.WildTimeCurrency) {
     window.WildTimeCurrency.setBalance('ton', userBalance.ton);
@@ -1219,8 +1272,6 @@ function updateTestBalance() {
       _testMode: TEST_MODE
     }
   }));
-  
-  console.log('[Wheel] ✅ Balance UI updated:', userBalance);
 }
 
 
@@ -1286,6 +1337,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   const __betScope = betOverlay || document;
   amountBtns = Array.from(__betScope.querySelectorAll('.amount-btn'));
   betTiles   = Array.from(__betScope.querySelectorAll('.bet-tile'));
+  betTileBySeg.clear();
+  betTiles.forEach((tile) => {
+    const seg = tile?.dataset?.seg || tile?.dataset?.segment;
+    const key = normSeg(seg);
+    if (key && !betTileBySeg.has(key)) betTileBySeg.set(key, tile);
+  });
 
   if (!canvas) return;
 
@@ -1358,13 +1415,16 @@ function syncWithCurrencySystem() {
   
   currentCurrency = savedCurrency;
   updateAmountButtonsUI(savedCurrency);
-  
-  console.log('[Wheel] ✅ Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
 }
 
 function updateAmountButtonsUI(currency) {
-  console.log('[Wheel] 💰 Updating bet buttons for:', currency);
-  
+  if (!amountBtns || !amountBtns.length) return;
+
+  amountBtns.forEach((btn) => {
+    btn.classList.remove('active', 'selected');
+    btn.removeAttribute('data-selected');
+  });
+
   if (currency === 'ton') {
     const tonAmounts = [0.1, 0.5, 1, 2.5];
     amountBtns.forEach((btn, index) => {
@@ -1377,13 +1437,14 @@ function updateAmountButtonsUI(currency) {
         `;
       }
     });
-    
+
     const firstBtn = amountBtns[0];
     if (firstBtn) {
-      firstBtn.classList.add('active');
+      firstBtn.classList.add('active', 'selected');
+      firstBtn.setAttribute('data-selected', 'true');
+      selectedAmountBtn = firstBtn;
       currentAmount = 0.1;
     }
-    
   } else {
     const starsAmounts = [1, 5, 10, 25];
     amountBtns.forEach((btn, index) => {
@@ -1396,17 +1457,16 @@ function updateAmountButtonsUI(currency) {
         `;
       }
     });
-    
+
     const firstBtn = amountBtns[0];
     if (firstBtn) {
-      firstBtn.classList.add('active');
+      firstBtn.classList.add('active', 'selected');
+      firstBtn.setAttribute('data-selected', 'true');
+      selectedAmountBtn = firstBtn;
       currentAmount = 1;
     }
   }
-  
-  console.log('[Wheel] ✅ Buttons updated, currentAmount:', currentAmount);
 }
-
 // ===========================
 // Bet pill helpers (amount + currency icon)
 // ===========================
@@ -1465,48 +1525,53 @@ function setBetPill(tile, seg, amount, currency) {
   // Subtle update pop only when pill already exists.
   if (!isNew) {
     pill.classList.remove('is-updating');
-    void pill.offsetWidth;
-    pill.classList.add('is-updating');
+    if (!isWheelLiteRuntime()) {
+      requestAnimationFrame(() => {
+        pill.classList.add('is-updating');
+      });
+    }
   } else {
     pill.classList.remove('is-updating');
   }
 }
 
 window.updateCurrentAmount = function(amount) {
-  currentAmount = amount;
-  console.log('[Wheel] 🎯 Current amount updated:', currentAmount);
+  const parsed = Number(amount);
+  if (!Number.isFinite(parsed) || parsed <= 0) return;
+  currentAmount = parsed;
 };
 
 
 /* ===== Betting UI ===== */
 function initBettingUI(){
 
-  console.log('[Wheel] 🎮 Init Betting UI, userBalance:', userBalance);
+  console.log('[Wheel] Init Betting UI, userBalance:', userBalance);
+
   // ===== AMOUNT BUTTONS WITH SELECTION HIGHLIGHT =====
-  amountBtns.forEach(btn => {
+  amountBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       if (phase !== 'betting' && phase !== 'waiting') return;
-      
-      // Убираем selected со всех кнопок
-      amountBtns.forEach(b => {
-        b.classList.remove('selected');
-        b.removeAttribute('data-selected');
-      });
-      
-      // Добавляем selected к текущей кнопке
-      btn.classList.add('selected');
+
+      if (selectedAmountBtn && selectedAmountBtn !== btn) {
+        selectedAmountBtn.classList.remove('active', 'selected');
+        selectedAmountBtn.removeAttribute('data-selected');
+      }
+
+      btn.classList.add('active', 'selected');
       btn.setAttribute('data-selected', 'true');
-      
-      currentAmount = parseFloat(btn.dataset.amount);
-      
-      console.log('[Wheel] 🎯 Amount selected:', currentAmount, currentCurrency);
+      selectedAmountBtn = btn;
+
+      const parsedAmount = Number(btn.dataset.amount);
+      if (Number.isFinite(parsedAmount) && parsedAmount > 0) {
+        currentAmount = parsedAmount;
+      }
     });
   });
 
   // Balance events
   window.addEventListener('balance:loaded', (e) => {
     if (TEST_MODE) return;
-    
+
     if (e.detail) {
       userBalance.ton = e.detail.ton || 0;
       userBalance.stars = e.detail.stars || 0;
@@ -1516,7 +1581,7 @@ function initBettingUI(){
 
   window.addEventListener('balance:update', (e) => {
     if (TEST_MODE && !e.detail._testMode) return;
-    
+
     if (e.detail) {
       if (e.detail.ton !== undefined) userBalance.ton = e.detail.ton;
       if (e.detail.stars !== undefined) userBalance.stars = e.detail.stars;
@@ -1528,11 +1593,11 @@ function initBettingUI(){
   window.addEventListener('currency:changed', (e) => {
     if (e.detail && e.detail.currency) {
       const newCurrency = e.detail.currency;
-      console.log('[Wheel] 🔄 Currency changed to:', newCurrency);
+      console.log('[Wheel] Currency changed to:', newCurrency);
       currentCurrency = newCurrency;
       updateAmountButtonsUI(newCurrency);
 
-      // update icons on already placed bets
+      // Update icons on already placed bets.
       document.querySelectorAll('.bet-pill').forEach((pill) => {
         const icon = pill.querySelector('.bet-pill__icon');
         if (icon) icon.src = getCurrencyIconSrc(newCurrency);
@@ -1541,36 +1606,62 @@ function initBettingUI(){
     }
   });
 
-  // 🔥 BET TILES WITH TEST MODE BALANCE CHECK
-  betTiles.forEach(tile => {
+  betTiles.forEach((tile) => {
     tile.addEventListener('click', async () => {
       if (bettingLocked) {
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 300);
         return;
       }
-      
+
       if (phase !== 'betting' && phase !== 'waiting') return;
-      
-      const seg = normSeg(tile.dataset.seg);
-      const cur = betsMap.get(seg) || 0;
-      
-      // 🔥 Balance check
-      const balance = userBalance[currentCurrency] || 0;
-      
-      if (balance < currentAmount) {
+
+      const seg = normSeg(tile.dataset.seg || tile.dataset.segment);
+      if (!seg) return;
+
+      const betCurrency = currentCurrency;
+      const betAmount = betCurrency === 'stars'
+        ? Math.round(Number(currentAmount) || 0)
+        : +(Number(currentAmount) || 0).toFixed(2);
+      if (!(betAmount > 0)) return;
+
+      const cur = Number(betsMap.get(seg) || 0);
+      const balance = Number(userBalance[betCurrency] || 0);
+      if (balance < betAmount) {
         tile.classList.add('insufficient-balance');
         setTimeout(() => tile.classList.remove('insufficient-balance'), 800);
         showInsufficientBalanceNotification();
         return;
       }
-  
-      // ✅ Add bet locally
-      const next = currentCurrency === 'stars' 
-        ? Math.round(cur + currentAmount)
-        : +(cur + currentAmount).toFixed(2);
+
+      const next = betCurrency === 'stars'
+        ? Math.round(cur + betAmount)
+        : +(cur + betAmount).toFixed(2);
+
+      // Optimistic UI for instant response on mobile.
       betsMap.set(seg, next);
-      // SEND BET TO SERVER FIRST (authoritative debit), then to shared WS state
+      deductBetAmount(betAmount, betCurrency);
+      setBetPill(tile, seg, next, betCurrency);
+      tile.classList.add('has-bet');
+      tile.classList.remove('active');
+      requestAnimationFrame(() => tile.classList.add('active'));
+      setTimeout(() => tile.classList.remove('active'), 160);
+
+      const rollbackBet = () => {
+        if (cur > 0) {
+          betsMap.set(seg, cur);
+          setBetPill(tile, seg, cur, betCurrency);
+          tile.classList.add('has-bet');
+        } else {
+          betsMap.delete(seg);
+          const pill = tile.querySelector('.bet-pill');
+          if (pill) pill.remove();
+          tile.classList.remove('has-bet');
+        }
+        refundBetAmount(betAmount, betCurrency);
+      };
+
+      // Send bet to server first (authoritative debit), then sync WS state.
       const tgApp = window.Telegram?.WebApp;
       const tgUser = tgApp?.initDataUnsafe?.user;
       const initData = tgApp?.initData || '';
@@ -1579,15 +1670,13 @@ function initBettingUI(){
 
       if (!TEST_MODE) {
         if (userId === 'guest' || !initData) {
-          if (next === currentAmount) betsMap.delete(seg);
-          else betsMap.set(seg, cur);
+          rollbackBet();
           showInsufficientBalanceNotification();
           return;
         }
 
         if (!wheelWs || wheelWs.readyState !== WebSocket.OPEN) {
-          if (next === currentAmount) betsMap.delete(seg);
-          else betsMap.set(seg, cur);
+          rollbackBet();
           showInsufficientBalanceNotification();
           return;
         }
@@ -1598,8 +1687,8 @@ function initBettingUI(){
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId,
-              amount: -currentAmount,
-              currency: currentCurrency,
+              amount: -betAmount,
+              currency: betCurrency,
               type: 'wheel_bet',
               roundId,
               initData,
@@ -1612,15 +1701,13 @@ function initBettingUI(){
           const result = await response.json().catch(() => ({}));
           if (!response.ok || !result.ok) {
             console.error('[Wheel] Server rejected bet:', result.error || response.status);
-            if (next === currentAmount) betsMap.delete(seg);
-            else betsMap.set(seg, cur);
+            rollbackBet();
             showInsufficientBalanceNotification();
             return;
           }
         } catch (error) {
           console.error('[Wheel] Failed to send bet to server:', error);
-          if (next === currentAmount) betsMap.delete(seg);
-          else betsMap.set(seg, cur);
+          rollbackBet();
           showInsufficientBalanceNotification();
           return;
         }
@@ -1634,35 +1721,35 @@ function initBettingUI(){
           userAvatar: getWheelUserAvatar() || null,
           initData,
           segment: seg,
-          amount: currentAmount,
-          currency: currentCurrency,
+          amount: betAmount,
+          currency: betCurrency,
           roundId
         });
       } catch (wsErr) {
         console.warn('[WheelWS] Failed to send placeBet:', wsErr);
-        if (next === currentAmount) betsMap.delete(seg);
-        else betsMap.set(seg, cur);
+        rollbackBet();
         showInsufficientBalanceNotification();
-        return;
       }
-      deductBetAmount(currentAmount, currentCurrency);
-      setBetPill(tile, seg, next, currentCurrency);
-      tile.classList.add('has-bet');
-      setTimeout(() => tile.classList.remove('active'), 160);
     });
   });
 }
 
-
-
 /* ===== Canvas ===== */
+function getWheelRenderDpr() {
+  const nativeDpr = window.devicePixelRatio || 1;
+  if (isWheelLiteRuntime()) return Math.max(1, Math.min(nativeDpr, 1.35));
+  if (wheelRootEl?.classList?.contains('wt-mobile')) return Math.max(1, Math.min(nativeDpr, 1.75));
+  return Math.max(1, Math.min(nativeDpr, 2));
+}
+
 function prepareCanvas(){
-  DPR = window.devicePixelRatio || 1;
+  DPR = getWheelRenderDpr();
   const cssW = canvas.clientWidth || 420;
   const cssH = canvas.clientHeight|| 420;
   canvas.width  = Math.round(cssW * DPR);
   canvas.height = Math.round(cssH * DPR);
-  ctx = canvas.getContext('2d');
+  ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  if (!ctx) return;
   ctx.setTransform(DPR,0,0,DPR,0,0);
   lastDrawAt = 0;
 }
@@ -2394,7 +2481,6 @@ function isWheelPageActive() {
 let __wheelBonusBarEl = null;
 let __wheelBonusBarStyleDone = false;
 let __wheelBonusBarShownForId = null;
-let __wheelBonusBarTimer = null;
 
 function getBonusEndsAt(bonus) {
   if (!bonus) return null;
@@ -2538,9 +2624,7 @@ function showWheelBonusBar(bonus) {
   const type = normSeg(bonus.type);
   const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
   if (icon) icon.src = iconSrc;
-  const liveBonusNow = wheelServerState?.bonus || bonus;
-  const remaining = formatBonusRemaining(getBonusRemainingMs(liveBonusNow));
-  if (sub) sub.textContent = remaining ? `Bonus: ${type} • ${remaining}` : `Bonus: ${type}`;
+  if (sub) sub.textContent = `Bonus: ${type}`;
 
   // bind click once per bonus id
   const bonusId = String(bonus.id || `${bonus.type}:${bonus.startedAt || ''}`);
@@ -2562,26 +2646,10 @@ function showWheelBonusBar(bonus) {
   }
 
   el.classList.add('active');
-
-  if (__wheelBonusBarTimer) clearInterval(__wheelBonusBarTimer);
-  __wheelBonusBarTimer = setInterval(() => {
-    if (!wheelServerState || wheelServerState.phase !== 'bonus') {
-      clearInterval(__wheelBonusBarTimer);
-      __wheelBonusBarTimer = null;
-      return;
-    }
-    const liveBonus = wheelServerState?.bonus || bonus;
-    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(liveBonus));
-    if (sub && nextRemaining) sub.textContent = `Bonus: ${type} • ${nextRemaining}`;
-  }, 1000);
 }
 
 function hideWheelBonusBar() {
   if (__wheelBonusBarEl) __wheelBonusBarEl.classList.remove('active');
-  if (__wheelBonusBarTimer) {
-    clearInterval(__wheelBonusBarTimer);
-    __wheelBonusBarTimer = null;
-  }
 }
 
 function refreshWheelBonusBarFromState() {
@@ -2644,6 +2712,8 @@ function getMyBetAmountFromServer(players, seg) {
 
 async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   const t = normSeg(type);
+  const bonusId = String(bonusState?.id || '').trim();
+  if (bonusId) notifyBonusOverlayOpened(bonusId);
   
   const remainingMs = getBonusRemainingMs(bonusState);
   const remainingSec = Number.isFinite(remainingMs) ? Math.max(1, Math.ceil(remainingMs / 1000)) : null;
@@ -2651,7 +2721,7 @@ async function openBonusOverlay(type, betAmount = 0, bonusState = null) {
   // 🔥 КРИТИЧНО: передаём hasBet для корректной работы бонусов
   const hasBet = betAmount > 0;
   const bonusOpts = {
-    bonusId: bonusState?.id ?? null,
+    bonusId: bonusId || null,
     hasBet,
     durationSec: (bonusState?.durationMs ? Math.ceil(bonusState.durationMs / 1000) : 12),
     remainingSec: remainingSec || null,
@@ -2750,7 +2820,7 @@ function restoreMyBetsFromServer(players) {
       // If pills are missing from DOM, rebuild from server state
       let missingPill = false;
       for (const [seg] of serverBets.entries()) {
-        const tile = Array.from(betTiles).find(t => normSeg(t?.dataset?.seg) === seg);
+        const tile = getBetTileBySegment(seg);
         if (tile && !tile.querySelector('.bet-pill')) {
           missingPill = true;
           break;
@@ -2766,7 +2836,7 @@ function restoreMyBetsFromServer(players) {
 
   for (const [seg, amount] of serverBets.entries()) {
     betsMap.set(seg, amount);
-    const tile = Array.from(betTiles).find(t => normSeg(t?.dataset?.seg) === seg);
+    const tile = getBetTileBySegment(seg);
     if (!tile) continue;
     tile.classList.add('active', 'has-bet');
     setBetPill(tile, seg, amount, me.currency || currentCurrency);
@@ -3051,8 +3121,6 @@ function showCompactBetCards() {
     
     container.appendChild(card);
   });
-  
-  console.log('[Wheel] ✅ Compact cards created');
 }
 
 // Скрываем и очищаем компактные карточки
@@ -3064,7 +3132,6 @@ function hideCompactBetCards() {
       container.innerHTML = '';
     }, 500); // Задержка для анимации
   }
-  console.log('[Wheel] 🎴 Compact cards hidden');
 }
 
 
@@ -3097,8 +3164,6 @@ function checkHistoryVisibility() {
   // Начальная проверка
   const isWheelActive = wheelPage?.classList.contains('page-active');
   historySection.style.display = isWheelActive ? 'block' : 'none';
-  
-  console.log('[Wheel] 📜 History visibility tracking enabled');
 }
 
 function pushHistory(typeKey){
@@ -3128,7 +3193,6 @@ function pushHistory(typeKey){
   if (all.length > 20) all[all.length-1].remove();
   
   // 🔥 Разблокируем ставки после добавления в историю
-  console.log('[Wheel] ✅ Betting unlocked - history updated');
 }
 
 function clearBets(){
@@ -3646,6 +3710,11 @@ function getMultiplier(type) {
       onComplete: (result) => {
         console.log('[Wheel] 🎰 Bonus 50/50 finished, result:', result);
         wheelBonusOverlayActive = false;
+        try {
+          if (bonusId && typeof window.__notifyBonusOverlayDone === 'function') {
+            window.__notifyBonusOverlayDone(bonusId);
+          }
+        } catch (_) {}
 
         if (sessions[sessionKey]) {
           sessions[sessionKey].done = true;

@@ -13,6 +13,7 @@ import "../css/profile.css";
 import "../css/bonus.css";
 import "../css/unauthorized.css";
 
+import "./core/perf.js";
 import { blockNonTelegramBrowserInProd } from "./shared/telegram-entry-guard.js";
 
 // Mount the large HTML shell into #root before feature scripts run.
