@@ -173,6 +173,8 @@ function restoreHistoryFromState(state) {
 
 // ===== Wheel WebSocket state (server-driven) =====
 let wheelWs = null;
+let wheelWsReconnectTimer = 0;
+let wheelWsShouldRun = false;
 let wheelServerState = null;
 let wheelLastRoundId = null;
 let wheelSpinStartedForRound = null;
@@ -246,6 +248,9 @@ function buildMyBetsSignature(players) {
 
 
 function connectWheelWS() {
+  if (!wheelWsShouldRun) return;
+  if (wheelWs && (wheelWs.readyState === WebSocket.OPEN || wheelWs.readyState === WebSocket.CONNECTING)) return;
+
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const url = `${proto}//${location.host}/ws/wheel`;
 
@@ -256,8 +261,14 @@ function connectWheelWS() {
   };
 
   wheelWs.onclose = () => {
+    wheelWs = null;
+    if (!wheelWsShouldRun) return;
     console.log('[WheelWS] disconnected, reconnecting...');
-    setTimeout(connectWheelWS, 1000);
+    if (wheelWsReconnectTimer) clearTimeout(wheelWsReconnectTimer);
+    wheelWsReconnectTimer = setTimeout(() => {
+      wheelWsReconnectTimer = 0;
+      connectWheelWS();
+    }, 1000);
   };
 
   wheelWs.onerror = (e) => {
@@ -486,15 +497,23 @@ async function startSpinFromServer(spin) {
   const startedAt = Number(spin.spinStartAt || 0);
   const elapsed = startedAt ? (Date.now() - startedAt) : 0;
   const remaining = Math.max(0, totalMs - Math.max(0, elapsed));
+  const shouldKeepVisualSpin = isWheelPageActive() && !document.hidden;
+  const minVisualSpinMs = shouldKeepVisualSpin
+    ? (isWheelLiteRuntime() ? 1400 : 1900)
+    : 250;
 
   try {
     if (elapsed > accelMs) {
       // already in decel part → skip accel
-      const turns = Math.max(1, Math.round((spin.extraTurns || 4) * (remaining / totalMs)));
+      const fittedRemaining = Math.max(minVisualSpinMs, remaining || 0);
+      const turns = Math.max(
+        shouldKeepVisualSpin ? 2 : 1,
+        Math.round((spin.extraTurns || 4) * (fittedRemaining / Math.max(totalMs, 1)))
+      );
       setPhase('decelerate');
       await decelerateToSlice(
         spin.sliceIndex,
-        Math.max(250, remaining || 250),
+        Math.max(minVisualSpinMs, fittedRemaining || minVisualSpinMs),
         turns,
         spin.type
       );
@@ -991,6 +1010,11 @@ let currentAngle = 0;
 let rafId = 0;
 let lastTs = 0;
 let lastDrawAt = 0;
+let wheelRuntimeStarted = false;
+let wheelInitStarted = false;
+let wheelStaticCanvas = null;
+let wheelStaticCtx = null;
+let wheelStaticDirty = true;
 
 document.addEventListener('visibilitychange', () => {
   lastTs = 0;
@@ -1026,6 +1050,21 @@ window.omega = omega;
 window.phase = phase;
 window.setOmega = setOmega;
 window.setPhase = setPhase;
+
+function ensureWheelRuntimeStarted() {
+  if (wheelRuntimeStarted || !canvas) return;
+  wheelRuntimeStarted = true;
+  wheelWsShouldRun = true;
+  if (wheelWsReconnectTimer) {
+    clearTimeout(wheelWsReconnectTimer);
+    wheelWsReconnectTimer = 0;
+  }
+  connectWheelWS();
+  lastTs = performance.now();
+  lastDrawAt = 0;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(tick);
+}
 
 /* ===== SNAP / STOP ON SEGMENT (for bonuses/admin/console) ===== */
 function __normAngle(a) {
@@ -1266,7 +1305,10 @@ function preloadImages() {
 
 /* ===== Init ===== */
 
-window.addEventListener('DOMContentLoaded', async () => {
+async function initWheelModule() {
+  if (wheelInitStarted) return;
+  wheelInitStarted = true;
+
   canvas       = document.getElementById('wheelCanvas');
   betOverlay   = document.getElementById('betOverlay');
   historyList  = document.getElementById('historyList');
@@ -1314,15 +1356,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     syncWithCurrencySystem();
   }, 150);
 
-  lastTs = performance.now();
-  rafId = requestAnimationFrame(tick);
-
-  connectWheelWS();
-
   if (window.WT?.bus) {
     window.WT.bus.addEventListener('page:change', (e) => {
       if (e?.detail?.id === 'wheelPage') {
         refreshWheelBonusBarFromState();
+        ensureWheelRuntimeStarted();
       } else {
         hideWheelBonusBar();
       }
@@ -1340,8 +1378,20 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }, { passive: true });
   
+  if (isWheelPageActive()) {
+    ensureWheelRuntimeStarted();
+  }
+
   checkHistoryVisibility();
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    void initWheelModule();
+  }, { once: true });
+} else {
+  void initWheelModule();
+}
 
 
 
@@ -1656,168 +1706,204 @@ function initBettingUI(){
 
 
 /* ===== Canvas ===== */
-function prepareCanvas(){
-  DPR = window.devicePixelRatio || 1;
+function getWheelRenderDpr() {
+  const nativeDpr = window.devicePixelRatio || 1;
+  if (isWheelLiteRuntime()) return Math.max(1, Math.min(nativeDpr, 1.35));
+  if (wheelRootEl?.classList?.contains('wt-mobile')) return Math.max(1, Math.min(nativeDpr, 1.75));
+  return Math.max(1, Math.min(nativeDpr, 2));
+}
+
+function prepareCanvas() {
+  DPR = getWheelRenderDpr();
   const cssW = canvas.clientWidth || 420;
-  const cssH = canvas.clientHeight|| 420;
-  canvas.width  = Math.round(cssW * DPR);
+  const cssH = canvas.clientHeight || 420;
+  canvas.width = Math.round(cssW * DPR);
   canvas.height = Math.round(cssH * DPR);
-  ctx = canvas.getContext('2d');
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  if (!ctx) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  if (!wheelStaticCanvas) wheelStaticCanvas = document.createElement('canvas');
+  wheelStaticCanvas.width = canvas.width;
+  wheelStaticCanvas.height = canvas.height;
+  wheelStaticCtx = wheelStaticCanvas.getContext('2d', { alpha: true, desynchronized: true });
+  wheelStaticDirty = true;
   lastDrawAt = 0;
 }
 
-
-
-
-
-
-
-function drawWheel(angle=0){
-  if (!ctx) return;
-  const w = canvas.width / DPR, h = canvas.height / DPR;
-  const cx = w/2, cy = h/2, R  = Math.min(cx,cy) - 6;
-
-  ctx.save();
-  ctx.clearRect(0,0,w,h);
-
-  const g = ctx.createRadialGradient(cx,cy,R*0.25, cx,cy,R);
-  g.addColorStop(0,'rgba(0,170,255,.12)');
-  g.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle = g; 
-  ctx.fillRect(0,0,w,h);
-
-  ctx.translate(cx,cy);
-  ctx.rotate(angle);
-
-  for (let i=0; i<SLICE_COUNT; i++){
-    const key = WHEEL_ORDER[i];
-    const col = COLORS[key] || { fill:'#333', text:'#fff' };
-    const a0 = i*SLICE_ANGLE, a1 = a0+SLICE_ANGLE;
-
-    ctx.save();
-    
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,R,a0,a1,false);
-    ctx.closePath();
-    
-    if (imagesLoaded && loadedImages.has(key)) {
-      const img = loadedImages.get(key);
-      
-      ctx.save();
-      ctx.clip();
-      
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      
-      const imgWidth = R * 1.15;
-      const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.4;
-      
-      ctx.drawImage(
-        img, 
-        0, -imgHeight/2,
-        imgWidth, imgHeight
-      );
-      
-      ctx.restore();
-    } else {
-      ctx.fillStyle = col.fill; 
-      ctx.fill();
-      
-      const mid = a0 + SLICE_ANGLE/2;
-      ctx.rotate(mid);
-      ctx.textAlign='right';
-      ctx.textBaseline='middle';
-      ctx.fillStyle = col.text;
-      ctx.font='bold 16px mf, system-ui, sans-serif';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(LABELS[key] || key, R-16, 0);
-      ctx.shadowBlur = 0;
-    }
-
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255,255,255,.2)';
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-
-
-// --- Bonus vertical text overlays (рисуем поверх всех секторов; клип только по кругу)
-if (imagesLoaded && loadedBonusTextImages && loadedBonusTextImages.size) {
-  const TAU = Math.PI * 2;
-  const sliceThickness = R * Math.tan(SLICE_ANGLE / 2) * 2;
-
-const style = (window.WHEEL_BONUS_TEXT_STYLE && typeof window.WHEEL_BONUS_TEXT_STYLE === 'object')
-  ? window.WHEEL_BONUS_TEXT_STYLE
-  : BONUS_TEXT_STYLE_DEFAULT;
-
-const heightFactor = (typeof style.heightFactor === 'number')
-  ? style.heightFactor
-  : BONUS_TEXT_STYLE_DEFAULT.heightFactor;
-const radialPos = (typeof style.radialPos === 'number')
-  ? style.radialPos
-  : BONUS_TEXT_STYLE_DEFAULT.radialPos;
-const alpha = (typeof style.alpha === 'number')
-  ? style.alpha
-  : BONUS_TEXT_STYLE_DEFAULT.alpha;
-
-  const textHBase = sliceThickness * heightFactor;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, R, 0, TAU);
-  ctx.clip();
-
-  const prevAlpha = ctx.globalAlpha;
-  ctx.globalAlpha = alpha;
-
+function drawWheelDisk(drawCtx, R) {
   for (let i = 0; i < SLICE_COUNT; i++) {
     const key = WHEEL_ORDER[i];
-    if (!loadedBonusTextImages.has(key)) continue;
+    const col = COLORS[key] || { fill: '#333', text: '#fff' };
+    const a0 = i * SLICE_ANGLE;
+    const a1 = a0 + SLICE_ANGLE;
 
-    const img = loadedBonusTextImages.get(key);
-    if (!img) continue;
+    drawCtx.save();
 
-    const mid = i * SLICE_ANGLE + SLICE_ANGLE / 2;
-    const aspect = (img.width && img.height) ? (img.width / img.height) : 0.25;
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, 0);
+    drawCtx.arc(0, 0, R, a0, a1, false);
+    drawCtx.closePath();
 
-    const textH = textHBase;
-    const textW = textH * aspect;
+    if (imagesLoaded && loadedImages.has(key)) {
+      const img = loadedImages.get(key);
 
-    ctx.save();
-    ctx.rotate(mid);
+      drawCtx.save();
+      drawCtx.clip();
 
-    // x — насколько далеко от центра (0..R). y — центрируем по высоте.
-    const x = R * radialPos;
-    const y = -textH / 2;
+      const mid = a0 + SLICE_ANGLE / 2;
+      drawCtx.rotate(mid);
 
-    ctx.drawImage(img, x, y, textW, textH);
-    ctx.restore();
+      const imgWidth = R * 1.15;
+      const imgHeight = R * Math.tan(SLICE_ANGLE / 2) * 2.4;
+
+      drawCtx.drawImage(
+        img,
+        0, -imgHeight / 2,
+        imgWidth, imgHeight
+      );
+
+      drawCtx.restore();
+    } else {
+      drawCtx.fillStyle = col.fill;
+      drawCtx.fill();
+
+      const mid = a0 + SLICE_ANGLE / 2;
+      drawCtx.rotate(mid);
+      drawCtx.textAlign = 'right';
+      drawCtx.textBaseline = 'middle';
+      drawCtx.fillStyle = col.text;
+      drawCtx.font = 'bold 16px mf, system-ui, sans-serif';
+      drawCtx.shadowColor = 'rgba(0,0,0,0.8)';
+      drawCtx.shadowBlur = 4;
+      drawCtx.fillText(LABELS[key] || key, R - 16, 0);
+      drawCtx.shadowBlur = 0;
+    }
+
+    drawCtx.lineWidth = 2;
+    drawCtx.strokeStyle = 'rgba(255,255,255,.2)';
+    drawCtx.stroke();
+
+    drawCtx.restore();
   }
 
-  ctx.globalAlpha = prevAlpha;
-  ctx.restore();
+  if (imagesLoaded && loadedBonusTextImages && loadedBonusTextImages.size) {
+    const TAU = Math.PI * 2;
+    const sliceThickness = R * Math.tan(SLICE_ANGLE / 2) * 2;
+
+    const style = (window.WHEEL_BONUS_TEXT_STYLE && typeof window.WHEEL_BONUS_TEXT_STYLE === 'object')
+      ? window.WHEEL_BONUS_TEXT_STYLE
+      : BONUS_TEXT_STYLE_DEFAULT;
+
+    const heightFactor = (typeof style.heightFactor === 'number')
+      ? style.heightFactor
+      : BONUS_TEXT_STYLE_DEFAULT.heightFactor;
+    const radialPos = (typeof style.radialPos === 'number')
+      ? style.radialPos
+      : BONUS_TEXT_STYLE_DEFAULT.radialPos;
+    const alpha = (typeof style.alpha === 'number')
+      ? style.alpha
+      : BONUS_TEXT_STYLE_DEFAULT.alpha;
+
+    const textHBase = sliceThickness * heightFactor;
+
+    drawCtx.save();
+    drawCtx.beginPath();
+    drawCtx.arc(0, 0, R, 0, TAU);
+    drawCtx.clip();
+
+    const prevAlpha = drawCtx.globalAlpha;
+    drawCtx.globalAlpha = alpha;
+
+    for (let i = 0; i < SLICE_COUNT; i++) {
+      const key = WHEEL_ORDER[i];
+      if (!loadedBonusTextImages.has(key)) continue;
+
+      const img = loadedBonusTextImages.get(key);
+      if (!img) continue;
+
+      const mid = i * SLICE_ANGLE + SLICE_ANGLE / 2;
+      const aspect = (img.width && img.height) ? (img.width / img.height) : 0.25;
+
+      const textH = textHBase;
+      const textW = textH * aspect;
+
+      drawCtx.save();
+      drawCtx.rotate(mid);
+
+      const x = R * radialPos;
+      const y = -textH / 2;
+
+      drawCtx.drawImage(img, x, y, textW, textH);
+      drawCtx.restore();
+    }
+
+    drawCtx.globalAlpha = prevAlpha;
+    drawCtx.restore();
+  }
+
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, 20, 0, 2 * Math.PI);
+  drawCtx.fillStyle = '#121212';
+  drawCtx.fill();
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeStyle = 'rgba(255,255,255,.25)';
+  drawCtx.stroke();
 }
 
-  ctx.beginPath(); 
-  ctx.arc(0,0,20,0,2*Math.PI);
-  ctx.fillStyle='#121212'; 
-  ctx.fill();
-  ctx.lineWidth=2; 
-  ctx.strokeStyle='rgba(255,255,255,.25)'; 
-  ctx.stroke();
+function rebuildWheelStaticLayer() {
+  if (!wheelStaticCtx || !wheelStaticCanvas) return;
+
+  const sctx = wheelStaticCtx;
+  const w = wheelStaticCanvas.width / DPR;
+  const h = wheelStaticCanvas.height / DPR;
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(cx, cy) - 6;
+
+  sctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  sctx.clearRect(0, 0, w, h);
+  sctx.save();
+  sctx.translate(cx, cy);
+  drawWheelDisk(sctx, R);
+  sctx.restore();
+
+  wheelStaticDirty = false;
+}
+
+function drawWheel(angle = 0) {
+  if (!ctx) return;
+
+  const w = canvas.width / DPR;
+  const h = canvas.height / DPR;
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(cx, cy) - 6;
+
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+
+  const g = ctx.createRadialGradient(cx, cy, R * 0.25, cx, cy, R);
+  g.addColorStop(0, 'rgba(0,170,255,.12)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  if (wheelStaticDirty) rebuildWheelStaticLayer();
+
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  if (wheelStaticCanvas) {
+    ctx.drawImage(
+      wheelStaticCanvas,
+      -w / 2, -h / 2,
+      w, h
+    );
+  }
 
   ctx.restore();
 }
-
-
-
-
-
-
 
 /* ===== Animation loop ===== */
 function isWheelLiteRuntime() {
@@ -1838,7 +1924,7 @@ function tick(ts){
 
   const isVisibleWheel = !document.hidden && isWheelPageActive();
   const isAnimating = phase === 'decelerate' || phase === 'accelerate';
-  const hasLiveBets = betsMap.size > 0 || phase === 'betting' || phase === 'waiting';
+  const hasLiveBets = betsMap.size > 0 || (isVisibleWheel && (phase === 'betting' || phase === 'waiting'));
 
   // Countdown doesn't need per-frame updates while the page is hidden and no live bets.
   if (isVisibleWheel || hasLiveBets) {
@@ -2001,7 +2087,7 @@ function tick(ts){
   }
 
   const frameInterval = getWheelFrameIntervalMs(isVisibleWheel, isAnimating, hasLiveBets);
-  const shouldDrawWheel = isVisibleWheel || isAnimating || hasLiveBets;
+  const shouldDrawWheel = isVisibleWheel || isAnimating || betsMap.size > 0;
   if (shouldDrawWheel && (!lastDrawAt || (ts - lastDrawAt) >= frameInterval)) {
     drawWheel(currentAngle);
     lastDrawAt = ts;

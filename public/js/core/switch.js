@@ -1538,6 +1538,7 @@
   init();
   
   setInterval(() => {
+    if (document.hidden) return;
     loadBalanceFromServer();
   }, 30000);
 

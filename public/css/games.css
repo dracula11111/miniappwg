@@ -9,6 +9,7 @@
     /* Нижний отступ под nav уже даёт .app, тут оставляем только контентный */
     padding: 16px 16px 10px;
     --games-layout-scale: 1;
+    --games-banner-bleed-right: clamp(20px, calc(16px + env(safe-area-inset-right, 0px)), 44px);
     height: 100%;
   }
 
@@ -41,7 +42,7 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: calc(10px * var(--games-layout-scale, 1));
   }
   
@@ -63,8 +64,9 @@
   }
 
   .games-banners{
-    width: 100%;
+    width: calc(100% + var(--games-banner-bleed-right, 20px));
     margin: 0;
+    margin-right: calc(var(--games-banner-bleed-right, 20px) * -1);
     flex-shrink: 0;
   }
 
