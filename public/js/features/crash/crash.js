@@ -1199,7 +1199,6 @@ const ICON_TON = "/icons/currency/tgTonWhite.svg";
     // WebSocket connection
     let ws = null;
     let reconnectTimeout = null;
-    let wsShouldRun = false;
 
     // Localhost test mode simulator
 let testModeInterval = null;
@@ -1334,9 +1333,6 @@ function handleTestCrash() {
 }
 
     function connectWebSocket() {
-        if (!wsShouldRun) return;
-        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-
         if (IS_LOCALHOST) {
           startTestMode();
           return;
@@ -1376,8 +1372,6 @@ function handleTestCrash() {
         console.log('[Crash WS] Disconnected');
         setStatus("Disconnected");
         ws = null;
-
-        if (!wsShouldRun) return;
         
         // Reconnect after 3 seconds
         if (!reconnectTimeout) {
@@ -2935,7 +2929,6 @@ const yOf = (v) => {
     function start() {
       if (running) return;
       running = true;
-      wsShouldRun = true;
       resize();
       renderPlayersPanelMeta();
       renderPills();
@@ -2946,21 +2939,10 @@ const yOf = (v) => {
 
     function stop() {
       running = false;
-      wsShouldRun = false;
       stopLoop();
       stopCurrencyPolling();
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-        reconnectTimeout = null;
-      }
-      if (ws) {
-        try { ws.close(); } catch (_) {}
-        ws = null;
-      }
-      if (testModeInterval) {
-        clearInterval(testModeInterval);
-        testModeInterval = null;
-      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (ws) ws.close();
     }
 
     function hasActiveCrashBet() {
@@ -2980,19 +2962,7 @@ const yOf = (v) => {
   function boot() {
     const page = ensureCrashPage();
     const engine = createEngine(page);
-
-    const syncEngineState = (pageId) => {
-      const shouldRun = pageId === "crashPage";
-      if (shouldRun) engine.start();
-      else engine.stop();
-    };
-
-    const initialPageId = document.querySelector(".page.page-active")?.id || "";
-    syncEngineState(initialPageId);
-
-    window.WT?.bus?.addEventListener?.("page:change", (event) => {
-      syncEngineState(event?.detail?.id || "");
-    });
+    engine.start();
   }
 
   if (document.readyState === 'loading') {

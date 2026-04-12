@@ -2299,6 +2299,10 @@
       btn.addEventListener("click", () => {
         const target = btn.getAttribute("data-go");
         if (!target) return;
+        if (!document.getElementById(target)) {
+          console.warn(`[WT] Page not found: ${target}`);
+          return;
+        }
         activatePage(target);
       });
     });
@@ -2308,53 +2312,11 @@
     return page;
   }
 
-  const pendingPageResolve = new Set();
-
   // РќР°РІРёРіР°С†РёСЏ РјРµР¶РґСѓ СЃС‚СЂР°РЅРёС†Р°РјРё
   function activatePage(id, options = {}){
     const { fromHistory = false } = options;
-    const resolver = window?.WT?.resolvePage;
-    const isPageReady = window?.WT?.isPageReady;
-    if (
-      typeof resolver === "function" &&
-      typeof isPageReady === "function" &&
-      !isPageReady(id) &&
-      !pendingPageResolve.has(id)
-    ) {
-      pendingPageResolve.add(id);
-      Promise.resolve()
-        .then(() => resolver(id))
-        .then((ok) => {
-          pendingPageResolve.delete(id);
-          if (!ok) return;
-          activatePage(id, options);
-        })
-        .catch((error) => {
-          pendingPageResolve.delete(id);
-          console.warn(`[WT] Failed to resolve page "${id}"`, error);
-        });
-      return;
-    }
-
     const pg = document.getElementById(id);
     if (!pg) {
-      if (typeof resolver === "function" && !pendingPageResolve.has(id)) {
-        pendingPageResolve.add(id);
-        Promise.resolve()
-          .then(() => resolver(id))
-          .then((ok) => {
-            pendingPageResolve.delete(id);
-            if (!ok) return;
-            if (document.getElementById(id)) {
-              activatePage(id, options);
-            }
-          })
-          .catch((error) => {
-            pendingPageResolve.delete(id);
-            console.warn(`[WT] Failed to resolve page "${id}"`, error);
-          });
-        return;
-      }
       console.warn(`[WT] Page not found: ${id}`);
       return;
     }
@@ -2426,7 +2388,7 @@
 
   window.addEventListener("popstate", (event) => {
     const targetId = readHistoryPage(event.state);
-    if (targetId) {
+    if (targetId && document.getElementById(targetId)) {
       activatePage(targetId, { fromHistory: true });
       return;
     }

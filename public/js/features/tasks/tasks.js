@@ -786,11 +786,8 @@
     } catch {}
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      void init();
-    }, { once: true });
-  } else {
+  document.addEventListener("DOMContentLoaded", () => {
     void init();
-  }
+  });
 })();
+
