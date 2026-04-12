@@ -26,10 +26,13 @@ function rotateServerSeed() {
 // =====================
 const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
+const IS_DEV = NODE_ENV === "development";
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
+// Dev QoL: skip "waiting" game phase to speed up local testing loops.
+const SKIP_GAME_WAITING_PHASE = IS_DEV;
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
-const FRONTEND_TEST_MODE = false;
+const FRONTEND_TEST_MODE = true;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5392938561909386575";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6006619569318509975";
@@ -1341,6 +1344,11 @@ function startCrashWaitingRound() {
 
   crashLog(`[Crash] Round ${crashGame.roundId} waiting for first bet`);
 
+  if (SKIP_GAME_WAITING_PHASE) {
+    startBetting();
+    return;
+  }
+
   broadcastGameState();
 }
 
@@ -1376,7 +1384,7 @@ function startBetting() {
 
 function startRunning() {
   if (crashGame.phase !== 'betting') return;
-  if (!Array.isArray(crashGame.players) || crashGame.players.length === 0) {
+  if ((!Array.isArray(crashGame.players) || crashGame.players.length === 0) && !SKIP_GAME_WAITING_PHASE) {
     crashGame.phase = 'waiting';
     crashGame.phaseStart = Date.now();
     crashGame.currentMult = 1.0;
@@ -1677,6 +1685,7 @@ const WHEEL_BONUS_TIME_BY_TYPE = {
   'Wild Time': 15000
 };
 const WHEEL_BONUS_FALLBACK_MS = 15000;
+const WHEEL_BONUS_HARD_TIMEOUT_MS = 90000;
 const WHEEL_SEGMENT_MULTIPLIERS = Object.freeze({
   '1.1x': 1.1,
   '1.5x': 1.5,
@@ -1695,7 +1704,8 @@ const wheelGame = {
   players: new Map(),         // userId -> { userId,name,avatar,currency,totalAmount,segments:Map }
   history: [],
   spin: null,                 // { sliceIndex,type,accelMs,decelMs,extraTurns,spinStartAt,spinTotalMs }
-  bonus: null,               // { id,type,startedAt,durationMs,endsAt,outcome }
+  bonus: null,               // { id,type,startedAt,durationMs,endsAt,hardEndsAt,clientDoneAt,pendingDoneUsers:Set,doneUsers:Set,outcome }
+  bonusEndRequested: false,
   settlement: null,          // { roundId,resultType,multiplier,winnersCount,paidTon,paidStars,bonusOutcome }
   settlementPromise: null,
   phaseTimeout: null
@@ -2042,6 +2052,10 @@ function buildWheelState(now = Date.now()) {
       startedAt: wheelGame.bonus.startedAt,
       durationMs: wheelGame.bonus.durationMs,
       endsAt: wheelGame.bonus.endsAt,
+      hardEndsAt: wheelGame.bonus.hardEndsAt,
+      clientDoneAt: wheelGame.bonus.clientDoneAt,
+      pendingDoneCount: (wheelGame.bonus.pendingDoneUsers instanceof Set) ? wheelGame.bonus.pendingDoneUsers.size : 0,
+      doneCount: (wheelGame.bonus.doneUsers instanceof Set) ? wheelGame.bonus.doneUsers.size : 0,
       elapsedMs: elapsed,
       remainingMs: remaining,
       outcome: wheelBuildClientBonusOutcome(wheelGame.bonus.outcome)
@@ -2106,9 +2120,15 @@ function wheelStartWaitingRound() {
   cleanupWheelBetCredits(wheelGame.roundId);
   wheelGame.spin = null;
   wheelGame.bonus = null;
+  wheelGame.bonusEndRequested = false;
   wheelGame.settlement = null;
   wheelGame.settlementPromise = null;
   wheelGame.players.clear();
+
+  if (SKIP_GAME_WAITING_PHASE) {
+    wheelStartBetting();
+    return;
+  }
 
   broadcastWheelState();
 }
@@ -2136,7 +2156,7 @@ function wheelPickResult() {
 
 function wheelStartSpin() {
   if (wheelGame.phase !== 'betting') return;
-  if ((wheelGame.players?.size || 0) <= 0) {
+  if ((wheelGame.players?.size || 0) <= 0 && !SKIP_GAME_WAITING_PHASE) {
     wheelClearPhaseTimeout();
     wheelGame.phase = 'waiting';
     wheelGame.phaseStart = Date.now();
@@ -2210,6 +2230,7 @@ function wheelStartResultPhase() {
   wheelGame.phase = 'result';
   wheelGame.phaseStart = Date.now();
   wheelGame.bonus = null;
+  wheelGame.bonusEndRequested = false;
 
   broadcastWheelState();
 
@@ -2223,28 +2244,105 @@ function wheelStartBonus(type) {
 
   const now = Date.now();
   const durationMs = Number(WHEEL_BONUS_TIME_BY_TYPE[type]) || WHEEL_BONUS_FALLBACK_MS;
+  const hardDurationMs = Math.max(durationMs, WHEEL_BONUS_HARD_TIMEOUT_MS);
   const outcome = wheelPickBonusOutcome(type);
+  const pendingDoneUsers = new Set();
 
   wheelGame.phase = 'bonus';
   wheelGame.phaseStart = now;
+  wheelGame.bonusEndRequested = false;
   wheelGame.bonus = {
     id: `${wheelGame.roundId}:${type}:${now}`,
     type,
     startedAt: now,
     durationMs,
     endsAt: now + durationMs,
+    hardEndsAt: now + hardDurationMs,
+    clientDoneAt: null,
+    pendingDoneUsers,
+    doneUsers: new Set(),
     outcome
   };
 
   broadcastWheelState();
 
   wheelGame.phaseTimeout = setTimeout(() => {
-    wheelEndBonus();
-  }, durationMs);
+    wheelEndBonus('hard-timeout');
+  }, hardDurationMs);
 }
 
-function wheelEndBonus() {
+function wheelMarkBonusClientOpened(bonusId, userId = '') {
+  if (wheelGame.phase !== 'bonus') return false;
+  if (!wheelGame.bonus) return false;
+
+  const uid = String(userId || '').trim();
+  if (!uid) return false;
+  if (!wheelGame.players.has(uid)) return false;
+
+  const incomingId = String(bonusId || '').trim();
+  if (!incomingId) return false;
+  if (incomingId !== String(wheelGame.bonus.id)) return false;
+
+  const pendingDoneUsers = (wheelGame.bonus.pendingDoneUsers instanceof Set)
+    ? wheelGame.bonus.pendingDoneUsers
+    : new Set();
+  if (!pendingDoneUsers.has(uid)) {
+    pendingDoneUsers.add(uid);
+    wheelGame.bonus.pendingDoneUsers = pendingDoneUsers;
+  }
+
+  return true;
+}
+
+function wheelMarkBonusClientDone(bonusId, userId = '') {
+  if (wheelGame.phase !== 'bonus') return false;
+  if (!wheelGame.bonus) return false;
+
+  const uid = String(userId || '').trim();
+  if (!uid) return false;
+  if (!wheelGame.players.has(uid)) return false;
+
+  const incomingId = String(bonusId || '').trim();
+  if (!incomingId) return false;
+  if (incomingId !== String(wheelGame.bonus.id)) return false;
+
+  const pendingDoneUsers = (wheelGame.bonus.pendingDoneUsers instanceof Set)
+    ? wheelGame.bonus.pendingDoneUsers
+    : new Set();
+  const doneUsers = (wheelGame.bonus.doneUsers instanceof Set)
+    ? wheelGame.bonus.doneUsers
+    : new Set();
+
+  if (pendingDoneUsers.size > 0 && !pendingDoneUsers.has(uid)) {
+    return false;
+  }
+
+  if (doneUsers.has(uid)) {
+    return false;
+  }
+
+  doneUsers.add(uid);
+  wheelGame.bonus.doneUsers = doneUsers;
+  const now = Date.now();
+  wheelGame.bonus.clientDoneAt = now;
+
+  if (pendingDoneUsers.size > 0) {
+    if (doneUsers.size < pendingDoneUsers.size) {
+      return false;
+    }
+  }
+
+  wheelEndBonus('client-done');
+  return true;
+}
+
+function wheelEndBonus(reason = 'timeout') {
+  if (wheelGame.phase !== 'bonus') return;
+  if (wheelGame.bonusEndRequested) return;
+
+  wheelGame.bonusEndRequested = true;
   wheelClearPhaseTimeout();
+  console.log(`[Wheel] Bonus finished via ${reason} (round ${wheelGame.roundId})`);
 
   // After bonus: settle wins first, then show result, then next round.
   void wheelFinalizeRoundAndStartResult();
@@ -2261,6 +2359,30 @@ wheelWss.on('connection', (ws) => {
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);
+
+      if (msg.type === 'bonusOverlayOpened' || msg.type === 'bonusOverlayDone') {
+        const userId = String(msg.userId || '').trim();
+        const initData = String(msg.initData || "");
+        if (!userId || !initData || !process.env.BOT_TOKEN) return;
+
+        const initCheck = verifyInitData(initData, process.env.BOT_TOKEN, 24 * 60 * 60);
+        if (!initCheck.ok) return;
+
+        let wsUser = null;
+        try {
+          wsUser = JSON.parse(initCheck.params.user || "null");
+        } catch {
+          wsUser = null;
+        }
+        if (!wsUser?.id || String(wsUser.id) !== userId) return;
+
+        if (msg.type === 'bonusOverlayOpened') {
+          wheelMarkBonusClientOpened(msg.bonusId, userId);
+        } else {
+          wheelMarkBonusClientDone(msg.bonusId, userId);
+        }
+        return;
+      }
 
       if (msg.type === 'placeBet') {
         if (isTechPauseBlockingActions()) {
@@ -2353,6 +2475,11 @@ wheelWss.on('connection', (ws) => {
         if (!userId) return;
         wheelGame.players.delete(userId);
         if ((wheelGame.players?.size || 0) <= 0) {
+          if (SKIP_GAME_WAITING_PHASE) {
+            // In dev we keep current betting countdown, then spin even with empty pool.
+            broadcastWheelState();
+            return;
+          }
           wheelClearPhaseTimeout();
           wheelGame.phase = 'waiting';
           wheelGame.phaseStart = Date.now();

@@ -9,16 +9,21 @@
     /* Нижний отступ под nav уже даёт .app, тут оставляем только контентный */
     padding: 16px 16px 10px;
     --games-layout-scale: 1;
-    --games-banner-bleed-right: clamp(20px, calc(16px + env(safe-area-inset-right, 0px)), 44px);
+    --games-banner-panel-bleed-left: clamp(18px, calc(14px + env(safe-area-inset-left, 0px)), 42px);
+    --games-banner-panel-bleed-right: clamp(18px, calc(14px + env(safe-area-inset-right, 0px)), 42px);
     height: 100%;
   }
 
   body.page-games{
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-y: hidden;
   }
 
   body.page-games .app{
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-y: hidden;
   }
 
   body.page-games .topbar{
@@ -27,7 +32,9 @@
 
   body.page-games #gamesPage.page-active{
     height: var(--games-available-height, auto);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-y: hidden;
     margin-top: 0;
   }
 
@@ -64,9 +71,14 @@
   }
 
   .games-banners{
-    width: calc(100% + var(--games-banner-bleed-right, 20px));
+    width: calc(100% + var(--games-banner-panel-bleed-left, 0px) + var(--games-banner-panel-bleed-right, 0px));
     margin: 0;
-    margin-right: calc(var(--games-banner-bleed-right, 20px) * -1);
+    margin-left: calc(var(--games-banner-panel-bleed-left, 0px) * -1);
+    margin-right: calc(var(--games-banner-panel-bleed-right, 0px) * -1);
+    padding-left: var(--games-banner-panel-bleed-left, 0px);
+    padding-right: var(--games-banner-panel-bleed-right, 0px);
+    box-sizing: border-box;
+    background: var(--bg, #0d0e0f);
     flex-shrink: 0;
   }
 
@@ -74,7 +86,8 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: calc(8px * var(--games-layout-scale, 1));
+    margin-top: calc(10px * var(--games-layout-scale, 1));
+    gap: calc(12px * var(--games-layout-scale, 1));
     min-height: 0;
   }
 
@@ -96,7 +109,8 @@
     width: 100%;
     aspect-ratio: 1200 / 300;
     overflow: hidden;
-    --games-banner-panel-gap: 0px;
+    --games-banner-panel-gap: calc(8px * var(--games-layout-scale, 1));
+    padding: 0;
     background: var(--bg, #0d0e0f);
     touch-action: pan-y;
     cursor: grab;
@@ -132,7 +146,7 @@
     width: 100%;
     height: 100%;
     position: relative;
-    border-radius: calc(16px * var(--games-layout-scale, 1));
+    border-radius: clamp(12px, calc(18px * var(--games-layout-scale, 1)), 18px);
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background-image:

@@ -1381,7 +1381,7 @@
   
   /* Gloss shine on mult text */
   #wildTimeOverlay .wt-mult::after {
-    content: attr(data-mult);
+    content: attr(data-value);
     position: absolute;
     inset: 0;
     background: linear-gradient(180deg, rgba(255,255,255,0.32) 0%, transparent 48%);
@@ -1434,10 +1434,17 @@
     padding: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-  
+    touch-action: manipulation;
+
     /* Subtle float via margin-top — doesn't conflict with transform transitions */
     margin-top: 0px;
     will-change: transform, margin-top;
+    transform-origin: center bottom;
+  }
+
+  #wildTimeOverlay .wt-jarBtn[disabled] {
+    pointer-events: none;
+    cursor: default;
   }
   
   /* Floating hover animation: uses margin-top so it never conflicts with

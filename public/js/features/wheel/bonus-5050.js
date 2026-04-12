@@ -32,6 +32,37 @@ class Bonus5050 {
   _fmtX(v) { return `${Number.isInteger(v) ? v : String(v)}x`; }
   _overlayEl() { return document.getElementById('bonus5050Overlay'); }
 
+  _isFinitePoint(point) {
+    return !!point && Number.isFinite(point.x) && Number.isFinite(point.y);
+  }
+
+  _isElementRenderable(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return false;
+    const rect = el.getBoundingClientRect();
+    if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return false;
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  _safeCenterFromElement(el) {
+    if (!this._isElementRenderable(el)) return null;
+    return this._center(el.getBoundingClientRect());
+  }
+
+  _overlayCenter() {
+    const overlay = this._overlayEl();
+    if (!this._isElementRenderable(overlay)) return null;
+    return this._center(overlay.getBoundingClientRect());
+  }
+
+  _canRenderFxNow() {
+    const overlay = this._overlayEl();
+    if (!overlay) return false;
+    if (!overlay.isConnected) return false;
+    if (!overlay.classList.contains('bonus-overlay--active')) return false;
+    if (overlay.style.display === 'none') return false;
+    return true;
+  }
+
   _hashSeed(value) {
     const str = String(value || 'bonus5050');
     let h = 2166136261 >>> 0;
@@ -287,9 +318,13 @@ class Bonus5050 {
   }
 
   async _holdThenCollide(ui, goodX, badX) {
-    const startGood = this._center(ui.good.windowEl.getBoundingClientRect());
-    const startBad  = this._center(ui.bad.windowEl.getBoundingClientRect());
-    const end       = this._center(ui.vs.getBoundingClientRect());
+    const fallbackCenter = this._overlayCenter();
+    const startGood = this._safeCenterFromElement(ui?.good?.windowEl) || fallbackCenter;
+    const startBad  = this._safeCenterFromElement(ui?.bad?.windowEl) || fallbackCenter;
+    const end       = this._safeCenterFromElement(ui?.vs) || fallbackCenter;
+    if (!this._isFinitePoint(startGood) || !this._isFinitePoint(startBad) || !this._isFinitePoint(end)) {
+      return;
+    }
   
     // 1) показать два X (у тебя уже без панелей)
     const xGood = this._spawnFixedX(this._fmtX(goodX), startGood, 'good');
@@ -370,7 +405,12 @@ class Bonus5050 {
   
   
   async _boomWithParticles(ui) {
-    const end = this._center(ui.vs.getBoundingClientRect());
+    if (!this._running || this._aborted) return;
+    if (!this._canRenderFxNow()) return;
+    const end = this._safeCenterFromElement(ui?.vs) || this._overlayCenter();
+    if (!this._isFinitePoint(end)) return;
+    const fxRoot = this._fxRoot();
+    if (!fxRoot || !fxRoot.isConnected) return;
   
     // BOOM (center)
     const boom = document.createElement('img');
@@ -379,7 +419,7 @@ class Bonus5050 {
     boom.alt = '';
     boom.style.left = `${end.x}px`;
     boom.style.top  = `${end.y}px`;
-    this._fxRoot().appendChild(boom);
+    fxRoot.appendChild(boom);
   
     // PARTICLES (around)
     const particleCount = 14; // ✅ больше частиц
@@ -402,7 +442,7 @@ class Bonus5050 {
       p.style.width = `${size}px`;
       p.style.height = `${size}px`;
   
-      this._fxRoot().appendChild(p);
+      fxRoot.appendChild(p);
       parts.push({ el: p, dx, dy });
     }
   
