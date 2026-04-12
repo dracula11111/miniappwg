@@ -51,9 +51,16 @@
 
     // reveal / close
     revealShowMs: 3600,
+    revealInspectPauseMs: 1400,
     winPopupMs: 900,
     closeFadeMs: 260
   };
+
+  const WT_ASSETS = Object.freeze({
+    pointer: "/images/pointer.png",
+    multiplier: (mult) => `/images/Wildtime/${mult}x.png`,
+    jar: (jarNum) => `/images/Wildtime/jar${jarNum}.png`
+  });
 
   const TAU = Math.PI * 2;
   const POINTER_ANGLE = -Math.PI / 2; // top
@@ -169,6 +176,7 @@
       jarShuffleMsEnd: CFG.jarShuffleMsEnd,
       pickCountdownSec: CFG.pickCountdownSec,
       revealShowMs: CFG.revealShowMs,
+      revealInspectPauseMs: CFG.revealInspectPauseMs,
       winPopupMs: CFG.winPopupMs
     };
   }
@@ -195,6 +203,7 @@
       620 +
       280 +
       cfg.revealShowMs +
+      cfg.revealInspectPauseMs +
       cfg.winPopupMs +
       cfg.closeFadeMs +
       200
@@ -222,12 +231,11 @@
     CFG.jarShuffleMsStart = Math.max(scaledShuffleStart, scaledShuffleEnd + 20);
     CFG.jarShuffleMsEnd = Math.max(40, Math.min(scaledShuffleEnd, CFG.jarShuffleMsStart - 20));
 
-    CFG.pickCountdownSec = Math.max(1, Math.floor(CFG.pickCountdownSec / speedupFactor));
-    if (Number.isFinite(remainingSec)) {
-      CFG.pickCountdownSec = Math.max(1, Math.min(CFG.pickCountdownSec, Math.ceil(remainingSec)));
-    }
+    // Keep at least 5s for jar selection so player always has enough time to choose.
+    CFG.pickCountdownSec = Math.max(5, Math.ceil(Number(CFG.pickCountdownSec) || 5));
 
     CFG.revealShowMs = scaleMs(CFG.revealShowMs, 450);
+    CFG.revealInspectPauseMs = scaleMs(CFG.revealInspectPauseMs, 400);
     CFG.winPopupMs = scaleMs(CFG.winPopupMs, 220);
 
     if (Number.isFinite(remainingSec) && remainingSec <= 4) {
@@ -249,13 +257,19 @@
 
   // IMPORTANT: mount to body so fixed overlay is truly full-screen even if #wheelPage is transformed
   function mountRoot() {
-      return document.getElementById("wheelPage") || document.body;
+      return document.body || document.getElementById("wheelPage");
     }
-    
+
 
   function ensureOverlay() {
     let el = document.getElementById(CFG.overlayId);
-    if (el) return el;
+    if (el) {
+      const root = mountRoot();
+      if (root && el.parentElement !== root) {
+        root.appendChild(el);
+      }
+      return el;
+    }
 
     const offsetDeg = (360 / CFG.sectorsCount) * CFG.pointerOffsetSectors; // 30deg
 
@@ -280,9 +294,9 @@
         <div class="wt-stage" id="wildTimeStage">
           <canvas id="${CFG.canvasId}"></canvas>
 
-          <img class="wt-pointer" style="--ang:${-offsetDeg}deg" src="images/pointer.png" alt="">
-          <img class="wt-pointer" style="--ang:0deg" src="images/pointer.png" alt="">
-          <img class="wt-pointer" style="--ang:${offsetDeg}deg" src="images/pointer.png" alt="">
+          <img class="wt-pointer" style="--ang:${-offsetDeg}deg" src="${WT_ASSETS.pointer}" alt="">
+          <img class="wt-pointer" style="--ang:0deg" src="${WT_ASSETS.pointer}" alt="">
+          <img class="wt-pointer" style="--ang:${offsetDeg}deg" src="${WT_ASSETS.pointer}" alt="">
         </div>
 
         <!-- JAR GAME SCREEN -->
@@ -411,6 +425,7 @@
     // reset multipliers
     overlay.querySelectorAll(".wt-mult").forEach((m) => {
       m.textContent = "";
+      m.dataset.value = "";
       m.classList.remove("wt-mult--hidden");
       m.classList.remove("wt-mult--selected");
     });
@@ -439,11 +454,25 @@
 
     return Promise.all(
       CFG.multipliers.map((m) => {
-        const src = `images/Wildtime/${m}x.png`;
+        const src = WT_ASSETS.multiplier(m);
         return new Promise((resolve) => {
           const img = new Image();
-          img.onload = () => { multImgs.set(m, img); resolve(); };
-          img.onerror = () => { console.warn("[WildTime] missing:", src); multImgs.set(m, null); resolve(); };
+          let done = false;
+          const finish = (loaded) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timeoutId);
+            if (loaded) {
+              multImgs.set(m, img);
+            } else {
+              console.warn("[WildTime] missing:", src);
+              multImgs.set(m, null);
+            }
+            resolve();
+          };
+          const timeoutId = setTimeout(() => finish(false), 3500);
+          img.onload = () => finish(true);
+          img.onerror = () => finish(false);
           img.src = src;
         });
       })
@@ -768,7 +797,12 @@
   function setMults(gameEl, vals) {
     for (let i = 0; i < 3; i++) {
       const el = gameEl.querySelector(`.wt-mult[data-mult="${i}"]`);
-      if (el) el.textContent = `${vals[i]}x`;
+      if (el) {
+        const value = vals[i];
+        const label = value === "?" ? "?" : `${value}x`;
+        el.textContent = label;
+        el.dataset.value = label;
+      }
     }
   }
 
@@ -804,12 +838,17 @@
     el.style.transition = "";
   }
 
-  function shuffleArray(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = (rand() * (i + 1)) | 0;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
+  function pickJarPermutation(currentPositions) {
+    const rotations = [
+      [1, 2, 0],
+      [2, 0, 1]
+    ];
+    const candidates = rotations.filter((perm) =>
+      perm.every((slot, idx) => slot !== currentPositions[idx])
+    );
+    const pool = candidates.length ? candidates : rotations;
+    const selected = pool[(rand() * pool.length) | 0];
+    return selected.slice();
   }
 
   // ---- jar game main ----
@@ -867,7 +906,7 @@
       btn.className = "wt-jarBtn";
       btn.disabled = true;
       const jarNum = jarNums[i % jarNums.length];
-      btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${jarNum}.png" alt="">`;
+      btn.innerHTML = `<img class="wt-jarImg" src="${WT_ASSETS.jar(jarNum)}" alt="">`;
       row.appendChild(btn);
 
       jars.push({ el: btn, pos: i, origin: i, mult: base[i] });
@@ -943,10 +982,7 @@
       // last steps are extra fast
       if (s > CFG.jarShuffleSteps - 5) ms = Math.max(70, ms - 25);
 
-      let perm = shuffleArray([0, 1, 2]); // which slot each jar goes to
-      if (perm.every((slot, idx) => slot === jars[idx].pos)) {
-        perm = [perm[1], perm[2], perm[0]];
-      }
+      const perm = pickJarPermutation(jars.map((j) => j.pos)); // each jar moves on every step
       jars.forEach((j, idx) => { j.pos = perm[idx]; });
 
       const kick = (rand() * 2 - 1) * clamp(jarH * 0.08, 10, 18);
@@ -971,6 +1007,7 @@
 
     jars.forEach((j) => {
       j.el.disabled = false;
+      j.el.classList.add("wt-jarBtn--selectable");
       j.el.onclick = () => {
         if (aborted || finished) return;
         selectedJar = j;
@@ -995,7 +1032,11 @@
       finished = true;
 
       // lock interaction
-      jars.forEach((x) => { x.el.disabled = true; x.el.onclick = null; });
+      jars.forEach((x) => {
+        x.el.disabled = true;
+        x.el.onclick = null;
+        x.el.classList.remove("wt-jarBtn--selectable");
+      });
 
       const forcedChoiceIndex = Number(forcedOutcome_?.choiceIndex);
       const forcedMultiplier = Number(forcedOutcome_?.multiplier);
@@ -1075,6 +1116,8 @@
 
       // keep multipliers visible 3-4s
       await sleep(CFG.revealShowMs);
+      // extra pause so player can see exactly where everything ended up before payout
+      await sleep(CFG.revealInspectPauseMs);
 
       // Payout at the END (after reveal)
       payout(betAmount_, pickedMult);
@@ -1140,7 +1183,7 @@
   window.startWildTimeBonus = window.startWildTimeBonus || async function startWildTimeBonus(betAmount = 0, opts = {}) {
     const bonusId = opts?.bonusId || null;
     const sessionKey = String(opts?.sessionKey || bonusId || `wildtime:${Date.now()}`);
-    forcedOutcome_ = (opts && typeof opts.outcome === 'object') ? opts.outcome : null;
+    const incomingOutcome = (opts && typeof opts.outcome === "object") ? opts.outcome : null;
 
     window.__wildTimeSession = window.__wildTimeSession || { key: null, promise: null };
     const sess = window.__wildTimeSession;
@@ -1156,6 +1199,17 @@
       return await sess.promise;
     }
 
+    // A session is already running with another key: only reopen overlay and reuse it.
+    if (sess.promise) {
+      overlay = ensureOverlay();
+      betAmount_ = Math.max(Number(betAmount_) || 0, Number(betAmount) || 0);
+      openOverlay();
+      window.__bonusBackHandler = () => { try { closeOverlay(); } catch (_) {} };
+      window.__bonusIsRunning = () => !!(window.__wildTimeSession && window.__wildTimeSession.promise);
+      return await sess.promise;
+    }
+
+    forcedOutcome_ = incomingOutcome;
     setSessionRng(`WildTime:${bonusId || sessionKey}`);
 
     const durationSec = Number.isFinite(opts?.durationSec) ? Math.max(1, Math.ceil(opts.durationSec)) : 15;
