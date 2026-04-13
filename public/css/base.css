@@ -234,6 +234,10 @@
               body.page-match #matchPage.page-active{
                 min-height: calc(100vh - var(--wt-app-bottom-inset));
                 min-height: calc(100dvh - var(--wt-app-bottom-inset));
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 24px 20px 118px;
               }
               body.page-match{
                 background-color: #070b12;
@@ -303,6 +307,31 @@
                 border:1px solid var(--border); 
                 border-radius:14px; 
                 color:var(--muted);
+              }
+              .match-developing{
+                width: min(100%, 420px);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+              }
+              .match-developing__image{
+                width: min(100%, 320px);
+                height: auto;
+                display: block;
+                object-fit: contain;
+                user-select: none;
+                pointer-events: none;
+              }
+              .match-developing__text{
+                margin: 0;
+                font-size: clamp(16px, 2.4vw, 22px);
+                line-height: 1.25;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                color: #e7edf8;
+                text-align: center;
               }
               
               
