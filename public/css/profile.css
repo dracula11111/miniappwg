@@ -1038,7 +1038,7 @@ html[data-currency="stars"] .profile-ava,
 .deposit-popup__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.92);
   backdrop-filter: blur(8px);
 }
 
@@ -1047,7 +1047,7 @@ html[data-currency="stars"] .profile-ava,
   position: relative;
   width: 100%;
   max-width: 400px;
-  background: #1e2329;
+  background: #141a23;
   border-radius: 24px;
   padding: 32px 24px 24px;
   /* Убираем transform из начального состояния */

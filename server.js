@@ -8051,21 +8051,19 @@ try {
 }
 
 httpServer.listen(PORT, HOST, () => {
-  console.log(`
-в•”в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•—
-в•‘   рџЋ® WildGift Server Running          в•‘
-в•‘   Host: ${HOST}                          в•‘
-в•‘   Port: ${PORT}                           в•‘
-в•‘   Environment: ${process.env.NODE_ENV || 'development'}      в•‘
-в•‘   рџЋІ Crash WebSocket: /ws/crash       в•‘
-в•љв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ќ
-  `);
-  
+  const environment = process.env.NODE_ENV || "development";
+  console.log("");
+  console.log("[Server] WildGift Server Running");
+  console.log(`[Server] Host: ${HOST}`);
+  console.log(`[Server] Port: ${PORT}`);
+  console.log(`[Server] Environment: ${environment}`);
+  console.log("[Server] Crash WebSocket: /ws/crash");
+
   if (!process.env.BOT_TOKEN) {
-    console.warn('вљ пёЏ  WARNING: BOT_TOKEN not set in .env');
+    console.warn("[Server] WARNING: BOT_TOKEN not set in .env");
   }
-  
-  console.log(`вњ… Crash game running`);
+
+  console.log("[Server] Crash game running");
 });
 
 

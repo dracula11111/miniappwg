@@ -268,7 +268,7 @@
                 gap: 14px;
               }
               .match-developing__image{
-                width: min(100%, 320px);
+                width: min(100%, 240px);
                 height: auto;
                 display: block;
                 object-fit: contain;
