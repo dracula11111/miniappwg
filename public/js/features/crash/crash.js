@@ -18,9 +18,11 @@
   const BET_TEXT_ID = "crashBetText";
   const STATUS_ID = "crashStatus";
 
-    const TOAST_HOST_ID = "crashToastHost";
+  const TOAST_HOST_ID = "crashToastHost";
 const ICON_TON = "/icons/currency/tgTonWhite.svg";
   const ICON_STAR = "/icons/currency/tgStarWhite.svg";
+  let lastAppNoticeKey = "";
+  let lastAppNoticeAt = 0;
 
   const qs = (sel, root = document) => root.querySelector(sel);
   // Detect localhost test mode
@@ -115,6 +117,68 @@ const ICON_TON = "/icons/currency/tgTonWhite.svg";
     if (!Number.isFinite(n)) return "";
     if (currency === "stars") return String(Math.max(0, Math.round(n)));
     return (Math.round(Math.max(0, n) * 100) / 100).toFixed(2);
+  }
+
+  function normalizeActionMessage(message, fallback = "Action failed") {
+    const raw = String(message ?? "").trim();
+    if (!raw) return fallback;
+
+    const msg = raw.toLowerCase();
+    if (/(insufficient|not enough|недостат)/i.test(msg)) return "Insufficient balance";
+    if (/(wait next round|next round|betting.*closed|round.*closed|round.*finished|not betting|late bet|phase)/i.test(msg)) {
+      return "Wait next round";
+    }
+    if (/(already.*bet|bet.*already|already.*placed|duplicate)/i.test(msg)) return "Bet already placed";
+    if (/(invalid.*bet|invalid.*amount|min bet|minimum bet|amount too low)/i.test(msg)) return "Invalid bet";
+    if (/(can't claim|cannot claim|claim.*closed|claim.*not)/i.test(msg)) return "Can't claim now";
+    if (/(telegram auth required|auth required|init data|unauthorized)/i.test(msg)) return "Open game from Telegram";
+
+    return fallback ? `${fallback}: ${raw}` : raw;
+  }
+
+  function detectNoticeVariant(message) {
+    const text = String(message || "").toLowerCase();
+    if (!text) return "warning";
+    if (/(wait|next round|already|invalid|can't claim|cannot claim|open game from telegram)/i.test(text)) return "warning";
+    if (/(success|claimed|placed)/i.test(text)) return "success";
+    return "error";
+  }
+
+  function showAppNotice(message, opts = {}) {
+    const text = String(message ?? "").trim();
+    if (!text) return false;
+
+    const dedupeMs = Number.isFinite(Number(opts.dedupeMs)) ? Math.max(0, Number(opts.dedupeMs)) : 900;
+    const dedupeKey = String(opts.key || text).trim().toLowerCase();
+    const now = Date.now();
+    if (dedupeMs > 0 && dedupeKey && dedupeKey === lastAppNoticeKey && (now - lastAppNoticeAt) < dedupeMs) {
+      return false;
+    }
+    lastAppNoticeKey = dedupeKey;
+    lastAppNoticeAt = now;
+
+    const ttl = Number.isFinite(Number(opts.ttl)) ? Math.max(900, Number(opts.ttl)) : 2200;
+    const variant = String(opts.variant || detectNoticeVariant(text)).trim();
+    const toastOpts = { ttl, variant };
+    if (typeof opts.translate === "boolean") toastOpts.translate = opts.translate;
+
+    try {
+      if (typeof window.showToast === "function") {
+        window.showToast(text, toastOpts);
+        return true;
+      }
+      if (typeof window.notify === "function") {
+        window.notify(text, toastOpts);
+        return true;
+      }
+    } catch (_) {}
+
+    try {
+      showToast(text, { ttl });
+      return true;
+    } catch (_) {}
+
+    return false;
   }
 
   async function apiDeposit({ amount, currency, type, roundId, depositId }) {
@@ -900,6 +964,13 @@ const ICON_TON = "/icons/currency/tgTonWhite.svg";
         // Time keeps the ascent moving toward deep space even on low crash points.
         mixTarget = Math.max(mixTarget, runEase * 0.98);
         starsTarget = Math.max(starsTarget, clamp((runEase - 0.18) / 0.82, 0, 0.68));
+
+        // Stars appear only after we are past clouds and the sky is already dark.
+        const cloudOpacityTarget = clamp(0.88 - mixTarget * 1.12, 0, 0.88);
+        const cloudExitGate = ease((0.08 - cloudOpacityTarget) / 0.08);
+        const darkSkyGate = ease((mixTarget - 0.74) / 0.22);
+        const deepSpaceGate = Math.min(cloudExitGate, darkSkyGate);
+        starsTarget *= deepSpaceGate;
       } else if (inBetting) {
         if (state.rocketReturnActive) {
           mixTarget = state.rocketReturnFromMix * (1 - returnProgress);
@@ -1494,7 +1565,14 @@ function handleTestCrash() {
           break;
 
         case 'error':
-          setStatus(msg.message);
+          {
+            const normalizedError = normalizeActionMessage(msg?.message, "Action failed");
+            setStatus(normalizedError);
+            showAppNotice(normalizedError, {
+              variant: detectNoticeVariant(normalizedError),
+              key: `ws-error:${normalizedError}`
+            });
+          }
           state.actionLock = false;
           updateUIForPhase();
           break;
@@ -2192,16 +2270,22 @@ function showToast(text, opts = {}) {
       renderPills();
     
       if (state.phase !== "betting" && state.phase !== "waiting") {
-        setStatus("Wait next round");
+        const msg = "Wait next round";
+        setStatus(msg);
+        showAppNotice(msg, { variant: "warning", key: "wait-next-round" });
         return;
       }
       if (state.myBet) {
-        setStatus("Bet already placed");
+        const msg = "Bet already placed";
+        setStatus(msg);
+        showAppNotice(msg, { variant: "warning", key: "bet-already-placed" });
         return;
       }
       const amt = uiBetAmount();
       if (!amt || amt <= 0) {
-        setStatus("Invalid bet");
+        const msg = "Invalid bet";
+        setStatus(msg);
+        showAppNotice(msg, { variant: "warning", key: "invalid-bet" });
         return;
       }
     
@@ -2267,7 +2351,12 @@ function showToast(text, opts = {}) {
         await refreshTopBalance();
     
       } catch (e) {
-        setStatus(`Bet failed: ${e.message}`);
+        const msg = normalizeActionMessage(e?.message, "Bet failed");
+        setStatus(msg);
+        showAppNotice(msg, {
+          variant: detectNoticeVariant(msg),
+          key: `bet-failed:${msg}`
+        });
         setBuyMode("buy");
       } finally {
         state.actionLock = false;
@@ -2277,7 +2366,9 @@ function showToast(text, opts = {}) {
     async function claim() {
       if (!state.myBet || state.myBet.claimed) return;
       if (state.phase !== "run") {
-        setStatus("Can't claim now");
+        const msg = "Can't claim now";
+        setStatus(msg);
+        showAppNotice(msg, { variant: "warning", key: "cant-claim-now" });
         return;
       }
     
@@ -2323,7 +2414,12 @@ function showToast(text, opts = {}) {
         });
     
       } catch (e) {
-        setStatus(`Claim failed: ${e.message}`);
+        const msg = normalizeActionMessage(e?.message, "Claim failed");
+        setStatus(msg);
+        showAppNotice(msg, {
+          variant: detectNoticeVariant(msg),
+          key: `claim-failed:${msg}`
+        });
         setBuyMode("claim");
       } finally {
         state.actionLock = false;

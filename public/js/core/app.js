@@ -1110,17 +1110,6 @@
   // ===== Games hub =====
   const MATCH_PAGE_ID = "matchPage";
   const GAMES_PAGE_ID = "gamesPage";
-  function isLocalDevHost() {
-    const host = String(window.location.hostname || "").toLowerCase();
-    return (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
-      host === "0.0.0.0" ||
-      host === "::1" ||
-      host.endsWith(".local")
-    );
-  }
-  const IS_PRODUCTION_HOST = !isLocalDevHost();
   const PAGE_HISTORY_KEY = "__wtPage";
   const GAMES_CHILD_PAGES = new Set(["wheelPage", "crashPage", "casesPage"]);
   const MOBILE_GAME_BACK_PAGES = GAMES_CHILD_PAGES;
@@ -2243,36 +2232,16 @@
 
   function ensureMatchPage() {
     let page = document.getElementById(MATCH_PAGE_ID);
-    if (page && IS_PRODUCTION_HOST) {
-      syncMatchComingSoonText(page);
-    }
     if (page) return page;
 
     page = document.createElement("main");
     page.id = MATCH_PAGE_ID;
     page.className = "page";
-    page.innerHTML = IS_PRODUCTION_HOST
-      ? `
-      <section class="match-developing" aria-live="polite">
-        <img
-          class="match-developing__image"
-          src="/images/developing.webp"
-          alt="Developing"
-          onerror="this.onerror=null;this.src='/images/games/soon.webp';"
-          loading="eager"
-          decoding="async"
-        />
-        <p class="match-developing__text" data-match-coming-soon="1">Coming soon</p>
-      </section>
-    `
-      : "";
 
     const appRoot = document.querySelector(".app") || document.body;
     const bottomNav = appRoot.querySelector(".bottom-nav") || document.querySelector(".bottom-nav");
     if (bottomNav) appRoot.insertBefore(page, bottomNav);
     else appRoot.appendChild(page);
-
-    if (IS_PRODUCTION_HOST) syncMatchComingSoonText(page);
 
     return page;
   }
