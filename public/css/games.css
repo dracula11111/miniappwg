@@ -387,35 +387,17 @@
     opacity: 1;
   }
   .game-tile--soon { grid-area: soon;  --tile-img: url("/images/games/soon.webp");  --tile-y: 45%; }
-  .game-tile--combo-panel{
-    width: 100%;
-    height: calc((var(--wt-layout-w, 100vw) - 32px) * 546 / 1405 * var(--games-layout-scale, 1));
-    margin-top: calc(6px * var(--games-layout-scale, 1));
-    aspect-ratio: auto;
-    --tile-img: url("/images/combo/backgrounds/background-9x16-fallback.svg");
-    background-size: 104%;
-    --tile-y: 50%;
-  }
   
   /* Если фоток нет — всё равно красиво */
   .game-tile--wheel{ background-color: rgba(120, 160, 255, .18); }
   .game-tile--crash{ background-color: rgba(255, 120, 160, .18); }
   .game-tile--cases{ background-color: rgba(90, 255, 200, .16); }
   .game-tile--soon { background-color: rgba(255,255,255,.035); }
-  .game-tile--combo { background-color: rgba(98, 234, 188, .16); }
   
   /* подписи выравниваем по центру без наклона */
   .game-tile--crash .game-tile__label,
   .game-tile--cases .game-tile__label{
     transform: translateX(-50%);
-  }
-  .game-tile--combo .game-tile__label{
-    left: clamp(20px, calc(5 * var(--wt-vw, 1vw)), 56px);
-    bottom: calc(clamp(18px, calc(3.4 * var(--wt-vw, 1vw)), 30px) * var(--games-layout-scale, 1));
-    transform: none;
-    text-align: left;
-    max-width: none;
-    font-size: calc(clamp(28px, calc(7.2 * var(--wt-vw, 1vw)), 72px) * var(--games-layout-scale, 1));
   }
   
   /* Wheel: сдвиг постера вправо только на 360x780 */

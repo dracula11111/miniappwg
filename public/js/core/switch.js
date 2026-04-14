@@ -56,19 +56,19 @@
     }
   }
 
-  function __wtIsComboPageActive() {
+  function __wtIsMatchPageActive() {
     try {
-      if (document.body?.classList?.contains('page-combo')) return true;
-      const comboPage = document.getElementById('comboPage');
-      return !!comboPage?.classList?.contains('page-active');
+      if (document.body?.classList?.contains('page-match')) return true;
+      const matchPage = document.getElementById('matchPage');
+      return !!matchPage?.classList?.contains('page-active');
     } catch {
       return false;
     }
   }
 
-  function __wtGetComboWildCoinBalance() {
+  function __wtGetMatchWildCoinBalance() {
     try {
-      const raw = window.WTCombo?.getWildCoin?.();
+      const raw = window.WTMatch?.getWildCoin?.();
       const value = Math.max(0, Math.round(Number(raw) || 0));
       return Number.isFinite(value) ? value : 0;
     } catch {
@@ -77,7 +77,7 @@
   }
 
   function __wtGetPillCurrencyMode() {
-    return __wtIsComboPageActive() ? 'wildcoin' : currentCurrency;
+    return __wtIsMatchPageActive() ? 'wildcoin' : currentCurrency;
   }
 
   function __wtGetWalletConnected() {
@@ -146,9 +146,9 @@
     const connected = __wtGetWalletConnected();
     const inCrash = __wtIsCrashPageActive();
     const inCases = __wtIsCasesPageActive();
-    const inCombo = __wtIsComboPageActive();
+    const inMatch = __wtIsMatchPageActive();
 
-    if (inCombo) {
+    if (inMatch) {
       __wtRestoreTonPill(tonPill);
       try { updateBalanceDisplay(false); } catch {}
       try { updateTopbarIcon(); } catch {}
@@ -413,9 +413,9 @@
       tonPill.addEventListener('click', async (e) => {
         e.preventDefault();
 
-        if (__wtIsComboPageActive()) {
-          if (window.WTCombo?.openEconomySheet) {
-            window.WTCombo.openEconomySheet();
+        if (__wtIsMatchPageActive()) {
+          if (window.WTMatch?.openEconomySheet) {
+            window.WTMatch.openEconomySheet();
             if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
           }
           return;
@@ -468,8 +468,8 @@
       }
     });
 
-    window.addEventListener('combo:wildcoin-update', () => {
-      if (!__wtIsComboPageActive()) return;
+    window.addEventListener('match:wildcoin-update', () => {
+      if (!__wtIsMatchPageActive()) return;
       try { updateTopbarIcon(); } catch {}
       try { updateBalanceDisplay(true); } catch {}
     });
@@ -868,9 +868,9 @@
 
   // ================== POPUP MANAGEMENT ==================
   function openDepositPopup() {
-    if (__wtIsComboPageActive()) {
-      if (window.WTCombo?.openEconomySheet) {
-        window.WTCombo.openEconomySheet();
+    if (__wtIsMatchPageActive()) {
+      if (window.WTMatch?.openEconomySheet) {
+        window.WTMatch.openEconomySheet();
         if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
       }
       return;
@@ -939,9 +939,9 @@
     const tonAmount = document.getElementById('tonAmount');
     if (!tonAmount) return;
 
-    const isCombo = __wtIsComboPageActive();
-    if (isCombo) {
-      const targetNum = __wtGetComboWildCoinBalance();
+    const isMatch = __wtIsMatchPageActive();
+    if (isMatch) {
+      const targetNum = __wtGetMatchWildCoinBalance();
       const targetValue = formatBalanceValue('wildcoin', targetNum);
 
       if (animate) {
@@ -1544,4 +1544,6 @@
   console.log('[Switch] 📦 Module loaded');
 
 })();
+
+
 

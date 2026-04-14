@@ -507,11 +507,11 @@
     ["Open Wheel", "РћС‚РєСЂС‹С‚СЊ РєРѕР»РµСЃРѕ"],
     ["Open Crash", "РћС‚РєСЂС‹С‚СЊ Crash"],
     ["Open Cases", "РћС‚РєСЂС‹С‚СЊ РєРµР№СЃС‹"],
-    ["Open Combo", "РћС‚РєСЂС‹С‚СЊ РљРѕРјР±Рѕ"],
+    ["Open Match", "Открыть Match"],
     ["Wheel canvas", "РҐРѕР»СЃС‚ РєРѕР»РµСЃР°"],
     ["Crash", "РљСЂР°С€"],
     ["Soon", "РЎРєРѕСЂРѕ"],
-    ["Combo", "РљРѕРјР±Рѕ"],
+    ["Match", "Матч"],
     ["Error", "РћС€РёР±РєР°"],
     ["Go back", "РќР°Р·Р°Рґ"],
     ["Test mode - Ready", "РўРµСЃС‚РѕРІС‹Р№ СЂРµР¶РёРј - РіРѕС‚РѕРІРѕ"],
@@ -1256,18 +1256,6 @@
     progressRafId: null,
     progressStartedAt: 0
   };
-
-  function getMatchComingSoonText() {
-    const lang = String(WT?.i18n?.getLanguage?.() || "en").toLowerCase();
-    return lang.startsWith("ru") ? "Скоро" : "Coming soon";
-  }
-
-  function syncMatchComingSoonText(scope = document) {
-    const root = (scope && typeof scope.querySelector === "function") ? scope : document;
-    const textEl = root.querySelector("[data-match-coming-soon='1']") || document.querySelector("[data-match-coming-soon='1']");
-    if (!textEl) return;
-    textEl.textContent = getMatchComingSoonText();
-  }
 
   function getGamesOnboardingLanguage() {
     try {
@@ -2466,7 +2454,6 @@
 
   window.addEventListener("language:changed", () => {
     syncGamesHubTitle(document.getElementById(GAMES_PAGE_ID));
-    syncMatchComingSoonText(document.getElementById(MATCH_PAGE_ID));
   });
 
   window.addEventListener("resize", scheduleGamesViewportFit, { passive: true });
