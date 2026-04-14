@@ -239,13 +239,7 @@
               }
               body.page-match{
                 background-color: #070b12;
-                background-image:
-                  url('/images/match/backgrounds/matchMainback.webp'),
-                  url('/images/match/backgrounds/1.webp');
-                background-position: center top, center top;
-                background-size: cover, cover;
-                background-repeat: no-repeat, no-repeat;
-                background-attachment: scroll, scroll;
+                background-image: none !important;
                 overflow: hidden;
                 overscroll-behavior-y: none;
               }
@@ -254,48 +248,7 @@
                 overscroll-behavior-y: none;
               }
               body.page-match .topbar{
-                z-index: 120;
-              }
-              body.page-match .topbar .cases-topbar-switch,
-              body.page-match .topbar .burger-btn{
                 display: none !important;
-              }
-              body.page-match .topbar .pill{
-                min-height: 0;
-                padding: 6px 10px 6px 44px;
-                gap: 8px;
-                border-radius: 999px;
-                background: rgba(18, 24, 35, 0.40);
-                --wg-liquid-border-base: rgba(18, 24, 35, 0.40);
-                border-color: transparent;
-                box-shadow:
-                  0 6px 14px rgba(0, 0, 0, 0.22),
-                  inset 0 1px 0 rgba(255,255,255,.05);
-                overflow: visible;
-              }
-              body.page-match .topbar .pill::after{
-                content: "";
-                position: absolute;
-                left: -24px;
-                top: 50%;
-                width: 68px;
-                height: 68px;
-                transform: translateY(-50%);
-                z-index: 3;
-                pointer-events: none;
-                background: url('/images/match/wildcoin.svg') center / contain no-repeat;
-                filter: none;
-              }
-              body.page-match .topbar #pillCurrencyIcon,
-              body.page-match .topbar .pill-plus-icon{
-                display: none !important;
-              }
-              body.page-match .topbar #tonAmount{
-                position: relative;
-                z-index: 3;
-                font-size: 13px;
-                font-weight: 900;
-                letter-spacing: 0.02em;
               }
               .coming{
                 margin:18px; 
