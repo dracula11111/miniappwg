@@ -1,5 +1,9 @@
 {
+<<<<<<< Updated upstream
   "updatedAt": 1776113746307,
+=======
+  "updatedAt": 1776161247586,
+>>>>>>> Stashed changes
   "providerStats": {
     "telegram-resale": {
       "weight": 100,
@@ -133,42 +137,77 @@
   },
   "prices": {
     "stellar-rocket": {
+<<<<<<< Updated upstream
       "price": 3.44,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.49,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Stellar Rocket",
       "giftId": null
     },
     "instant-ramen": {
+<<<<<<< Updated upstream
       "price": 2.49,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.41,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Instant Ramen",
       "giftId": null
     },
     "ice-cream": {
+<<<<<<< Updated upstream
       "price": 2.58,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.53,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Ice Cream",
       "giftId": null
     },
     "berry-box": {
+<<<<<<< Updated upstream
       "price": 6.48,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 6.99,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Berry Box",
       "giftId": null
     },
     "lol-pop": {
+<<<<<<< Updated upstream
       "price": 2.8,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.91,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Lol Pop",
       "giftId": null
     },
@@ -176,55 +215,101 @@
       "price": 3.59,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Cookie Heart",
       "giftId": null
     },
     "mousse-cake": {
+<<<<<<< Updated upstream
       "price": 3.34,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.5,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Mousse Cake",
       "giftId": null
     },
     "electric-skull": {
+<<<<<<< Updated upstream
       "price": 28.68,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 28.49,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Electric Skull",
       "giftId": null
     },
     "vintage-cigar": {
+<<<<<<< Updated upstream
       "price": 31.99,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 33.17,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Vintage Cigar",
       "giftId": null
     },
     "voodoo-doll": {
+<<<<<<< Updated upstream
       "price": 27.99,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 27.98,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Voodoo Doll",
       "giftId": null
     },
     "flying-broom": {
+<<<<<<< Updated upstream
       "price": 11.1,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 11.19,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Flying Broom",
       "giftId": null
     },
     "hex-pot": {
+<<<<<<< Updated upstream
       "price": 3.5,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.4,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Hex Pot",
       "giftId": null
     },
@@ -232,31 +317,56 @@
       "price": 150.99,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Mighty Arm",
       "giftId": null
     },
     "scared-cat": {
+<<<<<<< Updated upstream
       "price": 154.5,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 154.49,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Scared Cat",
       "giftId": null
     },
     "bonded-ring": {
+<<<<<<< Updated upstream
       "price": 39.99,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 39.94,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Bonded Ring",
       "giftId": null
     },
     "genie-lamp": {
+<<<<<<< Updated upstream
       "price": 42.89,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 46.99,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Genie Lamp",
       "giftId": null
     },
@@ -264,191 +374,353 @@
       "price": 3.5,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Jack-in-the-Box",
       "giftId": null
     },
     "winter-wreath": {
+<<<<<<< Updated upstream
       "price": 2.6,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.84,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Winter Wreath",
       "giftId": null
     },
     "snoop-dogg": {
+<<<<<<< Updated upstream
       "price": 4.4,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 4.43,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Snoop Dogg",
       "giftId": null
     },
     "neko-helmet": {
+<<<<<<< Updated upstream
       "price": 31.5,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 32,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Neko Helmet",
       "giftId": null
     },
     "pet-snake": {
+<<<<<<< Updated upstream
       "price": 2.64,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.82,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Pet Snake",
       "giftId": null
     },
     "xmas-stocking": {
+<<<<<<< Updated upstream
       "price": 2.32,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.26,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Xmas Stocking",
       "giftId": null
     },
     "pool-float": {
+<<<<<<< Updated upstream
       "price": 2.3,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.34,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Pool Float",
       "giftId": null
     },
     "mood-pack": {
+<<<<<<< Updated upstream
       "price": 2.94,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.95,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Mood Pack",
       "giftId": null
     },
     "b-day-candle": {
+<<<<<<< Updated upstream
       "price": 3.6,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.59,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "B-Day Candle",
       "giftId": null
     },
     "snake-box": {
+<<<<<<< Updated upstream
       "price": 2.57,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.53,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Snake Box",
       "giftId": null
     },
     "lunar-snake": {
+<<<<<<< Updated upstream
       "price": 2.73,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.81,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Lunar Snake",
       "giftId": null
     },
     "happy-brownie": {
+<<<<<<< Updated upstream
       "price": 3.08,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.18,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Happy Brownie",
       "giftId": null
     },
     "ginger-cookie": {
+<<<<<<< Updated upstream
       "price": 3.43,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.4,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Ginger Cookie",
       "giftId": null
     },
     "whip-cupcake": {
+<<<<<<< Updated upstream
       "price": 3.63,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.89,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Whip Cupcake",
       "giftId": null
     },
     "desk-calendar": {
+<<<<<<< Updated upstream
       "price": 5.58,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 5.98,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Desk Calendar",
       "giftId": null
     },
     "fresh-socks": {
-      "price": 3.09,
+      "price": 3.07,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Fresh Socks",
       "giftId": null
     },
     "jester-hat": {
+<<<<<<< Updated upstream
       "price": 3.17,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.9,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Jester Hat",
       "giftId": null
     },
     "bow-tie": {
+<<<<<<< Updated upstream
       "price": 4.29,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 4.3,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Bow Tie",
       "giftId": null
     },
     "restless-jar": {
+<<<<<<< Updated upstream
       "price": 3.75,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.83,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Restless Jar",
       "giftId": null
     },
     "chill-flame": {
+<<<<<<< Updated upstream
       "price": 2.2,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 2.16,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Chill Flame",
       "giftId": null
     },
     "jolly-chimp": {
+<<<<<<< Updated upstream
       "price": 5.88,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 5.87,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Jolly Chimp",
       "giftId": null
     },
     "gem-signet": {
+<<<<<<< Updated upstream
       "price": 56,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 57,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Gem Signet",
       "giftId": null
     },
     "timeless-book": {
+<<<<<<< Updated upstream
       "price": 3.48,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 3.56,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Timeless Book",
       "giftId": null
     },
     "astral-shard": {
+<<<<<<< Updated upstream
       "price": 153.99,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 144.17,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Astral Shard",
       "giftId": null
     },
@@ -456,7 +728,11 @@
       "price": 75.99,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Perfume Bottle",
       "giftId": null
     },
@@ -464,39 +740,71 @@
       "price": 360.97,
       "currency": "TON",
       "source": "portals.tg",
+<<<<<<< Updated upstream
       "ts": 1776113734377,
+=======
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Precious Peach",
       "giftId": null
     },
     "signet-ring": {
+<<<<<<< Updated upstream
       "price": 32.99,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 32.79,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Signet Ring",
       "giftId": null
     },
     "plush-pepe": {
+<<<<<<< Updated upstream
       "price": 6798,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 6700,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Plush Pepe",
       "giftId": null
     },
     "heroic-helmet": {
+<<<<<<< Updated upstream
       "price": 216.96,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 201.47,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Heroic Helmet",
       "giftId": null
     },
     "durov-s-cap": {
+<<<<<<< Updated upstream
       "price": 569.26,
       "currency": "TON",
       "source": "portals.tg",
       "ts": 1776113734377,
+=======
+      "price": 569.99,
+      "currency": "TON",
+      "source": "portals.tg",
+      "ts": 1776161233723,
+>>>>>>> Stashed changes
       "name": "Durov's Cap",
       "giftId": null
     }

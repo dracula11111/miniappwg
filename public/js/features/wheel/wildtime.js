@@ -47,7 +47,7 @@
     jarShuffleMsStart: 420,
     jarShuffleMsEnd: 95,
 
-    pickCountdownSec: 5,
+    pickCountdownSec: 7,
 
     // reveal / close
     revealShowMs: 3600,
@@ -222,10 +222,10 @@
     CFG.jarShuffleMsStart = Math.max(scaledShuffleStart, scaledShuffleEnd + 20);
     CFG.jarShuffleMsEnd = Math.max(40, Math.min(scaledShuffleEnd, CFG.jarShuffleMsStart - 20));
 
-    CFG.pickCountdownSec = Math.max(1, Math.floor(CFG.pickCountdownSec / speedupFactor));
-    if (Number.isFinite(remainingSec)) {
-      CFG.pickCountdownSec = Math.max(1, Math.min(CFG.pickCountdownSec, Math.ceil(remainingSec)));
-    }
+    const targetPickSec = Number.isFinite(remainingSec)
+      ? Math.max(1, Math.min(7, Math.ceil(remainingSec)))
+      : 7;
+    CFG.pickCountdownSec = targetPickSec;
 
     CFG.revealShowMs = scaleMs(CFG.revealShowMs, 450);
     CFG.winPopupMs = scaleMs(CFG.winPopupMs, 220);
@@ -411,8 +411,12 @@
     // reset multipliers
     overlay.querySelectorAll(".wt-mult").forEach((m) => {
       m.textContent = "";
+      m.dataset.label = "";
       m.classList.remove("wt-mult--hidden");
       m.classList.remove("wt-mult--selected");
+    });
+    overlay.querySelectorAll(".wt-slot").forEach((slot) => {
+      slot.classList.remove("wt-slot--selected");
     });
   }
 
@@ -768,7 +772,11 @@
   function setMults(gameEl, vals) {
     for (let i = 0; i < 3; i++) {
       const el = gameEl.querySelector(`.wt-mult[data-mult="${i}"]`);
-      if (el) el.textContent = `${vals[i]}x`;
+      if (!el) continue;
+      const raw = String(vals[i] ?? "").trim();
+      const label = (raw === "?" || /x$/i.test(raw)) ? raw : `${raw}x`;
+      el.textContent = label;
+      el.dataset.label = label;
     }
   }
 
@@ -779,9 +787,14 @@
   }
 
   function highlightMult(gameEl, slotIndex) {
+    gameEl.querySelectorAll(".wt-slot").forEach((slot) => slot.classList.remove("wt-slot--selected"));
     gameEl.querySelectorAll(".wt-mult").forEach((m) => m.classList.remove("wt-mult--selected"));
     const el = gameEl.querySelector(`.wt-mult[data-mult="${slotIndex}"]`);
-    if (el) el.classList.add("wt-mult--selected");
+    if (el) {
+      el.classList.add("wt-mult--selected");
+      const slot = el.closest(".wt-slot");
+      if (slot) slot.classList.add("wt-slot--selected");
+    }
   }
 
   function setJarVars(el, x, y, rotDeg, liftPx, opacity) {
@@ -971,6 +984,7 @@
 
     jars.forEach((j) => {
       j.el.disabled = false;
+      j.el.classList.add("wt-jarBtn--selectable");
       j.el.onclick = () => {
         if (aborted || finished) return;
         selectedJar = j;
@@ -995,7 +1009,11 @@
       finished = true;
 
       // lock interaction
-      jars.forEach((x) => { x.el.disabled = true; x.el.onclick = null; });
+      jars.forEach((x) => {
+        x.el.disabled = true;
+        x.el.onclick = null;
+        x.el.classList.remove("wt-jarBtn--selectable");
+      });
 
       const forcedChoiceIndex = Number(forcedOutcome_?.choiceIndex);
       const forcedMultiplier = Number(forcedOutcome_?.multiplier);
@@ -1020,7 +1038,20 @@
       }
 
       if (serverPayoutMode) {
-        selectedJar = sharedJar;
+        if (!selectedJar && sharedJar) {
+          selectedJar = sharedJar;
+        }
+        // Keep the user's selected jar, but align its multiplier with server outcome.
+        if (
+          selectedJar &&
+          sharedJar &&
+          selectedJar !== sharedJar &&
+          (Number.isFinite(forcedMultiplier) || (Number.isInteger(forcedChoiceIndex) && forcedChoiceIndex >= 0 && forcedChoiceIndex < 3))
+        ) {
+          const tmpMult = selectedJar.mult;
+          selectedJar.mult = sharedJar.mult;
+          sharedJar.mult = tmpMult;
+        }
       } else if (!selectedJar && sharedJar && Number.isFinite(forcedMultiplier)) {
         selectedJar = sharedJar;
       }
@@ -1028,6 +1059,10 @@
       // auto-pick if user didn't choose
       if (!selectedJar) {
         selectedJar = jars[(rand() * jars.length) | 0];
+      }
+
+      if (serverPayoutMode && selectedJar && Number.isFinite(forcedMultiplier) && Number(selectedJar.mult) !== forcedMultiplier) {
+        selectedJar.mult = forcedMultiplier;
       }
 
       jars.forEach((x) => x.el.classList.remove("wt-jarBtn--picked"));

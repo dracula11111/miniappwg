@@ -519,11 +519,9 @@
   
   /* Gradient colors for multipliers - ENHANCED */
   .crash-history__item.color-1 {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #001881 0%, #764ba2 100%);
     box-shadow: 
-      0 4px 16px rgba(102,126,234,0.5),
-      0 0 25px rgba(102,126,234,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.25);
+      0 4px 12px rgba(102,126,234,0.3);
   }
   
   .crash-history__item.color-1:hover {
@@ -534,11 +532,9 @@
   }
   
   .crash-history__item.color-2 {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, #004077 0%, #00f2fe 100%);
     box-shadow: 
-      0 4px 16px rgba(79,172,254,0.5),
-      0 0 25px rgba(79,172,254,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.25);
+      0 4px 12px rgba(79,172,254,0.3);
   }
   
   .crash-history__item.color-2:hover {
@@ -549,11 +545,9 @@
   }
   
   .crash-history__item.color-3 {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, #70007c 0%, #f5576c 100%);
     box-shadow: 
-      0 4px 16px rgba(240,147,251,0.5),
-      0 0 25px rgba(240,147,251,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.25);
+      0 4px 12px rgba(240,147,251,0.3);
   }
   
   .crash-history__item.color-3:hover {
@@ -564,11 +558,9 @@
   }
   
   .crash-history__item.color-4 {
-    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    background: linear-gradient(135deg, #003a6d 0%, #00f2fe 100%);
     box-shadow: 
-      0 4px 16px rgba(67,233,123,0.6),
-      0 0 25px rgba(67,233,123,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.25);
+      0 4px 12px rgba(79,172,254,0.4);
   }
   
   .crash-history__item.color-4:hover {
@@ -579,11 +571,9 @@
   }
   
   .crash-history__item.color-5 {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    background: linear-gradient(135deg, #825000 0%, #ff6b6b 100%);
     box-shadow: 
-      0 4px 16px rgba(255,225,64,0.6),
-      0 0 25px rgba(255,225,64,0.4),
-      inset 0 1px 0 rgba(255,255,255,0.25);
+      0 4px 12px rgba(255,216,155,0.4);
   }
   
   .crash-history__item.color-5:hover {
@@ -594,23 +584,20 @@
   }
   
   .crash-history__item.is-new {
-    animation: historySlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   
   @keyframes historySlideIn {
-    from {
-      opacity: 0;
-      transform: translateX(-30px) scale(0.7) rotateZ(-5deg);
-      filter: blur(6px);
-    }
-    50% {
-      transform: translateX(5px) scale(1.05) rotateZ(2deg);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1) rotateZ(0deg);
-      filter: blur(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.8);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
   }
   
   /* ====================================
@@ -1366,35 +1353,9 @@
 }
 
 /* Р¦РІРµС‚РѕРІР°СЏ СЃС…РµРјР° */
-.crash-history__item.is-new {
-  animation: historySlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
  /* Р¦РІРµС‚РѕРІР°СЏ СЃС…РµРјР° */
- .crash-history__item.color-1 {
-  background: linear-gradient(135deg, #001881 0%, #764ba2 100%);
-  box-shadow: 0 4px 12px rgba(102,126,234,0.3);
-}
-
-.crash-history__item.color-2 {
-  background: linear-gradient(135deg, #004077 0%, #00f2fe 100%);
-  box-shadow: 0 4px 12px rgba(79,172,254,0.3);
-}
-
-.crash-history__item.color-3 {
-  background: linear-gradient(135deg, #70007c 0%, #f5576c 100%);
-  box-shadow: 0 4px 12px rgba(240,147,251,0.3);
-}
-
-.crash-history__item.color-4 {
-  background: linear-gradient(135deg, #003a6d 0%, #00f2fe 100%);
-  box-shadow: 0 4px 12px rgba(79,172,254,0.4);
-}
 
 /* Р—Р°РјРµРЅРёС‚Рµ РЅР°: */
-  .crash-history__item.color-5 {
-    background: linear-gradient(135deg, #825000 0%, #ff6b6b 100%);
-    box-shadow: 0 4px 12px rgba(255,216,155,0.4);
-  }
   
 
 
@@ -1415,18 +1376,6 @@
 }
 
 /* РђРЅРёРјР°С†РёСЏ РїРѕСЏРІР»РµРЅРёСЏ РЅРѕРІРѕРіРѕ СЌР»РµРјРµРЅС‚Р° */
-@keyframes historySlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-20px) scale(0.8);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-    filter: blur(0);
-  }
-}
 
 /* === Fix: portrait render glitches (history + fixed controls) === */
 

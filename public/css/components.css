@@ -719,24 +719,6 @@
      GAMES PAGE (Hub)
      ============================================ */
   
-  .games {
-    padding: 16px 16px 14px;
-  }
-  
-  .games__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 4px 0 12px;
-  }
-  
-  .games__title {
-    font-size: 22px;
-    font-weight: 800;
-    letter-spacing: 0.2px;
-    margin: 0;
-  }
-  
   .games__list {
     display: grid;
     gap: 12px;

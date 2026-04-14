@@ -187,23 +187,21 @@
        
 
             /* === GLOBAL: убрать синюю подсветку тапа и выделение UI === */
-    * {
-      -webkit-tap-highlight-color: transparent !important;
-      -webkit-touch-callout: none !important;  /* iOS long-press menu */
-      -webkit-user-select: none !important;
-      user-select: none !important;
-      -webkit-user-drag: none !important;
+    button,
+    a,
+    [role="button"] {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;  /* iOS long-press menu */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
-    /* Убираем фокус-обводки */
-    *:focus { outline: none !important; }
-    *:focus-visible { outline: none !important; }
-
-    /* Разрешаем выделение только в полях ввода */
+    /* Keep text selection in editable fields */
     input, textarea, [contenteditable="true"] {
-      -webkit-user-select: text !important;
-      user-select: text !important;
-      -webkit-touch-callout: default !important;
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
     }
 
     /* На случай если внутри кнопок есть img/svg — чтобы тапы не попадали по самой картинке */
