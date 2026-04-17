@@ -64,7 +64,7 @@
     body.page-games .logo-header,
     body:has(#gamesPage.page-active) .logo-header{
       position: fixed;
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 36px);
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
       left: 50%;
       transform: translateX(-50%);
       margin-top: 0;
