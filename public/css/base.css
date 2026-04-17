@@ -187,6 +187,26 @@
        
 
             /* === GLOBAL: убрать синюю подсветку тапа и выделение UI === */
+        @supports (-webkit-touch-callout: none) {
+          body:not(.page-match) .logo-header {
+            position: fixed;
+            top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 0;
+            z-index: 320;
+            pointer-events: none;
+            width: auto;
+            max-width: calc(100% - 180px);
+            padding: 0;
+          }
+
+          body:not(.page-match) .logo-header .main-logo {
+            height: 28px;
+            width: auto;
+          }
+        }
+
     button,
     a,
     [role="button"] {

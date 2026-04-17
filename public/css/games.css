@@ -61,26 +61,6 @@
       transform: translateY(16px) !important;
     }
 
-    body.page-games .logo-header,
-    body:has(#gamesPage.page-active) .logo-header{
-      position: fixed;
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
-      left: 50%;
-      transform: translateX(-50%);
-      margin-top: 0;
-      z-index: 320;
-      pointer-events: none;
-      width: auto;
-      max-width: calc(100% - 180px);
-      padding: 0;
-    }
-
-    body.page-games .logo-header .main-logo,
-    body:has(#gamesPage.page-active) .logo-header .main-logo{
-      height: 28px;
-      width: auto;
-    }
-
     body.page-games .games,
     body:has(#gamesPage.page-active) .games{
       padding-top: 2px;
