@@ -42,29 +42,29 @@
   @supports (-webkit-touch-callout: none) {
     body.page-games,
     body:has(#gamesPage.page-active){
-      --wg-topbar-left-offset-y: 22px;
-      --wg-topbar-balance-offset-y: 22px;
+      --wg-topbar-left-offset-y: 16px;
+      --wg-topbar-balance-offset-y: 16px;
     }
 
     body.page-games .topbar,
     body:has(#gamesPage.page-active) .topbar{
-      padding-bottom: 18px;
+      padding-bottom: 8px;
     }
 
     body.page-games .topbar__left,
     body:has(#gamesPage.page-active) .topbar__left{
-      margin-top: 22px !important;
+      margin-top: 16px !important;
     }
 
     body.page-games .topbar > .balance,
     body:has(#gamesPage.page-active) .topbar > .balance{
-      transform: translateY(22px) !important;
+      transform: translateY(16px) !important;
     }
 
     body.page-games .logo-header,
     body:has(#gamesPage.page-active) .logo-header{
       position: fixed;
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 44px);
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 50px);
       left: 50%;
       transform: translateX(-50%);
       margin-top: 0;
@@ -83,7 +83,7 @@
 
     body.page-games .games,
     body:has(#gamesPage.page-active) .games{
-      padding-top: 10px;
+      padding-top: 2px;
     }
 
     body.page-games .games__fit,
