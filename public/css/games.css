@@ -63,9 +63,12 @@
 
     body.page-games .logo-header,
     body:has(#gamesPage.page-active) .logo-header{
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 2px);
+      position: fixed;
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 6px);
+      left: 50%;
+      transform: translateX(-50%);
       margin-top: 0;
-      z-index: 140;
+      z-index: 320;
       pointer-events: none;
       width: auto;
       max-width: calc(100% - 180px);
@@ -74,7 +77,7 @@
 
     body.page-games .logo-header .main-logo,
     body:has(#gamesPage.page-active) .logo-header .main-logo{
-      height: 30px;
+      height: 28px;
       width: auto;
     }
 
