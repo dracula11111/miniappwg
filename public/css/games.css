@@ -61,6 +61,14 @@
       transform: translateY(22px) !important;
     }
 
+    body.page-games .logo-header,
+    body:has(#gamesPage.page-active) .logo-header{
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 10px);
+      margin-top: 0;
+      z-index: 140;
+      pointer-events: none;
+    }
+
     body.page-games .games,
     body:has(#gamesPage.page-active) .games{
       padding-top: 26px;
