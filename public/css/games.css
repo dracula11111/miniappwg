@@ -37,6 +37,29 @@
     height: 100%;
   }
 
+  /* iPhone/WebKit: align avatar, burger and balance with the centered logo,
+     then push the banners/games block slightly lower to clear the top area. */
+  @supports (-webkit-touch-callout: none) {
+    body.page-games{
+      --wg-topbar-pad-top: 92px;
+      --wg-topbar-pad-top-compact: 88px;
+      --wg-topbar-left-offset-y: 10px;
+      --wg-topbar-balance-offset-y: 10px;
+    }
+
+    body.page-games .topbar{
+      padding-bottom: 12px;
+    }
+
+    body.page-games .games{
+      padding-top: 14px;
+    }
+
+    body.page-games .games__fit{
+      gap: calc(14px * var(--games-layout-scale, 1));
+    }
+  }
+
   .games__fit{
     min-height: 100%;
     display: flex;
