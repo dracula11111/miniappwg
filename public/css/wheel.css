@@ -1011,7 +1011,6 @@
   justify-content: space-between;
   gap: 10px;
   padding-bottom: 10px;
-  position: relative;
   z-index: 1;
 }
 
@@ -1030,21 +1029,26 @@
   white-space: nowrap;
 }
 
+.wheel-players-panel__foot {
+  position: relative;
+  z-index: 1;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
 .wheel-players-panel__hash {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: inline-flex;
+  width: auto;
+  max-width: min(78%, 200px);
+  justify-content: center;
   align-items: center;
   gap: 6px;
-  max-width: 58%;
   border: 0;
   background: transparent;
   padding: 0;
-  margin: 0;
-  opacity: 0.38;
-  color: rgba(255,255,255,0.56);
+  margin: 0 auto;
+  opacity: 0.5;
+  color: rgba(255,255,255,0.88);
   cursor: pointer;
   transition: opacity 0.2s ease;
 }
@@ -1054,14 +1058,15 @@
 }
 
 .wheel-players-panel__hashIcon {
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   flex: 0 0 auto;
-  opacity: 0.65;
+  opacity: 0.92;
+  filter: brightness(0) invert(1);
 }
 
 .wheel-players-panel__hashText {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.2;
   letter-spacing: 0.15px;
   white-space: nowrap;
@@ -1322,7 +1327,7 @@
 @media (max-width: 360px) {
   .wheel-player-pill__name      { max-width: 105px; }
   .wheel-player-pill__segments  { max-width: 132px; }
-  .wheel-players-panel__hash    { max-width: 50%; opacity: 0.34; }
+  .wheel-players-panel__hash    { max-width: min(82%, 170px); opacity: 0.46; }
   .wheel-players-panel__count   { font-size: 10px; }
 }
 /* рџ”Ґ РљРћРњРџРђРљРўРќР«Р• РљРђР РўРћР§РљР РЎРўРђР’РћРљ (РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ РїСЂРё СЃРїРёРЅРµ) */
@@ -2066,6 +2071,7 @@
 }
 
 /* ===== TGSTAR MODE - PREMIUM GOLD ===== */
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"],
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) {
   background: linear-gradient(
     135deg, 
@@ -2099,15 +2105,18 @@
   }
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"] .amount-value,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) .amount-value {
   color: #1a1a1a !important;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"] .amount-icon,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]) .amount-icon {
   opacity: 0 !important;
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"]::after,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])::after {
   content: "" !important;
   position: absolute !important;
@@ -2122,6 +2131,7 @@
 }
 
 /* TGSTAR hover */
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"]:hover,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
   background: linear-gradient(135deg, #fff5b8 0%, #fffce0 100%) !important;
   animation: starsGlow 1.5s ease-in-out infinite !important;
@@ -2131,6 +2141,7 @@
     inset 0 0 20px rgba(255, 255, 255, 0.3) !important;
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"]:hover::after,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]):hover::after {
   filter: drop-shadow(0 0 10px rgba(255, 208, 74, 0.9));
   transform: translateY(-50%) scale(1.4) rotate(15deg) !important;
@@ -2192,6 +2203,8 @@
 }
 
 /* SELECTED РґР»СЏ TGSTAR СЂРµР¶РёРјР° */
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"].selected,
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"][data-selected="true"],
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
   background: linear-gradient(135deg, #fffce0 0%, #fff9c4 100%) !important;
@@ -2203,6 +2216,8 @@
     inset 0 0 20px rgba(255, 255, 255, 0.3) !important;
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"].selected .amount-value,
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"][data-selected="true"] .amount-value,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected .amount-value,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] .amount-value {
   color: #1a1a1a !important;
@@ -2230,11 +2245,15 @@
   }
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"].selected,
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"][data-selected="true"],
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
   animation: selectedStarsPulse 2s ease-in-out infinite !important;
 }
 
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"].selected::after,
+.bet-overlay--redesign .bet-center .amount-btn[data-currency="stars"][data-selected="true"]::after,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"]).selected::after,
 .bet-overlay--redesign .bet-center .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"]::after {
   filter: drop-shadow(0 0 12px rgba(255, 208, 74, 1)) drop-shadow(0 0 4px rgba(255, 208, 74, 0.8)) !important;
@@ -2576,6 +2595,7 @@
 }
 
 /* РЎРїРµС†РёР°Р»СЊРЅС‹Рµ С‚РµРЅРё РґР»СЏ Stars РєРЅРѕРїРѕРє */
+.app.is-betting .amount-btn[data-currency="stars"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
   box-shadow: 
     0 6px 14px rgba(0, 0, 0, 0.35),
@@ -2584,6 +2604,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.app.is-betting .amount-btn[data-currency="stars"]:hover,
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
   box-shadow: 
     0 8px 18px rgba(0, 0, 0, 0.4),
@@ -2592,6 +2613,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
+.app.is-betting .amount-btn[data-currency="stars"].selected,
+.app.is-betting .amount-btn[data-currency="stars"][data-selected="true"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {
   box-shadow: 
@@ -2687,6 +2710,7 @@
 }
 
 /* рџ”Ґ РЎРџР•Р¦РРђР›Р¬РќР«Р• РўР•РќР Р”Р›РЇ STARS РљРќРћРџРћРљ */
+.app.is-betting .amount-btn[data-currency="stars"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"]),
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"]),
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]) {
@@ -2697,6 +2721,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.app.is-betting .amount-btn[data-currency="stars"]:hover,
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"]):hover,
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"]):hover,
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]):hover {
@@ -2707,12 +2732,15 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
+.app.is-betting .amount-btn[data-currency="stars"].active,
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"]).active,
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"]).active,
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).active,
+.app.is-betting .amount-btn[data-currency="stars"].selected,
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"]).selected,
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"]).selected,
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"]).selected,
+.app.is-betting .amount-btn[data-currency="stars"][data-selected="true"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="star"])[data-selected="true"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="Star"])[data-selected="true"],
 .app.is-betting .amount-btn:has(.amount-icon[src*="tgStar"])[data-selected="true"] {

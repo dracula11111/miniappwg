@@ -116,6 +116,21 @@
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const mod = (n, m) => ((n % m) + m) % m;
 
+  function isWildTimeLocalRuntime() {
+    try {
+      const host = String(window.location?.hostname || "").toLowerCase();
+      return (
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "0.0.0.0" ||
+        host === "::1" ||
+        host.endsWith(".local")
+      );
+    } catch {
+      return false;
+    }
+  }
+
   function ensureDeniedStyles() {
     if (document.getElementById('bonusDeniedStyles')) return;
     const st = document.createElement('style');
@@ -255,13 +270,17 @@
 
   function ensureOverlay() {
     let el = document.getElementById(CFG.overlayId);
-    if (el) return el;
+    if (el) {
+      if (isWildTimeLocalRuntime()) el.classList.add("wt-force-motion");
+      return el;
+    }
 
     const offsetDeg = (360 / CFG.sectorsCount) * CFG.pointerOffsetSectors; // 30deg
 
     el = document.createElement("div");
     el.id = CFG.overlayId;
     el.className = "wt-overlay";
+    if (isWildTimeLocalRuntime()) el.classList.add("wt-force-motion");
     el.style.display = "none";
 
     el.innerHTML = `
@@ -760,13 +779,9 @@
   }
 
   // ---- jar game helpers ----
-  function pickUniqueJars() {
-    const arr = Array.from({ length: CFG.jarPool }, (_, i) => i + 1);
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = (rand() * (i + 1)) | 0;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr.slice(0, CFG.jarPickCount);
+  function pickRoundJarNum() {
+    const poolSize = Math.max(1, Number(CFG.jarPool) | 0);
+    return ((rand() * poolSize) | 0) + 1;
   }
 
   function setMults(gameEl, vals) {
@@ -870,7 +885,7 @@
 
     // Multipliers remain hidden until timer ends.
 
-    const jarNums = pickUniqueJars();
+    const roundJarNum = pickRoundJarNum();
     const jars = [];
 
     // Create jars (each jar "carries" its mult with it, like shells)
@@ -879,8 +894,7 @@
       btn.type = "button";
       btn.className = "wt-jarBtn";
       btn.disabled = true;
-      const jarNum = jarNums[i % jarNums.length];
-      btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${jarNum}.png" alt="">`;
+      btn.innerHTML = `<img class="wt-jarImg" src="images/Wildtime/jar${roundJarNum}.png" alt="">`;
       row.appendChild(btn);
 
       jars.push({ el: btn, pos: i, origin: i, mult: base[i] });

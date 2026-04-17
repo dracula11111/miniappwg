@@ -824,6 +824,7 @@
           if (index < tonAmounts.length) {
             const amount = tonAmounts[index];
             btn.dataset.amount = amount;
+            btn.dataset.currency = 'ton';
             btn.innerHTML = `
               <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
               <span class="amount-value">${amount}</span>
@@ -836,6 +837,7 @@
           if (index < starsAmounts.length) {
             const amount = starsAmounts[index];
             btn.dataset.amount = amount;
+            btn.dataset.currency = 'stars';
             btn.innerHTML = `
               <img src="/icons/currency/tgStarsBlack.svg" alt="" class="amount-icon" />
               <span class="amount-value">${amount}</span>

@@ -632,7 +632,6 @@
     padding: 16px 18px 12px;
     min-height: 42px;
     flex: 0 0 auto;
-    position: relative;
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
   
@@ -651,21 +650,24 @@
     white-space: nowrap;
   }
 
+  .crash-panel__foot {
+    flex: 0 0 auto;
+    padding: 4px 18px 8px;
+  }
+
   .crash-panel__hash {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
     display: inline-flex;
+    width: auto;
+    max-width: min(78%, 200px);
+    justify-content: center;
     align-items: center;
     gap: 6px;
-    max-width: 56%;
     border: 0;
     background: transparent;
     padding: 0;
-    margin: 0;
-    opacity: 0.38;
-    color: rgba(255,255,255,0.6);
+    margin: 0 auto;
+    opacity: 0.5;
+    color: rgba(255,255,255,0.92);
     cursor: pointer;
     transition: opacity 0.2s ease;
   }
@@ -675,14 +677,15 @@
   }
 
   .crash-panel__hashIcon {
-    width: 13px;
-    height: 13px;
+    width: 11px;
+    height: 11px;
     flex: 0 0 auto;
-    opacity: 0.65;
+    opacity: 0.92;
+    filter: brightness(0) invert(1);
   }
 
   .crash-panel__hashText {
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.2;
     letter-spacing: 0.15px;
     white-space: nowrap;
@@ -2587,8 +2590,8 @@ body.page-crash.crash-space-ui.crash-space-perf-lite .crash-mult {
   }
 
   .crash-panel__hash {
-    max-width: 48%;
-    opacity: 0.34;
+    max-width: min(82%, 170px);
+    opacity: 0.46;
   }
 }
 

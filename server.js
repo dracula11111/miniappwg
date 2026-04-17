@@ -1,4 +1,4 @@
-// server.js 
+﻿// server.js 
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
 
 import "dotenv/config";
@@ -29,7 +29,7 @@ const IS_PROD = NODE_ENV === "production";
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
-const FRONTEND_TEST_MODE = false;
+const FRONTEND_TEST_MODE = true;
 const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5239983985156703956";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6005661956931850799";

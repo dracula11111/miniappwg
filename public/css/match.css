@@ -40,3 +40,39 @@ body.page-match #matchPage.page-active {
   background-size: cover;
   background-repeat: no-repeat;
 }
+
+body.wt-match-soon-mode.page-match,
+body.wt-match-soon-mode.page-match .app {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+body.wt-match-soon-mode.page-match .topbar {
+  display: none !important;
+}
+
+body.wt-match-soon-mode.page-match #matchPage.page-active {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px calc(118px + var(--wt-app-bottom-inset));
+}
+
+.match-soon {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
+.match-soon__text {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(24px, 7vw, 44px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: none;
+}

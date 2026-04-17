@@ -758,8 +758,8 @@ if (window.TEST_MODE) {
     
     // Запуск нового раунда
     startNewRound: function() {
-      if (window.startCountdown) {
-        window.startCountdown(9);
+      if (typeof startCountdown === 'function') {
+        startCountdown(9, { forceLocal: true });
         console.log('[WheelAdmin] New round started');
       }
     },
@@ -904,7 +904,14 @@ if (window.TEST_MODE) {
       if (window.WildTimeCurrency) {
         const current = window.WildTimeCurrency.current;
         const newCurrency = current === 'ton' ? 'stars' : 'ton';
-        window.WildTimeCurrency.switch(newCurrency);
+        if (typeof window.WildTimeCurrency.switchTo === 'function') {
+          window.WildTimeCurrency.switchTo(newCurrency);
+        } else if (typeof window.WildTimeCurrency.switch === 'function') {
+          window.WildTimeCurrency.switch(newCurrency);
+        } else {
+          window.currentCurrency = newCurrency;
+          window.dispatchEvent(new CustomEvent('currency:changed', { detail: { currency: newCurrency } }));
+        }
         console.log('[WheelAdmin] Currency switched to:', newCurrency);
       }
     }
@@ -1121,6 +1128,9 @@ window.bonusLockEnd = function bonusLockEnd(next = {}) {
 const betsMap = new Map();
 let currentAmount = 0.5;
 let currentCurrency = 'ton';
+const WHEEL_CURRENCY_SYNC_MAX_RETRIES = 30;
+const WHEEL_CURRENCY_SYNC_RETRY_DELAY_MS = 120;
+let wheelCurrencySyncRetryTimer = 0;
 let lastRoundResult = null;
 let bettingLocked = false;
 
@@ -1292,7 +1302,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   syncWheelPlayersPanelMeta();
   wheelRoundHashCopyBtn?.addEventListener('click', async () => {
     if (!wheelRoundHashRaw) return;
-    await copyWheelHashToClipboard(wheelRoundHashRaw);
+    const copied = await copyWheelHashToClipboard(wheelRoundHashRaw);
+    showWheelHashCopyNotice(copied);
   });
   // Берём элементы ставок только из оверлея (чтобы не цеплять элементы с других страниц)
   const __betScope = betOverlay || document;
@@ -1334,6 +1345,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.WT?.bus) {
     window.WT.bus.addEventListener('page:change', (e) => {
       if (e?.detail?.id === 'wheelPage') {
+        syncWithCurrencySystem();
         refreshWheelBonusBarFromState();
       } else {
         hideWheelBonusBar();
@@ -1359,30 +1371,47 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 
 /* ===== CURRENCY SYNC ===== */
-function syncWithCurrencySystem() {
+function syncWithCurrencySystem(retriesLeft = WHEEL_CURRENCY_SYNC_MAX_RETRIES) {
   if (!window.WildTimeCurrency) {
-    console.warn('[Wheel] ⚠️ Currency system not ready yet');
+    if (retriesLeft <= 0) {
+      console.warn('[Wheel] ⚠️ Currency system not ready yet');
+      return;
+    }
+    if (wheelCurrencySyncRetryTimer) clearTimeout(wheelCurrencySyncRetryTimer);
+    wheelCurrencySyncRetryTimer = setTimeout(() => {
+      wheelCurrencySyncRetryTimer = 0;
+      syncWithCurrencySystem(retriesLeft - 1);
+    }, WHEEL_CURRENCY_SYNC_RETRY_DELAY_MS);
     return;
   }
 
-  const savedCurrency = window.WildTimeCurrency.current;
+  const savedCurrency = window.WildTimeCurrency.current === 'stars' ? 'stars' : 'ton';
   console.log('[Wheel] 🔄 Syncing with currency system:', savedCurrency);
   
+  if (wheelCurrencySyncRetryTimer) {
+    clearTimeout(wheelCurrencySyncRetryTimer);
+    wheelCurrencySyncRetryTimer = 0;
+  }
+
   currentCurrency = savedCurrency;
+  window.currentCurrency = savedCurrency;
   updateAmountButtonsUI(savedCurrency);
   
   console.log('[Wheel] ✅ Synced! Currency:', currentCurrency, 'Amount:', currentAmount);
 }
 
 function updateAmountButtonsUI(currency) {
-  console.log('[Wheel] 💰 Updating bet buttons for:', currency);
+  const normalizedCurrency = currency === 'stars' ? 'stars' : 'ton';
+  console.log('[Wheel] 💰 Updating bet buttons for:', normalizedCurrency);
+  amountBtns.forEach(btn => btn.classList.remove('active'));
   
-  if (currency === 'ton') {
+  if (normalizedCurrency === 'ton') {
     const tonAmounts = [0.1, 0.5, 1, 2.5];
     amountBtns.forEach((btn, index) => {
       if (index < tonAmounts.length) {
         const amount = tonAmounts[index];
         btn.dataset.amount = amount;
+        btn.dataset.currency = 'ton';
         btn.innerHTML = `
           <img src="/icons/currency/ton.svg" alt="" class="amount-icon" />
           <span class="amount-value">${amount}</span>
@@ -1402,8 +1431,9 @@ function updateAmountButtonsUI(currency) {
       if (index < starsAmounts.length) {
         const amount = starsAmounts[index];
         btn.dataset.amount = amount;
+        btn.dataset.currency = 'stars';
         btn.innerHTML = `
-          <img src="/icons/currency/stars.svg" alt="" class="amount-icon" />
+          <img src="/icons/currency/tgStarsBlack.svg" alt="" class="amount-icon" />
           <span class="amount-value">${amount}</span>
         `;
       }
@@ -1672,6 +1702,11 @@ function initBettingUI(){
       setBetPill(tile, seg, next, currentCurrency);
       tile.classList.add('has-bet');
       setTimeout(() => tile.classList.remove('active'), 160);
+
+      // Local TEST fallback: if WS is unavailable, run round loop on client.
+      if (TEST_MODE && (!wheelWs || wheelWs.readyState !== WebSocket.OPEN)) {
+        startCountdown(9);
+      }
     });
   });
 }
@@ -2145,10 +2180,14 @@ async function checkBetsAndShowResult(resultType, opts = {}) {
 let cInt = null;
 let isCountdownActive = false;
 
-function startCountdown(sec=9){
-
-  console.log('[Wheel] startCountdown disabled (server-driven)');
-  return;
+function startCountdown(sec=9, opts = {}){
+  const forceLocal = !!(opts && opts.forceLocal);
+  const wsOpen = !!(wheelWs && wheelWs.readyState === WebSocket.OPEN);
+  const shouldUseServerFlow = !forceLocal && (!TEST_MODE || wsOpen);
+  if (shouldUseServerFlow) {
+    console.log('[Wheel] startCountdown disabled (server-driven)');
+    return;
+  }
 
   if (!countdownBox || !countNumEl) return;
   if (isCountdownActive) return;
@@ -2862,6 +2901,54 @@ async function copyWheelHashToClipboard(text) {
   } catch (_) {
     return false;
   }
+}
+
+function showWheelHashCopyNotice(copied = true) {
+  const ok = copied !== false;
+  const text = ok ? 'Hash copied' : 'Copy failed';
+  const opts = { ttl: 1600, variant: ok ? 'success' : 'warning', translate: false };
+  try {
+    if (typeof window.showToast === 'function') {
+      const shown = window.showToast(text, opts);
+      if (shown) return;
+    }
+    if (typeof window.notify === 'function') {
+      const shown = window.notify(text, opts);
+      if (shown) return;
+    }
+  } catch (_) {}
+
+  const existing = document.getElementById('wheel-hash-copy-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'wheel-hash-copy-toast';
+  toast.textContent = text;
+  toast.style.cssText = [
+    'position:fixed',
+    'top:96px',
+    'left:50%',
+    'transform:translateX(-50%)',
+    'z-index:10002',
+    `background:${ok ? 'rgba(16,185,129,0.18)' : 'rgba(245,158,11,0.18)'}`,
+    'backdrop-filter:blur(14px)',
+    '-webkit-backdrop-filter:blur(14px)',
+    `border:1px solid ${ok ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)'}`,
+    'border-radius:14px',
+    'padding:10px 14px',
+    'font-size:12px',
+    'font-weight:700',
+    `color:${ok ? '#10b981' : '#f59e0b'}`,
+    'opacity:1',
+    'transition:opacity .22s ease, transform .22s ease'
+  ].join(';');
+
+  (document.getElementById('wheelPage') || document.body).appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-8px)';
+    setTimeout(() => toast.remove(), 240);
+  }, 1500);
 }
 
 function syncWheelPlayersPanelMeta(state = wheelServerState) {
@@ -3637,7 +3724,13 @@ function getMultiplier(type) {
     if (window.Bonus5050) return;
 
     // попробуем самые частые пути
-    const candidates = ['/js/bonus-5050.js', '/public/js/bonus-5050.js', '/bonus-5050.js'];
+    const candidates = [
+      '/js/features/wheel/bonus-5050.js',
+      '/public/js/features/wheel/bonus-5050.js',
+      '/js/bonus-5050.js',
+      '/public/js/bonus-5050.js',
+      '/bonus-5050.js'
+    ];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);

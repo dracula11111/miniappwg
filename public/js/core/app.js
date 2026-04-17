@@ -2011,11 +2011,153 @@
     casesPage: GAMES_PAGE_ID,
     wheelPage: GAMES_PAGE_ID
   };
+  const PAGE_PRELOAD_ASSET_TIMEOUT_MS = 12000;
+  const PAGE_ENTER_LOADER_STYLE_ID = "wt-page-enter-loader-style";
+  const PAGE_ENTER_LOADER_ID = "wt-page-enter-loader";
+  const CASES_PRELOAD_IMAGES = Array.from({ length: 5 }, (_, idx) => idx + 1).flatMap((num) => [
+    `/images/cases/starcases/case${num}.png`,
+    `/images/cases/toncases/case${num}.png`
+  ]);
+  const PAGE_ENTER_PRELOAD_IMAGES = Object.freeze({
+    matchPage: [
+      "/images/match/backgrounds/matchMainback.webp",
+      "/images/match/backgrounds/1.webp"
+    ],
+    casesPage: [
+      "/images/cases/starcases/starsbackimg.png",
+      "/images/cases/toncases/tonbackimg.webp",
+      "/images/cases/clouds/cloudupdown.webp",
+      "/images/cases/starcases/casepanelback.webp",
+      "/images/cases/toncases/casepanelback.webp",
+      ...CASES_PRELOAD_IMAGES
+    ]
+  });
   const navKeyForPage = (id) => NAV_ALIAS[id] || id;
   let activePageIdCache = null;
   let activePageElCache = null;
   let activeBodyPageClass = "";
   let activeNavKeyCache = null;
+  let pendingPagePreloadTarget = null;
+  let pendingPagePreloadToken = 0;
+  const pagePreloadState = new Map();
+
+  function ensurePageEnterLoader() {
+    if (!document.getElementById(PAGE_ENTER_LOADER_STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = PAGE_ENTER_LOADER_STYLE_ID;
+      style.textContent = `
+        .wt-page-enter-loader {
+          position: fixed;
+          inset: 0;
+          z-index: 10050;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(8, 10, 16, 0.74);
+          backdrop-filter: blur(2px);
+          -webkit-backdrop-filter: blur(2px);
+        }
+        .wt-page-enter-loader[hidden] { display: none !important; }
+        .wt-page-enter-loader__spinner {
+          width: 42px;
+          height: 42px;
+          border-radius: 999px;
+          border: 3px solid rgba(255, 255, 255, 0.22);
+          border-top-color: #ffffff;
+          animation: wtPageEnterLoaderSpin .8s linear infinite;
+        }
+        @keyframes wtPageEnterLoaderSpin { to { transform: rotate(360deg); } }
+      `;
+      document.head.appendChild(style);
+    }
+
+    let loader = document.getElementById(PAGE_ENTER_LOADER_ID);
+    if (!loader) {
+      loader = document.createElement("div");
+      loader.id = PAGE_ENTER_LOADER_ID;
+      loader.className = "wt-page-enter-loader";
+      loader.setAttribute("hidden", "");
+      loader.setAttribute("aria-hidden", "true");
+      loader.innerHTML = `<div class="wt-page-enter-loader__spinner" aria-hidden="true"></div>`;
+      (document.body || document.documentElement).appendChild(loader);
+    }
+
+    return loader;
+  }
+
+  function showPageEnterLoader() {
+    const loader = ensurePageEnterLoader();
+    loader.removeAttribute("hidden");
+    loader.setAttribute("aria-hidden", "false");
+  }
+
+  function hidePageEnterLoader() {
+    const loader = document.getElementById(PAGE_ENTER_LOADER_ID);
+    if (!loader) return;
+    loader.setAttribute("hidden", "");
+    loader.setAttribute("aria-hidden", "true");
+  }
+
+  function preloadImageAsset(src, timeoutMs = PAGE_PRELOAD_ASSET_TIMEOUT_MS) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const img = new Image();
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        img.onload = null;
+        img.onerror = null;
+        resolve(false);
+      }, timeoutMs);
+
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        img.onload = null;
+        img.onerror = null;
+        resolve(ok);
+      };
+
+      img.decoding = "async";
+      img.onload = () => finish(true);
+      img.onerror = () => finish(false);
+      img.src = String(src || "");
+    });
+  }
+
+  function shouldPreloadPageBeforeOpen(pageId) {
+    const sources = PAGE_ENTER_PRELOAD_IMAGES[pageId];
+    return Array.isArray(sources) && sources.length > 0;
+  }
+
+  function ensurePageAssetsPreloaded(pageId) {
+    const sources = Array.from(new Set(
+      (PAGE_ENTER_PRELOAD_IMAGES[pageId] || [])
+        .map((x) => String(x || "").trim())
+        .filter(Boolean)
+    ));
+
+    if (!sources.length) return Promise.resolve([]);
+
+    const cached = pagePreloadState.get(pageId);
+    if (cached?.done) return Promise.resolve(cached.results || []);
+    if (cached?.promise) return cached.promise;
+
+    const promise = Promise.all(
+      sources.map((src) =>
+        preloadImageAsset(src)
+          .catch(() => false)
+          .then((ok) => ({ src, ok }))
+      )
+    ).then((results) => {
+      pagePreloadState.set(pageId, { done: true, results, promise: null });
+      return results;
+    });
+
+    pagePreloadState.set(pageId, { done: false, results: [], promise });
+    return promise;
+  }
 
   function getActivePageId() {
     if (
@@ -2313,7 +2455,7 @@
 
   // РќР°РІРёРіР°С†РёСЏ РјРµР¶РґСѓ СЃС‚СЂР°РЅРёС†Р°РјРё
   function activatePage(id, options = {}){
-    const { fromHistory = false } = options;
+    const { fromHistory = false, skipPreload = false } = options;
     const pg = document.getElementById(id);
     if (!pg) {
       console.warn(`[WT] Page not found: ${id}`);
@@ -2321,6 +2463,33 @@
     }
 
     const currentId = getActivePageId();
+
+    if (pendingPagePreloadTarget && pendingPagePreloadTarget !== id && !skipPreload) {
+      pendingPagePreloadToken += 1;
+      pendingPagePreloadTarget = null;
+      hidePageEnterLoader();
+    }
+
+    if (currentId !== id && !skipPreload && shouldPreloadPageBeforeOpen(id)) {
+      const state = pagePreloadState.get(id);
+      if (!state?.done) {
+        if (pendingPagePreloadTarget === id) return;
+
+        pendingPagePreloadTarget = id;
+        const token = ++pendingPagePreloadToken;
+        showPageEnterLoader();
+
+        ensurePageAssetsPreloaded(id).finally(() => {
+          if (token !== pendingPagePreloadToken) return;
+          if (pendingPagePreloadTarget !== id) return;
+          pendingPagePreloadTarget = null;
+          hidePageEnterLoader();
+          activatePage(id, { ...options, skipPreload: true });
+        });
+        return;
+      }
+    }
+
     normalizeLockedViewportForPage(id);
 
     if (currentId === id) {
