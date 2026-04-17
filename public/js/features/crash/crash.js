@@ -267,13 +267,15 @@ const ICON_TON = "/icons/currency/tgTonWhite.svg";
     <div class="crash-panel">
       <div class="crash-panel__head">
         <div class="crash-panel__title">Players</div>
+        <div class="crash-panel__game" id="crashGameCounter">Game #1</div>
+      </div>
+      <div class="crash-players" id="crashPlayers"></div>
+      <div class="crash-panel__foot">
         <button class="crash-panel__hash" id="crashRoundHashCopy" type="button" aria-label="Copy round hash">
           <img class="crash-panel__hashIcon" src="/icons/ui/copy.svg" alt="" aria-hidden="true" />
           <span class="crash-panel__hashText" id="crashRoundHashLabel">Hash #--</span>
         </button>
-        <div class="crash-panel__game" id="crashGameCounter">Game #1</div>
       </div>
-      <div class="crash-players" id="crashPlayers"></div>
     </div>
 
     <div class="crash-controls">
@@ -2446,7 +2448,14 @@ function showToast(text, opts = {}) {
       const hash = String(state.roundHash || "").trim();
       if (!hash) return;
       const copied = await copyToClipboard(hash);
-      if (copied) setStatus("Hash copied");
+      setStatus(copied ? "Hash copied" : "Copy failed");
+      showAppNotice(copied ? "Hash copied" : "Copy failed", {
+        key: copied ? "crash-hash-copied" : "crash-hash-copy-failed",
+        dedupeMs: 600,
+        ttl: 1600,
+        variant: copied ? "success" : "warning",
+        translate: false
+      });
     });
 
     // Render visual candles based on serverMult

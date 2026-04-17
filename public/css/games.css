@@ -117,7 +117,7 @@
     width: 100%;
     aspect-ratio: 1200 / 300;
     overflow: hidden;
-    --games-banner-panel-gap: 0px;
+    --games-banner-panel-gap: 8px;
     background: var(--bg, #0d0e0f);
     touch-action: pan-y;
     cursor: grab;
@@ -225,8 +225,8 @@
       0 12px 40px rgba(0,0,0,.18),
       0 20px 60px rgba(0,0,0,.1);
   
-    /* fallback фон, если картинка не загрузилась */
-    background-color: rgba(255,255,255,.03);
+    /* Без fallback-заливки: чтобы не было цветного ореола по краям карточек */
+    background-color: transparent;
   
     /* один слой постера без обрезки */
     --tile-img: none;
@@ -411,11 +411,11 @@
   }
   .game-tile--soon { grid-area: soon;  --tile-img: url("/images/games/soon.webp");  --tile-y: 45%; }
   
-  /* Если фоток нет — всё равно красиво */
-  .game-tile--wheel{ background-color: rgba(120, 160, 255, .18); }
-  .game-tile--crash{ background-color: rgba(255, 120, 160, .18); }
-  .game-tile--cases{ background-color: rgba(90, 255, 200, .16); }
-  .game-tile--soon { background-color: rgba(255,255,255,.035); }
+  /* Без fallback-фонов для отдельных панелей */
+  .game-tile--wheel{ background-color: transparent; }
+  .game-tile--crash{ background-color: transparent; }
+  .game-tile--cases{ background-color: transparent; }
+  .game-tile--soon { background-color: transparent; }
   
   /* подписи выравниваем по центру без наклона */
   .game-tile--crash .game-tile__label,

@@ -1,4 +1,4 @@
-// server.js 
+﻿// server.js 
 // IMPORTANT (ESM): .env must be loaded BEFORE importing database-pg.js, otherwise it will see empty process.env.
 
 import "dotenv/config";

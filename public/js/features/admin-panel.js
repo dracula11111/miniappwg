@@ -9,12 +9,27 @@
   const allowLocalTestPanel = isTest && isLocalHost;
 
   const SEGMENTS = ['1.1x', '3x', '5x', '11x', '50&50', 'Loot Rush', 'Wild Time'];
+  const SEGMENT_ALIAS = Object.freeze({
+    '50/50': '50&50',
+    '5050': '50&50',
+    '50 & 50': '50&50',
+    'lootrush': 'Loot Rush',
+    'wildtime': 'Wild Time'
+  });
   let panelUnlocked = false;
   let panelAdminKey = '';
   let panelMode = allowLocalTestPanel ? 'LOCAL_TEST' : 'ADMIN';
 
   // ===== Utils =====
   const $ = (sel, root = document) => root.querySelector(sel);
+
+  function normSeg(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    if (SEGMENTS.includes(value)) return value;
+    const compact = value.toLowerCase().replace(/\s+/g, '');
+    return SEGMENT_ALIAS[value] || SEGMENT_ALIAS[compact] || value;
+  }
 
   function loadScriptOnce(src) {
     return new Promise((resolve, reject) => {
@@ -30,7 +45,13 @@
 
   async function ensureLootRushLoaded() {
     if (typeof window.startLootRushBonus === 'function') return true;
-    const candidates = ['/js/lootrush.js', '/public/js/lootrush.js', '/lootrush.js'];
+    const candidates = [
+      '/js/features/wheel/lootrush.js',
+      '/public/js/features/wheel/lootrush.js',
+      '/js/lootrush.js',
+      '/public/js/lootrush.js',
+      '/lootrush.js'
+    ];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -43,7 +64,13 @@
   async function ensure5050Loaded() {
     if (typeof window.start5050Bonus === 'function') return true;
     // bonus-5050.js already подключён в index.html, но на всякий случай:
-    const candidates = ['/js/bonus-5050.js', '/public/js/bonus-5050.js', '/bonus-5050.js'];
+    const candidates = [
+      '/js/features/wheel/bonus-5050.js',
+      '/public/js/features/wheel/bonus-5050.js',
+      '/js/bonus-5050.js',
+      '/public/js/bonus-5050.js',
+      '/bonus-5050.js'
+    ];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -55,7 +82,13 @@
 
   async function ensureWildTimeLoaded() {
     if (typeof window.startWildTimeBonus === 'function') return true;
-    const candidates = ['/js/wildtime.js', '/public/js/wildtime.js', '/wildtime.js'];
+    const candidates = [
+      '/js/features/wheel/wildtime.js',
+      '/public/js/features/wheel/wildtime.js',
+      '/js/wildtime.js',
+      '/public/js/wildtime.js',
+      '/wildtime.js'
+    ];
     for (const src of candidates) {
       try {
         await loadScriptOnce(src);
@@ -813,10 +846,14 @@
       renderState();
       return;
     }
-    if (window.WildTimeCurrency && typeof window.WildTimeCurrency.switch === 'function') {
+    if (window.WildTimeCurrency && (typeof window.WildTimeCurrency.switchTo === 'function' || typeof window.WildTimeCurrency.switch === 'function')) {
       const current = window.WildTimeCurrency.current || 'ton';
       const next = current === 'ton' ? 'stars' : 'ton';
-      window.WildTimeCurrency.switch(next);
+      if (typeof window.WildTimeCurrency.switchTo === 'function') {
+        window.WildTimeCurrency.switchTo(next);
+      } else {
+        window.WildTimeCurrency.switch(next);
+      }
       log(`Currency switched → <b>${next.toUpperCase()}</b>`, 'ok');
       renderState();
       return;
