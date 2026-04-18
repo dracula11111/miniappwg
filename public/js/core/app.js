@@ -1336,6 +1336,8 @@
   // ===== Global liquid-glass notifications =====
   const TOAST_HOST_ID = 'wt-toast-host';
   let toastTimer = null;
+  const COPY_TOAST_HOST_ID = 'wt-copy-toast-host';
+  let copyToastTimer = null;
 
   function ensureToastHost() {
     let host = document.getElementById(TOAST_HOST_ID);
@@ -1412,8 +1414,56 @@
     return true;
   }
 
+  function ensureCopyToastHost() {
+    let host = document.getElementById(COPY_TOAST_HOST_ID);
+    if (host) return host;
+
+    host = document.createElement('div');
+    host.id = COPY_TOAST_HOST_ID;
+    host.setAttribute('aria-live', 'polite');
+    host.setAttribute('aria-atomic', 'true');
+    host.innerHTML = [
+      '<span class="wt-copy-toast__icon" aria-hidden="true">',
+      '<img src="/icons/ui/tick.svg" alt="">',
+      '</span>',
+      '<span class="wt-copy-toast__text"></span>'
+    ].join('');
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function showCopyToast(message, opts = {}) {
+    const raw = String(message ?? '');
+    const localized = opts?.translate === false
+      ? raw
+      : (WT.i18n?.translate?.(raw) || raw);
+    const text = String(localized).trim();
+    if (!text) return false;
+
+    const ttl = Number.isFinite(Number(opts.ttl)) ? Math.max(900, Number(opts.ttl)) : 1800;
+    const host = ensureCopyToastHost();
+    const textEl = host.querySelector('.wt-copy-toast__text');
+    if (textEl) {
+      textEl.textContent = text;
+    } else {
+      host.textContent = text;
+    }
+
+    host.classList.remove('is-out');
+    host.classList.add('is-in');
+
+    if (copyToastTimer) clearTimeout(copyToastTimer);
+    copyToastTimer = setTimeout(() => {
+      host.classList.remove('is-in');
+      host.classList.add('is-out');
+    }, ttl);
+
+    return true;
+  }
+
   window.showToast = showLiquidToast;
   window.notify = (message, opts) => showLiquidToast(message, opts);
+  window.showCopyToast = showCopyToast;
 
   const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
   window.alert = (message) => {

@@ -242,6 +242,56 @@
     try { alert(msg); } catch {}
   }
 
+  function showCopyToast(msg) {
+    const text = String(msg || 'Copied to clipboard.').trim() || 'Copied to clipboard.';
+    if (typeof window.showCopyToast === 'function') {
+      try {
+        const shown = window.showCopyToast(text, { ttl: 1800, translate: false });
+        if (shown) return true;
+      } catch {}
+    }
+    showToast(text);
+    return false;
+  }
+
+  async function copyTextToClipboard(text) {
+    const value = String(text || '').trim();
+    if (!value) return false;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {}
+
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const copied = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!copied;
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyWithFeedback(value, successMessage = 'Copied to clipboard.') {
+    const copied = await copyTextToClipboard(value);
+    if (copied) {
+      showCopyToast(successMessage);
+      return true;
+    }
+    showToast('Copy failed');
+    return false;
+  }
+
   function getCurrency() {
     return window.WildTimeCurrency?.current || 'ton';
   }
@@ -664,8 +714,8 @@
         walletCardStatus.style.cursor = 'pointer';
         walletCardStatus.style.fontWeight = '700';
         walletCardStatus.style.letterSpacing = '0.3px';
-        walletCardStatus.onclick = () => {
-          navigator.clipboard?.writeText(addr).catch(() => {});
+        walletCardStatus.onclick = async () => {
+          await copyWithFeedback(addr, 'Wallet copied to clipboard.');
           haptic('light');
         };
       }
@@ -729,19 +779,19 @@
     }
 
     if (walletDisconnectCopy) {
-      walletDisconnectCopy.addEventListener('click', () => {
+      walletDisconnectCopy.addEventListener('click', async () => {
         const addr = walletDisconnectCopy.dataset.addr || getWalletAddress();
         if (!addr) return;
-        navigator.clipboard?.writeText(addr).catch(() => {});
+        await copyWithFeedback(addr, 'Wallet copied to clipboard.');
         haptic('light');
       });
     }
 
     if (walletCardCopy) {
-      walletCardCopy.addEventListener('click', () => {
+      walletCardCopy.addEventListener('click', async () => {
         const addr = getWalletAddress();
         if (!addr) return;
-        navigator.clipboard?.writeText(addr).catch(() => {});
+        await copyWithFeedback(addr, 'Wallet copied to clipboard.');
         haptic('light');
       });
     }

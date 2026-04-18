@@ -2449,6 +2449,14 @@ function showToast(text, opts = {}) {
       if (!hash) return;
       const copied = await copyToClipboard(hash);
       setStatus(copied ? "Hash copied" : "Copy failed");
+      if (copied) {
+        try {
+          if (typeof window.showCopyToast === "function") {
+            const shown = window.showCopyToast("Hash copied to clipboard.", { ttl: 1800, translate: false });
+            if (shown) return;
+          }
+        } catch (_) {}
+      }
       showAppNotice(copied ? "Hash copied" : "Copy failed", {
         key: copied ? "crash-hash-copied" : "crash-hash-copy-failed",
         dedupeMs: 600,

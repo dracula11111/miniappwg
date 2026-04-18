@@ -2580,11 +2580,17 @@ body.page-crash.crash-space-ui.crash-space-perf-lite .crash-mult {
     0 0 24px rgba(57,114,255,0.28);
 }
 
-@media (max-width: 430px) {
+@media (max-width: 560px) {
   .crash-topThemeSwitch {
     top: 72px;
     padding: 4px;
     gap: 5px;
+  }
+
+  body.page-crash .topbar > .crash-topThemeSwitch {
+    /* Move switch downward so it overlaps the crash game card by ~half on phones. */
+    transform: translateY(calc(100% + 22px)) !important;
+    z-index: 60;
   }
 
   .crash-topThemeBtn {
@@ -2604,6 +2610,13 @@ body.page-crash.crash-space-ui.crash-space-perf-lite .crash-mult {
   .crash-panel__hash {
     max-width: min(82%, 170px);
     opacity: 0.46;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  body.page-crash .topbar > .crash-topThemeSwitch {
+    transform: translateY(calc(100% + 22px)) !important;
+    z-index: 60;
   }
 }
 

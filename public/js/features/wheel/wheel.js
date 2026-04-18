@@ -2905,6 +2905,15 @@ async function copyWheelHashToClipboard(text) {
 
 function showWheelHashCopyNotice(copied = true) {
   const ok = copied !== false;
+  if (ok) {
+    try {
+      if (typeof window.showCopyToast === 'function') {
+        const shown = window.showCopyToast('Hash copied to clipboard.', { ttl: 1800, translate: false });
+        if (shown) return;
+      }
+    } catch (_) {}
+  }
+
   const text = ok ? 'Hash copied' : 'Copy failed';
   const opts = { ttl: 1600, variant: ok ? 'success' : 'warning', translate: false };
   try {
@@ -2917,38 +2926,6 @@ function showWheelHashCopyNotice(copied = true) {
       if (shown) return;
     }
   } catch (_) {}
-
-  const existing = document.getElementById('wheel-hash-copy-toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'wheel-hash-copy-toast';
-  toast.textContent = text;
-  toast.style.cssText = [
-    'position:fixed',
-    'top:96px',
-    'left:50%',
-    'transform:translateX(-50%)',
-    'z-index:10002',
-    `background:${ok ? 'rgba(16,185,129,0.18)' : 'rgba(245,158,11,0.18)'}`,
-    'backdrop-filter:blur(14px)',
-    '-webkit-backdrop-filter:blur(14px)',
-    `border:1px solid ${ok ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)'}`,
-    'border-radius:14px',
-    'padding:10px 14px',
-    'font-size:12px',
-    'font-weight:700',
-    `color:${ok ? '#10b981' : '#f59e0b'}`,
-    'opacity:1',
-    'transition:opacity .22s ease, transform .22s ease'
-  ].join(';');
-
-  (document.getElementById('wheelPage') || document.body).appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(-8px)';
-    setTimeout(() => toast.remove(), 240);
-  }, 1500);
 }
 
 function syncWheelPlayersPanelMeta(state = wheelServerState) {

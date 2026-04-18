@@ -3564,7 +3564,7 @@ async function refreshGiftsPricesFromPortalsLegacy() {
     "pragma": "no-cache"
   };
 
-  const disableTonnel = String(process.env.DISABLE_TONNEL_PRICES || "").trim() === "1";
+  const disableTonnel = !/^(0|false|no)$/i.test(String(process.env.DISABLE_TONNEL_PRICES || "1").trim());
 
   for (const giftName of giftsCatalog) {
     const q = normalizeGiftName(giftName);
@@ -3572,9 +3572,9 @@ async function refreshGiftsPricesFromPortalsLegacy() {
 
     const sources = [
       {
-        name: "portals.tg",
-        url: `https://portals.tg/api/collections?search=${encodeURIComponent(q)}&limit=10`,
-        headers: { ...baseHeaders, "referer": "https://portals.tg/", "origin": "https://portals.tg" }
+        name: "portal-market.com",
+        url: `https://portal-market.com/api/collections?search=${encodeURIComponent(q)}&limit=10`,
+        headers: { ...baseHeaders, "referer": "https://portal-market.com/", "origin": "https://portal-market.com" }
       },
       ...(disableTonnel ? [] : [{
         name: "market.tonnel.network",
@@ -3767,17 +3767,17 @@ async function refreshGiftsPricesFromPortals() {
     "pragma": "no-cache"
   };
 
-  const disableTonnel = String(process.env.DISABLE_TONNEL_PRICES || "").trim() === "1";
+  const disableTonnel = !/^(0|false|no)$/i.test(String(process.env.DISABLE_TONNEL_PRICES || "1").trim());
   const skippedOnce = new Set();
   const disabledThisRun = new Set();
 
   const sources = [
     {
-      name: "portals.tg",
+      name: "portal-market.com",
       fetchPrice: (giftName) => fetchGiftPriceFromJsonSource({
-        name: "portals.tg",
-        baseUrl: "https://portals.tg/api/collections?search=",
-        headers: { ...baseHeaders, referer: "https://portals.tg/", origin: "https://portals.tg" }
+        name: "portal-market.com",
+        baseUrl: "https://portal-market.com/api/collections?search=",
+        headers: { ...baseHeaders, referer: "https://portal-market.com/", origin: "https://portal-market.com" }
       }, giftName)
     },
     ...(disableTonnel ? [] : [{
