@@ -1006,6 +1006,93 @@ const __dirname  = path.dirname(__filename);
 const PORT = process.env.PORT || 3000; // port
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 
+const TG_CHROME_METRICS_PATH =
+  process.env.TG_CHROME_METRICS_PATH ||
+  (IS_PROD
+    ? "/opt/render/project/data/telegram-chrome-metrics.ndjson"
+    : path.join(__dirname, "data", "telegram-chrome-metrics.ndjson"));
+const TG_CHROME_METRICS_MAX_BYTES = Math.max(
+  256 * 1024,
+  Math.min(20 * 1024 * 1024, Number(process.env.TG_CHROME_METRICS_MAX_BYTES || 5 * 1024 * 1024) || 5 * 1024 * 1024)
+);
+
+function ensureTelegramChromeMetricsDir() {
+  const dir = path.dirname(TG_CHROME_METRICS_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+function clampFiniteNumber(value, min, max, fallback = min) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function clipText(value, maxLen = 64) {
+  return String(value || "").trim().slice(0, maxLen);
+}
+
+function sanitizeTelegramChromeSample(raw = {}) {
+  return {
+    reason: clipText(raw.reason || "unknown", 48),
+    tsClient: clampFiniteNumber(raw.tsClient, 0, 9_999_999_999_999, Date.now()),
+    platform: clipText(raw.platform, 32),
+    isFullscreen: !!raw.isFullscreen,
+    safeTop: clampFiniteNumber(raw.safeTop, 0, 320, 0),
+    safeLeft: clampFiniteNumber(raw.safeLeft, 0, 240, 0),
+    safeRight: clampFiniteNumber(raw.safeRight, 0, 240, 0),
+    contentTop: clampFiniteNumber(raw.contentTop, 0, 480, 0),
+    contentLeft: clampFiniteNumber(raw.contentLeft, 0, 240, 0),
+    contentRight: clampFiniteNumber(raw.contentRight, 0, 240, 0),
+    overlayTop: clampFiniteNumber(raw.overlayTop, 0, 320, 0),
+    headerSideLeft: clampFiniteNumber(raw.headerSideLeft, 0, 320, 0),
+    headerSideRight: clampFiniteNumber(raw.headerSideRight, 0, 320, 0),
+    logoNudgeY: clampFiniteNumber(raw.logoNudgeY, -80, 120, 0),
+    viewportW: clampFiniteNumber(raw.viewportW, 0, 6000, 0),
+    viewportH: clampFiniteNumber(raw.viewportH, 0, 6000, 0),
+    visualViewportW: clampFiniteNumber(raw.visualViewportW, 0, 6000, 0),
+    visualViewportH: clampFiniteNumber(raw.visualViewportH, 0, 6000, 0),
+    visualViewportOffsetTop: clampFiniteNumber(raw.visualViewportOffsetTop, 0, 1200, 0),
+    dpr: clampFiniteNumber(raw.dpr, 0, 8, 1),
+    path: clipText(raw.path || "/", 180)
+  };
+}
+
+function appendTelegramChromeMetricRecord(record) {
+  try {
+    ensureTelegramChromeMetricsDir();
+    if (fs.existsSync(TG_CHROME_METRICS_PATH)) {
+      const st = fs.statSync(TG_CHROME_METRICS_PATH);
+      if (Number(st?.size || 0) > TG_CHROME_METRICS_MAX_BYTES) {
+        const rotated = `${TG_CHROME_METRICS_PATH}.${Date.now()}.bak`;
+        try { fs.renameSync(TG_CHROME_METRICS_PATH, rotated); } catch {}
+      }
+    }
+    fs.appendFileSync(TG_CHROME_METRICS_PATH, `${JSON.stringify(record)}\n`, "utf8");
+    return true;
+  } catch (error) {
+    console.error("[TGChromeMetrics] append error:", error?.message || error);
+    return false;
+  }
+}
+
+function readTelegramChromeMetricRecords(limit = 100) {
+  const max = Math.max(1, Math.min(1000, Number(limit) || 100));
+  try {
+    if (!fs.existsSync(TG_CHROME_METRICS_PATH)) return [];
+    const raw = fs.readFileSync(TG_CHROME_METRICS_PATH, "utf8");
+    if (!raw) return [];
+    const lines = raw.split(/\r?\n/).filter(Boolean).slice(-max);
+    const list = [];
+    for (const line of lines) {
+      try { list.push(JSON.parse(line)); } catch {}
+    }
+    return list;
+  } catch (error) {
+    console.error("[TGChromeMetrics] read error:", error?.message || error);
+    return [];
+  }
+}
+
 
 
 
@@ -7695,6 +7782,46 @@ app.get("/api/test/info", async (req, res) => {
       ? 'Test endpoints are disabled in production' 
       : 'Test endpoints are available'
   });
+});
+
+// Telegram Mini App chrome telemetry (safe/content insets + viewport) for cross-device calibration.
+app.post("/api/debug/telegram-chrome", requireTelegramUser, async (req, res) => {
+  try {
+    const user = req?.tg?.user || null;
+    if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+
+    const sample = sanitizeTelegramChromeSample(req.body || {});
+    const record = {
+      ...sample,
+      userId: String(user.id),
+      username: clipText(user.username || "", 64),
+      lang: clipText(user.language_code || "", 24),
+      tsServer: Date.now()
+    };
+
+    appendTelegramChromeMetricRecord(record);
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[TGChromeMetrics] POST error:", error?.message || error);
+    return res.status(500).json({ ok: false, error: "telemetry write failed" });
+  }
+});
+
+app.get("/api/debug/telegram-chrome/recent", requireAdminKey, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(1000, Number(req.query.limit) || 120));
+    const items = readTelegramChromeMetricRecords(limit);
+    return res.json({
+      ok: true,
+      count: items.length,
+      limit,
+      path: TG_CHROME_METRICS_PATH,
+      items
+    });
+  } catch (error) {
+    console.error("[TGChromeMetrics] GET error:", error?.message || error);
+    return res.status(500).json({ ok: false, error: "telemetry read failed" });
+  }
 });
 
 

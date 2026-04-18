@@ -46,7 +46,174 @@
     tg?.expand?.();
   } catch {}
 
-  function syncTelegramChromeInsets() {
+  const TG_CHROME_DEBUG_STORAGE_KEY = "WT_TG_CHROME_DEBUG";
+  const tgChromeDebugEnabled = (() => {
+    let queryValue = "";
+    try {
+      const query = new URLSearchParams(window.location.search || "");
+      queryValue = String(query.get("tgdebug") || "").trim();
+    } catch {}
+
+    if (queryValue === "1") {
+      try { localStorage.setItem(TG_CHROME_DEBUG_STORAGE_KEY, "1"); } catch {}
+      return true;
+    }
+    if (queryValue === "0") {
+      try { localStorage.removeItem(TG_CHROME_DEBUG_STORAGE_KEY); } catch {}
+      return false;
+    }
+    try {
+      return localStorage.getItem(TG_CHROME_DEBUG_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  })();
+
+  let tgChromeHudEl = null;
+  let tgChromeLastSample = null;
+  let tgChromeLastSentSig = "";
+  let tgChromeLastSentAt = 0;
+  let tgChromeFlushTimer = 0;
+  let tgChromeQueuedSample = null;
+
+  function ensureTelegramChromeHud() {
+    if (!tgChromeDebugEnabled) return null;
+    if (tgChromeHudEl && document.body?.contains?.(tgChromeHudEl)) return tgChromeHudEl;
+
+    const node = document.createElement("pre");
+    node.id = "wt-tg-chrome-hud";
+    node.style.cssText = [
+      "position:fixed",
+      "left:8px",
+      "bottom:calc(8px + env(safe-area-inset-bottom, 0px))",
+      "z-index:2147483647",
+      "max-width:min(86vw, 360px)",
+      "margin:0",
+      "padding:8px 10px",
+      "border-radius:10px",
+      "background:rgba(0,0,0,.76)",
+      "color:#c8f7ff",
+      "font:11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "pointer-events:none",
+      "white-space:pre-wrap",
+      "word-break:break-word",
+      "box-shadow:0 6px 16px rgba(0,0,0,.35)"
+    ].join(";");
+    node.textContent = "TG chrome debug: waiting...";
+    document.body?.appendChild?.(node);
+    tgChromeHudEl = node;
+    return node;
+  }
+
+  function renderTelegramChromeHud(sample) {
+    if (!tgChromeDebugEnabled || !sample) return;
+    const node = ensureTelegramChromeHud();
+    if (!node) return;
+    node.textContent = [
+      `ev=${sample.reason}`,
+      `safe.top=${sample.safeTop} content.top=${sample.contentTop} overlay=${sample.overlayTop}`,
+      `safe.l=${sample.safeLeft} safe.r=${sample.safeRight} content.l=${sample.contentLeft} content.r=${sample.contentRight}`,
+      `logo.nudge=${sample.logoNudgeY} leftGap=${sample.headerSideLeft} rightGap=${sample.headerSideRight}`,
+      `vw=${sample.viewportW} vh=${sample.viewportH} dpr=${sample.dpr}`,
+      `vvh=${sample.visualViewportH} vvTop=${sample.visualViewportOffsetTop}`,
+      `platform=${sample.platform} fullscreen=${sample.isFullscreen ? 1 : 0}`
+    ].join("\n");
+  }
+
+  function buildTelegramChromeSample(reason, values) {
+    const vv = window.visualViewport || null;
+    return {
+      reason: String(reason || "sync"),
+      tsClient: Date.now(),
+      platform: String(values.platform || ""),
+      isFullscreen: !!tg?.isFullscreen,
+      safeTop: values.safeTop,
+      safeLeft: values.safeLeft,
+      safeRight: values.safeRight,
+      contentTop: values.contentTop,
+      contentLeft: values.contentLeft,
+      contentRight: values.contentRight,
+      overlayTop: values.overlayTop,
+      headerSideLeft: values.headerSideLeft,
+      headerSideRight: values.headerSideRight,
+      logoNudgeY: values.logoNudgeY,
+      viewportW: Math.round(window.innerWidth || 0),
+      viewportH: Math.round(window.innerHeight || 0),
+      visualViewportH: Math.round(vv?.height || 0),
+      visualViewportW: Math.round(vv?.width || 0),
+      visualViewportOffsetTop: Math.round(vv?.offsetTop || 0),
+      dpr: Number((window.devicePixelRatio || 1).toFixed(2)),
+      path: String(window.location.pathname || "/")
+    };
+  }
+
+  function telegramChromeSampleSignature(sample) {
+    return [
+      sample.platform,
+      sample.isFullscreen ? 1 : 0,
+      sample.safeTop,
+      sample.contentTop,
+      sample.overlayTop,
+      sample.safeLeft,
+      sample.safeRight,
+      sample.contentLeft,
+      sample.contentRight,
+      sample.headerSideLeft,
+      sample.headerSideRight,
+      sample.logoNudgeY,
+      sample.viewportW,
+      sample.viewportH,
+      sample.visualViewportH,
+      sample.visualViewportOffsetTop
+    ].join("|");
+  }
+
+  async function flushTelegramChromeTelemetry() {
+    tgChromeFlushTimer = 0;
+    const sample = tgChromeQueuedSample;
+    tgChromeQueuedSample = null;
+    if (!tgChromeDebugEnabled || !sample || !tg) return;
+
+    const initData = String(tg?.initData || "").trim();
+    if (!initData) return;
+
+    const now = Date.now();
+    const signature = telegramChromeSampleSignature(sample);
+    const changed = signature !== tgChromeLastSentSig;
+    const minIntervalMs = changed ? 1400 : 15000;
+
+    if (now - tgChromeLastSentAt < minIntervalMs) {
+      tgChromeQueuedSample = sample;
+      if (!tgChromeFlushTimer) {
+        tgChromeFlushTimer = setTimeout(flushTelegramChromeTelemetry, Math.max(150, minIntervalMs - (now - tgChromeLastSentAt)));
+      }
+      return;
+    }
+
+    tgChromeLastSentSig = signature;
+    tgChromeLastSentAt = now;
+
+    try {
+      await fetch("/api/debug/telegram-chrome", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-telegram-init-data": initData
+        },
+        body: JSON.stringify(sample),
+        keepalive: true
+      });
+    } catch {}
+  }
+
+  function queueTelegramChromeTelemetry(sample) {
+    if (!tgChromeDebugEnabled || !sample) return;
+    tgChromeQueuedSample = sample;
+    if (tgChromeFlushTimer) return;
+    tgChromeFlushTimer = setTimeout(flushTelegramChromeTelemetry, 900);
+  }
+
+  function syncTelegramChromeInsets(reason = "sync") {
     const root = document.documentElement;
     if (!root) return;
 
@@ -104,6 +271,23 @@
     root.style.setProperty("--tg-header-side-left", `${Math.round(sideLeft)}px`);
     root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
     root.style.setProperty("--wg-logo-nudge-y", `${logoNudgeY}px`);
+
+    const sample = buildTelegramChromeSample(reason, {
+      platform,
+      safeTop: Math.round(safeTop),
+      safeLeft: Math.round(safeLeft),
+      safeRight: Math.round(safeRight),
+      contentTop: Math.round(contentTop),
+      contentLeft: Math.round(contentLeft),
+      contentRight: Math.round(contentRight),
+      overlayTop: Math.round(overlayTop),
+      headerSideLeft: Math.round(sideLeft),
+      headerSideRight: Math.round(sideRight),
+      logoNudgeY
+    });
+    tgChromeLastSample = sample;
+    renderTelegramChromeHud(sample);
+    queueTelegramChromeTelemetry(sample);
   }
 
   const TG_CHROME_EVENTS = [
@@ -114,18 +298,41 @@
   ];
 
   for (const eventName of TG_CHROME_EVENTS) {
-    try { tg?.onEvent?.(eventName, syncTelegramChromeInsets); } catch {}
+    try { tg?.onEvent?.(eventName, () => syncTelegramChromeInsets(eventName)); } catch {}
   }
 
   try {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", syncTelegramChromeInsets, { once: true });
-    } else {
-      syncTelegramChromeInsets();
+    window.addEventListener("resize", () => syncTelegramChromeInsets("window:resize"), { passive: true });
+    if (window.visualViewport && typeof window.visualViewport.addEventListener === "function") {
+      window.visualViewport.addEventListener("resize", () => syncTelegramChromeInsets("visualViewport:resize"), { passive: true });
+      window.visualViewport.addEventListener("scroll", () => syncTelegramChromeInsets("visualViewport:scroll"), { passive: true });
     }
   } catch {}
-  setTimeout(syncTelegramChromeInsets, 0);
-  setTimeout(syncTelegramChromeInsets, 250);
+
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => syncTelegramChromeInsets("dom:ready"), { once: true });
+    } else {
+      syncTelegramChromeInsets("init");
+    }
+  } catch {}
+  setTimeout(() => syncTelegramChromeInsets("init:tick0"), 0);
+  setTimeout(() => syncTelegramChromeInsets("init:tick250"), 250);
+  setTimeout(() => syncTelegramChromeInsets("init:tick1000"), 1000);
+
+  try {
+    window.WTTelegramChromeDebug = {
+      enabled: tgChromeDebugEnabled,
+      getLastSample: () => (tgChromeLastSample ? { ...tgChromeLastSample } : null),
+      refresh: () => syncTelegramChromeInsets("manual:refresh"),
+      setEnabled: (enabled) => {
+        try {
+          if (enabled) localStorage.setItem(TG_CHROME_DEBUG_STORAGE_KEY, "1");
+          else localStorage.removeItem(TG_CHROME_DEBUG_STORAGE_KEY);
+        } catch {}
+      }
+    };
+  } catch {}
 
   const TG_WRITE_ACCESS_KEY_PREFIX = "wt:tg:write-access:";
   function requestTelegramWriteAccessOnce() {
@@ -1954,8 +2161,8 @@
       if (slideCount < 2) return;
       autoTimer = window.setInterval(() => {
         if (document.hidden || getActivePageId() !== GAMES_PAGE_ID || isDragging) return;
-        // Auto always moves to the right.
-        moveBy(-1);
+        // Auto now moves to the left (opposite direction).
+        moveBy(1);
       }, GAMES_BANNER_AUTO_MS);
     };
 
