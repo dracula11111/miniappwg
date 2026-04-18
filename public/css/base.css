@@ -23,7 +23,7 @@
         --tg-header-side-left: 124px;
         --tg-header-side-right: 92px;
         --wg-logo-height: 34px;
-        --wg-logo-nudge-y: 28px;
+        --wg-logo-nudge-y: 18px;
       }
 
       *{
@@ -172,11 +172,11 @@
         .logo-header {
           position: absolute;                            /* Абсолютное позиционирование */
           top: max(
-            calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px + var(--wg-logo-nudge-y, 28px)),
+            calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px + var(--wg-logo-nudge-y, 18px)),
             calc(
               var(--safe-top, env(safe-area-inset-top, 0px))
               + ((var(--tg-overlay-top, 0px) - var(--wg-logo-height, 34px)) / 2)
-              + var(--wg-logo-nudge-y, 28px)
+              + var(--wg-logo-nudge-y, 18px)
             )
           );
           left: 50%;                                     /* 50% слева */

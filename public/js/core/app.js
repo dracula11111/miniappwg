@@ -57,33 +57,53 @@
     const safeLeftRaw = Number(safe?.left);
     const safeRightRaw = Number(safe?.right);
     const contentTopRaw = Number(contentSafe?.top);
+    const contentLeftRaw = Number(contentSafe?.left);
+    const contentRightRaw = Number(contentSafe?.right);
 
     const safeTop = Number.isFinite(safeTopRaw) && safeTopRaw >= 0 ? safeTopRaw : 0;
     const safeLeft = Number.isFinite(safeLeftRaw) && safeLeftRaw >= 0 ? safeLeftRaw : 0;
     const safeRight = Number.isFinite(safeRightRaw) && safeRightRaw >= 0 ? safeRightRaw : 0;
     const contentTop = Number.isFinite(contentTopRaw) && contentTopRaw >= safeTop ? contentTopRaw : safeTop;
+    const contentLeft = Number.isFinite(contentLeftRaw) && contentLeftRaw >= 0 ? contentLeftRaw : safeLeft;
+    const contentRight = Number.isFinite(contentRightRaw) && contentRightRaw >= 0 ? contentRightRaw : safeRight;
     const overlayTop = Math.max(0, contentTop - safeTop);
 
     const platform = String(tg?.platform || "").toLowerCase();
     const isIosLike = platform === "ios" || platform === "macos";
     const fullscreenActive = !!tg?.isFullscreen || overlayTop >= 30;
 
-    let sideLeft = isIosLike ? 132 : 108;
-    let sideRight = isIosLike ? 96 : 88;
+    const hasTelegramHeaderControls = overlayTop >= 28;
+
+    let sideLeft = isIosLike ? 124 : 104;
+    let sideRight = isIosLike ? 90 : 82;
+
+    // iOS close pill is visually wider ("Close"), keep a wider left corridor.
+    if (hasTelegramHeaderControls) {
+      sideLeft += isIosLike ? 34 : 20;
+      sideRight += isIosLike ? 12 : 8;
+    }
 
     if (!fullscreenActive) {
       sideLeft -= 18;
       sideRight -= 12;
     }
 
-    sideLeft = Math.max(74, sideLeft + safeLeft);
-    sideRight = Math.max(70, sideRight + safeRight);
+    sideLeft = Math.max(74, sideLeft + safeLeft, contentLeft + 14);
+    sideRight = Math.max(70, sideRight + safeRight, contentRight + 14);
+
+    // Dynamic vertical nudge:
+    // - with big Telegram header overlay -> move logo higher
+    // - without overlay data -> keep it slightly lower as fallback
+    const logoNudgeY = Math.max(-8, Math.min(18, Math.round(18 - (overlayTop * 0.22))));
 
     root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
     root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
     root.style.setProperty("--tg-overlay-top", `${Math.round(overlayTop)}px`);
+    root.style.setProperty("--tg-content-left", `${Math.round(contentLeft)}px`);
+    root.style.setProperty("--tg-content-right", `${Math.round(contentRight)}px`);
     root.style.setProperty("--tg-header-side-left", `${Math.round(sideLeft)}px`);
     root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
+    root.style.setProperty("--wg-logo-nudge-y", `${logoNudgeY}px`);
   }
 
   const TG_CHROME_EVENTS = [
