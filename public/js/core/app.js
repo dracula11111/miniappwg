@@ -239,7 +239,10 @@
     const isIosLike = platform === "ios" || platform === "macos";
     const fullscreenActive = !!tg?.isFullscreen || overlayTop >= 30;
 
-    const hasTelegramHeaderControls = overlayTop >= 28;
+    // On many real devices fullscreen controls are visible with overlay ~16-20px.
+    // A lower threshold keeps left/right reservations stable across Android+iOS.
+    const hasTelegramHeaderControls =
+      (fullscreenActive && overlayTop >= 10) || overlayTop >= 16;
 
     let sideLeft = isIosLike ? 124 : 104;
     let sideRight = isIosLike ? 90 : 82;
