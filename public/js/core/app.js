@@ -46,6 +46,67 @@
     tg?.expand?.();
   } catch {}
 
+  function syncTelegramChromeInsets() {
+    const root = document.documentElement;
+    if (!root) return;
+
+    const safe = tg?.safeAreaInset || null;
+    const contentSafe = tg?.contentSafeAreaInset || null;
+
+    const safeTopRaw = Number(safe?.top);
+    const safeLeftRaw = Number(safe?.left);
+    const safeRightRaw = Number(safe?.right);
+    const contentTopRaw = Number(contentSafe?.top);
+
+    const safeTop = Number.isFinite(safeTopRaw) && safeTopRaw >= 0 ? safeTopRaw : 0;
+    const safeLeft = Number.isFinite(safeLeftRaw) && safeLeftRaw >= 0 ? safeLeftRaw : 0;
+    const safeRight = Number.isFinite(safeRightRaw) && safeRightRaw >= 0 ? safeRightRaw : 0;
+    const contentTop = Number.isFinite(contentTopRaw) && contentTopRaw >= safeTop ? contentTopRaw : safeTop;
+    const overlayTop = Math.max(0, contentTop - safeTop);
+
+    const platform = String(tg?.platform || "").toLowerCase();
+    const isIosLike = platform === "ios" || platform === "macos";
+    const fullscreenActive = !!tg?.isFullscreen || overlayTop >= 30;
+
+    let sideLeft = isIosLike ? 132 : 108;
+    let sideRight = isIosLike ? 96 : 88;
+
+    if (!fullscreenActive) {
+      sideLeft -= 18;
+      sideRight -= 12;
+    }
+
+    sideLeft = Math.max(74, sideLeft + safeLeft);
+    sideRight = Math.max(70, sideRight + safeRight);
+
+    root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
+    root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
+    root.style.setProperty("--tg-overlay-top", `${Math.round(overlayTop)}px`);
+    root.style.setProperty("--tg-header-side-left", `${Math.round(sideLeft)}px`);
+    root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
+  }
+
+  const TG_CHROME_EVENTS = [
+    "safeAreaChanged",
+    "contentSafeAreaChanged",
+    "fullscreenChanged",
+    "viewportChanged"
+  ];
+
+  for (const eventName of TG_CHROME_EVENTS) {
+    try { tg?.onEvent?.(eventName, syncTelegramChromeInsets); } catch {}
+  }
+
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", syncTelegramChromeInsets, { once: true });
+    } else {
+      syncTelegramChromeInsets();
+    }
+  } catch {}
+  setTimeout(syncTelegramChromeInsets, 0);
+  setTimeout(syncTelegramChromeInsets, 250);
+
   const TG_WRITE_ACCESS_KEY_PREFIX = "wt:tg:write-access:";
   function requestTelegramWriteAccessOnce() {
     if (!tg || typeof tg.requestWriteAccess !== "function") return;
