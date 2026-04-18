@@ -114,6 +114,7 @@
       `safe.top=${sample.safeTop} content.top=${sample.contentTop} overlay=${sample.overlayTop}`,
       `safe.l=${sample.safeLeft} safe.r=${sample.safeRight} content.l=${sample.contentLeft} content.r=${sample.contentRight}`,
       `logo.nudge=${sample.logoNudgeY} logo.shiftX=${sample.logoShiftX} leftGap=${sample.headerSideLeft} rightGap=${sample.headerSideRight}`,
+      `topbar.pad=${sample.topbarPadTop}/${sample.topbarPadTopCompact}`,
       `vw=${sample.viewportW} vh=${sample.viewportH} dpr=${sample.dpr}`,
       `vvh=${sample.visualViewportH} vvTop=${sample.visualViewportOffsetTop}`,
       `platform=${sample.platform} fullscreen=${sample.isFullscreen ? 1 : 0}`
@@ -138,6 +139,8 @@
       headerSideRight: values.headerSideRight,
       logoNudgeY: values.logoNudgeY,
       logoShiftX: values.logoShiftX,
+      topbarPadTop: values.topbarPadTop,
+      topbarPadTopCompact: values.topbarPadTopCompact,
       viewportW: Math.round(window.innerWidth || 0),
       viewportH: Math.round(window.innerHeight || 0),
       visualViewportH: Math.round(vv?.height || 0),
@@ -163,6 +166,8 @@
       sample.headerSideRight,
       sample.logoNudgeY,
       sample.logoShiftX,
+      sample.topbarPadTop,
+      sample.topbarPadTopCompact,
       sample.viewportW,
       sample.viewportH,
       sample.visualViewportH,
@@ -271,6 +276,14 @@
     // otherwise logo can look over-shifted on some Android/iOS fullscreen layouts.
     const logoShiftX = Math.round((sideRight - sideLeft) * 0.35) - 3;
 
+    // iOS fullscreen needs extra vertical clearance from Telegram native header controls.
+    // Android baseline already looks correct, so keep boost iOS-only.
+    const iosTopbarBoost = (isIosLike && hasTelegramHeaderControls)
+      ? Math.max(8, Math.min(18, Math.round((overlayTop * 0.50) + 4)))
+      : 0;
+    const topbarPadTop = 86 + iosTopbarBoost;
+    const topbarPadTopCompact = 82 + iosTopbarBoost;
+
     root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
     root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
     root.style.setProperty("--tg-overlay-top", `${Math.round(overlayTop)}px`);
@@ -280,6 +293,8 @@
     root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
     root.style.setProperty("--wg-logo-nudge-y", `${logoNudgeY}px`);
     root.style.setProperty("--wg-logo-shift-x", `${logoShiftX}px`);
+    root.style.setProperty("--wg-topbar-pad-top", `${topbarPadTop}px`);
+    root.style.setProperty("--wg-topbar-pad-top-compact", `${topbarPadTopCompact}px`);
 
     const sample = buildTelegramChromeSample(reason, {
       platform,
@@ -293,7 +308,9 @@
       headerSideLeft: Math.round(sideLeft),
       headerSideRight: Math.round(sideRight),
       logoNudgeY,
-      logoShiftX
+      logoShiftX,
+      topbarPadTop,
+      topbarPadTopCompact
     });
     tgChromeLastSample = sample;
     renderTelegramChromeHud(sample);
