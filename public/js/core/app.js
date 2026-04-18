@@ -113,7 +113,7 @@
       `ev=${sample.reason}`,
       `safe.top=${sample.safeTop} content.top=${sample.contentTop} overlay=${sample.overlayTop}`,
       `safe.l=${sample.safeLeft} safe.r=${sample.safeRight} content.l=${sample.contentLeft} content.r=${sample.contentRight}`,
-      `logo.nudge=${sample.logoNudgeY} leftGap=${sample.headerSideLeft} rightGap=${sample.headerSideRight}`,
+      `logo.nudge=${sample.logoNudgeY} logo.shiftX=${sample.logoShiftX} leftGap=${sample.headerSideLeft} rightGap=${sample.headerSideRight}`,
       `vw=${sample.viewportW} vh=${sample.viewportH} dpr=${sample.dpr}`,
       `vvh=${sample.visualViewportH} vvTop=${sample.visualViewportOffsetTop}`,
       `platform=${sample.platform} fullscreen=${sample.isFullscreen ? 1 : 0}`
@@ -137,6 +137,7 @@
       headerSideLeft: values.headerSideLeft,
       headerSideRight: values.headerSideRight,
       logoNudgeY: values.logoNudgeY,
+      logoShiftX: values.logoShiftX,
       viewportW: Math.round(window.innerWidth || 0),
       viewportH: Math.round(window.innerHeight || 0),
       visualViewportH: Math.round(vv?.height || 0),
@@ -161,6 +162,7 @@
       sample.headerSideLeft,
       sample.headerSideRight,
       sample.logoNudgeY,
+      sample.logoShiftX,
       sample.viewportW,
       sample.viewportH,
       sample.visualViewportH,
@@ -262,9 +264,12 @@
     sideRight = Math.max(70, sideRight + safeRight, contentRight + 14);
 
     // Dynamic vertical nudge:
-    // - with big Telegram header overlay -> move logo higher
-    // - without overlay data -> keep it slightly lower as fallback
-    const logoNudgeY = Math.max(-8, Math.min(18, Math.round(18 - (overlayTop * 0.22))));
+    // keep logo close to Telegram controls line (higher than before), but avoid overlap.
+    const logoNudgeY = Math.max(-12, Math.min(12, Math.round(2 - (overlayTop * 0.10))));
+
+    // With asymmetric left/right reservations we intentionally damp the horizontal drift,
+    // otherwise logo can look over-shifted on some Android/iOS fullscreen layouts.
+    const logoShiftX = Math.round((sideRight - sideLeft) * 0.35);
 
     root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
     root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
@@ -274,6 +279,7 @@
     root.style.setProperty("--tg-header-side-left", `${Math.round(sideLeft)}px`);
     root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
     root.style.setProperty("--wg-logo-nudge-y", `${logoNudgeY}px`);
+    root.style.setProperty("--wg-logo-shift-x", `${logoShiftX}px`);
 
     const sample = buildTelegramChromeSample(reason, {
       platform,
@@ -286,7 +292,8 @@
       overlayTop: Math.round(overlayTop),
       headerSideLeft: Math.round(sideLeft),
       headerSideRight: Math.round(sideRight),
-      logoNudgeY
+      logoNudgeY,
+      logoShiftX
     });
     tgChromeLastSample = sample;
     renderTelegramChromeHud(sample);
