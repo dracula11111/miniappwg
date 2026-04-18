@@ -269,7 +269,7 @@
 
     // With asymmetric left/right reservations we intentionally damp the horizontal drift,
     // otherwise logo can look over-shifted on some Android/iOS fullscreen layouts.
-    const logoShiftX = Math.round((sideRight - sideLeft) * 0.35);
+    const logoShiftX = Math.round((sideRight - sideLeft) * 0.35) - 3;
 
     root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
     root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
