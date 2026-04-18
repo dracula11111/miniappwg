@@ -1,5 +1,17 @@
 /* ===== MARKET PAGE ===== */
 
+@supports (-webkit-touch-callout: none) {
+  body.page-market .logo-header{
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    z-index: 340;
+  }
+
+  body.page-market .logo-header .main-logo{
+    height: 28px;
+    width: auto;
+  }
+}
+
 #marketPage.market-page {
   padding: 12px 0 calc(96px + env(safe-area-inset-bottom));
 }

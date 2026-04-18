@@ -1,3 +1,15 @@
+@supports (-webkit-touch-callout: none) {
+  body.wt-unauth-mode .logo-header{
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    z-index: 340;
+  }
+
+  body.wt-unauth-mode .logo-header .main-logo{
+    height: 28px;
+    width: auto;
+  }
+}
+
 body.wt-unauth-mode {
   background:
     radial-gradient(65% 38% at 50% 72%, rgba(21, 139, 255, 0.24), rgba(21, 139, 255, 0) 72%),

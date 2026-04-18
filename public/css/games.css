@@ -40,10 +40,16 @@
   /* iPhone/WebKit: explicitly lower the controls row to the logo level,
      then move the whole games content block down together. */
   @supports (-webkit-touch-callout: none) {
+    body.page-games .logo-header,
+    body:has(#gamesPage.page-active) .logo-header{
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+      z-index: 340;
+    }
+
     body.page-games,
     body:has(#gamesPage.page-active){
-      --wg-topbar-left-offset-y: 16px;
-      --wg-topbar-balance-offset-y: 16px;
+      --wg-topbar-left-offset-y: 9px;
+      --wg-topbar-balance-offset-y: 9px;
     }
 
     body.page-games .topbar,
@@ -53,17 +59,17 @@
 
     body.page-games .topbar__left,
     body:has(#gamesPage.page-active) .topbar__left{
-      margin-top: 16px !important;
+      margin-top: 9px !important;
     }
 
     body.page-games .topbar > .balance,
     body:has(#gamesPage.page-active) .topbar > .balance{
-      transform: translateY(16px) !important;
+      transform: translateY(9px) !important;
     }
 
     body.page-games .games,
     body:has(#gamesPage.page-active) .games{
-      padding-top: 2px;
+      padding-top: 15px;
     }
 
     body.page-games .games__fit,
@@ -73,7 +79,7 @@
 
     body.page-games .games-banners,
     body:has(#gamesPage.page-active) .games-banners{
-      margin-top: 0;
+      margin-top: 3px;
     }
 
     body.page-games .games-panels,
@@ -83,7 +89,7 @@
 
     body.page-games .games-panels__title,
     body:has(#gamesPage.page-active) .games-panels__title{
-      margin-top: 0;
+      margin-top: 3px;
     }
   }
 

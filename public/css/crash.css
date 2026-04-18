@@ -2105,6 +2105,18 @@ body.page-crash .crash-topThemeSwitch {
   pointer-events: auto;
 }
 
+@supports (-webkit-touch-callout: none) {
+  body.page-crash .logo-header{
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    z-index: 340;
+  }
+
+  body.page-crash .logo-header .main-logo{
+    height: 28px;
+    width: auto;
+  }
+}
+
 .crash-topThemeBtn {
   height: 40px;
   min-width: 50px;

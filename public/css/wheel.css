@@ -121,11 +121,23 @@
 
   /* Disable decorative stars on active wheel page (keeps clean background) */
   body.page-wheel .app::before,
-  body.page-wheel .app::after {
+body.page-wheel .app::after {
     content: none !important;
     display: none !important;
     background: none !important;
     animation: none !important;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    body.page-wheel .logo-header{
+      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+      z-index: 340;
+    }
+
+    body.page-wheel .logo-header .main-logo{
+      height: 28px;
+      width: auto;
+    }
   }
 
   

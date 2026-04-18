@@ -273,7 +273,7 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
   display: none;
   position: absolute;
   left: 50%;
-  top: calc(var(--wg-topbar-pad-top, 86px) + 8px);
+  top: calc(var(--wg-topbar-pad-top, 86px) - 9px);
   transform: translateX(-50%);
   z-index: 24;
   margin: 0;
@@ -316,6 +316,32 @@ body.page-cases .topbar{
   top: constant(safe-area-inset-top);
   top: env(safe-area-inset-top, 0px);
   z-index: 180;
+}
+
+body:has(.page-active#casesPage) .topbar__left,
+body.page-cases .topbar__left{
+  margin-top: 2px;
+}
+
+body:has(.page-active#casesPage) .topbar > .balance,
+body.page-cases .topbar > .balance{
+  transform: translateY(2px);
+}
+
+body:has(.page-active#casesPage) .logo-header,
+body.page-cases .logo-header{
+  position: fixed !important;
+  top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 13px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 340 !important;
+  pointer-events: none !important;
+}
+
+body:has(.page-active#casesPage) .logo-header .main-logo,
+body.page-cases .logo-header .main-logo{
+  height: 28px;
+  width: auto;
 }
 
 body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch,
@@ -413,7 +439,7 @@ body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
 
 @media (max-width: 420px){
   .topbar .cases-topbar-switch{
-    top: calc(var(--wg-topbar-pad-top-compact, 82px) + 8px);
+    top: calc(var(--wg-topbar-pad-top-compact, 82px) - 11px);
   }
 
   body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch,
@@ -1074,6 +1100,10 @@ html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars[data-ca
   top: 31%;
 }
 
+html.currency-stars #casesPage .case-path-item--stars[data-case-id="case3"] .case-path-case{
+  top: 35.5%;
+}
+
 html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars[data-case-id="case4"] .case-path-case{
   top: 35%;
 }
@@ -1173,6 +1203,10 @@ html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-p
 @media (max-width: 420px){
   html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars{
     padding-bottom: 44px;
+  }
+
+  html.currency-stars #casesPage .case-path-item--stars[data-case-id="case3"] .case-path-case{
+    top: 37%;
   }
 
   html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-path-price{

@@ -2,6 +2,18 @@
    PROFILE PAGE - REDESIGNED STYLES
    ============================================ */
 
+@supports (-webkit-touch-callout: none) {
+  body.page-profile .logo-header{
+    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    z-index: 340;
+  }
+
+  body.page-profile .logo-header .main-logo{
+    height: 28px;
+    width: auto;
+  }
+}
+
 /* =========================================
    FLOATING CURRENCY ICONS (TON / STARS)
 ========================================= */
