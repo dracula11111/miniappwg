@@ -273,7 +273,7 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
   display: none;
   position: absolute;
   left: 50%;
-  top: calc(var(--wg-topbar-pad-top, 86px) - 9px);
+  top: calc(var(--wg-topbar-pad-top, 86px) + 2px);
   transform: translateX(-50%);
   z-index: 24;
   margin: 0;
@@ -331,9 +331,17 @@ body.page-cases .topbar > .balance{
 body:has(.page-active#casesPage) .logo-header,
 body.page-cases .logo-header{
   position: fixed !important;
-  top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 13px) !important;
+  --wg-logo-height: 28px;
+  top: max(
+    calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px + var(--wg-logo-nudge-y, 2px)),
+    calc(
+      var(--safe-top, env(safe-area-inset-top, 0px))
+      + ((var(--tg-overlay-top, 0px) - var(--wg-logo-height, 28px)) / 2)
+      + var(--wg-logo-nudge-y, 2px)
+    )
+  ) !important;
   left: 50% !important;
-  transform: translateX(-50%) !important;
+  transform: translateX(calc(-50% + var(--wg-logo-shift-cases-x, var(--wg-logo-shift-x, 0px)))) !important;
   z-index: 340 !important;
   pointer-events: none !important;
 }
@@ -439,7 +447,7 @@ body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
 
 @media (max-width: 420px){
   .topbar .cases-topbar-switch{
-    top: calc(var(--wg-topbar-pad-top-compact, 82px) - 11px);
+    top: calc(var(--wg-topbar-pad-top-compact, 82px) + 2px);
   }
 
   body:has(.page-active#casesPage) .topbar .cases-topbar-switch .currency-switch,

@@ -275,6 +275,7 @@
     // With asymmetric left/right reservations we intentionally damp the horizontal drift,
     // otherwise logo can look over-shifted on some Android/iOS fullscreen layouts.
     const logoShiftX = Math.round((sideRight - sideLeft) * 0.35) - 3;
+    const logoShiftXCases = isIosLike ? 0 : logoShiftX;
 
     // iOS fullscreen needs extra vertical clearance from Telegram native header controls.
     // Android baseline already looks correct, so keep boost iOS-only.
@@ -293,6 +294,7 @@
     root.style.setProperty("--tg-header-side-right", `${Math.round(sideRight)}px`);
     root.style.setProperty("--wg-logo-nudge-y", `${logoNudgeY}px`);
     root.style.setProperty("--wg-logo-shift-x", `${logoShiftX}px`);
+    root.style.setProperty("--wg-logo-shift-cases-x", `${logoShiftXCases}px`);
     root.style.setProperty("--wg-topbar-pad-top", `${topbarPadTop}px`);
     root.style.setProperty("--wg-topbar-pad-top-compact", `${topbarPadTopCompact}px`);
 
