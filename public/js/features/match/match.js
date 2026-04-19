@@ -1010,6 +1010,7 @@
     state.home.hidden = true;
     state.game.hidden = false;
     document.body?.classList?.add("match-game-open");
+    syncMatchLogo(PAGE_ID, true);
 
     clearHintTimer();
     state.selected = null;
@@ -1027,6 +1028,7 @@
     state.home.hidden = false;
     state.game.hidden = true;
     document.body?.classList?.remove("match-game-open");
+    syncMatchLogo(PAGE_ID, false);
     state.selected = null;
     state.busy = false;
     state.pointer = null;
@@ -1039,7 +1041,7 @@
     state.playImg.alt = resolveUiLanguage() === "ru" ? "Играть" : "Play";
   }
 
-  function syncMatchLogo(pageId = "") {
+  function syncMatchLogo(pageId = "", gameOpenOverride = null) {
     const logo = document.querySelector(".logo-header .main-logo");
     if (!logo) return;
 
@@ -1051,7 +1053,10 @@
       ? pageId === PAGE_ID
       : (document.body?.classList?.contains("page-match") ||
           document.getElementById(PAGE_ID)?.classList?.contains("page-active"));
-    const desiredSrc = isMatchPage ? MATCH_LOGO : state.defaultLogoSrc;
+    const isMatchGameOpen = (typeof gameOpenOverride === "boolean")
+      ? gameOpenOverride
+      : (isMatchPage && document.body?.classList?.contains("match-game-open"));
+    const desiredSrc = (isMatchPage && isMatchGameOpen) ? MATCH_LOGO : state.defaultLogoSrc;
     if (String(logo.getAttribute("src") || "") !== desiredSrc) {
       logo.setAttribute("src", desiredSrc);
     }
@@ -1125,7 +1130,7 @@
       window.WT?.bus?.addEventListener?.("page:change", (event) => {
         const pageId = event?.detail?.id;
         if (pageId === PAGE_ID) {
-          syncMatchLogo(pageId);
+          syncMatchLogo(pageId, !state.game?.hidden);
           emitWildCoin(readWildCoin());
           if (!state.game?.hidden) scheduleHint();
           return;

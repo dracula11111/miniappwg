@@ -13,16 +13,20 @@ body.page-match .topbar {
 }
 
 body.page-match .logo-header {
+  display: none !important;
+}
+
+body.page-match.match-game-open .logo-header {
   display: flex !important;
 }
 
-body.page-match .logo-header .main-logo {
-  height: 28px;
+body.page-match.match-game-open .logo-header .main-logo {
+  height: 72px;
   width: auto;
 }
 
 @supports (-webkit-touch-callout: none) {
-  body.page-match .logo-header {
+  body.page-match.match-game-open .logo-header {
     position: fixed;
     top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
     left: 50%;
