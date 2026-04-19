@@ -32,7 +32,7 @@
   const MATCH_MIN = 3;
   const BOMB_BLAST_RADIUS = 2;
   const RANDOM_BOMB_DROP_CHANCE = 0.2;
-  const SWAP_ANIMATION_MS = 220;
+  const SWAP_ANIMATION_MS = 300;
   const CLEAR_ANIMATION_MS = 240;
   const DROP_ANIMATION_MS = 280;
   const CASCADE_DELAY_MS = 170;
@@ -262,7 +262,11 @@
 
   function registerPlayerInteraction({ rerenderHint = false } = {}) {
     clearHintTimer();
+    const hadHint = !!state.hintPair;
     clearHint({ rerender: rerenderHint });
+    if (hadHint && !rerenderHint) {
+      clearBoardUiState({ hint: true });
+    }
   }
 
   function findHintMove(board) {
@@ -421,8 +425,24 @@
     return state.boardEl?.querySelector?.(`[data-row="${row}"][data-col="${col}"]`) || null;
   }
 
+  function clearBoardUiState({ hint = false, selected = false } = {}) {
+    if (!state.boardEl) return;
+    const selectors = [];
+    if (hint) selectors.push(".match-game__tile.is-hint");
+    if (selected) selectors.push(".match-game__tile.is-selected");
+    if (!selectors.length) return;
+    state.boardEl.querySelectorAll(selectors.join(",")).forEach((tile) => {
+      if (hint) tile.classList.remove("is-hint");
+      if (selected) tile.classList.remove("is-selected");
+    });
+  }
+
   function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function waitNextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
   function renderBoard(options = {}) {
@@ -791,6 +811,10 @@
     bEl.style.setProperty("--swap-x", `${-dx * 100}%`);
     bEl.style.setProperty("--swap-y", `${-dy * 100}%`);
 
+    void aEl.offsetWidth;
+    void bEl.offsetWidth;
+    await waitNextFrame();
+
     aEl.classList.add("is-swapping");
     bEl.classList.add("is-swapping");
     await wait(SWAP_ANIMATION_MS);
@@ -880,10 +904,10 @@
     if (!inBounds(a.row, a.col) || !inBounds(b.row, b.col)) return;
     if (!isAdjacent(a, b)) return;
 
-    registerPlayerInteraction({ rerenderHint: true });
+    registerPlayerInteraction();
     state.busy = true;
     state.selected = null;
-    renderBoard();
+    clearBoardUiState({ selected: true });
     await animateSwapTiles(a, b);
     swapCells(state.board, a, b);
     renderBoard();
@@ -1002,7 +1026,6 @@
     }
 
     state.selected = null;
-    renderBoard();
     attemptSwap({ row: pointer.row, col: pointer.col }, target);
   }
 

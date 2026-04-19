@@ -12,6 +12,56 @@ body.page-match .topbar {
   z-index: 40;
 }
 
+/* WildCoin balance pill on Match: beige style, no plus, oversized icon */
+body.page-match .topbar #tonPill {
+  position: relative;
+  overflow: visible;
+  gap: 6px;
+  padding: 8px 14px 8px 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 86, 44, 0.68);
+  color: #3a2412;
+  background: linear-gradient(
+    160deg,
+    #f7d8ac 0%,
+    #efc78e 42%,
+    #d9a86f 100%
+  ) !important;
+  box-shadow:
+    0 10px 22px rgba(63, 36, 9, 0.26),
+    0 0 0 1px rgba(255, 239, 214, 0.48) inset,
+    inset 0 1px 0 rgba(255, 248, 235, 0.82),
+    inset 0 -2px 0 rgba(121, 80, 40, 0.34);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.page-match .topbar #tonPill .pill-plus,
+body.page-match .topbar #tonPill .pill-plus-icon {
+  display: none !important;
+}
+
+body.page-match .topbar #pillCurrencyIcon {
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 0;
+  filter: drop-shadow(0 6px 10px rgba(90, 53, 18, 0.42));
+  pointer-events: none;
+  z-index: 3;
+}
+
+body.page-match .topbar #tonAmount {
+  font-size: 14px;
+  font-weight: 900;
+  color: #3a2412;
+  text-shadow:
+    0 1px 0 rgba(255, 245, 225, 0.7),
+    0 0 8px rgba(255, 235, 190, 0.4);
+}
+
 body.page-match .logo-header {
   display: none !important;
 }
@@ -209,7 +259,7 @@ body.page-match.match-game-open .bottom-nav {
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: transform 0.22s cubic-bezier(0.24, 0.78, 0.23, 1), filter 0.22s ease, opacity 0.22s ease;
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.22, 1), filter 0.3s ease, opacity 0.22s ease;
   -webkit-tap-highlight-color: transparent;
   will-change: transform, opacity, filter;
 }
@@ -239,8 +289,8 @@ body.page-match.match-game-open .bottom-nav {
 
 .match-game__tile.is-swapping {
   z-index: 5;
-  transition: transform 0.22s cubic-bezier(0.22, 0.9, 0.24, 1), filter 0.2s ease;
-  transform: translate(var(--swap-x, 0), var(--swap-y, 0)) scale(1.02);
+  transition: transform 0.3s cubic-bezier(0.18, 0.9, 0.2, 1), filter 0.3s ease;
+  transform: translate(var(--swap-x, 0), var(--swap-y, 0)) scale(1.015);
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.18));
 }
 
