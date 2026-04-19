@@ -18,6 +18,7 @@ body.page-match .logo-header {
 
 body.page-match.match-game-open .logo-header {
   display: flex !important;
+  transform: translateX(calc(-50% + var(--wg-logo-shift-x, 0px))) translateY(-22px);
 }
 
 body.page-match.match-game-open .logo-header .main-logo {
@@ -30,7 +31,7 @@ body.page-match.match-game-open .logo-header .main-logo {
     position: fixed;
     top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-22px);
     margin-top: 0;
     z-index: 320;
     pointer-events: none;
