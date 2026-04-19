@@ -25,7 +25,7 @@
   const WT_PILL_ICONS = Object.freeze({
     ton: '/icons/currency/ton.svg',
     stars: '/icons/currency/stars.svg',
-    wildcoin: '/icons/currency/wildcoin.svg'
+    wildcoin: '/images/match/wildcoin.webp'
   });
   const __wtPreloadedIcons = new Set();
 

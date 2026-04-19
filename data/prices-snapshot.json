@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1776537882503,
+  "updatedAt": 1776603746238,
   "providerStats": {
     "telegram-resale": {
       "weight": 100,
@@ -133,98 +133,98 @@
   },
   "prices": {
     "stellar-rocket": {
-      "price": 3.59,
+      "price": 3.76,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Stellar Rocket",
       "giftId": null
     },
     "instant-ramen": {
-      "price": 2.48,
+      "price": 2.52,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Instant Ramen",
       "giftId": null
     },
     "ice-cream": {
-      "price": 2.7,
+      "price": 2.79,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Ice Cream",
       "giftId": null
     },
     "berry-box": {
-      "price": 6.85,
+      "price": 7.25,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Berry Box",
       "giftId": null
     },
     "lol-pop": {
-      "price": 2.98,
+      "price": 3.08,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Lol Pop",
       "giftId": null
     },
     "cookie-heart": {
-      "price": 3.79,
+      "price": 3.85,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Cookie Heart",
       "giftId": null
     },
     "mousse-cake": {
-      "price": 3.7,
+      "price": 3.72,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Mousse Cake",
       "giftId": null
     },
     "electric-skull": {
-      "price": 24.37,
+      "price": 24.34,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Electric Skull",
       "giftId": null
     },
     "vintage-cigar": {
-      "price": 30.99,
+      "price": 32,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Vintage Cigar",
       "giftId": null
     },
     "voodoo-doll": {
-      "price": 28.03,
+      "price": 28.01,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Voodoo Doll",
       "giftId": null
     },
     "flying-broom": {
-      "price": 11.31,
+      "price": 9.98,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Flying Broom",
       "giftId": null
     },
     "hex-pot": {
-      "price": 3.39,
+      "price": 3.8,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Hex Pot",
       "giftId": null
     },
@@ -232,39 +232,39 @@
       "price": 150.99,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Mighty Arm",
       "giftId": null
     },
     "scared-cat": {
-      "price": 152,
+      "price": 151.44,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Scared Cat",
       "giftId": null
     },
     "bonded-ring": {
-      "price": 38.99,
+      "price": 38.9,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Bonded Ring",
       "giftId": null
     },
     "genie-lamp": {
-      "price": 44.98,
+      "price": 44.99,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Genie Lamp",
       "giftId": null
     },
     "jack-in-the-box": {
-      "price": 3.25,
+      "price": 3.35,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Jack-in-the-Box",
       "giftId": null
     },
@@ -272,135 +272,135 @@
       "price": 2.9,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Winter Wreath",
       "giftId": null
     },
     "snoop-dogg": {
-      "price": 4.55,
+      "price": 4.6,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Snoop Dogg",
       "giftId": null
     },
     "neko-helmet": {
-      "price": 33.38,
+      "price": 31.4,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Neko Helmet",
       "giftId": null
     },
     "pet-snake": {
-      "price": 2.89,
+      "price": 2.86,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Pet Snake",
       "giftId": null
     },
     "xmas-stocking": {
-      "price": 2.38,
+      "price": 2.46,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Xmas Stocking",
       "giftId": null
     },
     "pool-float": {
-      "price": 2.59,
+      "price": 2.7,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Pool Float",
       "giftId": null
     },
     "mood-pack": {
-      "price": 3.2,
+      "price": 3.3,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Mood Pack",
       "giftId": null
     },
     "b-day-candle": {
-      "price": 3.73,
+      "price": 3.87,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "B-Day Candle",
       "giftId": null
     },
     "snake-box": {
-      "price": 2.65,
+      "price": 2.56,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Snake Box",
       "giftId": null
     },
     "lunar-snake": {
-      "price": 2.64,
+      "price": 2.79,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Lunar Snake",
       "giftId": null
     },
     "happy-brownie": {
-      "price": 3.34,
+      "price": 3.48,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Happy Brownie",
       "giftId": null
     },
     "ginger-cookie": {
-      "price": 3.49,
+      "price": 3.6,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Ginger Cookie",
       "giftId": null
     },
     "whip-cupcake": {
-      "price": 2.71,
+      "price": 3,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Whip Cupcake",
       "giftId": null
     },
     "desk-calendar": {
-      "price": 5.26,
+      "price": 5.73,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Desk Calendar",
       "giftId": null
     },
     "fresh-socks": {
-      "price": 2.99,
+      "price": 3.13,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Fresh Socks",
       "giftId": null
     },
     "jester-hat": {
-      "price": 2.99,
+      "price": 3.06,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Jester Hat",
       "giftId": null
     },
     "bow-tie": {
-      "price": 4.25,
+      "price": 4.21,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Bow Tie",
       "giftId": null
     },
@@ -408,71 +408,71 @@
       "price": 3.89,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Restless Jar",
       "giftId": null
     },
     "chill-flame": {
-      "price": 2.25,
+      "price": 2.39,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Chill Flame",
       "giftId": null
     },
     "jolly-chimp": {
-      "price": 5.99,
+      "price": 5.8,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Jolly Chimp",
       "giftId": null
     },
     "gem-signet": {
-      "price": 58.28,
+      "price": 56.9,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Gem Signet",
       "giftId": null
     },
     "timeless-book": {
-      "price": 3.86,
+      "price": 3.97,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Timeless Book",
       "giftId": null
     },
     "astral-shard": {
-      "price": 169.99,
+      "price": 173.99,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Astral Shard",
       "giftId": null
     },
     "perfume-bottle": {
-      "price": 75.99,
+      "price": 76,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Perfume Bottle",
       "giftId": null
     },
     "precious-peach": {
-      "price": 399.99,
+      "price": 392.99,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Precious Peach",
       "giftId": null
     },
     "signet-ring": {
-      "price": 30.95,
+      "price": 31.6,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Signet Ring",
       "giftId": null
     },
@@ -480,23 +480,23 @@
       "price": 6960,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Plush Pepe",
       "giftId": null
     },
     "heroic-helmet": {
-      "price": 215,
+      "price": 210,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Heroic Helmet",
       "giftId": null
     },
     "durov-s-cap": {
-      "price": 579.5,
+      "price": 609.99,
       "currency": "TON",
       "source": "portal-market.com",
-      "ts": 1776537870853,
+      "ts": 1776603733628,
       "name": "Durov's Cap",
       "giftId": null
     }

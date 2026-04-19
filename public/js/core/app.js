@@ -2378,7 +2378,7 @@
     casesPage: GAMES_PAGE_ID,
     wheelPage: GAMES_PAGE_ID
   };
-  const PAGE_PRELOAD_ASSET_TIMEOUT_MS = 12000;
+  const PAGE_PRELOAD_ASSET_TIMEOUT_MS = 30000;
   const PAGE_ENTER_LOADER_STYLE_ID = "wt-page-enter-loader-style";
   const PAGE_ENTER_LOADER_ID = "wt-page-enter-loader";
   const CASES_PRELOAD_IMAGES = Array.from({ length: 5 }, (_, idx) => idx + 1).flatMap((num) => [
@@ -2388,7 +2388,19 @@
   const PAGE_ENTER_PRELOAD_IMAGES = Object.freeze({
     matchPage: [
       "/images/match/backgrounds/matchMainback.webp",
-      "/images/match/backgrounds/1.webp"
+      "/images/match/levels/lvl1back.webp",
+      "/images/match/MatchLogo.webp",
+      "/images/match/PlayButtonEng.webp",
+      "/images/match/PlayButtonRu.webp",
+      "/images/match/bomb.webp",
+      "/images/match/boom.webp",
+      "/images/match/items/bear.webp",
+      "/images/match/items/bottle.webp",
+      "/images/match/items/cake.webp",
+      "/images/match/items/cup.webp",
+      "/images/match/items/diamond.webp",
+      "/images/match/items/flowers.webp",
+      "/images/match/items/gift.webp"
     ],
     casesPage: [
       "/images/cases/starcases/starsbackimg.png",
@@ -2420,16 +2432,28 @@
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(8, 10, 16, 0.74);
-          backdrop-filter: blur(2px);
-          -webkit-backdrop-filter: blur(2px);
+          background:
+            radial-gradient(circle at 50% -20%, rgba(66, 90, 130, 0.22), transparent 46%),
+            linear-gradient(180deg, #0a0d13 0%, #06080e 100%);
         }
         .wt-page-enter-loader[hidden] { display: none !important; }
+        .wt-page-enter-loader[data-page="matchPage"] {
+          background:
+            radial-gradient(circle at 50% -20%, rgba(0, 212, 255, 0.16), transparent 44%),
+            radial-gradient(circle at 60% 20%, rgba(176, 132, 255, 0.12), transparent 48%),
+            linear-gradient(180deg, #0d1219 0%, #080d14 100%);
+        }
+        .wt-page-enter-loader[data-page="casesPage"] {
+          background:
+            radial-gradient(circle at 50% 0%, rgba(255, 188, 88, 0.16), transparent 42%),
+            radial-gradient(circle at 20% 35%, rgba(80, 120, 210, 0.15), transparent 50%),
+            linear-gradient(180deg, #121822 0%, #0b1018 100%);
+        }
         .wt-page-enter-loader__spinner {
           width: 42px;
           height: 42px;
           border-radius: 999px;
-          border: 3px solid rgba(255, 255, 255, 0.22);
+          border: 3px solid rgba(255, 255, 255, 0.26);
           border-top-color: #ffffff;
           animation: wtPageEnterLoaderSpin .8s linear infinite;
         }
@@ -2452,8 +2476,9 @@
     return loader;
   }
 
-  function showPageEnterLoader() {
+  function showPageEnterLoader(pageId) {
     const loader = ensurePageEnterLoader();
+    if (pageId) loader.setAttribute("data-page", String(pageId));
     loader.removeAttribute("hidden");
     loader.setAttribute("aria-hidden", "false");
   }
@@ -2461,11 +2486,32 @@
   function hidePageEnterLoader() {
     const loader = document.getElementById(PAGE_ENTER_LOADER_ID);
     if (!loader) return;
+    loader.removeAttribute("data-page");
     loader.setAttribute("hidden", "");
     loader.setAttribute("aria-hidden", "true");
   }
 
+  function normalizeImageSrc(raw) {
+    const value = String(raw || "").trim();
+    if (!value) return "";
+    if (value.startsWith("data:") || value.startsWith("blob:")) return "";
+    try { return new URL(value, document.baseURI).toString(); } catch { return value; }
+  }
+
+  function collectPageImageSources(pageId) {
+    const page = document.getElementById(pageId);
+    if (!page) return [];
+    const out = new Set();
+    page.querySelectorAll("img[src]").forEach((img) => {
+      const normalized = normalizeImageSrc(img.getAttribute("src"));
+      if (normalized) out.add(normalized);
+    });
+    return Array.from(out);
+  }
+
   function preloadImageAsset(src, timeoutMs = PAGE_PRELOAD_ASSET_TIMEOUT_MS) {
+    const normalizedSrc = normalizeImageSrc(src);
+    if (!normalizedSrc) return Promise.resolve(false);
     return new Promise((resolve) => {
       let settled = false;
       const img = new Image();
@@ -2489,7 +2535,7 @@
       img.decoding = "async";
       img.onload = () => finish(true);
       img.onerror = () => finish(false);
-      img.src = String(src || "");
+      img.src = normalizedSrc;
     });
   }
 
@@ -2498,12 +2544,24 @@
     return Array.isArray(sources) && sources.length > 0;
   }
 
+  async function preloadSourcesList(sources) {
+    return Promise.all(
+      sources.map((src) =>
+        preloadImageAsset(src)
+          .catch(() => false)
+          .then((ok) => ({ src, ok }))
+      )
+    );
+  }
+
   function ensurePageAssetsPreloaded(pageId) {
-    const sources = Array.from(new Set(
+    const staticSources = Array.from(new Set(
       (PAGE_ENTER_PRELOAD_IMAGES[pageId] || [])
         .map((x) => String(x || "").trim())
         .filter(Boolean)
     ));
+    const pageDomSources = collectPageImageSources(pageId);
+    const sources = Array.from(new Set([...staticSources, ...pageDomSources]));
 
     if (!sources.length) return Promise.resolve([]);
 
@@ -2511,13 +2569,19 @@
     if (cached?.done) return Promise.resolve(cached.results || []);
     if (cached?.promise) return cached.promise;
 
-    const promise = Promise.all(
-      sources.map((src) =>
-        preloadImageAsset(src)
-          .catch(() => false)
-          .then((ok) => ({ src, ok }))
-      )
-    ).then((results) => {
+    const promise = preloadSourcesList(sources).then(async (firstPassResults) => {
+      const loaded = new Set(firstPassResults.map((x) => x?.src).filter(Boolean));
+      const discoveredAfterFirstPass = collectPageImageSources(pageId)
+        .filter((src) => !loaded.has(src));
+
+      if (discoveredAfterFirstPass.length) {
+        const secondPassResults = await preloadSourcesList(discoveredAfterFirstPass);
+        const allResults = [...firstPassResults, ...secondPassResults];
+        pagePreloadState.set(pageId, { done: true, results: allResults, promise: null });
+        return allResults;
+      }
+
+      const results = firstPassResults;
       pagePreloadState.set(pageId, { done: true, results, promise: null });
       return results;
     });
@@ -2844,7 +2908,7 @@
 
         pendingPagePreloadTarget = id;
         const token = ++pendingPagePreloadToken;
-        showPageEnterLoader();
+        showPageEnterLoader(id);
 
         ensurePageAssetsPreloaded(id).finally(() => {
           if (token !== pendingPagePreloadToken) return;
