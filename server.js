@@ -28,9 +28,10 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
+const TEST_API_ENABLED = !IS_PROD && /^(1|true|yes)$/i.test(String(process.env.TEST_API_ENABLED || ""));
+const CASES_BROWSER_PLAY_ENABLED = /^(1|true|yes)$/i.test(String(process.env.CASES_BROWSER_PLAY_ENABLED || ""));
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
 const FRONTEND_TEST_MODE = false;
-const DEFAULT_ADMIN_PANEL_PASSWORD = "WG-Panel-9rA7mN4Q";
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5239983985156703956";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6005661956931850799";
 const DEFAULT_WELCOME_EMOJI_ID = "5330356071364046086";
@@ -815,6 +816,11 @@ const db = IS_TEST ? dbMem : dbReal;
 
 // SSE clients: userId -> Set(response)
 const balanceClients = new Map();
+const adminPanelSessions = new Map();
+const ADMIN_PANEL_SESSION_TTL_MS = Math.max(
+  60_000,
+  Math.min(24 * 60 * 60 * 1000, Number(process.env.ADMIN_PANEL_SESSION_TTL_MS || (2 * 60 * 60 * 1000)) || (2 * 60 * 60 * 1000))
+);
 
 const TECH_PAUSE_MODE_OFF = "off";
 const TECH_PAUSE_MODE_DRAINING = "draining";
@@ -4109,9 +4115,8 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
 
 
 
-// Add won NFTs to inventory (idempotent via claimId)
-// Add inventory items (NFTs/Gifts) вЂ” Telegram user OR relayer secret.
-// IMPORTANT: never trust userId from browser; for Telegram users we take id from initData.
+// Add inventory items (NFTs/Gifts).
+// Browser-originated inventory adds are disabled because they allow client-side item injection.
 async function handleInventoryAdd(req, res) {
   try {
     const { userId: bodyUserId, items, item, claimId, roundId } = req.body || {};
@@ -4119,30 +4124,28 @@ async function handleInventoryAdd(req, res) {
     const list = Array.isArray(items) ? items : (item ? [item] : []);
     if (!list.length) return res.status(400).json({ ok: false, error: "items required" });
 
-    let uid = "";
-    if (req.isRelayer) {
-      uid = String(bodyUserId || "");
-      if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
-      const username = safeShortText(req.body?.username || req.body?.userName || "", 64) || null;
-      const firstName = safeShortText(req.body?.first_name || req.body?.firstName || "", 64) || null;
-      const lastName = safeShortText(req.body?.last_name || req.body?.lastName || "", 64) || null;
-      try {
-        await db.saveUser({
-          id: uid,
-          username,
-          first_name: firstName,
-          last_name: lastName
-        });
-      } catch (saveErr) {
-        console.error("[Inventory] Failed to save relayer user profile:", saveErr);
-      }
-    } else {
-      uid = String(req.tg?.user?.id || "");
-      if (!uid) return res.status(403).json({ ok: false, error: "No user in initData" });
-      // Optional: if client sent userId, ensure it matches
-      if (bodyUserId && String(bodyUserId) !== uid) {
-        return res.status(403).json({ ok: false, error: "userId mismatch" });
-      }
+    if (!req.isRelayer) {
+      return res.status(403).json({
+        ok: false,
+        code: "INVENTORY_BROWSER_ADD_FORBIDDEN",
+        error: "Browser-side inventory adds are disabled"
+      });
+    }
+
+    const uid = String(bodyUserId || "");
+    if (!uid) return res.status(400).json({ ok: false, error: "userId required" });
+    const username = safeShortText(req.body?.username || req.body?.userName || "", 64) || null;
+    const firstName = safeShortText(req.body?.first_name || req.body?.firstName || "", 64) || null;
+    const lastName = safeShortText(req.body?.last_name || req.body?.lastName || "", 64) || null;
+    try {
+      await db.saveUser({
+        id: uid,
+        username,
+        first_name: firstName,
+        last_name: lastName
+      });
+    } catch (saveErr) {
+      console.error("[Inventory] Failed to save relayer user profile:", saveErr);
     }
 
     const result = await inventoryAdd(uid, list, claimId);
@@ -4855,6 +4858,8 @@ app.post("/api/tasks/game-win/claim", requireTelegramUser, requireTechPauseActio
 
 // Withdraw (send gift via relayer): charges fee and removes from inventory on success
 app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
+  let withdrawEventKey = "";
+  let keepWithdrawLock = false;
   try {
     const userId = String(req.tg.user.id);
     if (ADMIN_ONLY_TRADING_MODE && !isRelayerAdminUserId(userId)) {
@@ -4888,6 +4893,24 @@ app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActions
     const inst = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
     if (!inst) {
       return res.status(404).json({ ok: false, code: "NO_STOCK", error: "Item not found in inventory", support: "@wildgift_support" });
+    }
+
+    withdrawEventKey = `withdraw:${userId}:${inst}`;
+    const claimedWithdraw = await claimWebhookEvent(withdrawEventKey, {
+      userId,
+      instanceId: inst,
+      marketId: normalizeInventoryLookupValue(item?.marketId || lookup.marketId, 256) || null,
+      itemId: normalizeInventoryLookupValue(item?.id || item?.baseId || lookup.itemId, 256) || null,
+      source: "inventory_withdraw",
+      createdAt: Date.now()
+    });
+    if (!claimedWithdraw) {
+      return res.status(409).json({
+        ok: false,
+        code: "WITHDRAW_ALREADY_PROCESSING",
+        error: "Withdraw for this item is already processing",
+        support: "@wildgift_support"
+      });
     }
 
     const lockUntil = getInventoryWithdrawLockUntil(item);
@@ -4943,7 +4966,13 @@ app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActions
       const r = await fetch(`${rpcUrl}/rpc/transfer-stargift`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${secret}` },
-        body: JSON.stringify({ toUserId: to, toUsername, toId, msgId: String(msgId) })
+        body: JSON.stringify({
+          toUserId: to,
+          toUsername,
+          toId,
+          msgId: String(msgId),
+          requestId: withdrawEventKey || `withdraw:${userId}:${inst}`
+        })
       });
 
       const raw = await r.text();
@@ -4962,10 +4991,39 @@ app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActions
       return res.status(502).json({ ok: false, code: "RELAYER_UNREACHABLE", error: "Relayer unreachable", support: "@wildgift_support" });
     }
 
+    let deleted = 0;
     if (typeof db.deleteInventoryItems === "function") {
-      await db.deleteInventoryItems(userId, [inst]);
-    } else if (typeof db.sellInventoryItems === "function") {
-      await db.sellInventoryItems(userId, [inst], cur);
+      const delRes = await db.deleteInventoryItems(userId, [inst]);
+      deleted = Number(delRes?.deleted || 0);
+    }
+    if (!deleted && typeof db.deleteInventoryItemByLookup === "function") {
+      const delRes = await db.deleteInventoryItemByLookup(userId, {
+        instanceId: inst,
+        marketId: normalizeInventoryLookupValue(item?.marketId || lookup.marketId, 256),
+        itemId: normalizeInventoryLookupValue(item?.id || item?.baseId || lookup.itemId, 256),
+        tgMessageId: normalizeInventoryLookupValue(item?.tg?.messageId || item?.tg?.msgId || lookup.tgMessageId, 128)
+      });
+      deleted = Number(delRes?.deleted || 0);
+    }
+    if (!deleted && typeof db.sellInventoryItems === "function") {
+      const sellRes = await db.sellInventoryItems(userId, [inst], cur);
+      deleted = Number(sellRes?.sold || 0);
+    }
+    if (!deleted) {
+      keepWithdrawLock = true;
+      console.error("[Withdraw] Transfer succeeded but inventory cleanup failed:", {
+        userId,
+        instanceId: inst,
+        marketId: item?.marketId || lookup.marketId || null,
+        itemId: item?.id || item?.baseId || lookup.itemId || null,
+        tgMessageId: item?.tg?.messageId || item?.tg?.msgId || lookup.tgMessageId || null
+      });
+      return res.status(500).json({
+        ok: false,
+        code: "WITHDRAW_REVIEW_REQUIRED",
+        error: "Gift transfer succeeded but inventory cleanup requires manual review",
+        support: "@wildgift_support"
+      });
     }
 
     const left = await inventoryGet(userId);
@@ -4973,6 +5031,10 @@ app.post("/api/inventory/withdraw", requireTelegramUser, requireTechPauseActions
   } catch (e) {
     console.error("[Withdraw] error:", e);
     return res.status(500).json({ ok: false, error: "withdraw error", support: "@wildgift_support" });
+  } finally {
+    if (withdrawEventKey && !keepWithdrawLock) {
+      await releaseWebhookEvent(withdrawEventKey).catch(() => {});
+    }
   }
 });
 
@@ -5014,17 +5076,24 @@ app.post("/api/admin/panel/auth", requireTelegramUser, async (req, res) => {
     }
 
     const expectedPassword = getAdminPanelPassword();
+    if (!expectedPassword) {
+      return res.status(503).json({ ok: false, error: "ADMIN_PANEL_PASSWORD not set" });
+    }
     const providedPassword = String(req.body?.password || "").trim();
     if (!expectedPassword || !safeTextEqual(providedPassword, expectedPassword)) {
       return res.status(403).json({ ok: false, error: "wrong password" });
     }
 
-    const adminKey = String(process.env.ADMIN_KEY || "").trim();
-    if (!adminKey) {
-      return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
+    const session = createAdminPanelSession(userId);
+    if (!session) {
+      return res.status(500).json({ ok: false, error: "Failed to create admin session" });
     }
 
-    return res.json({ ok: true, adminKey });
+    return res.json({
+      ok: true,
+      sessionToken: session.token,
+      expiresAt: session.expiresAt
+    });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e?.message || "auth failed" });
   }
@@ -5382,6 +5451,7 @@ app.post("/api/admin/telegram/broadcast", requireAdminKey, async (req, res) => {
 
 // Admin: return gift from inventory back to market.
 app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (req, res) => {
+  let returnEventKey = "";
   try {
     const userId = String(req.tg?.user?.id || "");
     if (!isRelayerAdminUserId(userId)) return res.status(403).json({ ok: false, error: "forbidden" });
@@ -5396,6 +5466,19 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
     const item = findInventoryItemForAction(items, lookup);
     if (!item) return res.status(404).json({ ok: false, error: "item not found" });
     const instanceId = normalizeInventoryLookupValue(item?.instanceId || lookup.instanceId, 256);
+    returnEventKey = `admin:return-to-market:${userId}:${instanceId || normalizeInventoryLookupValue(item?.marketId || item?.id || item?.baseId, 256)}`;
+    const claimedReturn = await claimWebhookEvent(returnEventKey, {
+      adminUserId: userId,
+      instanceId: instanceId || null,
+      marketId: normalizeInventoryLookupValue(item?.marketId || lookup.marketId, 256) || null,
+      itemId: normalizeInventoryLookupValue(item?.id || item?.baseId || lookup.itemId, 256) || null,
+      source: "admin_return_to_market",
+      createdAt: Date.now()
+    });
+    if (!claimedReturn) {
+      return res.status(409).json({ ok: false, code: "RETURN_ALREADY_PROCESSING", error: "return to market already processing" });
+    }
+
     const deletionLookup = {
       instanceId,
       marketId: normalizeInventoryLookupValue(lookup.marketId || item?.marketId, 256),
@@ -5517,6 +5600,10 @@ app.post("/api/admin/inventory/return-to-market", requireTelegramUser, async (re
   } catch (e) {
     console.error("[Admin Inventory] return-to-market error:", e);
     return res.status(500).json({ ok: false, error: "return to market error" });
+  } finally {
+    if (returnEventKey) {
+      await releaseWebhookEvent(returnEventKey).catch(() => {});
+    }
   }
 });
 
@@ -5783,11 +5870,9 @@ app.post("/api/deposit-notification", async (req, res) => {
     }
 
     const allowedUntrustedDebitTypes = new Set(["bet", "case_open", "wheel_bet"]);
-    const allowedUntrustedClientCreditTypes = new Set(["case_gift_claim", "case_nft_sell"]);
     const isUntrustedClientCredit =
       !isRelayer &&
-      amountNum > 0 &&
-      !allowedUntrustedClientCreditTypes.has(typeNorm);
+      amountNum > 0;
     if (isUntrustedClientCredit) {
       console.warn("[Deposit][SECURITY] Rejected untrusted positive credit:", {
         userId,
@@ -5810,6 +5895,19 @@ app.post("/api/deposit-notification", async (req, res) => {
       return res.status(403).json({
         ok: false,
         error: "Untrusted debit type is forbidden"
+      });
+    }
+
+    const isBlockedBrowserCaseOpen =
+      !isRelayer &&
+      amountNum < 0 &&
+      typeNorm === "case_open" &&
+      !CASES_BROWSER_PLAY_ENABLED;
+    if (isBlockedBrowserCaseOpen) {
+      return res.status(503).json({
+        ok: false,
+        code: "CASES_BROWSER_DISABLED",
+        error: "Case openings are temporarily unavailable"
       });
     }
 
@@ -7555,13 +7653,9 @@ app.post("/api/market/items/buy", requireTelegramUser, requireTechPauseActionsAl
 // ====== SPA fallback ======"
 // ============================================
 
-// рџЋЃ Р”РђРўР¬ РўР•РЎРўРћР’Р«Р• Р”Р•РќР¬Р“Р (С‚РѕР»СЊРєРѕ РІ development)
-app.post("/api/test/give-balance", async (req, res) => {
+// рџЋЃ Р”РђРўР¬ РўР•РЎРўРћР’Р«Р• Р”Р•РќР¬Р“Р (explicitly enabled non-prod only)
+app.post("/api/test/give-balance", requireTestApiEnabled, async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
-    }
-
     const { userId, ton, stars } = req.body;
     const uid = parseInt(userId, 10);
     if (!userId || Number.isNaN(uid)) {
@@ -7636,13 +7730,9 @@ app.post("/api/test/give-balance", async (req, res) => {
   }
 });
 
-// рџ”„ РЎР‘Р РћРЎРРўР¬ Р‘РђР›РђРќРЎ (С‚РѕР»СЊРєРѕ РІ development)
-app.post("/api/test/reset-balance", async (req, res) => {
+// рџ”„ РЎР‘Р РћРЎРРўР¬ Р‘РђР›РђРќРЎ (explicitly enabled non-prod only)
+app.post("/api/test/reset-balance", requireTestApiEnabled, async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
-    }
-
     const { userId } = req.body;
     const uid = parseInt(userId, 10);
     if (!userId || Number.isNaN(uid)) {
@@ -7694,13 +7784,9 @@ app.post("/api/test/reset-balance", async (req, res) => {
 });
 
 
-// рџ’° РЈРЎРўРђРќРћР’РРўР¬ РўРћР§РќР«Р™ Р‘РђР›РђРќРЎ (С‚РѕР»СЊРєРѕ РІ development)
-app.post("/api/test/set-balance", async (req, res) => {
+// рџ’° РЈРЎРўРђРќРћР’РРўР¬ РўРћР§РќР«Р™ Р‘РђР›РђРќРЎ (explicitly enabled non-prod only)
+app.post("/api/test/set-balance", requireTestApiEnabled, async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ ok: false, error: 'This endpoint is disabled in production' });
-    }
-
     const { userId, ton, stars } = req.body;
     const uid = parseInt(userId, 10);
     if (!userId || Number.isNaN(uid)) {
@@ -7768,19 +7854,17 @@ app.post("/api/test/set-balance", async (req, res) => {
 
 
 // рџ“Љ РџРћР›РЈР§РРўР¬ РРќР¤РћР РњРђР¦РР® Рћ РўР•РЎРўРћР’РћРњ Р Р•Р–РРњР•
-app.get("/api/test/info", async (req, res) => {
+app.get("/api/test/info", requireTestApiEnabled, async (req, res) => {
   res.json({
     ok: true,
-    testMode: process.env.NODE_ENV !== 'production',
-    environment: process.env.NODE_ENV || 'development',
-    endpoints: process.env.NODE_ENV !== 'production' ? {
+    testMode: TEST_API_ENABLED,
+    environment: NODE_ENV,
+    endpoints: {
       giveBalance: 'POST /api/test/give-balance',
       resetBalance: 'POST /api/test/reset-balance',
       setBalance: 'POST /api/test/set-balance'
-    } : null,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Test endpoints are disabled in production' 
-      : 'Test endpoints are available'
+    },
+    message: 'Test endpoints are explicitly enabled'
   });
 });
 
@@ -8376,10 +8460,52 @@ function safeTextEqual(a, b) {
 }
 
 function getAdminPanelPassword() {
-  return String(process.env.ADMIN_PANEL_PASSWORD || DEFAULT_ADMIN_PANEL_PASSWORD || "").trim();
+  return String(process.env.ADMIN_PANEL_PASSWORD || "").trim();
+}
+
+function pruneExpiredAdminPanelSessions(now = Date.now()) {
+  for (const [token, session] of adminPanelSessions.entries()) {
+    if (!session || Number(session.expiresAt || 0) <= now) {
+      adminPanelSessions.delete(token);
+    }
+  }
+}
+
+function createAdminPanelSession(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid) return null;
+  const now = Date.now();
+  pruneExpiredAdminPanelSessions(now);
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = now + ADMIN_PANEL_SESSION_TTL_MS;
+  adminPanelSessions.set(token, {
+    userId: uid,
+    createdAt: now,
+    expiresAt
+  });
+  return { token, expiresAt };
+}
+
+function getAdminPanelSessionFromReq(req) {
+  pruneExpiredAdminPanelSessions();
+  const sessionToken = String(req.headers["x-admin-session"] || "").trim();
+  if (!sessionToken) return null;
+  const session = adminPanelSessions.get(sessionToken) || null;
+  if (!session) return null;
+  if (Number(session.expiresAt || 0) <= Date.now()) {
+    adminPanelSessions.delete(sessionToken);
+    return null;
+  }
+  return session;
 }
 
 function requireAdminKey(req, res, next) {
+  const session = getAdminPanelSessionFromReq(req);
+  if (session && isRelayerAdminUserId(session.userId)) {
+    req.adminSession = session;
+    return next();
+  }
+
   const adminKey = String(process.env.ADMIN_KEY || "").trim();
   if (!adminKey) {
     return res.status(500).json({ ok: false, error: "ADMIN_KEY not set" });
@@ -8395,6 +8521,13 @@ function requireAdminKey(req, res, next) {
     return res.status(403).json({ ok: false, error: "forbidden" });
   }
 
+  return next();
+}
+
+function requireTestApiEnabled(req, res, next) {
+  if (!TEST_API_ENABLED) {
+    return res.status(404).json({ ok: false, error: "Not found" });
+  }
   return next();
 }
 

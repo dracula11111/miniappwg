@@ -17,7 +17,7 @@
     'wildtime': 'Wild Time'
   });
   let panelUnlocked = false;
-  let panelAdminKey = '';
+  let panelAdminSessionToken = '';
   let panelMode = allowLocalTestPanel ? 'LOCAL_TEST' : 'ADMIN';
 
   // ===== Utils =====
@@ -113,7 +113,7 @@
     const headers = withJson ? { 'Content-Type': 'application/json' } : {};
     const initData = getInitData();
     if (initData) headers['x-telegram-init-data'] = initData;
-    if (panelAdminKey) headers['x-admin-key'] = panelAdminKey;
+    if (panelAdminSessionToken) headers['x-admin-session'] = panelAdminSessionToken;
     return headers;
   }
 
@@ -153,7 +153,11 @@
       if (!r.ok || !j || j.ok !== true) {
         return { ok: false, error: (j && j.error) ? j.error : `HTTP ${r.status}` };
       }
-      return { ok: true, adminKey: String(j.adminKey || '') };
+      return {
+        ok: true,
+        sessionToken: String(j.sessionToken || ''),
+        expiresAt: Number(j.expiresAt || 0) || 0
+      };
     } catch (e) {
       return { ok: false, error: String(e?.message || e || 'auth failed') };
     }
@@ -427,7 +431,7 @@
         .slice(0, 48);
 
     async function adminAddItems(userId, items) {
-      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminSessionToken) {
         throw new Error('Admin panel is locked');
       }
       const headers = buildAuthHeaders(true);
@@ -446,7 +450,7 @@
     }
 
     async function adminImportRelayerGift(giftLink) {
-      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminSessionToken) {
         throw new Error('Admin panel is locked');
       }
       const headers = buildAuthHeaders(true);
@@ -512,7 +516,7 @@
     }
 
     async function adminFetchTechPauseState() {
-      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminSessionToken) {
         throw new Error('Admin panel is locked');
       }
       const headers = buildAuthHeaders(false);
@@ -525,7 +529,7 @@
     }
 
     async function adminSetTechPause(enabled) {
-      if (panelMode !== 'LOCAL_TEST' && !panelAdminKey) {
+      if (panelMode !== 'LOCAL_TEST' && !panelAdminSessionToken) {
         throw new Error('Admin panel is locked');
       }
       const headers = buildAuthHeaders(true);
@@ -711,7 +715,7 @@
           log(`Auth failed: ${auth.error || 'forbidden'}`, 'err');
           return;
         }
-        panelAdminKey = String(auth.adminKey || '');
+        panelAdminSessionToken = String(auth.sessionToken || '');
         panelUnlocked = true;
         log('Admin access granted for current page session', 'ok');
       }

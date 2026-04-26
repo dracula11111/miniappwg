@@ -2335,6 +2335,20 @@ async function doTransferStarGift(client, { msgId, toPeer }) {
 }
 
 let rpcStarted = false;
+const processedRpcRequests = new Map();
+const RPC_REQUEST_TTL_MS = Math.max(
+  60_000,
+  Math.min(24 * 60 * 60 * 1000, Number(process.env.RELAYER_RPC_REQUEST_TTL_MS || (2 * 60 * 60 * 1000)) || (2 * 60 * 60 * 1000))
+);
+
+function pruneProcessedRpcRequests(now = Date.now()) {
+  for (const [key, row] of processedRpcRequests.entries()) {
+    if (!row || Number(row.expiresAt || 0) <= now) {
+      processedRpcRequests.delete(key);
+    }
+  }
+}
+
 function startRpcServer(client, hooks = {}) {
   if (rpcStarted) return;
   rpcStarted = true;
@@ -2350,6 +2364,18 @@ function startRpcServer(client, hooks = {}) {
 
       const { toUsername, toId, msgId } = normalizeToFields(req.body);
       if (!msgId) return res.status(400).json({ ok: false, code: "MESSAGE_ID_INVALID", error: "msgId required" });
+      const requestId = String(req.body?.requestId || "").trim();
+      const dedupeKey = requestId || `transfer:${String(msgId)}:${String(toUsername || toId || "").trim()}`;
+
+      pruneProcessedRpcRequests();
+      const existing = processedRpcRequests.get(dedupeKey) || null;
+      if (existing) {
+        return res.json({
+          ok: true,
+          paid: !!existing.paid,
+          duplicate: true
+        });
+      }
 
       let toPeer;
       try {
@@ -2365,6 +2391,12 @@ function startRpcServer(client, hooks = {}) {
         const status = (code === "RELAYER_STARS_LOW") ? 402 : 400;
         return res.status(status).json({ ok: false, code, error: result.error || code });
       }
+
+      processedRpcRequests.set(dedupeKey, {
+        paid: !!result.paid,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + RPC_REQUEST_TTL_MS
+      });
 
       return res.json({ ok: true, paid: !!result.paid });
     } catch (e) {
