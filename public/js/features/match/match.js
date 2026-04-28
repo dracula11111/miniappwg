@@ -7,10 +7,10 @@
   const LEVEL_BG = "/images/match/levels/lvl1back.webp";
   const MATCH_LOGO = "/images/match/MatchLogo.webp";
   const BOOM_IMAGE = "/images/match/boom.webp";
-  const PLAY_BUTTON = Object.freeze({
-    ru: "/images/match/PlayButtonRu.webp",
-    en: "/images/match/PlayButtonEng.webp"
-  });
+  const PLAY_BUTTON = "/images/match/PlayButton.webp";
+  const CLOSE_BUTTON = "/images/match/close-icon.webp?v=2";
+  const WILDCOIN_IMAGE = "/images/match/wildcoin.webp";
+  const TICKET_IMAGE = "/images/match/ticket.webp";
   const BOMB_ITEM = Object.freeze({ id: "bomb", src: "/images/match/bomb.webp" });
   const ITEM_DEFS = Object.freeze([
     { id: "bear", src: "/images/match/items/bear.webp" },
@@ -44,6 +44,14 @@
     home: null,
     game: null,
     playImg: null,
+    playText: null,
+    playImages: [],
+    playTexts: [],
+    levelPanel: null,
+    economyPanel: null,
+    levelTitle: null,
+    goalTitle: null,
+    economyHint: null,
     boardEl: null,
     particlesEl: null,
     board: [],
@@ -72,8 +80,22 @@
     return "en";
   }
 
-  function getPlayButtonSrc() {
-    return resolveUiLanguage() === "ru" ? PLAY_BUTTON.ru : PLAY_BUTTON.en;
+  function getPlayButtonText() {
+    return resolveUiLanguage() === "ru" ? "\u0418\u0433\u0440\u0430\u0442\u044c" : "Play";
+  }
+
+  function getLevelText() {
+    return resolveUiLanguage() === "ru" ? "\u0423\u0440\u043e\u0432\u0435\u043d\u044c 1" : "Level 1";
+  }
+
+  function getGoalText() {
+    return resolveUiLanguage() === "ru" ? "\u0426\u0435\u043b\u044c" : "Goal";
+  }
+
+  function getEconomyHintText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0412\u044b \u043c\u043e\u0436\u0435\u0442\u0435 \u043e\u0431\u043c\u0435\u043d\u044f\u0442\u044c WildCoin \u043d\u0430 \u0431\u0438\u043b\u0435\u0442\u044b, \u0447\u0442\u043e\u0431\u044b \u0443\u0447\u0430\u0441\u0442\u0432\u043e\u0432\u0430\u0442\u044c \u0432 \u0440\u043e\u0437\u044b\u0433\u0440\u044b\u0448\u0430\u0445 \u043d\u0430 NFT-\u043f\u043e\u0434\u0430\u0440\u043a\u0438."
+      : "You can exchange WildCoin for tickets to join NFT gift giveaways.";
   }
 
   function parseWildCoin(raw) {
@@ -120,9 +142,45 @@
       page.innerHTML = `
         <section class="match-screen" aria-label="Match">
           <section class="match-home" data-match-home>
-            <button class="match-home__play" type="button" data-match-start aria-label="Start Match">
-              <img data-match-play-image src="${PLAY_BUTTON.en}" alt="Play" draggable="false" />
+            <button class="match-home__play" type="button" data-match-open-level aria-label="Play">
+              <img data-match-play-image src="${PLAY_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+              <span class="match-home__play-text" data-match-play-text>Play</span>
             </button>
+            <section class="match-level-panel" data-match-level-panel hidden aria-label="Level details">
+              <div class="match-level-card">
+                <button class="match-level-card__close" type="button" data-match-level-close aria-label="Close">
+                  <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <h2 class="match-level-card__title" data-match-level-title>Level 1</h2>
+                <div class="match-level-card__body">
+                  <div class="match-level-goal">
+                    <div class="match-level-goal__title" data-match-goal-title>Goal</div>
+                    <div class="match-level-goal__targets" aria-hidden="true"></div>
+                  </div>
+                </div>
+                <button class="match-home__play match-home__play--level" type="button" data-match-start aria-label="Play">
+                  <img data-match-play-image src="${PLAY_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                  <span class="match-home__play-text" data-match-play-text>Play</span>
+                </button>
+              </div>
+            </section>
+            <section class="match-level-panel match-economy-panel" data-match-economy-panel hidden aria-label="WildCoin exchange">
+              <div class="match-level-card match-economy-card">
+                <button class="match-level-card__close" type="button" data-match-economy-close aria-label="Close">
+                  <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <div class="match-economy-card__content">
+                  <div class="match-economy-card__item">
+                    <img src="${WILDCOIN_IMAGE}" alt="" aria-hidden="true" draggable="false" />
+                  </div>
+                  <div class="match-economy-card__arrow" aria-hidden="true">&rarr;</div>
+                  <div class="match-economy-card__item">
+                    <img src="${TICKET_IMAGE}" alt="" aria-hidden="true" draggable="false" />
+                  </div>
+                </div>
+                <p class="match-economy-card__hint" data-match-economy-hint>${getEconomyHintText()}</p>
+              </div>
+            </section>
           </section>
           <section class="match-game" data-match-game hidden aria-label="Match Level 1">
             <button class="match-game__close" type="button" data-match-close aria-label="Close Match">
@@ -148,8 +206,10 @@
       LEVEL_BG,
       MATCH_LOGO,
       BOOM_IMAGE,
-      PLAY_BUTTON.ru,
-      PLAY_BUTTON.en,
+      PLAY_BUTTON,
+      CLOSE_BUTTON,
+      WILDCOIN_IMAGE,
+      TICKET_IMAGE,
       BOMB_ITEM.src,
       ...ITEM_DEFS.map((item) => item.src)
     ];
@@ -485,6 +545,7 @@
   }
 
   function explodeBombArea(seed, clearSet, processedBombs) {
+    const detonations = [];
     const queue = Array.isArray(seed) ? seed.slice() : [seed];
     while (queue.length) {
       const node = queue.pop();
@@ -498,6 +559,7 @@
       playBoomOverlay(getBombBlastCells(node.row, node.col));
 
       const blastCells = getBombBlastCells(node.row, node.col);
+      detonations.push({ row: node.row, col: node.col, cells: blastCells });
       for (const point of blastCells) {
         const row = point.row;
         const col = point.col;
@@ -507,6 +569,7 @@
           if (isBombKind(candidate?.kind) && !processedBombs.has(key)) queue.push({ row, col });
       }
     }
+    return detonations;
   }
 
   function getBombBlastCells(row, col) {
@@ -532,28 +595,41 @@
     return Number.isInteger(fallback?.col) ? fallback.col : -1;
   }
 
+  function collectTopSpawnCells(candidates = []) {
+    const byCol = new Map();
+    candidates.forEach((cell) => {
+      if (!inBounds(cell?.row, cell?.col)) return;
+      const tile = state.board[cell.row]?.[cell.col];
+      if (!tile || isBombKind(tile.kind)) return;
+      const prev = byCol.get(cell.col);
+      if (!prev || cell.row < prev.row) {
+        byCol.set(cell.col, { row: cell.row, col: cell.col });
+      }
+    });
+    return Array.from(byCol.values()).sort((a, b) => a.col - b.col);
+  }
+
   function spawnBombsFromTop(candidates = [], preferredCols = []) {
     if (!candidates.length || !preferredCols.length) return 0;
-    const available = candidates
-      .filter((cell) => inBounds(cell.row, cell.col) && !isBombKind(state.board[cell.row]?.[cell.col]?.kind))
-      .sort((a, b) => a.row - b.row || a.col - b.col);
-    if (!available.length) return 0;
+    const topCells = collectTopSpawnCells(candidates);
+    if (!topCells.length) return 0;
 
-    const used = new Set();
+    const topByCol = new Map(topCells.map((cell) => [cell.col, cell]));
+    const usedCols = new Set();
     let spawned = 0;
 
     const takeCell = (col) => {
-      const sameCol = available.find((cell) => cell.col === col && !used.has(cellKey(cell.row, cell.col)));
-      if (sameCol) return sameCol;
-      return available.find((cell) => !used.has(cellKey(cell.row, cell.col))) || null;
+      if (!usedCols.has(col) && topByCol.has(col)) {
+        return topByCol.get(col);
+      }
+      return topCells.find((cell) => !usedCols.has(cell.col)) || null;
     };
 
     preferredCols.forEach((col) => {
       if (!Number.isInteger(col) || col < 0 || col >= BOARD_COLS) return;
       const pick = takeCell(col);
       if (!pick) return;
-      const key = cellKey(pick.row, pick.col);
-      used.add(key);
+      usedCols.add(pick.col);
       state.board[pick.row][pick.col].kind = BOMB_ITEM.id;
       spawned += 1;
     });
@@ -563,15 +639,9 @@
 
   function maybeDropRandomBomb(candidates = []) {
     if (!candidates.length || Math.random() >= RANDOM_BOMB_DROP_CHANCE) return false;
-    const pool = [];
-    candidates.forEach((cell) => {
-      const tile = state.board[cell.row]?.[cell.col];
-      if (!tile || isBombKind(tile.kind)) return;
-      pool.push(cell);
-    });
-
-    if (!pool.length) return false;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const topCells = collectTopSpawnCells(candidates);
+    if (!topCells.length) return false;
+    const pick = topCells[Math.floor(Math.random() * topCells.length)];
     if (!pick) return false;
     state.board[pick.row][pick.col].kind = BOMB_ITEM.id;
     return true;
@@ -723,6 +793,73 @@
     );
   }
 
+  function spawnBombBurstFragments(detonations) {
+    if (!state.particlesEl || !state.boardEl) return;
+    const bursts = Array.isArray(detonations)
+      ? detonations.filter((item) => item && Array.isArray(item.cells) && item.cells.length)
+      : [];
+    if (!bursts.length) return;
+
+    const boardRect = state.boardEl.getBoundingClientRect();
+    if (!boardRect.width || !boardRect.height) return;
+
+    const cellW = boardRect.width / BOARD_COLS;
+    const cellH = boardRect.height / BOARD_ROWS;
+    const fragSize = Math.max(7, Math.floor(Math.min(cellW, cellH) * 0.29));
+    const pieceCols = 3;
+    const pieceRows = 3;
+
+    bursts.forEach((burst) => {
+      const centerX = (burst.col + 0.5) * cellW;
+      const centerY = (burst.row + 0.5) * cellH;
+
+      burst.cells.forEach((cell) => {
+        const source = state.board[cell.row]?.[cell.col];
+        const item = ITEM_BY_ID[source?.kind];
+        if (!item) return;
+
+        const originX = cell.col * cellW + cellW / 2;
+        const originY = cell.row * cellH + cellH / 2;
+        const radialX = originX - centerX;
+        const radialY = originY - centerY;
+        const pieces = isBombKind(source?.kind) ? 7 : 4;
+
+        for (let i = 0; i < pieces; i += 1) {
+          const fragment = document.createElement("span");
+          fragment.className = "match-fragment match-fragment--bomb";
+          fragment.style.left = `${originX + randomFloat(-cellW * 0.2, cellW * 0.2)}px`;
+          fragment.style.top = `${originY + randomFloat(-cellH * 0.2, cellH * 0.2)}px`;
+          fragment.style.width = `${fragSize}px`;
+          fragment.style.height = `${fragSize}px`;
+          fragment.style.backgroundImage = `url("${item.src}")`;
+          fragment.style.backgroundSize = `${fragSize * pieceCols}px ${fragSize * pieceRows}px`;
+          fragment.style.backgroundPosition = `${-Math.floor(Math.random() * pieceCols) * fragSize}px ${-Math.floor(
+            Math.random() * pieceRows
+          ) * fragSize}px`;
+
+          const driftX = radialX * randomFloat(0.5, 1.38) + randomFloat(-cellW * 1.1, cellW * 1.1);
+          const driftY = randomFloat(cellH * 1.35, cellH * 3.1) + Math.max(0, radialY) * randomFloat(0.28, 0.95);
+
+          state.particlesEl.appendChild(fragment);
+          animateFragment(fragment, {
+            delayMs: randomFloat(0, 60),
+            durationMs: randomFloat(760, 1140),
+            endX: driftX,
+            endY: driftY,
+            initialVy: randomFloat(14, cellH * 0.85),
+            swayAmp: randomFloat(cellW * 0.03, cellW * 0.2),
+            swayCycles: randomFloat(0.65, 1.45),
+            swayPhase: randomFloat(-0.5, 0.5),
+            rotateEnd: randomFloat(-320, 320),
+            scaleStart: randomFloat(0.54, 0.8),
+            scalePeak: randomFloat(1.02, 1.22),
+            scaleEnd: randomFloat(0.44, 0.84)
+          });
+        }
+      });
+    });
+  }
+
   function spawnFragments(cells) {
     if (!state.particlesEl || !state.boardEl || !cells.length) return;
 
@@ -851,7 +988,7 @@
 
       const explosionSeeds = [...pendingBombSeeds, ...matchBombSeeds];
       const processedBombs = new Set();
-      if (explosionSeeds.length) explodeBombArea(explosionSeeds, clearSet, processedBombs);
+      const detonations = explosionSeeds.length ? explodeBombArea(explosionSeeds, clearSet, processedBombs) : [];
 
       const canCreateBomb = explosionSeeds.length === 0;
       const bombDropCols = [];
@@ -875,6 +1012,9 @@
 
       markTilesAsClearing(cellsToClear);
       spawnFragments(cellsToClear);
+      if (detonations.length) {
+        spawnBombBurstFragments(detonations);
+      }
       await wait(CLEAR_ANIMATION_MS);
 
       cellsToClear.forEach((cell) => {
@@ -1032,6 +1172,8 @@
   function startGame() {
     state.home.hidden = true;
     state.game.hidden = false;
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
     document.body?.classList?.add("match-game-open");
     syncMatchLogo(PAGE_ID, true);
 
@@ -1050,6 +1192,9 @@
     clearHintTimer();
     state.home.hidden = false;
     state.game.hidden = true;
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
     document.body?.classList?.remove("match-game-open");
     syncMatchLogo(PAGE_ID, false);
     state.selected = null;
@@ -1058,10 +1203,49 @@
     state.hintPair = null;
   }
 
+  function showLevelPanel() {
+    if (!state.levelPanel) {
+      startGame();
+      return;
+    }
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    state.levelPanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+    syncLanguage();
+  }
+
+  function hideLevelPanel() {
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
+  }
+
+  function showEconomyPanel() {
+    if (!state.economyPanel) return;
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    state.economyPanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+  }
+
+  function hideEconomyPanel() {
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
+  }
+
   function syncLanguage() {
-    if (!state.playImg) return;
-    state.playImg.src = getPlayButtonSrc();
-    state.playImg.alt = resolveUiLanguage() === "ru" ? "Играть" : "Play";
+    const text = getPlayButtonText();
+    state.playImages.forEach((img) => {
+      if (img) img.src = PLAY_BUTTON;
+    });
+    state.playTexts.forEach((node) => {
+      if (node) node.textContent = text;
+    });
+    state.page?.querySelectorAll?.("[data-match-start], [data-match-open-level]")?.forEach((button) => {
+      button.setAttribute("aria-label", text);
+    });
+    if (state.levelTitle) state.levelTitle.textContent = getLevelText();
+    if (state.goalTitle) state.goalTitle.textContent = getGoalText();
+    if (state.economyHint) state.economyHint.textContent = getEconomyHintText();
   }
 
   function syncMatchLogo(pageId = "", gameOpenOverride = null) {
@@ -1091,14 +1275,37 @@
     state.home = state.page.querySelector("[data-match-home]");
     state.game = state.page.querySelector("[data-match-game]");
     state.playImg = state.page.querySelector("[data-match-play-image]");
+    state.playText = state.page.querySelector("[data-match-play-text]");
+    state.playImages = Array.from(state.page.querySelectorAll("[data-match-play-image]"));
+    state.playTexts = Array.from(state.page.querySelectorAll("[data-match-play-text]"));
+    state.levelPanel = state.page.querySelector("[data-match-level-panel]");
+    state.economyPanel = state.page.querySelector("[data-match-economy-panel]");
+    state.levelTitle = state.page.querySelector("[data-match-level-title]");
+    state.goalTitle = state.page.querySelector("[data-match-goal-title]");
+    state.economyHint = state.page.querySelector("[data-match-economy-hint]");
     state.boardEl = state.page.querySelector("[data-match-board]");
     state.particlesEl = state.page.querySelector("[data-match-particles]");
 
+    const openLevelBtn = state.page.querySelector("[data-match-open-level]");
     const startBtn = state.page.querySelector("[data-match-start]");
+    const levelCloseBtn = state.page.querySelector("[data-match-level-close]");
+    const economyCloseBtn = state.page.querySelector("[data-match-economy-close]");
     const closeBtn = state.page.querySelector("[data-match-close]");
+    state.page.querySelectorAll(".match-level-card__close img").forEach((img) => {
+      img.src = CLOSE_BUTTON;
+    });
 
+    openLevelBtn?.addEventListener("click", () => {
+      showLevelPanel();
+    });
     startBtn?.addEventListener("click", () => {
       startGame();
+    });
+    levelCloseBtn?.addEventListener("click", () => {
+      hideLevelPanel();
+    });
+    economyCloseBtn?.addEventListener("click", () => {
+      hideEconomyPanel();
     });
     closeBtn?.addEventListener("click", () => {
       closeGame();
@@ -1118,15 +1325,7 @@
         gameOpen: !state.game?.hidden
       }),
       openEconomySheet: () => {
-        const wildCoin = getWildCoin();
-        const text = `WildCoin: ${wildCoin}`;
-        if (typeof window.showToast === "function") {
-          window.showToast(text);
-          return;
-        }
-        try {
-          window.Telegram?.WebApp?.showPopup?.({ title: "WildCoin", message: text });
-        } catch {}
+        showEconomyPanel();
       }
     };
   }
@@ -1159,6 +1358,9 @@
           return;
         }
         syncMatchLogo(pageId);
+        if (state.levelPanel) state.levelPanel.hidden = true;
+        if (state.economyPanel) state.economyPanel.hidden = true;
+        document.body?.classList?.remove("match-level-open");
         if (!state.game?.hidden) closeGame();
       });
     } catch {}

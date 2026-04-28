@@ -2388,10 +2388,11 @@
   const PAGE_ENTER_PRELOAD_IMAGES = Object.freeze({
     matchPage: [
       "/images/match/backgrounds/matchMainback.webp",
+      "/fonts/match.woff2",
       "/images/match/levels/lvl1back.webp",
       "/images/match/MatchLogo.webp",
-      "/images/match/PlayButtonEng.webp",
-      "/images/match/PlayButtonRu.webp",
+      "/images/match/PlayButton.webp",
+      "/images/match/ticket.webp",
       "/images/match/bomb.webp",
       "/images/match/boom.webp",
       "/images/match/items/bear.webp",
