@@ -51,23 +51,23 @@
 
     body.page-games,
     body:has(#gamesPage.page-active){
-      --wg-topbar-left-offset-y: 9px;
-      --wg-topbar-balance-offset-y: 9px;
+      --wg-topbar-left-offset-y: 14px;
+      --wg-topbar-balance-offset-y: 14px;
     }
 
     body.page-games .topbar,
     body:has(#gamesPage.page-active) .topbar{
-      padding-bottom: 8px;
+      padding-bottom: 14px;
     }
 
     body.page-games .topbar__left,
     body:has(#gamesPage.page-active) .topbar__left{
-      margin-top: 9px !important;
+      margin-top: 14px !important;
     }
 
     body.page-games .topbar > .balance,
     body:has(#gamesPage.page-active) .topbar > .balance{
-      transform: translateY(9px) !important;
+      transform: translateY(14px) !important;
     }
 
     body.page-games .games,
