@@ -29,7 +29,8 @@ const RLS_PROTECTED_TABLES = [
   "webhook_events",
   "tech_pause_control",
   "case_rounds_pending",
-  "game_round_meta"
+  "game_round_meta",
+  "match_players"
 ];
 
 async function query(text, params) {
@@ -153,6 +154,28 @@ function normalizeGameRoundCounter(value) {
   const raw = Number(value);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
   return Math.max(0, Math.trunc(raw));
+}
+
+function normalizeMatchCounter(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.max(0, Math.trunc(raw));
+}
+
+function mapMatchPlayerRow(row = {}) {
+  return {
+    telegramId: String(row.telegram_id || ""),
+    telegramUsername: row.telegram_username || null,
+    wildCoin: normalizeMatchCounter(row.wildcoin_balance),
+    tickets: {
+      "lol-pop": normalizeMatchCounter(row.giveaway_1_tickets),
+      "pool-float": normalizeMatchCounter(row.giveaway_2_tickets),
+      "snoop-dogg": normalizeMatchCounter(row.giveaway_3_tickets),
+      "jolly-chimp": normalizeMatchCounter(row.giveaway_4_tickets)
+    },
+    createdAt: normalizeMatchCounter(row.created_at),
+    updatedAt: normalizeMatchCounter(row.updated_at)
+  };
 }
 
 async function syncUserBalanceSnapshot(client, telegramId, tonBalance, starsBalance) {
@@ -594,6 +617,19 @@ export async function initDatabase() {
       round_hash TEXT,
       updated_at BIGINT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS match_players (
+      telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+      telegram_username TEXT,
+      wildcoin_balance BIGINT NOT NULL DEFAULT 0 CHECK (wildcoin_balance >= 0),
+      giveaway_1_tickets BIGINT NOT NULL DEFAULT 0 CHECK (giveaway_1_tickets >= 0),
+      giveaway_2_tickets BIGINT NOT NULL DEFAULT 0 CHECK (giveaway_2_tickets >= 0),
+      giveaway_3_tickets BIGINT NOT NULL DEFAULT 0 CHECK (giveaway_3_tickets >= 0),
+      giveaway_4_tickets BIGINT NOT NULL DEFAULT 0 CHECK (giveaway_4_tickets >= 0),
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_players_updated ON match_players(updated_at DESC);
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -606,6 +642,14 @@ export async function initDatabase() {
   await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
   await query(`ALTER TABLE promo_redemptions ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
   await query(`ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS reward_ton NUMERIC(20,8) NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS telegram_username TEXT`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS wildcoin_balance BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS giveaway_1_tickets BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS giveaway_2_tickets BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS giveaway_3_tickets BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS giveaway_4_tickets BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0`);
   await query(`
     UPDATE users AS u
     SET ton_balance = COALESCE(b.ton_balance, 0),
@@ -654,6 +698,13 @@ export async function initDatabase() {
     FROM users AS u
     WHERE r.telegram_id = u.telegram_id
       AND (r.telegram_username IS NULL OR r.telegram_username = '')
+  `);
+  await query(`
+    UPDATE match_players AS m
+    SET telegram_username = u.username
+    FROM users AS u
+    WHERE m.telegram_id = u.telegram_id
+      AND (m.telegram_username IS NULL OR m.telegram_username = '')
   `);
   await query(
     `INSERT INTO tech_pause_control (id, is_enabled, updated_at)
@@ -753,6 +804,93 @@ export async function setGameRoundMeta(gameKey, counter, hash = null) {
     hash: roundHash || "",
     updatedAt: now
   };
+}
+
+export async function getMatchPlayerState(telegramId) {
+  const id = BigInt(telegramId);
+  const now = Math.floor(Date.now() / 1000);
+
+  await query(
+    `
+    INSERT INTO users (telegram_id, created_at, last_seen)
+    VALUES ($1,$2,$2)
+    ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen
+    `,
+    [id, now]
+  );
+
+  const r = await query(
+    `
+    INSERT INTO match_players (
+      telegram_id,
+      telegram_username,
+      wildcoin_balance,
+      giveaway_1_tickets,
+      giveaway_2_tickets,
+      giveaway_3_tickets,
+      giveaway_4_tickets,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, (SELECT username FROM users WHERE telegram_id = $1), 0, 0, 0, 0, 0, $2, $2)
+    ON CONFLICT (telegram_id) DO UPDATE SET
+      telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), match_players.telegram_username),
+      updated_at = GREATEST(match_players.updated_at, $2)
+    RETURNING *
+    `,
+    [id, now]
+  );
+
+  return mapMatchPlayerRow(r.rows[0] || {});
+}
+
+export async function saveMatchPlayerState(telegramId, state = {}) {
+  const id = BigInt(telegramId);
+  const now = Math.floor(Date.now() / 1000);
+  const tickets = state?.tickets || {};
+  const wildCoin = normalizeMatchCounter(state?.wildCoin ?? state?.wildcoin ?? state?.wildcoinBalance);
+  const giveaway1 = normalizeMatchCounter(tickets["lol-pop"] ?? state?.giveaway1Tickets ?? state?.giveaway_1_tickets);
+  const giveaway2 = normalizeMatchCounter(tickets["pool-float"] ?? state?.giveaway2Tickets ?? state?.giveaway_2_tickets);
+  const giveaway3 = normalizeMatchCounter(tickets["snoop-dogg"] ?? state?.giveaway3Tickets ?? state?.giveaway_3_tickets);
+  const giveaway4 = normalizeMatchCounter(tickets["jolly-chimp"] ?? state?.giveaway4Tickets ?? state?.giveaway_4_tickets);
+
+  await query(
+    `
+    INSERT INTO users (telegram_id, created_at, last_seen)
+    VALUES ($1,$2,$2)
+    ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen
+    `,
+    [id, now]
+  );
+
+  const r = await query(
+    `
+    INSERT INTO match_players (
+      telegram_id,
+      telegram_username,
+      wildcoin_balance,
+      giveaway_1_tickets,
+      giveaway_2_tickets,
+      giveaway_3_tickets,
+      giveaway_4_tickets,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, (SELECT username FROM users WHERE telegram_id = $1), $2, $3, $4, $5, $6, $7, $7)
+    ON CONFLICT (telegram_id) DO UPDATE SET
+      telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), match_players.telegram_username),
+      wildcoin_balance = EXCLUDED.wildcoin_balance,
+      giveaway_1_tickets = EXCLUDED.giveaway_1_tickets,
+      giveaway_2_tickets = EXCLUDED.giveaway_2_tickets,
+      giveaway_3_tickets = EXCLUDED.giveaway_3_tickets,
+      giveaway_4_tickets = EXCLUDED.giveaway_4_tickets,
+      updated_at = EXCLUDED.updated_at
+    RETURNING *
+    `,
+    [id, wildCoin, giveaway1, giveaway2, giveaway3, giveaway4, now]
+  );
+
+  return mapMatchPlayerRow(r.rows[0] || {});
 }
 
 export async function getTechPauseFlag() {
