@@ -29,6 +29,12 @@
     background-size: 100% 100% !important;
   }
 
+  @supports (-webkit-touch-callout: none) {
+    html:has(body.page-crash) {
+      background-attachment: scroll !important;
+    }
+  }
+
   body.page-crash {
     overflow-y: hidden !important;
     overscroll-behavior-y: none;
@@ -67,6 +73,7 @@
       radial-gradient(circle 600px at 0% 100%, rgba(176,132,255,0.06), transparent 50%),
       linear-gradient(180deg, var(--cr-bg) 0%, #080c12 100%);
     min-height: 100vh;
+    min-height: 100dvh;
   }
   
   .crash {
@@ -2119,7 +2126,10 @@ body.page-crash .topbar > .crash-topThemeSwitch {
 
 @supports (-webkit-touch-callout: none) {
   body.page-crash .logo-header{
-    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    top: max(
+      calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+      calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+    ) !important;
     z-index: 340;
   }
 
@@ -2656,7 +2666,7 @@ html.wt-reduced-motion .crash-canvasWrap::after {
   display: none !important;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
   .crash-controls {
     left: 50% !important;
     right: auto !important;

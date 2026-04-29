@@ -42,7 +42,10 @@
   @supports (-webkit-touch-callout: none) {
     body.page-games .logo-header,
     body:has(#gamesPage.page-active) .logo-header{
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+      top: max(
+        calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+        calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+      ) !important;
       z-index: 340;
     }
 

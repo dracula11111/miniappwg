@@ -1083,13 +1083,15 @@ function ensureWithdrawModal() {
     'display:none',
     'align-items:center',
     'justify-content:center',
-    'padding:20px',
+    'padding:max(20px,env(safe-area-inset-top,0px)) 20px max(20px,env(safe-area-inset-bottom,0px))',
+    'overflow-y:auto',
+    '-webkit-overflow-scrolling:touch',
     'background:rgba(0,0,0,0.55)',
     'z-index:99999'
   ].join(';');
 
   el.innerHTML = `
-    <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+    <div style="width:min(420px,100%);max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 40px);background:#121212;color:#fff;border-radius:18px;overflow:auto;-webkit-overflow-scrolling:touch;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
         <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">
@@ -1140,13 +1142,15 @@ function ensureWithdrawErrorModal() {
     'display:none',
     'align-items:center',
     'justify-content:center',
-    'padding:20px',
+    'padding:max(20px,env(safe-area-inset-top,0px)) 20px max(20px,env(safe-area-inset-bottom,0px))',
+    'overflow-y:auto',
+    '-webkit-overflow-scrolling:touch',
     'background:rgba(0,0,0,0.55)',
     'z-index:100000'
   ].join(';');
 
   el.innerHTML = `
-    <div style="width:min(420px,100%);background:#121212;color:#fff;border-radius:18px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
+    <div style="width:min(420px,100%);max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px) - 40px);background:#121212;color:#fff;border-radius:18px;overflow:auto;-webkit-overflow-scrolling:touch;box-shadow:0 18px 60px rgba(0,0,0,0.35);">
       <div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;">
         <div style="font-weight:700;font-size:16px;">Withdraw</div>
         <button type="button" data-close="1" style="border:0;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;">

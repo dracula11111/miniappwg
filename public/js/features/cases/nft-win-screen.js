@@ -170,7 +170,10 @@
         display:flex;
         align-items:center;
         justify-content:center;
-        padding:22px 18px 26px;
+        padding:max(22px, env(safe-area-inset-top, 0px)) 18px max(26px, env(safe-area-inset-bottom, 0px));
+        box-sizing:border-box;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
         color:#fff;
         -webkit-tap-highlight-color: transparent;
       }

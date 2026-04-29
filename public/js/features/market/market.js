@@ -510,9 +510,15 @@ function ensureGiftDrawer() {
   balanceProxy.setAttribute('aria-hidden', 'true');
   overlay.prepend(balanceProxy);
 
+  let balanceProxySyncRaf = 0;
   const syncBalanceProxyIfOpen = () => {
     if (!overlay.classList.contains('is-open')) return;
-    syncGiftDrawerBalanceProxy();
+    if (balanceProxySyncRaf) return;
+    balanceProxySyncRaf = requestAnimationFrame(() => {
+      balanceProxySyncRaf = 0;
+      if (!overlay.classList.contains('is-open')) return;
+      syncGiftDrawerBalanceProxy();
+    });
   };
   window.addEventListener('resize', syncBalanceProxyIfOpen, { passive: true });
   window.addEventListener('scroll', syncBalanceProxyIfOpen, { passive: true });

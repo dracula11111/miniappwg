@@ -170,16 +170,16 @@
     style.id = 'adminPanelStyles';
     style.textContent = `
       #adminToggleBtn{
-        position:fixed; right:14px; bottom:59px; z-index:99999;
+        position:fixed; right:14px; bottom:calc(59px + env(safe-area-inset-bottom, 0px)); z-index:99999;
         padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
         background: rgba(20,20,20,.72); color:#fff; font-weight:700; font-size:13px;
         backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         box-shadow: 0 12px 30px rgba(0,0,0,.28);
       }
       #adminPanel{
-        position:fixed; right:14px; bottom:62px; z-index:99999;
+        position:fixed; right:14px; bottom:calc(62px + env(safe-area-inset-bottom, 0px)); z-index:99999;
         width:min(360px, calc(100vw - 28px));
-        max-height:min(680px, calc(100vh - 120px));
+        max-height:min(680px, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
         overflow:hidden;
         border-radius:18px;
         border:1px solid rgba(255,255,255,.12);

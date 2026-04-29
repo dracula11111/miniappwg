@@ -2512,7 +2512,7 @@ function ensureWheelBonusBarStyles() {
       left:50%;
       top:50%;
       transform: translate(60px, -50%);
-      width: min(620px, 92vw);
+      width: min(620px, calc(var(--wt-layout-w, 100vw) - 24px));
       height: 66px;
       display:flex;
       align-items:center;

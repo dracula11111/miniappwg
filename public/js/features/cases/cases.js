@@ -2330,7 +2330,7 @@ function getBalanceSafe(currency) {
   }
 
   function scheduleCaseSheetUiMetricsUpdate() {
-    if (caseSheetUiMetricsRaf) cancelAnimationFrame(caseSheetUiMetricsRaf);
+    if (caseSheetUiMetricsRaf) return;
     caseSheetUiMetricsRaf = requestAnimationFrame(() => {
       caseSheetUiMetricsRaf = 0;
       updateCaseSheetUiMetrics();

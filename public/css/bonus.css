@@ -39,7 +39,7 @@
      ================================================================ */
   html.bonus-active,
   body.bonus-active { height: 100%; overflow: hidden; }
-  body.bonus-active  { position: fixed; left: 0; right: 0; }
+  body.bonus-active  { position: fixed; top: 0; left: 0; right: 0; width: 100%; }
   
   
   /* ================================================================
@@ -50,7 +50,7 @@
   .lr-back-btn,
   .wt-back-btn {
     position: fixed;
-    top: var(--back-btn-top, 100px);
+    top: max(var(--back-btn-top, 100px), calc(env(safe-area-inset-top, 0px) + 12px));
     left: var(--back-btn-left, 20px);
     z-index: 1000000;
   
@@ -93,9 +93,9 @@
   }
   
   /* Plain back btn positioning */
-  .b5050-back-btn { top: 100px; left: 20px; }
-  .lr-back-btn    { top: 20px;  left: 20px; }
-  .wt-back-btn    { top: 20px;  left: 20px; }
+  .b5050-back-btn { top: max(100px, calc(env(safe-area-inset-top, 0px) + 12px)); left: 20px; }
+  .lr-back-btn    { top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));  left: 20px; }
+  .wt-back-btn    { top: max(20px, calc(env(safe-area-inset-top, 0px) + 12px));  left: 20px; }
   
   /* Show on active overlays */
   #bonus5050Overlay.bonus-overlay--active .universal-back-btn,
@@ -166,9 +166,9 @@
       padding: 0 14px;
       gap: 6px;
     }
-    .b5050-back-btn { top: 16px; left: 16px; }
-    .lr-back-btn    { top: 16px; left: 16px; }
-    .wt-back-btn    { top: 16px; left: 16px; }
+    .b5050-back-btn { top: max(16px, calc(env(safe-area-inset-top, 0px) + 12px)); left: 16px; }
+    .lr-back-btn    { top: max(16px, calc(env(safe-area-inset-top, 0px) + 12px)); left: 16px; }
+    .wt-back-btn    { top: max(16px, calc(env(safe-area-inset-top, 0px) + 12px)); left: 16px; }
   }
   
   @media (max-width: 380px) {
@@ -274,7 +274,7 @@
   #bonus5050Overlay .bonus-container {
     position: relative;
     z-index: 1;
-    width: min(440px, 94vw);
+    width: min(440px, calc(var(--wt-layout-w, 100vw) - 24px));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -305,7 +305,7 @@
   /* Machine */
   .b5050-machine {
     position: relative;
-    width: min(380px, 92vw);
+    width: min(380px, calc(var(--wt-layout-w, 100vw) - 32px));
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
@@ -349,7 +349,7 @@
   /* Dual container */
   .b5050-dual {
     position: relative;
-    width: min(380px, 92vw);
+    width: min(380px, calc(var(--wt-layout-w, 100vw) - 32px));
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -1230,6 +1230,7 @@
     z-index: 1;
     width: min(980px, 98vw);
     height: min(980px, 98vh);
+    height: min(980px, 98dvh);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1238,7 +1239,7 @@
   /* ---- Wheel stage ---- */
   #wildTimeOverlay .wt-stage {
     position: relative;
-    width: min(820px, 96vw);
+    width: min(820px, calc(var(--wt-layout-w, 100vw) - 16px));
     aspect-ratio: 1;
     overflow: visible;
     opacity: 1;
@@ -1333,7 +1334,7 @@
   /* Jar row */
   #wildTimeOverlay .wt-jarRow {
     position: relative;          /* ← REQUIRED: jars are position:absolute inside */
-    width: min(980px, 96vw);
+    width: min(980px, calc(var(--wt-layout-w, 100vw) - 16px));
     min-height: clamp(240px, 36vh, 460px);
     display: flex;
     justify-content: space-between;

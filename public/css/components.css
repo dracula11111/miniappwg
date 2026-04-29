@@ -38,8 +38,9 @@
             bottom: 0;                                     /* Прижато к низу */
             background: #111316;                           /* Тёмный фон */
             border-radius: 24px 24px 0 0;                  /* Скругление сверху */
-            padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px); /* Отступы с учётом safe area */
+            padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 20px); /* Отступы с учётом safe area */
             max-height: 80vh;                              /* Макс. высота 80% экрана */
+            max-height: 80dvh;
             overflow-y: auto;                              /* Вертикальная прокрутка */
             transform: translateY(100%);                   /* Скрыта снизу по умолчанию */
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Плавное выезжание */
@@ -328,6 +329,7 @@
           @media (max-height: 600px) {
             .settings-sheet__panel {
               max-height: 85vh;                            /* Больше высоты на низких экранах */
+              max-height: 85dvh;
             }
             
             .settings-sheet__title {
@@ -984,7 +986,7 @@
   transform: translate3d(-50%, 18px, 0);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
   .settings-sheet__panel {
     left: 50%;
     right: auto;
@@ -1008,7 +1010,7 @@
   }
 
   #wt-copy-toast-host {
-    width: calc(100vw - 20px);
+    width: min(460px, calc(var(--wt-layout-w, 100vw) - 20px));
     min-height: 54px;
     padding: 11px 14px;
     gap: 10px;

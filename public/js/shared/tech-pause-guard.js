@@ -119,8 +119,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 24px 18px 34px;
+        padding: max(24px, env(safe-area-inset-top, 0px)) 18px max(34px, env(safe-area-inset-bottom, 0px));
         box-sizing: border-box;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
         background:
           radial-gradient(78% 46% at 50% 0%, rgba(58, 146, 255, 0.26), rgba(58, 146, 255, 0) 72%),
           radial-gradient(68% 48% at 50% 100%, rgba(22, 83, 161, 0.35), rgba(22, 83, 161, 0) 78%),

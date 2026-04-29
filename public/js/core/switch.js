@@ -1427,7 +1427,10 @@
 
 #currency-lock-toast {
   position: fixed;
-  top: 100px;
+  top: max(
+    calc(env(safe-area-inset-top, 0px) + 100px),
+    calc(var(--tg-content-top, env(safe-area-inset-top, 0px)) + 72px)
+  );
   left: 50%;
   transform: translateX(-50%) translateY(-20px);
   opacity: 0;
@@ -1441,7 +1444,7 @@
   font-size: 14px;
   font-weight: 700;
   color: #ff6b6b;
-  max-width: min(92vw, 380px);
+  max-width: min(380px, calc(var(--wt-layout-w, 100vw) - 24px));
   text-align: center;
   pointer-events: none;
   box-shadow: 

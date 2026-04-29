@@ -1,6 +1,9 @@
 @supports (-webkit-touch-callout: none) {
   body.wt-unauth-mode .logo-header{
-    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+    top: max(
+      calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+      calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+    ) !important;
     z-index: 340;
   }
 
@@ -178,6 +181,7 @@ body.wt-unauth-mode.wt-terms-open {
   position: relative;
   width: min(100%, 680px);
   max-height: min(84vh, 780px);
+  max-height: min(84dvh, 780px);
   border-radius: 22px 22px 0 0;
   background:
     linear-gradient(180deg, rgba(16, 34, 70, 0.96) 0%, rgba(8, 19, 42, 0.98) 100%),
@@ -306,7 +310,7 @@ body.wt-unauth-mode.wt-terms-open {
   }
 }
 
-@media (min-width: 700px) {
+@media (min-width: 700px) and (hover: hover) and (pointer: fine) {
   .wt-unauth {
     padding-left: 30px;
     padding-right: 30px;

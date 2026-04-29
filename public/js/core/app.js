@@ -319,6 +319,17 @@
     queueTelegramChromeTelemetry(sample);
   }
 
+  let tgChromeSyncRaf = 0;
+  let tgChromeSyncReason = "sync";
+  function scheduleTelegramChromeInsetsSync(reason = "sync") {
+    tgChromeSyncReason = reason;
+    if (tgChromeSyncRaf) return;
+    tgChromeSyncRaf = requestAnimationFrame(() => {
+      tgChromeSyncRaf = 0;
+      syncTelegramChromeInsets(tgChromeSyncReason);
+    });
+  }
+
   const TG_CHROME_EVENTS = [
     "safeAreaChanged",
     "contentSafeAreaChanged",
@@ -327,14 +338,14 @@
   ];
 
   for (const eventName of TG_CHROME_EVENTS) {
-    try { tg?.onEvent?.(eventName, () => syncTelegramChromeInsets(eventName)); } catch {}
+    try { tg?.onEvent?.(eventName, () => scheduleTelegramChromeInsetsSync(eventName)); } catch {}
   }
 
   try {
-    window.addEventListener("resize", () => syncTelegramChromeInsets("window:resize"), { passive: true });
+    window.addEventListener("resize", () => scheduleTelegramChromeInsetsSync("window:resize"), { passive: true });
     if (window.visualViewport && typeof window.visualViewport.addEventListener === "function") {
-      window.visualViewport.addEventListener("resize", () => syncTelegramChromeInsets("visualViewport:resize"), { passive: true });
-      window.visualViewport.addEventListener("scroll", () => syncTelegramChromeInsets("visualViewport:scroll"), { passive: true });
+      window.visualViewport.addEventListener("resize", () => scheduleTelegramChromeInsetsSync("visualViewport:resize"), { passive: true });
+      window.visualViewport.addEventListener("scroll", () => scheduleTelegramChromeInsetsSync("visualViewport:scroll"), { passive: true });
     }
   } catch {}
 
@@ -2349,7 +2360,16 @@
       render({ animate: false, recalc: true });
     };
 
-    window.addEventListener("resize", syncLayout, { passive: true });
+    let syncLayoutRaf = 0;
+    const scheduleSyncLayout = () => {
+      if (syncLayoutRaf) return;
+      syncLayoutRaf = requestAnimationFrame(() => {
+        syncLayoutRaf = 0;
+        syncLayout();
+      });
+    };
+
+    window.addEventListener("resize", scheduleSyncLayout, { passive: true });
     carousel.__wtGamesBannerSync = syncLayout;
 
     carousel.dataset.carouselReady = "1";

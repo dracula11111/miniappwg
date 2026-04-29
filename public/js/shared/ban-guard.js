@@ -32,8 +32,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 32px 18px 42px;
+        padding: max(32px, env(safe-area-inset-top, 0px)) 18px max(42px, env(safe-area-inset-bottom, 0px));
         box-sizing: border-box;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
         background:
           linear-gradient(180deg, rgba(5, 10, 18, 0.12) 0%, rgba(5, 10, 18, 0.82) 62%, rgba(5, 10, 18, 0.94) 100%),
           url('/images/banback.png') center center / cover no-repeat,

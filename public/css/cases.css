@@ -36,6 +36,7 @@ body:has(.page-active#casesPage){
   background-attachment: scroll;
   background-size: 100% 300vh;
   min-height: 100vh;
+  min-height: 100dvh;
 
   /* Local "sky" palette for overlays (keeps global dark variables intact) */
   --sky-glass: rgba(8, 28, 60, 0.18);
@@ -1277,6 +1278,7 @@ html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-p
       position:absolute;
       left:0; right:0; bottom:0;
       max-height: 85vh;
+      max-height: 85dvh;
       background: var(--bg);
       border-radius: 24px 24px 0 0;
       transform: translateY(100%);
@@ -3473,20 +3475,20 @@ html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-p
   }
 
   html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-carousels-wrapper .case-carousel{
-    width: min(94vw, 560px);
+    width: min(560px, calc(var(--wt-layout-w, 100vw) - 24px));
     margin-inline: auto;
   }
 
   html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-carousels-wrapper--count-1 .case-carousel{
-    width: min(96vw, 620px);
+    width: min(620px, calc(var(--wt-layout-w, 100vw) - 16px));
   }
 
   html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-carousels-wrapper--count-2 .case-carousel{
-    width: min(94vw, 540px);
+    width: min(540px, calc(var(--wt-layout-w, 100vw) - 24px));
   }
 
   html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-carousels-wrapper--count-3 .case-carousel{
-    width: min(94vw, 520px);
+    width: min(520px, calc(var(--wt-layout-w, 100vw) - 24px));
   }
 
   html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-carousels-wrapper--count-3 .case-carousel{
@@ -4040,6 +4042,16 @@ html:is(.currency-stars,.currency-ton) body.case-sheet-open .case-open-price img
     max-width: none !important;
     pointer-events: none;
     z-index: 2147483000 !important;
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    body.case-sheet-open .topbar {
+      position: fixed !important;
+      left: var(--case-sheet-ui-left, 0px) !important;
+      right: auto !important;
+      width: var(--case-sheet-ui-width, 100vw) !important;
+      max-width: var(--wt-layout-w, 100vw) !important;
+    }
   }
 
   html:not(.currency-stars):not(.currency-ton) body.case-sheet-open .topbar > .topbar__left,

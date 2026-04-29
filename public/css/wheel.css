@@ -130,7 +130,10 @@ body.page-wheel .app::after {
 
   @supports (-webkit-touch-callout: none) {
     body.page-wheel .logo-header{
-      top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px) !important;
+      top: max(
+        calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+        calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+      ) !important;
       z-index: 340;
     }
 
@@ -2538,7 +2541,7 @@ body.page-wheel .app::after {
 }
 
 /* Р”Р»СЏ Р±РѕР»СЊС€РёС… СЌРєСЂР°РЅРѕРІ - СѓРІРµР»РёС‡РёРІР°РµРј gap Рё РјР°РєСЃРёРјР°Р»СЊРЅС‹Рµ СЂР°Р·РјРµСЂС‹ */
-@media (min-width: 768px) {
+@media (min-width: 768px) and (hover: hover) and (pointer: fine) {
   .bet-cards-compact {
     gap: 14px;
   }

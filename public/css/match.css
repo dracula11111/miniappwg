@@ -266,7 +266,10 @@ body.page-match.match-game-open .logo-header .main-logo {
 @supports (-webkit-touch-callout: none) {
   body.page-match.match-game-open .logo-header {
     position: fixed;
-    top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
+    top: max(
+      calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+      calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+    );
     left: 50%;
     transform: translateX(-50%) translateY(-22px);
     margin-top: 0;
@@ -1072,6 +1075,6 @@ body.page-match.match-game-open .bottom-nav {
   }
 
   .match-home__play[data-match-open-level] img {
-    width: min(108vw, 410px) !important;
+    width: min(calc(var(--wt-layout-w, 100vw) - 16px), 410px) !important;
   }
 }

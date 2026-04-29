@@ -67,7 +67,7 @@
         position: relative;
       }
 
-      @media (min-width: 768px) {
+      @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
         :root {
           --wt-vw: calc(var(--wt-layout-w) / 100);
         }
@@ -205,10 +205,17 @@
        
 
             /* === GLOBAL: убрать синюю подсветку тапа и выделение UI === */
-        @supports (-webkit-touch-callout: none) {
+      @supports (-webkit-touch-callout: none) {
+        body {
+          background-attachment: scroll;
+        }
+
           body:not(.page-match) .logo-header {
             position: fixed;
-            top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 22px);
+            top: max(
+              calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
+              calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
+            );
             left: 50%;
             transform: translateX(-50%);
             margin-top: 0;
