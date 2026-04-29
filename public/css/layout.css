@@ -9,6 +9,33 @@
   --wg-topbar-balance-offset-y: 0px;
 }
 
+@supports (-webkit-touch-callout: none) {
+  body:is(
+    .page-market,
+    .page-profile,
+    .page-tasks,
+    .page-wheel,
+    .page-crash,
+    .page-match,
+    .wt-unauth-mode
+  ) {
+    --wg-topbar-left-offset-y: 14px;
+    --wg-topbar-balance-offset-y: 14px;
+  }
+
+  body:is(
+    .page-market,
+    .page-profile,
+    .page-tasks,
+    .page-wheel,
+    .page-crash,
+    .page-match,
+    .wt-unauth-mode
+  ) .topbar {
+    padding-bottom: 14px;
+  }
+}
+
          .topbar {
           position: relative;                            /* Относительное позиционирование */
           display: grid;                                 /* Grid: left | center | right */
