@@ -1,11 +1,14 @@
 // /js/features/tasks/tasks.js
 (function () {
   const TASK_SUBSCRIBE_ID = "subscribe_channel";
+  const TASK_INVITE_ID = "invite_friend";
   const TASK_TOP_UP_ID = "top_up_05";
   const TASK_WIN_GAME_ID = "win_once_wheel_crash";
 
   const TASK_SUBSCRIBE_STATUS_URL = "/api/tasks/channel-subscription/status";
   const TASK_SUBSCRIBE_CLAIM_URL = "/api/tasks/channel-subscription/claim";
+  const TASK_INVITE_STATUS_URL = "/api/tasks/invite-friend/status";
+  const TASK_INVITE_CLAIM_URL = "/api/tasks/invite-friend/claim";
   const TASK_TOP_UP_STATUS_URL = "/api/tasks/top-up/status";
   const TASK_TOP_UP_CLAIM_URL = "/api/tasks/top-up/claim";
   const TASK_WIN_GAME_STATUS_URL = "/api/tasks/game-win/status";
@@ -29,13 +32,14 @@
       button: { type: "start", text: "Start" }
     },
     {
-      id: "invite_friend",
+      id: TASK_INVITE_ID,
       section: "one",
       title: "Invite friend",
+      subtitle: "One-time reward per friend",
       rewardStars: 5,
-      icon: "/images/tasks/invite.png",
+      icon: "/icons/nav/profile.svg",
       iconBg: "#9b4dff",
-      button: { type: "start", text: "Start" }
+      button: { type: "start", text: "Invite" }
     },
     {
       id: TASK_TOP_UP_ID,
@@ -66,6 +70,21 @@
     claimed: false,
     loading: false,
     channelUrl: TASK_SUBSCRIBE_DEFAULT_URL,
+    checkError: ""
+  };
+
+  const inviteState = {
+    opened: false,
+    loading: false,
+    link: "",
+    code: "",
+    shareText: "I left you a Wild Gift drop. Tap before it gets claimed.",
+    rewardStars: 5,
+    inviteCount: 0,
+    pendingRewardCount: 0,
+    rewardedCount: 0,
+    invitedBy: null,
+    invites: [],
     checkError: ""
   };
 
@@ -144,6 +163,42 @@
     window.open(target, "_blank", "noopener,noreferrer");
   }
 
+  function formatReferralPerson(person) {
+    const username = String(person?.username || "").trim();
+    if (username) return `@${username.replace(/^@+/, "")}`;
+    const displayName = String(person?.displayName || "").trim();
+    if (displayName) return displayName;
+    const firstName = String(person?.firstName || person?.first_name || "").trim();
+    const lastName = String(person?.lastName || person?.last_name || "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    if (fullName) return fullName;
+    const id = String(person?.telegramId || person?.id || "").trim();
+    return id ? `ID ${id}` : "User";
+  }
+
+  function buildInviteSubtitle() {
+    const parts = [];
+    const count = Math.max(0, Math.trunc(Number(inviteState.inviteCount || 0)));
+    if (count > 0) {
+      const names = (Array.isArray(inviteState.invites) ? inviteState.invites : [])
+        .slice(0, 3)
+        .map(formatReferralPerson)
+        .filter(Boolean);
+      const more = count > names.length ? ` +${count - names.length}` : "";
+      parts.push(`Invited ${count}${names.length ? `: ${names.join(", ")}${more}` : ""}`);
+    } else {
+      parts.push("One-time reward per friend");
+    }
+
+    if (inviteState.invitedBy) {
+      parts.push(`Invited by ${formatReferralPerson(inviteState.invitedBy)}`);
+    }
+
+    const pending = Math.max(0, Math.trunc(Number(inviteState.pendingRewardCount || 0)));
+    if (pending > 0) parts.push(`${pending} one-time reward${pending === 1 ? "" : "s"} ready`);
+    return parts.join(" / ");
+  }
+
   function openDepositPanel() {
     try {
       if (typeof window.WildTimeCurrency?.openPopup === "function") {
@@ -219,10 +274,13 @@
   }
 
   function buildRewardDisplay(task, currency) {
+    const rewardStars = task.id === TASK_INVITE_ID
+      ? Number(inviteState.rewardStars || task.rewardStars || 0)
+      : Number(task.rewardStars || 0);
     if (currency === "ton") {
-      return formatTon(starsToTonAmount(task.rewardStars));
+      return formatTon(starsToTonAmount(rewardStars));
     }
-    return String(Math.max(0, Math.round(Number(task.rewardStars || 0))));
+    return String(Math.max(0, Math.round(rewardStars)));
   }
 
   function buildTaskTitle(task, currency) {
@@ -256,8 +314,18 @@
     return { type: "start", text: "Start", disabled: false };
   }
 
+  function getInviteButtonConfig() {
+    if (inviteState.loading) return { type: "check", text: "Loading...", disabled: true };
+    if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
+      return { type: "claim", text: "Claim", disabled: false };
+    }
+    if (inviteState.opened) return { type: "check", text: "Check", disabled: false };
+    return { type: "start", text: "Start", disabled: false };
+  }
+
   function getButtonConfig(task) {
     if (task.id === TASK_SUBSCRIBE_ID) return getSubscribeButtonConfig();
+    if (task.id === TASK_INVITE_ID) return getInviteButtonConfig();
     if (task.id === TASK_TOP_UP_ID) return getInteractiveButtonConfig(topUpState);
     if (task.id === TASK_WIN_GAME_ID) return getInteractiveButtonConfig(gameWinState);
     return { ...task.button, disabled: false };
@@ -296,6 +364,29 @@
       subscribeState.opened = subscribeState.opened || subscribeState.subscribed || subscribeState.claimed;
       if (json?.channel?.url) subscribeState.channelUrl = String(json.channel.url);
       subscribeState.checkError = String(json?.checkError || "");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function refreshInviteStateFromServer() {
+    try {
+      const response = await tgFetch(TASK_INVITE_STATUS_URL, { method: "GET", cache: "no-store" });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) return false;
+
+      inviteState.link = String(json?.link || inviteState.link || "");
+      inviteState.code = String(json?.code || inviteState.code || "");
+      inviteState.shareText = String(json?.shareText || inviteState.shareText || "");
+      inviteState.rewardStars = Math.max(1, Math.round(Number(json?.rewardStars || inviteState.rewardStars || 5)));
+      inviteState.inviteCount = Math.max(0, Math.trunc(Number(json?.inviteCount || 0)));
+      inviteState.pendingRewardCount = Math.max(0, Math.trunc(Number(json?.pendingRewardCount || 0)));
+      inviteState.rewardedCount = Math.max(0, Math.trunc(Number(json?.rewardedCount || 0)));
+      inviteState.invitedBy = json?.invitedBy || null;
+      inviteState.invites = Array.isArray(json?.invites) ? json.invites : [];
+      inviteState.opened = inviteState.opened || inviteState.inviteCount > 0 || !!inviteState.invitedBy;
+      inviteState.checkError = "";
       return true;
     } catch {
       return false;
@@ -501,6 +592,59 @@
     }
   }
 
+  async function claimInviteTask() {
+    inviteState.loading = true;
+    render();
+    try {
+      const currency = getUserCurrency();
+      const response = await tgFetch(TASK_INVITE_CLAIM_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currency })
+      });
+
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok) {
+        if (json?.code === "TASK_NOT_COMPLETED") {
+          inviteState.pendingRewardCount = 0;
+          showToast("Invite a friend first.", "warning");
+          haptic("warning");
+        } else {
+          showToast(json?.error || "Failed to claim reward.", "error");
+          haptic("error");
+        }
+        await refreshInviteStateFromServer();
+        return;
+      }
+
+      inviteState.link = String(json?.link || inviteState.link || "");
+      inviteState.code = String(json?.code || inviteState.code || "");
+      inviteState.shareText = String(json?.shareText || inviteState.shareText || "");
+      inviteState.rewardStars = Math.max(1, Math.round(Number(json?.rewardStars || inviteState.rewardStars || 5)));
+      inviteState.inviteCount = Math.max(0, Math.trunc(Number(json?.inviteCount || inviteState.inviteCount || 0)));
+      inviteState.pendingRewardCount = Math.max(0, Math.trunc(Number(json?.pendingRewardCount || 0)));
+      inviteState.rewardedCount = Math.max(0, Math.trunc(Number(json?.rewardedCount || inviteState.rewardedCount || 0)));
+      inviteState.invitedBy = json?.invitedBy || inviteState.invitedBy || null;
+      inviteState.invites = Array.isArray(json?.invites) ? json.invites : inviteState.invites;
+
+      applyClaimedBalance(json.currency, json.newBalance, json.tonBalance, json.starsBalance);
+      const claimedCount = Math.max(0, Math.trunc(Number(json?.claimedCount || 0)));
+      if (claimedCount > 0) {
+        showToast(`Claim successful: ${buildRewardText(json.currency, json.added)}`, "success");
+        haptic("success");
+      } else {
+        showToast("No referral rewards to claim.", "warning");
+        haptic("warning");
+      }
+    } catch {
+      showToast("Failed to claim reward. Try again.", "error");
+      haptic("error");
+    } finally {
+      inviteState.loading = false;
+      render();
+    }
+  }
+
   async function claimTopUpTask() {
     topUpState.loading = true;
     render();
@@ -610,6 +754,60 @@
     await checkSubscribeTask();
   }
 
+  async function onInviteTaskClick() {
+    if (inviteState.loading) return;
+    if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
+      await claimInviteTask();
+      return;
+    }
+
+    if (inviteState.opened) {
+      inviteState.loading = true;
+      render();
+      const ok = await refreshInviteStateFromServer();
+      inviteState.loading = false;
+      render();
+
+      if (!ok) {
+        showToast("Failed to check invite task. Try again.", "error");
+        haptic("error");
+        return;
+      }
+
+      if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
+        showToast("Invite confirmed. Tap Claim.", "success");
+        haptic("success");
+      } else {
+        showToast("No friends have started the bot from your invite yet.", "warning");
+        haptic("warning");
+      }
+      return;
+    }
+
+    if (!inviteState.link) {
+      inviteState.loading = true;
+      render();
+      await refreshInviteStateFromServer();
+      inviteState.loading = false;
+      render();
+    }
+
+    const link = String(inviteState.link || "").trim();
+    if (!link) {
+      showToast("Failed to create invite link. Try again.", "error");
+      haptic("error");
+      return;
+    }
+
+    inviteState.opened = true;
+    render();
+    const shareText = String(inviteState.shareText || "I left you a Wild Gift drop. Tap before it gets claimed.").trim();
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`;
+    openTelegramUrl(shareUrl);
+    showToast("Send the invite. When a friend starts the bot, return and tap Check.");
+    haptic("light");
+  }
+
   async function onTopUpTaskClick() {
     if (topUpState.loading || topUpState.claimed) return;
     if (!topUpState.opened && !topUpState.completed) {
@@ -657,6 +855,10 @@
       await onSubscribeTaskClick();
       return;
     }
+    if (task.id === TASK_INVITE_ID) {
+      await onInviteTaskClick();
+      return;
+    }
     if (task.id === TASK_TOP_UP_ID) {
       await onTopUpTaskClick();
       return;
@@ -695,7 +897,8 @@
 
     const meta = el("div", "trow__meta");
     meta.appendChild(el("div", "trow__title", buildTaskTitle(task, currency)));
-    if (task.subtitle) meta.appendChild(el("div", "trow__sub", task.subtitle));
+    const subtitle = task.id === TASK_INVITE_ID ? buildInviteSubtitle() : task.subtitle;
+    if (subtitle) meta.appendChild(el("div", "trow__sub", subtitle));
 
     const reward = el("div", "trow__reward");
     reward.classList.add(currency === "ton" ? "trow__reward--ton" : "trow__reward--stars");
@@ -754,6 +957,7 @@
   async function refreshAllTaskStates() {
     await Promise.all([
       refreshSubscribeStateFromServer(),
+      refreshInviteStateFromServer(),
       refreshTopUpStateFromServer(),
       refreshGameWinStateFromServer()
     ]);

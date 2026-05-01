@@ -40,6 +40,7 @@ const DEFAULT_WELCOME_BUTTON_TEXT = "Claim gifts";
 const DEFAULT_WELCOME_BUTTON_STYLE = "danger";
 const DEFAULT_WELCOME_STARTAPP_URL = "https://t.me/wildgiftrobot?startapp=1";
 const DEFAULT_WELCOME_PHOTO_URL = "https://ibb.co/vFzkMcg";
+const DEFAULT_REFERRAL_WELCOME_PHOTO_URL = "https://ibb.co/ds7Vsgvh";
 const DEFAULT_WELCOME_PHOTO_PATH = "/images/bot/startNtf.png";
 // Temporary safety lock: allow market buy/withdraw only for relayer admins.
 const ADMIN_ONLY_TRADING_MODE = !/^(0|false|no)$/i.test(String(process.env.ADMIN_ONLY_TRADING_MODE || "1"));
@@ -115,6 +116,7 @@ function createMemoryDb() {
   const promoCodes = new Map(); // code(lower) -> { reward_stars, reward_ton, max_uses, used_count }
   const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
+  const referrals = new Map(); // invitee_id(string) -> { inviterId, startParam, createdAt, rewardedAt, rewardCurrency, rewardAmount }
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
@@ -222,6 +224,19 @@ function createMemoryDb() {
     const raw = Number(value);
     if (!Number.isFinite(raw) || raw <= 0) return 0;
     return Math.max(0, Math.trunc(raw));
+  }
+
+  function publicMemoryUser(k) {
+    const id = String(k || "").trim();
+    const u = users.get(id) || {};
+    const username = u.username || null;
+    const firstName = u.first_name || null;
+    const lastName = u.last_name || null;
+    const displayName =
+      username ? `@${username}` :
+      [firstName, lastName].filter(Boolean).join(" ").trim() ||
+      (id ? `ID ${id}` : "User");
+    return { telegramId: id, username, firstName, lastName, displayName };
   }
 
   function defaultMatchState(k) {
@@ -555,6 +570,148 @@ function createMemoryDb() {
       }
 
       return { ok: true, added, addedTon, newBalance: nextStars, newTonBalance: nextTon };
+    },
+    async registerReferral(input = {}) {
+      const invitee = String(input?.inviteeId ?? input?.inviteeTelegramId ?? "").trim();
+      const inviter = String(input?.inviterId ?? input?.inviterTelegramId ?? "").trim();
+      if (!invitee || !inviter) return { ok: false, registered: false, reason: "missing" };
+      if (invitee === inviter) return { ok: false, registered: false, reason: "self" };
+
+      ensure(inviter);
+      ensure(invitee);
+
+      const inviteeUser = users.get(invitee) || {};
+      const now = nowSec();
+      const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
+      const createdAt = Number(inviteeUser.created_at || now);
+      if (createdAt < now - maxExistingAgeSec) {
+        return { ok: true, registered: false, reason: "existing_user" };
+      }
+      const reciprocal = referrals.get(inviter);
+      if (reciprocal?.inviterId === invitee) {
+        return { ok: true, registered: false, reason: "reciprocal" };
+      }
+      if (referrals.has(invitee)) {
+        return { ok: true, registered: false, reason: "already_registered" };
+      }
+
+      referrals.set(invitee, {
+        inviterId: inviter,
+        startParam: String(input?.startParam || "").trim().slice(0, 128) || null,
+        createdAt: now,
+        rewardedAt: null,
+        rewardCurrency: null,
+        rewardAmount: 0
+      });
+
+      return { ok: true, registered: true, inviteeId: invitee, inviterId: inviter };
+    },
+    async getReferralSummary(telegramId, options = {}) {
+      const uid = ensure(telegramId);
+      const rawLimit = Number(options?.limit);
+      const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(50, Math.trunc(rawLimit))) : 20;
+      const invites = [];
+      let pendingRewardCount = 0;
+      let rewardedCount = 0;
+
+      for (const [inviteeId, ref] of referrals.entries()) {
+        if (ref?.inviterId !== uid) continue;
+        if (ref.rewardedAt) rewardedCount += 1;
+        else pendingRewardCount += 1;
+        invites.push({
+          ...publicMemoryUser(inviteeId),
+          createdAt: Number(ref.createdAt || 0),
+          rewarded: !!ref.rewardedAt,
+          rewardedAt: ref.rewardedAt ? Number(ref.rewardedAt || 0) : null
+        });
+      }
+
+      invites.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+
+      const invitedByRef = referrals.get(uid) || null;
+      const invitedBy = invitedByRef?.inviterId
+        ? {
+            ...publicMemoryUser(invitedByRef.inviterId),
+            createdAt: Number(invitedByRef.createdAt || 0)
+          }
+        : null;
+
+      return {
+        inviteCount: invites.length,
+        pendingRewardCount,
+        rewardedCount,
+        invitedBy,
+        invites: invites.slice(0, limit)
+      };
+    },
+    async claimReferralRewards(telegramId, options = {}) {
+      const uid = ensure(telegramId);
+      const cur = String(options?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+      const maxCountRaw = Number(options?.maxCount || 100);
+      const maxCount = Number.isFinite(maxCountRaw) ? Math.max(1, Math.min(100, Math.trunc(maxCountRaw))) : 100;
+      let amountPerInvite = Number(options?.amountPerInvite || 0);
+      if (!Number.isFinite(amountPerInvite) || amountPerInvite <= 0) throw new Error("Invalid amountPerInvite");
+      if (cur === "stars") amountPerInvite = Math.max(1, Math.round(amountPerInvite));
+      if (cur === "ton") amountPerInvite = Math.round(amountPerInvite * 100000000) / 100000000;
+
+      const claimable = [];
+      for (const [inviteeId, ref] of referrals.entries()) {
+        if (claimable.length >= maxCount) break;
+        if (ref?.inviterId === uid && !ref.rewardedAt) claimable.push([inviteeId, ref]);
+      }
+
+      const bal = balances.get(uid) || { ton_balance: "0", stars_balance: 0 };
+      if (!claimable.length) {
+        return {
+          ok: true,
+          claimedCount: 0,
+          currency: cur,
+          added: 0,
+          newBalance: cur === "ton" ? Number(bal.ton_balance || 0) : Number(bal.stars_balance || 0),
+          tonBalance: Number(bal.ton_balance || 0),
+          starsBalance: Number(bal.stars_balance || 0),
+          pendingRewardCount: 0
+        };
+      }
+
+      let total = amountPerInvite * claimable.length;
+      if (cur === "stars") total = Math.max(1, Math.round(total));
+      if (cur === "ton") total = Math.round(total * 100000000) / 100000000;
+
+      const newBalance = await this.updateBalance(
+        uid,
+        cur,
+        total,
+        "task_reward",
+        String(options?.description || `One-time referral reward: ${claimable.length} invite(s)`)
+      );
+
+      const now = nowSec();
+      for (const [inviteeId, ref] of claimable) {
+        referrals.set(inviteeId, {
+          ...ref,
+          rewardedAt: now,
+          rewardCurrency: cur,
+          rewardAmount: amountPerInvite
+        });
+      }
+
+      const nextBal = balances.get(uid) || { ton_balance: "0", stars_balance: 0 };
+      let pendingRewardCount = 0;
+      for (const ref of referrals.values()) {
+        if (ref?.inviterId === uid && !ref.rewardedAt) pendingRewardCount += 1;
+      }
+
+      return {
+        ok: true,
+        claimedCount: claimable.length,
+        currency: cur,
+        added: total,
+        newBalance,
+        tonBalance: Number(nextBal.ton_balance || 0),
+        starsBalance: Number(nextBal.stars_balance || 0),
+        pendingRewardCount
+      };
     },
     async hasTaskClaim(telegramId, taskKey) {
       const uid = ensure(telegramId);
@@ -4315,6 +4472,12 @@ const TASK_TOP_UP_MIN_TON = 0.5;
 const TASK_TOP_UP_MIN_STARS = 50;
 const TASK_WIN_ONCE_KEY = "win_once_wheel_crash_v1";
 const TASK_WIN_ONCE_REWARD_STARS = 10;
+const TASK_INVITE_FRIEND_KEY = "invite_friend_v1";
+const TASK_INVITE_FRIEND_REWARD_STARS = 5;
+const REFERRAL_MAX_EXISTING_AGE_SEC = Math.max(
+  60,
+  Math.min(24 * 60 * 60, Number(process.env.REFERRAL_MAX_EXISTING_AGE_SEC || 10 * 60) || 10 * 60)
+);
 const TASK_SUBSCRIBE_CHANNEL_DEFAULT = "@wildgift_channel";
 const TASK_SUBSCRIBE_CHANNEL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL || TASK_SUBSCRIBE_CHANNEL_DEFAULT).trim() || TASK_SUBSCRIBE_CHANNEL_DEFAULT;
 const TASK_SUBSCRIBE_CHANNEL_URL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL_URL || "").trim();
@@ -4346,6 +4509,129 @@ function parseTelegramChannel(rawValue) {
 const TASK_SUBSCRIBE_CHANNEL = parseTelegramChannel(TASK_SUBSCRIBE_CHANNEL_RAW);
 const TASK_SUBSCRIBE_CHANNEL_CHAT_ID = TASK_SUBSCRIBE_CHANNEL.chatId;
 const TASK_SUBSCRIBE_CHANNEL_URL = TASK_SUBSCRIBE_CHANNEL_URL_RAW || TASK_SUBSCRIBE_CHANNEL.url || "https://t.me/wildgift_channel";
+
+function normalizeReferralStartParam(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.length > 128) return "";
+  return /^[A-Za-z0-9_-]+$/.test(raw) ? raw : "";
+}
+
+function normalizeReferralLanguage(value) {
+  const lang = normalizeExplicitUiLanguageCode(value);
+  return lang === "ru" ? "ru" : "en";
+}
+
+function getReferralInviteCopy(language) {
+  const lang = normalizeReferralLanguage(language);
+  if (lang === "ru") {
+    return {
+      shareText: "Я оставил тебе подарок в Wild Gift. Жми, пока дроп не забрали.",
+      buttonText: "Забрать дроп",
+      lines: [
+        "<b>Тебе оставили подарок в Wild Gift</b>",
+        "Зайди в мини-апп, забери стартовые награды и проверь, что выпало. Все прямо внутри Telegram.",
+        "Жми ниже, пока дроп еще доступен."
+      ]
+    };
+  }
+  return {
+    shareText: "I left you a Wild Gift drop. Tap before it gets claimed.",
+    buttonText: "Claim Drop",
+    lines: [
+      "<b>Your friend left you a Wild Gift drop</b>",
+      "Open the mini app, grab starter rewards, and see what you can pull. It all works inside Telegram.",
+      "Tap below while the drop is still live."
+    ]
+  };
+}
+
+function encodeReferralStartParam(userId, language = "en") {
+  const id = String(userId || "").trim();
+  if (!/^\d{3,32}$/.test(id)) return "";
+  return `ref_${id}_${normalizeReferralLanguage(language)}`;
+}
+
+function decodeReferralStartParam(value) {
+  const raw = normalizeReferralStartParam(value);
+  if (!raw) return "";
+  const match = raw.match(/^(?:ref|invite)[_-](\d{3,32})(?:[_-](ru|en))?$/i) || raw.match(/^(\d{3,32})$/);
+  return match ? String(match[1] || "") : "";
+}
+
+function getReferralLanguageFromStartParam(value) {
+  const raw = normalizeReferralStartParam(value);
+  const match = raw.match(/^(?:ref|invite)[_-]\d{3,32}[_-](ru|en)$/i);
+  return normalizeReferralLanguage(match?.[1] || "en");
+}
+
+function getReferralBotUsername() {
+  const direct = String(
+    process.env.REFERRAL_BOT_USERNAME ||
+    process.env.TG_BOT_USERNAME ||
+    process.env.BOT_USERNAME ||
+    ""
+  ).trim().replace(/^@+/, "");
+  if (/^[A-Za-z0-9_]{5,64}$/.test(direct)) return direct;
+
+  try {
+    const url = new URL(getWelcomeMiniAppUrl());
+    const host = String(url.hostname || "").toLowerCase();
+    if (host === "t.me" || host === "www.t.me" || host === "telegram.me" || host === "www.telegram.me") {
+      const username = String(url.pathname || "").split("/").filter(Boolean)[0] || "";
+      if (/^[A-Za-z0-9_]{5,64}$/.test(username)) return username;
+    }
+  } catch {}
+
+  return "wildgiftrobot";
+}
+
+function buildReferralLink(userId, language = "en") {
+  const code = encodeReferralStartParam(userId, language);
+  const bot = getReferralBotUsername();
+  if (!code || !bot) return "";
+  return `https://t.me/${bot}?start=${encodeURIComponent(code)}`;
+}
+
+function withReferralStartParam(urlValue, startParam) {
+  const param = normalizeReferralStartParam(startParam);
+  if (!param) return urlValue;
+  try {
+    const parsed = new URL(String(urlValue || "").trim());
+    const host = String(parsed.hostname || "").toLowerCase();
+    if (host !== "t.me" && host !== "www.t.me" && host !== "telegram.me" && host !== "www.telegram.me") {
+      return urlValue;
+    }
+    parsed.searchParams.set("startapp", param);
+    return parsed.toString();
+  } catch {
+    return urlValue;
+  }
+}
+
+async function maybeRegisterReferralForUser(user, startParam, source = "miniapp") {
+  const inviteeId = String(user?.id || "").trim();
+  const normalizedStartParam = normalizeReferralStartParam(startParam);
+  const inviterId = decodeReferralStartParam(normalizedStartParam);
+  if (!inviteeId || !inviterId || inviteeId === inviterId) return null;
+  if (typeof db?.registerReferral !== "function") return null;
+
+  try {
+    const result = await db.registerReferral({
+      inviteeId,
+      inviterId,
+      startParam: normalizedStartParam,
+      source,
+      maxExistingAgeSec: REFERRAL_MAX_EXISTING_AGE_SEC
+    });
+    if (result?.registered) {
+      console.log("[Referral] registered:", { inviteeId, inviterId, source });
+    }
+    return result;
+  } catch (error) {
+    console.error("[Referral] register failed:", error?.message || error);
+    return null;
+  }
+}
 
 function isSubscribedMemberStatus(status, isMemberFlag = false) {
   const s = String(status || "").toLowerCase();
@@ -4557,6 +4843,115 @@ async function resolveTaskRewardForCurrency(baseStars, preferredCurrency) {
   if (!(rounded > 0)) rounded = 0.001;
   return { currency: "ton", amount: rounded, baseStars: starsReward };
 }
+
+async function buildReferralStatusPayload(userId, options = {}) {
+  const summary = typeof db?.getReferralSummary === "function"
+    ? await db.getReferralSummary(userId, { limit: 20 })
+    : {
+        inviteCount: 0,
+        pendingRewardCount: 0,
+        rewardedCount: 0,
+        invitedBy: null,
+        invites: []
+      };
+  const languagePreference = resolveUserUiLanguagePreference(options?.dbUser || null, options?.tgUser || null);
+  const language = normalizeReferralLanguage(languagePreference?.language || "en");
+  const inviteCopy = getReferralInviteCopy(language);
+  const code = encodeReferralStartParam(userId, language);
+  const link = buildReferralLink(userId, language);
+  return {
+    taskKey: TASK_INVITE_FRIEND_KEY,
+    rewardMode: "one_time",
+    rewardStars: TASK_INVITE_FRIEND_REWARD_STARS,
+    language,
+    code,
+    link,
+    shareText: inviteCopy.shareText,
+    inviteCount: Math.max(0, Number(summary?.inviteCount || 0)),
+    pendingRewardCount: Math.max(0, Number(summary?.pendingRewardCount || 0)),
+    rewardedCount: Math.max(0, Number(summary?.rewardedCount || 0)),
+    invitedBy: summary?.invitedBy || null,
+    invites: Array.isArray(summary?.invites) ? summary.invites : []
+  };
+}
+
+app.get("/api/referrals/me", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    const payload = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
+    return res.json({ ok: true, ...payload, canClaim: payload.pendingRewardCount > 0 });
+  } catch (error) {
+    console.error("[Referral] status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load referral status" });
+  }
+});
+
+app.get("/api/tasks/invite-friend/status", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    const payload = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
+    return res.json({ ok: true, ...payload, canClaim: payload.pendingRewardCount > 0 });
+  } catch (error) {
+    console.error("[Tasks] invite status error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to load task status" });
+  }
+});
+
+app.post("/api/tasks/invite-friend/claim", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    if (typeof db?.claimReferralRewards !== "function") {
+      return res.status(503).json({ ok: false, code: "TASK_DB_NOT_READY", error: "Referral rewards are not configured" });
+    }
+
+    const status = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
+    const pending = Math.max(0, Number(status.pendingRewardCount || 0));
+    if (pending < 1) {
+      return res.status(409).json({
+        ok: false,
+        code: "TASK_NOT_COMPLETED",
+        error: "Invite a friend first",
+        ...status,
+        canClaim: false
+      });
+    }
+
+    const preferredCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+    const reward = await resolveTaskRewardForCurrency(TASK_INVITE_FRIEND_REWARD_STARS, preferredCurrency);
+    const claimResult = await db.claimReferralRewards(userId, {
+      currency: reward.currency,
+      amountPerInvite: reward.amount,
+      maxCount: pending,
+      description: `One-time task reward: invite ${pending} friend(s)`
+    });
+
+    try { broadcastBalanceUpdate(userId); } catch {}
+
+    const nextStatus = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user }).catch(() => ({
+      ...status,
+      pendingRewardCount: Number(claimResult?.pendingRewardCount || 0)
+    }));
+
+    return res.json({
+      ok: true,
+      claimed: Number(claimResult?.claimedCount || 0) > 0,
+      claimedCount: Math.max(0, Number(claimResult?.claimedCount || 0)),
+      currency: String(claimResult?.currency || reward.currency),
+      added: Number(claimResult?.added || 0),
+      newBalance: Number(claimResult?.newBalance || 0),
+      tonBalance: Number(claimResult?.tonBalance || 0),
+      starsBalance: Number(claimResult?.starsBalance || 0),
+      ...nextStatus,
+      canClaim: Number(nextStatus?.pendingRewardCount || 0) > 0
+    });
+  } catch (error) {
+    console.error("[Tasks] invite claim error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to claim reward" });
+  }
+});
 
 app.get("/api/tasks/channel-subscription/status", requireTelegramUser, async (req, res) => {
   try {
@@ -6848,8 +7243,11 @@ app.post("/api/stars/webhook", async (req, res) => {
       }
 
       try { await db.saveUser(welcomeTrigger.user); } catch {}
+      await maybeRegisterReferralForUser(welcomeTrigger.user, welcomeTrigger.startParam, "bot_start");
 
-      const welcomeResult = await sendTelegramWelcomeMessage(userId);
+      const welcomeResult = await sendTelegramWelcomeMessage(userId, {
+        startParam: welcomeTrigger.startParam
+      });
       if (!welcomeResult?.ok) {
         const classification = classifyTelegramSendError({
           description: welcomeResult?.error || ""
@@ -8531,6 +8929,8 @@ async function requireTelegramUser(req, res, next) {
       console.error("[Auth] Failed to save Telegram user profile:", saveErr);
     }
 
+    await maybeRegisterReferralForUser(user, check.params?.start_param, "miniapp");
+
     const dbUser = await db.getUserById(user.id).catch(() => null);
     if (Number(dbUser?.ban) === 1) {
       return res.status(403).json({
@@ -8887,7 +9287,20 @@ function getWelcomePhotoRef() {
   return normalizeTelegramMediaRef(`${base}${DEFAULT_WELCOME_PHOTO_PATH}`);
 }
 
-function getWelcomeButtonText() {
+function getReferralWelcomePhotoRef() {
+  const direct = normalizeTelegramMediaRef(
+    process.env.TG_REFERRAL_WELCOME_PHOTO_URL ||
+    process.env.TELEGRAM_REFERRAL_WELCOME_PHOTO_URL ||
+    process.env.TG_REFERRAL_PHOTO_URL ||
+    DEFAULT_REFERRAL_WELCOME_PHOTO_URL
+  );
+  return direct || getWelcomePhotoRef();
+}
+
+function getWelcomeButtonText(options = {}) {
+  if (options?.referral) {
+    return normalizeTelegramButtonText(getReferralInviteCopy(options?.language).buttonText);
+  }
   return normalizeTelegramButtonText(process.env.TG_WELCOME_BUTTON_TEXT || DEFAULT_WELCOME_BUTTON_TEXT);
 }
 
@@ -8906,6 +9319,15 @@ function buildWelcomeMessageText(options = {}) {
   const ctaEmoji = (ctaCustom && ctaEmojiId)
     ? `<tg-emoji emoji-id="${ctaEmojiId}">\ud83c\udf81</tg-emoji>`
     : "\ud83c\udf81";
+
+  if (options?.referral) {
+    const copy = getReferralInviteCopy(options?.language);
+    return [
+      `${introEmoji} ${copy.lines[0]}`,
+      copy.lines[1],
+      `${ctaEmoji} ${copy.lines[2]}`
+    ].join("\n\n");
+  }
 
   return [
     `${introEmoji} <b>Welcome to Wild Gift!</b>`,
@@ -8934,10 +9356,12 @@ function isTelegramWelcomeTrigger(update = {}) {
   const text = String(message?.text || "").trim();
   const firstToken = (text.split(/\s+/)[0] || "").trim();
   if (/^\/start(?:@[a-z0-9_]+)?$/i.test(firstToken)) {
+    const startParam = normalizeReferralStartParam((text.split(/\s+/)[1] || "").trim());
     return {
       reason: "start",
       user: from,
-      message
+      message,
+      startParam
     };
   }
 
@@ -8953,14 +9377,16 @@ function isTelegramWelcomeTrigger(update = {}) {
   return null;
 }
 
-async function sendTelegramWelcomeMessage(chatId) {
-  const buttonText = getWelcomeButtonText();
-  const welcomeEntryUrl = getWelcomeMiniAppUrl();
+async function sendTelegramWelcomeMessage(chatId, options = {}) {
+  const isReferral = !!normalizeReferralStartParam(options?.startParam);
+  const language = isReferral ? getReferralLanguageFromStartParam(options?.startParam) : "en";
+  const buttonText = getWelcomeButtonText({ referral: isReferral, language });
+  const welcomeEntryUrl = withReferralStartParam(getWelcomeMiniAppUrl(), options?.startParam);
   const buttonStyle = getWelcomeButtonStyle();
-  const captionBothCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: true });
-  const captionIntroCustom = buildWelcomeMessageText({ introCustom: true, ctaCustom: false });
-  const captionFallbackHtml = buildWelcomeMessageText({ introCustom: false, ctaCustom: false });
-  const photo = await resolveTelegramPhotoRef(getWelcomePhotoRef());
+  const captionBothCustom = buildWelcomeMessageText({ referral: isReferral, language, introCustom: true, ctaCustom: true });
+  const captionIntroCustom = buildWelcomeMessageText({ referral: isReferral, language, introCustom: true, ctaCustom: false });
+  const captionFallbackHtml = buildWelcomeMessageText({ referral: isReferral, language, introCustom: false, ctaCustom: false });
+  const photo = await resolveTelegramPhotoRef(isReferral ? getReferralWelcomePhotoRef() : getWelcomePhotoRef());
 
   const useStartAppUrlButton = isTelegramStartAppLink(welcomeEntryUrl);
   const buildMarkup = (withStyle) => buildTelegramReplyMarkup({

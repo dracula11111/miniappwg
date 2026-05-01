@@ -26,6 +26,7 @@ const RLS_PROTECTED_TABLES = [
   "promo_codes",
   "promo_redemptions",
   "user_task_claims",
+  "referrals",
   "webhook_events",
   "tech_pause_control",
   "case_rounds_pending",
@@ -578,6 +579,19 @@ export async function initDatabase() {
       UNIQUE (telegram_id, task_key)
     );
     CREATE INDEX IF NOT EXISTS idx_user_task_claims_user ON user_task_claims(telegram_id);
+
+    CREATE TABLE IF NOT EXISTS referrals (
+      invitee_telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+      inviter_telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+      start_param TEXT,
+      created_at BIGINT NOT NULL,
+      rewarded_at BIGINT,
+      reward_currency TEXT CHECK (reward_currency IN ('ton','stars')),
+      reward_amount NUMERIC(20,8) NOT NULL DEFAULT 0,
+      CHECK (invitee_telegram_id <> inviter_telegram_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_telegram_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_referrals_rewarded ON referrals(inviter_telegram_id, rewarded_at);
 
     CREATE TABLE IF NOT EXISTS webhook_events (
       event_key TEXT PRIMARY KEY,
@@ -1683,6 +1697,286 @@ export async function getTaskProgressSignals(telegramId, options = {}) {
     gameWins,
     gameWinCompleted: gameWins > 0
   };
+}
+
+
+function mapReferralUser(row = {}, prefix = "") {
+  const keyPrefix = prefix ? `${prefix}_` : "";
+  const telegramId = String(row[`${keyPrefix}telegram_id`] || "");
+  const username = row[`${keyPrefix}username`] || null;
+  const firstName = row[`${keyPrefix}first_name`] || null;
+  const lastName = row[`${keyPrefix}last_name`] || null;
+  const displayName =
+    username ? `@${username}` :
+    [firstName, lastName].filter(Boolean).join(" ").trim() ||
+    (telegramId ? `ID ${telegramId}` : "User");
+  return { telegramId, username, firstName, lastName, displayName };
+}
+
+export async function registerReferral(input = {}) {
+  const inviteeId = BigInt(input?.inviteeId ?? input?.inviteeTelegramId);
+  const inviterId = BigInt(input?.inviterId ?? input?.inviterTelegramId);
+  if (inviteeId === inviterId) return { ok: false, registered: false, reason: "self" };
+
+  const startParam = normalizeOptionalText(input?.startParam, 128);
+  const now = Math.floor(Date.now() / 1000);
+  const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen)
+       VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO NOTHING`,
+      [inviterId, now]
+    );
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen)
+       VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         last_seen = GREATEST(COALESCE(users.last_seen, 0), EXCLUDED.last_seen)`,
+      [inviteeId, now]
+    );
+
+    const inserted = await client.query(
+      `INSERT INTO referrals (invitee_telegram_id, inviter_telegram_id, start_param, created_at)
+       SELECT $1,$2,$3,$4
+       WHERE $1 <> $2
+         AND COALESCE((SELECT created_at FROM users WHERE telegram_id = $1), $4) >= $4 - $5
+         AND NOT EXISTS (
+           SELECT 1 FROM referrals
+           WHERE invitee_telegram_id = $2 AND inviter_telegram_id = $1
+         )
+       ON CONFLICT (invitee_telegram_id) DO NOTHING
+       RETURNING invitee_telegram_id`,
+      [inviteeId, inviterId, startParam, now, maxExistingAgeSec]
+    );
+
+    await client.query("COMMIT");
+    return {
+      ok: true,
+      registered: Number(inserted?.rowCount || 0) > 0,
+      inviteeId: String(inviteeId),
+      inviterId: String(inviterId)
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getReferralSummary(telegramId, options = {}) {
+  const id = BigInt(telegramId);
+  const rawLimit = Number(options?.limit);
+  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(50, Math.trunc(rawLimit))) : 20;
+
+  const counts = await query(
+    `SELECT
+       COUNT(*)::BIGINT AS invite_count,
+       COUNT(*) FILTER (WHERE rewarded_at IS NULL)::BIGINT AS pending_reward_count,
+       COUNT(*) FILTER (WHERE rewarded_at IS NOT NULL)::BIGINT AS rewarded_count
+     FROM referrals
+     WHERE inviter_telegram_id = $1`,
+    [id]
+  );
+
+  const invitesRes = await query(
+    `SELECT
+       r.invitee_telegram_id AS invitee_telegram_id,
+       r.created_at,
+       r.rewarded_at,
+       u.username AS invitee_username,
+       u.first_name AS invitee_first_name,
+       u.last_name AS invitee_last_name
+     FROM referrals r
+     LEFT JOIN users u ON u.telegram_id = r.invitee_telegram_id
+     WHERE r.inviter_telegram_id = $1
+     ORDER BY r.created_at DESC
+     LIMIT $2`,
+    [id, limit]
+  );
+
+  const invitedByRes = await query(
+    `SELECT
+       r.inviter_telegram_id AS inviter_telegram_id,
+       r.created_at,
+       u.username AS inviter_username,
+       u.first_name AS inviter_first_name,
+       u.last_name AS inviter_last_name
+     FROM referrals r
+     LEFT JOIN users u ON u.telegram_id = r.inviter_telegram_id
+     WHERE r.invitee_telegram_id = $1
+     LIMIT 1`,
+    [id]
+  );
+
+  const countRow = counts.rows[0] || {};
+  const invitedByRow = invitedByRes.rows[0] || null;
+
+  return {
+    inviteCount: Math.max(0, Number(countRow.invite_count || 0)),
+    pendingRewardCount: Math.max(0, Number(countRow.pending_reward_count || 0)),
+    rewardedCount: Math.max(0, Number(countRow.rewarded_count || 0)),
+    invitedBy: invitedByRow
+      ? {
+          ...mapReferralUser({
+            inviter_telegram_id: invitedByRow.inviter_telegram_id,
+            inviter_username: invitedByRow.inviter_username,
+            inviter_first_name: invitedByRow.inviter_first_name,
+            inviter_last_name: invitedByRow.inviter_last_name
+          }, "inviter"),
+          createdAt: Number(invitedByRow.created_at || 0)
+        }
+      : null,
+    invites: invitesRes.rows.map((row) => ({
+      ...mapReferralUser({
+        invitee_telegram_id: row.invitee_telegram_id,
+        invitee_username: row.invitee_username,
+        invitee_first_name: row.invitee_first_name,
+        invitee_last_name: row.invitee_last_name
+      }, "invitee"),
+      createdAt: Number(row.created_at || 0),
+      rewarded: row.rewarded_at !== null && row.rewarded_at !== undefined,
+      rewardedAt: row.rewarded_at === null || row.rewarded_at === undefined ? null : Number(row.rewarded_at || 0)
+    }))
+  };
+}
+
+export async function claimReferralRewards(
+  telegramId,
+  options = {}
+) {
+  const id = BigInt(telegramId);
+  const cur = String(options?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+  const maxCountRaw = Number(options?.maxCount || 100);
+  const maxCount = Number.isFinite(maxCountRaw) ? Math.max(1, Math.min(100, Math.trunc(maxCountRaw))) : 100;
+  let amountPerInvite = Number(options?.amountPerInvite || 0);
+  if (!Number.isFinite(amountPerInvite) || amountPerInvite <= 0) throw new Error("Invalid amountPerInvite");
+  if (cur === "stars") amountPerInvite = Math.max(1, Math.round(amountPerInvite));
+  if (cur === "ton") amountPerInvite = Math.round(amountPerInvite * 100000000) / 100000000;
+
+  const now = Math.floor(Date.now() / 1000);
+  const description = normalizeOptionalText(options?.description, 256) || "One-time referral reward";
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
+      [id, now]
+    );
+    await client.query(
+      `INSERT INTO balances (telegram_id, telegram_username, ton_balance, stars_balance, updated_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),0,0,$2)
+       ON CONFLICT (telegram_id) DO UPDATE SET
+         telegram_username = COALESCE((SELECT username FROM users WHERE telegram_id = $1), balances.telegram_username)`,
+      [id, now]
+    );
+
+    const refs = await client.query(
+      `SELECT invitee_telegram_id
+       FROM referrals
+       WHERE inviter_telegram_id = $1 AND rewarded_at IS NULL
+       ORDER BY created_at ASC
+       LIMIT $2
+       FOR UPDATE`,
+      [id, maxCount]
+    );
+
+    const inviteeIds = refs.rows.map((row) => BigInt(row.invitee_telegram_id));
+    const balanceRes = await client.query(
+      `SELECT ton_balance, stars_balance FROM balances WHERE telegram_id = $1 FOR UPDATE`,
+      [id]
+    );
+    const ton = Number(balanceRes.rows[0]?.ton_balance || 0);
+    const stars = Number(balanceRes.rows[0]?.stars_balance || 0);
+
+    if (!inviteeIds.length) {
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        claimedCount: 0,
+        currency: cur,
+        added: 0,
+        newBalance: cur === "ton" ? ton : stars,
+        tonBalance: ton,
+        starsBalance: stars,
+        pendingRewardCount: 0
+      };
+    }
+
+    let delta = amountPerInvite * inviteeIds.length;
+    if (cur === "stars") delta = Math.max(1, Math.round(delta));
+    if (cur === "ton") delta = Math.round(delta * 100000000) / 100000000;
+
+    const before = cur === "ton" ? ton : stars;
+    const after = before + delta;
+    let nextTon = ton;
+    let nextStars = Math.trunc(stars);
+
+    if (cur === "ton") {
+      nextTon = after;
+      await client.query(
+        `UPDATE balances SET ton_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+        [nextTon, now, id]
+      );
+    } else {
+      nextStars = Math.trunc(after);
+      await client.query(
+        `UPDATE balances SET stars_balance = $1, updated_at = $2 WHERE telegram_id = $3`,
+        [nextStars, now, id]
+      );
+    }
+
+    await syncUserBalanceSnapshot(client, id, nextTon, nextStars);
+
+    await client.query(
+      `UPDATE referrals
+       SET rewarded_at = $3,
+           reward_currency = $4,
+           reward_amount = $5
+       WHERE inviter_telegram_id = $1
+         AND invitee_telegram_id = ANY($2::bigint[])`,
+      [id, inviteeIds.map(String), now, cur, amountPerInvite]
+    );
+
+    await client.query(
+      `INSERT INTO transactions
+       (telegram_id, telegram_username, type, currency, amount, balance_before, balance_after, description, created_at)
+       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5,$6,$7,$8)`,
+      [id, "task_reward", cur, delta, before, after, description, now]
+    );
+
+    const pendingRes = await client.query(
+      `SELECT COUNT(*)::BIGINT AS pending_count
+       FROM referrals
+       WHERE inviter_telegram_id = $1 AND rewarded_at IS NULL`,
+      [id]
+    );
+
+    await client.query("COMMIT");
+    return {
+      ok: true,
+      claimedCount: inviteeIds.length,
+      currency: cur,
+      added: delta,
+      newBalance: cur === "ton" ? nextTon : nextStars,
+      tonBalance: nextTon,
+      starsBalance: nextStars,
+      pendingRewardCount: Math.max(0, Number(pendingRes.rows[0]?.pending_count || 0))
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 
