@@ -452,8 +452,8 @@ function ensureGiftDrawer() {
         <button class="market-gift-buy" type="button">
           <span>Buy for</span>
           <span class="market-gift-buy__price">
-            <img class="market-gift-buy__icon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
             <span class="market-gift-buy__num">—</span>
+            <img class="market-gift-buy__icon" src="${escapeHtml(currencyIconPath(state.currency))}" alt="">
           </span>
         </button>
       </div>

@@ -3,12 +3,17 @@
 
   const PAGE_ID = "matchPage";
   const STORAGE_KEYS = ["wt_match_endless_v1", "wt_combo_endless_v2"];
+  const LIVES_STORAGE_KEY = "wt_match_lives_v1";
+  const PRIZE_TICKETS_STORAGE_KEY = "wt_match_prize_tickets_v1";
+  const MATCH_STATE_ENDPOINT = "/api/match/state";
   const MAIN_BG = "/images/match/backgrounds/matchMainback.webp";
   const LEVEL_BG = "/images/match/levels/lvl1back.webp";
   const MATCH_LOGO = "/images/match/MatchLogo.webp";
   const BOOM_IMAGE = "/images/match/boom.webp";
   const PLAY_BUTTON = "/images/match/PlayButton.webp";
   const CLOSE_BUTTON = "/images/match/close-icon.webp?v=2";
+  const QUIT_BUTTON = "/images/match/quit.webp";
+  const BROKEN_HEART_IMAGE = "/images/match/brokenheart.webp";
   const WILDCOIN_IMAGE = "/images/match/wildcoin.webp";
   const TICKET_IMAGE = "/images/match/ticket.webp";
   const BOMB_ITEM = Object.freeze({ id: "bomb", src: "/images/match/bomb.webp" });
@@ -38,6 +43,64 @@
   const CASCADE_DELAY_MS = 170;
   const SWAP_REVERT_DELAY_MS = 40;
   const HINT_IDLE_MS = 4200;
+  const LEVEL_MOVES = 30;
+  const MAX_LIVES = 5;
+  const LIFE_RESTORE_MS = 30 * 60 * 1000;
+  const LEVEL_TARGETS = Object.freeze([
+    { kind: "bear", count: 40 },
+    { kind: "gift", count: 32 }
+  ]);
+  const SHELF_GIFT_ROTATE_MS = 3000;
+  const LOL_POP_PNG_BASE = "https://cdn.changes.tg/gifts/models/Lol%20Pop/png/";
+  const POOL_FLOAT_PNG_BASE = "https://cdn.changes.tg/gifts/models/Pool%20Float/png/";
+  const SNOOP_DOGG_PNG_BASE = "https://cdn.changes.tg/gifts/models/Snoop%20Dogg/png/";
+  const JOLLY_CHIMP_PNG_BASE = "https://cdn.changes.tg/gifts/models/Jolly%20Chimp/png/";
+  const LOL_POP_SKINS = Object.freeze([
+    "Original",
+    "Bubblegum",
+    "Cherry Berry",
+    "Choco Pop",
+    "Cotton Candy",
+    "Rainbow Dash",
+    "Watermelon",
+    "Sweetheart"
+  ]);
+  const POOL_FLOAT_SKINS = Object.freeze([
+    "Air Bunny",
+    "Alpaca",
+    "Anubis",
+    "Bald Eagle",
+    "Balloon Dog",
+    "Baywatch",
+    "Cash Flow",
+    "Crypto Whale"
+  ]);
+  const SNOOP_DOGG_SKINS = Object.freeze([
+    "Afro Disco",
+    "AI Dogg",
+    "Backspin",
+    "Barks A Locks",
+    "Barks Lightyear",
+    "Beanie",
+    "Black Diamond",
+    "Black Gold"
+  ]);
+  const JOLLY_CHIMP_SKINS = Object.freeze([
+    "Abubu",
+    "Alarm Ape",
+    "Ape Puppet",
+    "Artist",
+    "Baby Kong",
+    "Bananas",
+    "Bank Robber",
+    "Bellboy"
+  ]);
+  const SHELF_PRIZE_DEFS = Object.freeze([
+    { id: "lol-pop", price: 100 },
+    { id: "pool-float", price: 100 },
+    { id: "snoop-dogg", price: 150 },
+    { id: "jolly-chimp", price: 200 }
+  ]);
 
   const state = {
     page: null,
@@ -47,18 +110,61 @@
     playText: null,
     playImages: [],
     playTexts: [],
+    shelfGiftA: null,
+    shelfGiftB: null,
+    shelfGiftIndex: 0,
+    shelfGiftTimer: 0,
+    shelfGiftFront: 0,
+    poolFloatGiftA: null,
+    poolFloatGiftB: null,
+    poolFloatGiftIndex: 0,
+    poolFloatGiftTimer: 0,
+    poolFloatGiftFront: 0,
+    snoopDoggGiftA: null,
+    snoopDoggGiftB: null,
+    snoopDoggGiftIndex: 0,
+    snoopDoggGiftTimer: 0,
+    snoopDoggGiftFront: 0,
+    jollyChimpGiftA: null,
+    jollyChimpGiftB: null,
+    jollyChimpGiftIndex: 0,
+    jollyChimpGiftTimer: 0,
+    jollyChimpGiftFront: 0,
     levelPanel: null,
     economyPanel: null,
+    livesPanel: null,
+    prizePanel: null,
     levelTitle: null,
+    livesTitle: null,
+    livesHint: null,
     goalTitle: null,
     economyHint: null,
+    prizeTitle: null,
+    prizePrice: null,
+    prizeHint: null,
+    prizeBuy: null,
+    selectedPrizeId: "",
+    prizeTickets: {},
+    matchStateSaveTimer: 0,
+    matchStateLoaded: false,
+    quitPanel: null,
+    quitTitle: null,
+    quitWarning: null,
+    quitConfirm: null,
+    hudMovesValue: null,
+    hudTargets: null,
     boardEl: null,
     particlesEl: null,
     board: [],
+    movesLeft: LEVEL_MOVES,
+    targets: [],
     selected: null,
     busy: false,
     pointer: null,
     wildCoin: 0,
+    lives: MAX_LIVES,
+    nextLifeAt: 0,
+    livesTimer: 0,
     hintTimer: 0,
     hintPair: null,
     defaultLogoSrc: ""
@@ -98,6 +204,54 @@
       : "You can exchange WildCoin for tickets to join NFT gift giveaways.";
   }
 
+  function getPrizeTitleText() {
+    return resolveUiLanguage() === "ru" ? "\u0411\u0438\u043b\u0435\u0442" : "Ticket";
+  }
+
+  function getPrizeHintText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u041a\u0443\u043f\u0438 \u0431\u0438\u043b\u0435\u0442, \u0447\u0442\u043e\u0431\u044b \u0443\u0447\u0430\u0441\u0442\u0432\u043e\u0432\u0430\u0442\u044c \u0432 \u0440\u043e\u0437\u044b\u0433\u0440\u044b\u0448\u0435 NFT-\u043f\u043e\u0434\u0430\u0440\u043a\u0430 \u0441 \u044d\u0442\u043e\u0439 \u043f\u043e\u043b\u043a\u0438."
+      : "Buy one ticket to participate in the giveaway for the NFT gift on this shelf.";
+  }
+
+  function getPrizeBuyText() {
+    return resolveUiLanguage() === "ru" ? "\u041a\u0423\u041f\u0418\u0422\u042c" : "BUY";
+  }
+
+  function getParticipatingText() {
+    return "Participating";
+  }
+
+  function getNotEnoughWildCoinText() {
+    return resolveUiLanguage() === "ru" ? "\u041d\u0435 \u0445\u0432\u0430\u0442\u0430\u0435\u0442 WildCoin" : "Not enough WildCoin";
+  }
+
+  function getLivesTitleText() {
+    return resolveUiLanguage() === "ru" ? "\u0416\u0438\u0437\u043d\u0438" : "Lives";
+  }
+
+  function getLivesHintText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0416\u0438\u0437\u043d\u0438 \u043d\u0443\u0436\u043d\u044b, \u0447\u0442\u043e\u0431\u044b \u0438\u0433\u0440\u0430\u0442\u044c \u0443\u0440\u043e\u0432\u043d\u0438. \u0412\u044b\u0445\u043e\u0434 \u0438\u0437 \u0443\u0440\u043e\u0432\u043d\u044f \u0438\u043b\u0438 \u043f\u0440\u043e\u0438\u0433\u0440\u044b\u0448 \u0441\u043d\u0438\u043c\u0430\u0435\u0442 \u043e\u0434\u043d\u0443 \u0436\u0438\u0437\u043d\u044c. \u041e\u0434\u043d\u0430 \u0436\u0438\u0437\u043d\u044c \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u0435\u0442\u0441\u044f \u043a\u0430\u0436\u0434\u044b\u0435 30 \u043c\u0438\u043d\u0443\u0442."
+      : "Lives let you play levels. Quitting a level or losing costs one life. One life restores every 30 minutes.";
+  }
+
+  function getLivesFullText() {
+    return resolveUiLanguage() === "ru" ? "\u041c\u0410\u041a\u0421" : "FULL";
+  }
+
+  function getQuitTitleText() {
+    return resolveUiLanguage() === "ru" ? "\u0412\u044b\u0439\u0442\u0438 \u0438\u0437 \u0443\u0440\u043e\u0432\u043d\u044f?" : "Quit Level?";
+  }
+
+  function getQuitWarningText() {
+    return resolveUiLanguage() === "ru" ? "\u0422\u044b \u043f\u043e\u0442\u0435\u0440\u044f\u0435\u0448\u044c \u0436\u0438\u0437\u043d\u044c!" : "You will lose a life!";
+  }
+
+  function getQuitButtonText() {
+    return resolveUiLanguage() === "ru" ? "\u0412\u042b\u0419\u0422\u0418" : "QUIT";
+  }
+
   function parseWildCoin(raw) {
     const value = Math.max(0, Math.round(Number(raw) || 0));
     return Number.isFinite(value) ? value : 0;
@@ -126,6 +280,167 @@
     } catch {}
   }
 
+  function writeWildCoin(value) {
+    const nextValue = parseWildCoin(value);
+    let wrote = false;
+    STORAGE_KEYS.forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        localStorage.setItem(key, JSON.stringify({ ...(parsed || {}), wildCoin: nextValue }));
+        wrote = true;
+      } catch {}
+    });
+    if (!wrote) {
+      try {
+        localStorage.setItem(STORAGE_KEYS[0], JSON.stringify({ wildCoin: nextValue }));
+      } catch {}
+    }
+    emitWildCoin(nextValue);
+    scheduleMatchStateSave();
+    return nextValue;
+  }
+
+  function getPrizeDef(prizeId) {
+    return SHELF_PRIZE_DEFS.find((item) => item.id === prizeId) || null;
+  }
+
+  function readPrizeTickets() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(PRIZE_TICKETS_STORAGE_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writePrizeTickets() {
+    try {
+      localStorage.setItem(PRIZE_TICKETS_STORAGE_KEY, JSON.stringify(state.prizeTickets || {}));
+    } catch {}
+    scheduleMatchStateSave();
+  }
+
+  function hasPrizeTicket(prizeId) {
+    return getPrizeTicketCount(prizeId) > 0;
+  }
+
+  function getPrizeTicketCount(prizeId) {
+    const raw = state.prizeTickets?.[prizeId];
+    if (raw === true) return 1;
+    const count = Math.max(0, Math.round(Number(raw) || 0));
+    return Number.isFinite(count) ? count : 0;
+  }
+
+  function getTelegramInitData() {
+    try {
+      return String(window.Telegram?.WebApp?.initData || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function getTelegramUserId() {
+    try {
+      const id = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+      return id === undefined || id === null ? "" : String(id).trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function getMatchStateSnapshot() {
+    return {
+      wildCoin: readWildCoin(),
+      tickets: {
+        "lol-pop": getPrizeTicketCount("lol-pop"),
+        "pool-float": getPrizeTicketCount("pool-float"),
+        "snoop-dogg": getPrizeTicketCount("snoop-dogg"),
+        "jolly-chimp": getPrizeTicketCount("jolly-chimp")
+      }
+    };
+  }
+
+  function applyMatchStateSnapshot(snapshot = {}) {
+    const tickets = snapshot?.tickets || {};
+    const nextTickets = {
+      ...(state.prizeTickets || {}),
+      "lol-pop": Math.max(getPrizeTicketCount("lol-pop"), getPrizeTicketCountFromValue(tickets["lol-pop"])),
+      "pool-float": Math.max(getPrizeTicketCount("pool-float"), getPrizeTicketCountFromValue(tickets["pool-float"])),
+      "snoop-dogg": Math.max(getPrizeTicketCount("snoop-dogg"), getPrizeTicketCountFromValue(tickets["snoop-dogg"])),
+      "jolly-chimp": Math.max(getPrizeTicketCount("jolly-chimp"), getPrizeTicketCountFromValue(tickets["jolly-chimp"]))
+    };
+
+    state.prizeTickets = nextTickets;
+    try {
+      localStorage.setItem(PRIZE_TICKETS_STORAGE_KEY, JSON.stringify(nextTickets));
+    } catch {}
+
+    const wildCoin = Math.max(readWildCoin(), parseWildCoin(snapshot?.wildCoin ?? snapshot?.wildcoin ?? snapshot?.wildcoinBalance));
+    const nextValue = writeWildCoin(wildCoin);
+    emitWildCoin(nextValue);
+    syncPrizeTickets();
+  }
+
+  function getPrizeTicketCountFromValue(value) {
+    if (value === true) return 1;
+    const count = Math.max(0, Math.round(Number(value) || 0));
+    return Number.isFinite(count) ? count : 0;
+  }
+
+  async function loadMatchStateFromServer() {
+    const initData = getTelegramInitData();
+    const userId = getTelegramUserId();
+    if (!initData || !userId) return;
+
+    try {
+      const response = await fetch(`${MATCH_STATE_ENDPOINT}?userId=${encodeURIComponent(userId)}`, {
+        cache: "no-store",
+        headers: { "x-telegram-init-data": initData }
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) return;
+      applyMatchStateSnapshot(payload.state || {});
+      state.matchStateLoaded = true;
+    } catch (error) {
+      console.warn("[Match] Failed to load state:", error?.message || error);
+    }
+  }
+
+  function scheduleMatchStateSave() {
+    const initData = getTelegramInitData();
+    const userId = getTelegramUserId();
+    if (!initData || !userId) return;
+    if (state.matchStateSaveTimer) clearTimeout(state.matchStateSaveTimer);
+    state.matchStateSaveTimer = window.setTimeout(() => {
+      state.matchStateSaveTimer = 0;
+      saveMatchStateToServer();
+    }, 220);
+  }
+
+  async function saveMatchStateToServer() {
+    const initData = getTelegramInitData();
+    const userId = getTelegramUserId();
+    if (!initData || !userId) return;
+
+    try {
+      await fetch(MATCH_STATE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-telegram-init-data": initData
+        },
+        body: JSON.stringify({
+          userId,
+          ...getMatchStateSnapshot()
+        })
+      });
+    } catch (error) {
+      console.warn("[Match] Failed to save state:", error?.message || error);
+    }
+  }
+
   function ensurePage() {
     let page = document.getElementById(PAGE_ID);
     if (!page) {
@@ -142,6 +457,54 @@
       page.innerHTML = `
         <section class="match-screen" aria-label="Match">
           <section class="match-home" data-match-home>
+            <div class="match-home__shelf-gift" aria-label="Lol Pop gift preview">
+              <img class="match-home__shelf-gift-img is-active" data-match-shelf-gift-a alt="" aria-hidden="true" draggable="false" />
+              <img class="match-home__shelf-gift-img" data-match-shelf-gift-b alt="" aria-hidden="true" draggable="false" />
+              <button class="match-home__shelf-price" type="button" data-match-prize-price="lol-pop" aria-label="Lol Pop ticket">
+                <span data-match-prize-price-text>100</span>
+                <img src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+              </button>
+              <span class="match-home__shelf-ticket" data-match-prize-ticket="lol-pop" aria-hidden="true" hidden>
+                <img src="${TICKET_IMAGE}" alt="" draggable="false" />
+                <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+            </div>
+            <div class="match-home__shelf-gift match-home__shelf-gift--pool-float" aria-label="Pool Float gift preview">
+              <img class="match-home__shelf-gift-img is-active" data-match-pool-float-gift-a alt="" aria-hidden="true" draggable="false" />
+              <img class="match-home__shelf-gift-img" data-match-pool-float-gift-b alt="" aria-hidden="true" draggable="false" />
+              <button class="match-home__shelf-price" type="button" data-match-prize-price="pool-float" aria-label="Pool Float ticket">
+                <span data-match-prize-price-text>100</span>
+                <img src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+              </button>
+              <span class="match-home__shelf-ticket" data-match-prize-ticket="pool-float" aria-hidden="true" hidden>
+                <img src="${TICKET_IMAGE}" alt="" draggable="false" />
+                <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+            </div>
+            <div class="match-home__shelf-gift match-home__shelf-gift--snoop-dogg" aria-label="Snoop Dogg gift preview">
+              <img class="match-home__shelf-gift-img is-active" data-match-snoop-dogg-gift-a alt="" aria-hidden="true" draggable="false" />
+              <img class="match-home__shelf-gift-img" data-match-snoop-dogg-gift-b alt="" aria-hidden="true" draggable="false" />
+              <button class="match-home__shelf-price" type="button" data-match-prize-price="snoop-dogg" aria-label="Snoop Dogg ticket">
+                <span data-match-prize-price-text>150</span>
+                <img src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+              </button>
+              <span class="match-home__shelf-ticket" data-match-prize-ticket="snoop-dogg" aria-hidden="true" hidden>
+                <img src="${TICKET_IMAGE}" alt="" draggable="false" />
+                <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+            </div>
+            <div class="match-home__shelf-gift match-home__shelf-gift--jolly-chimp" aria-label="Jolly Chimp gift preview">
+              <img class="match-home__shelf-gift-img is-active" data-match-jolly-chimp-gift-a alt="" aria-hidden="true" draggable="false" />
+              <img class="match-home__shelf-gift-img" data-match-jolly-chimp-gift-b alt="" aria-hidden="true" draggable="false" />
+              <button class="match-home__shelf-price" type="button" data-match-prize-price="jolly-chimp" aria-label="Jolly Chimp ticket">
+                <span data-match-prize-price-text>200</span>
+                <img src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+              </button>
+              <span class="match-home__shelf-ticket" data-match-prize-ticket="jolly-chimp" aria-hidden="true" hidden>
+                <img src="${TICKET_IMAGE}" alt="" draggable="false" />
+                <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+            </div>
             <button class="match-home__play" type="button" data-match-open-level aria-label="Play">
               <img data-match-play-image src="${PLAY_BUTTON}" alt="" aria-hidden="true" draggable="false" />
               <span class="match-home__play-text" data-match-play-text>Play</span>
@@ -169,6 +532,7 @@
                 <button class="match-level-card__close" type="button" data-match-economy-close aria-label="Close">
                   <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
                 </button>
+                <h2 class="match-economy-card__title">WildCoin</h2>
                 <div class="match-economy-card__content">
                   <div class="match-economy-card__item">
                     <img src="${WILDCOIN_IMAGE}" alt="" aria-hidden="true" draggable="false" />
@@ -181,17 +545,75 @@
                 <p class="match-economy-card__hint" data-match-economy-hint>${getEconomyHintText()}</p>
               </div>
             </section>
+            <section class="match-level-panel match-lives-panel" data-match-lives-panel hidden aria-label="Lives">
+              <div class="match-level-card match-economy-card match-lives-card">
+                <button class="match-level-card__close" type="button" data-match-lives-close aria-label="Close">
+                  <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <h2 class="match-lives-card__title" data-match-lives-title>${getLivesTitleText()}</h2>
+                <div class="match-lives-card__icon">
+                  <img src="/images/match/heart.webp" alt="" aria-hidden="true" draggable="false" />
+                </div>
+                <p class="match-economy-card__hint match-lives-card__hint" data-match-lives-hint>${getLivesHintText()}</p>
+              </div>
+            </section>
+            <section class="match-level-panel match-prize-panel" data-match-prize-panel hidden aria-label="Ticket purchase">
+              <div class="match-level-card match-economy-card match-prize-card">
+                <button class="match-level-card__close" type="button" data-match-prize-close aria-label="Close">
+                  <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <h2 class="match-economy-card__title" data-match-prize-title>${getPrizeTitleText()}</h2>
+                <div class="match-prize-card__ticket">
+                  <img src="${TICKET_IMAGE}" alt="" aria-hidden="true" draggable="false" />
+                </div>
+                <div class="match-prize-card__price" aria-hidden="true">
+                  <span data-match-prize-panel-price>100</span>
+                  <img src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+                </div>
+                <p class="match-economy-card__hint match-prize-card__hint" data-match-prize-hint>${getPrizeHintText()}</p>
+                <button class="match-prize-card__buy" type="button" data-match-prize-buy>${getPrizeBuyText()}</button>
+              </div>
+            </section>
           </section>
           <section class="match-game" data-match-game hidden aria-label="Match Level 1">
-            <button class="match-game__close" type="button" data-match-close aria-label="Close Match">
-              <img src="/icons/ui/close.svg" alt="" aria-hidden="true" draggable="false" />
-            </button>
+            <div class="match-game__hud" aria-label="Level status">
+              <section class="match-game__hud-panel match-game__hud-panel--moves" aria-label="Moves">
+                <div class="match-game__hud-title">Moves</div>
+                <div class="match-game__hud-body match-game__hud-body--moves">
+                  <span class="match-game__moves-value" data-match-moves>30</span>
+                </div>
+              </section>
+              <section class="match-game__hud-panel match-game__hud-panel--target" aria-label="Target">
+                <div class="match-game__hud-title">Target</div>
+                <div class="match-game__hud-body match-game__hud-body--target" data-match-targets></div>
+              </section>
+            </div>
             <div class="match-game__center">
-              <div class="match-game__board-wrap">
-                <div class="match-game__board" data-match-board role="grid" aria-label="Match board"></div>
-                <div class="match-game__particles" data-match-particles aria-hidden="true"></div>
+              <div class="match-game__play-area">
+                <div class="match-game__board-wrap">
+                  <div class="match-game__board" data-match-board role="grid" aria-label="Match board"></div>
+                  <div class="match-game__particles" data-match-particles aria-hidden="true"></div>
+                </div>
+                <button class="match-game__close" type="button" data-match-close aria-label="Quit Match">
+                  <img src="${QUIT_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
               </div>
             </div>
+            <section class="match-level-panel match-quit-panel" data-match-quit-panel hidden aria-label="Quit level">
+              <div class="match-level-card match-quit-card">
+                <button class="match-level-card__close" type="button" data-match-quit-close aria-label="Close">
+                  <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <h2 class="match-level-card__title match-quit-card__title" data-match-quit-title>${getQuitTitleText()}</h2>
+                <div class="match-quit-card__body">
+                  <img class="match-quit-card__heart" src="${BROKEN_HEART_IMAGE}" alt="" aria-hidden="true" draggable="false" />
+                  <p class="match-quit-card__warning" data-match-quit-warning>${getQuitWarningText()}</p>
+                  <button class="match-quit-card__confirm" type="button" data-match-quit-confirm aria-label="Quit Level">
+                    ${getQuitButtonText()}
+                  </button>
+                </div>
+              </div>
+            </section>
           </section>
         </section>
       `;
@@ -208,6 +630,8 @@
       BOOM_IMAGE,
       PLAY_BUTTON,
       CLOSE_BUTTON,
+      QUIT_BUTTON,
+      BROKEN_HEART_IMAGE,
       WILDCOIN_IMAGE,
       TICKET_IMAGE,
       BOMB_ITEM.src,
@@ -240,6 +664,13 @@
 
   function createCell(kind = randomItemId()) {
     return { kind };
+  }
+
+  function createLevelTargets() {
+    return LEVEL_TARGETS.map((target) => ({
+      kind: target.kind,
+      remaining: Math.max(0, Math.round(Number(target.count) || 0))
+    }));
   }
 
   function isBombKind(kind) {
@@ -542,6 +973,49 @@
     }
 
     state.boardEl.innerHTML = out.join("");
+  }
+
+  function renderHud() {
+    if (state.hudMovesValue) {
+      state.hudMovesValue.textContent = String(Math.max(0, state.movesLeft));
+    }
+    if (!state.hudTargets) return;
+
+    state.hudTargets.innerHTML = state.targets
+      .map((target) => {
+        const item = ITEM_BY_ID[target.kind] || ITEM_DEFS[0];
+        const remaining = Math.max(0, Math.round(Number(target.remaining) || 0));
+        return `
+          <div class="match-game__target-item">
+            <img class="match-game__target-icon" src="${item.src}" alt="" aria-hidden="true" draggable="false" />
+            <span class="match-game__target-count">${remaining}</span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  function resetLevelHud() {
+    state.movesLeft = LEVEL_MOVES;
+    state.targets = createLevelTargets();
+    renderHud();
+  }
+
+  function countMove() {
+    state.movesLeft = Math.max(0, state.movesLeft - 1);
+    renderHud();
+  }
+
+  function applyTargetClears(cells) {
+    if (!Array.isArray(cells) || !cells.length || !state.targets.length) return;
+    let changed = false;
+    cells.forEach((cell) => {
+      const target = state.targets.find((item) => item.kind === cell?.kind && item.remaining > 0);
+      if (!target) return;
+      target.remaining = Math.max(0, target.remaining - 1);
+      changed = true;
+    });
+    if (changed) renderHud();
   }
 
   function explodeBombArea(seed, clearSet, processedBombs) {
@@ -1015,6 +1489,7 @@
       if (detonations.length) {
         spawnBombBurstFragments(detonations);
       }
+      applyTargetClears(cellsToClear);
       await wait(CLEAR_ANIMATION_MS);
 
       cellsToClear.forEach((cell) => {
@@ -1057,6 +1532,7 @@
     if (isBombKind(state.board[b.row]?.[b.col]?.kind)) seedBombs.push({ row: b.row, col: b.col });
 
     const resolved = await resolveBoard({ bombSeeds: seedBombs, swapPair: { a, b } });
+    if (resolved) countMove();
     if (!resolved) {
       await wait(SWAP_REVERT_DELAY_MS);
       await animateSwapTiles(a, b);
@@ -1079,6 +1555,7 @@
     renderBoard();
     await wait(30);
     await resolveBoard({ bombSeeds: [{ row, col }] });
+    countMove();
     state.busy = false;
     scheduleHint();
   }
@@ -1170,9 +1647,18 @@
   }
 
   function startGame() {
+    refreshLives();
+    if (state.lives <= 0) {
+      showLivesPanel();
+      return;
+    }
+
     state.home.hidden = true;
     state.game.hidden = false;
     if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.quitPanel) state.quitPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
     document.body?.classList?.add("match-game-open");
     syncMatchLogo(PAGE_ID, true);
@@ -1184,6 +1670,7 @@
     state.hintPair = null;
     state.board = createInitialBoard();
     state.particlesEl.innerHTML = "";
+    resetLevelHud();
     renderBoard();
     scheduleHint();
   }
@@ -1194,6 +1681,9 @@
     state.game.hidden = true;
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.economyPanel) state.economyPanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
+    if (state.quitPanel) state.quitPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
     document.body?.classList?.remove("match-game-open");
     syncMatchLogo(PAGE_ID, false);
@@ -1209,6 +1699,8 @@
       return;
     }
     if (state.economyPanel) state.economyPanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
     state.levelPanel.hidden = false;
     document.body?.classList?.add("match-level-open");
     syncLanguage();
@@ -1217,12 +1709,16 @@
   function hideLevelPanel() {
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.economyPanel) state.economyPanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
   }
 
   function showEconomyPanel() {
     if (!state.economyPanel) return;
     if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
     state.economyPanel.hidden = false;
     document.body?.classList?.add("match-level-open");
   }
@@ -1230,6 +1726,437 @@
   function hideEconomyPanel() {
     if (state.economyPanel) state.economyPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
+  }
+
+  function showLivesPanel() {
+    if (!state.livesPanel) return;
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    if (state.prizePanel) state.prizePanel.hidden = true;
+    state.livesPanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+    syncLanguage();
+    refreshLives();
+  }
+
+  function hideLivesPanel() {
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
+  }
+
+  function syncPrizeTickets() {
+    state.page?.querySelectorAll?.("[data-match-prize-price]")?.forEach((button) => {
+      const prizeId = button.getAttribute("data-match-prize-price") || "";
+      const def = getPrizeDef(prizeId);
+      const label = button.querySelector("[data-match-prize-price-text]");
+      const isParticipating = hasPrizeTicket(prizeId);
+      button.classList.toggle("is-participating", isParticipating);
+      button.disabled = isParticipating;
+      button.setAttribute("aria-label", isParticipating ? getParticipatingText() : `${def?.price || 0} WildCoin`);
+      if (label) label.textContent = isParticipating ? getParticipatingText() : String(def?.price || 0);
+      const icon = button.querySelector("img");
+      if (icon) icon.hidden = isParticipating;
+    });
+    state.page?.querySelectorAll?.("[data-match-prize-ticket]")?.forEach((ticket) => {
+      const prizeId = ticket.getAttribute("data-match-prize-ticket") || "";
+      const count = getPrizeTicketCount(prizeId);
+      ticket.hidden = count <= 0;
+      const countNode = ticket.querySelector?.("[data-match-prize-ticket-count]");
+      if (countNode) countNode.textContent = String(Math.max(1, count));
+    });
+  }
+
+  function showPrizePanel(prizeId) {
+    const def = getPrizeDef(prizeId);
+    if (!state.prizePanel || !def || hasPrizeTicket(prizeId)) return;
+    state.selectedPrizeId = prizeId;
+    if (state.levelPanel) state.levelPanel.hidden = true;
+    if (state.economyPanel) state.economyPanel.hidden = true;
+    if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.prizeTitle) state.prizeTitle.textContent = getPrizeTitleText();
+    if (state.prizeHint) state.prizeHint.textContent = getPrizeHintText();
+    if (state.prizePrice) state.prizePrice.textContent = String(def.price);
+    if (state.prizeBuy) {
+      const canBuy = readWildCoin() >= def.price;
+      state.prizeBuy.textContent = canBuy ? getPrizeBuyText() : getNotEnoughWildCoinText();
+      state.prizeBuy.disabled = !canBuy;
+    }
+    state.prizePanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+  }
+
+  function hidePrizePanel() {
+    if (state.prizePanel) state.prizePanel.hidden = true;
+    state.selectedPrizeId = "";
+    document.body?.classList?.remove("match-level-open");
+  }
+
+  function animatePrizeTicket(prizeId) {
+    const source = state.prizePanel?.querySelector?.(".match-prize-card__ticket img");
+    const target = state.page?.querySelector?.(`[data-match-prize-ticket="${prizeId}"]`);
+    if (!source || !target) return;
+
+    const sourceRect = source.getBoundingClientRect();
+    const shelfRect = target.parentElement?.getBoundingClientRect?.();
+    if (!sourceRect.width || !shelfRect?.width) return;
+
+    const flyer = document.createElement("img");
+    flyer.className = "match-home__ticket-flyer";
+    flyer.src = TICKET_IMAGE;
+    flyer.alt = "";
+    flyer.setAttribute("aria-hidden", "true");
+    flyer.style.left = `${sourceRect.left + sourceRect.width / 2}px`;
+    flyer.style.top = `${sourceRect.top + sourceRect.height / 2}px`;
+    target.hidden = true;
+    document.body.appendChild(flyer);
+
+    const targetX = shelfRect.right - Math.min(12, shelfRect.width * 0.08);
+    const targetY = shelfRect.top + shelfRect.height * 0.34;
+    const dx = targetX - (sourceRect.left + sourceRect.width / 2);
+    const dy = targetY - (sourceRect.top + sourceRect.height / 2);
+    requestAnimationFrame(() => {
+      flyer.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(0.48) rotate(10deg)`;
+      flyer.style.opacity = "0.96";
+    });
+    window.setTimeout(() => {
+      flyer.remove();
+      if (target) target.hidden = false;
+    }, 820);
+  }
+
+  function buySelectedPrizeTicket() {
+    const prizeId = state.selectedPrizeId;
+    const def = getPrizeDef(prizeId);
+    if (!def || hasPrizeTicket(prizeId)) return;
+    const balance = readWildCoin();
+    if (balance < def.price) {
+      if (state.prizeBuy) {
+        state.prizeBuy.textContent = getNotEnoughWildCoinText();
+        state.prizeBuy.disabled = true;
+      }
+      return;
+    }
+    writeWildCoin(balance - def.price);
+    const currentCount = getPrizeTicketCount(prizeId);
+    state.prizeTickets = { ...(state.prizeTickets || {}), [prizeId]: currentCount + 1 };
+    writePrizeTickets();
+    syncPrizeTickets();
+    animatePrizeTicket(prizeId);
+    hidePrizePanel();
+  }
+
+  function showQuitPanel() {
+    if (!state.quitPanel) {
+      closeGame();
+      return;
+    }
+    state.quitPanel.hidden = false;
+    syncLanguage();
+  }
+
+  function hideQuitPanel() {
+    if (state.quitPanel) state.quitPanel.hidden = true;
+  }
+
+  function handleMatchBackAction(event = null) {
+    const openHomePanel = [state.levelPanel, state.economyPanel, state.livesPanel, state.prizePanel]
+      .find((panel) => panel && !panel.hidden);
+    if (state.game?.hidden && !openHomePanel) return false;
+
+    event?.preventDefault?.();
+    event?.stopImmediatePropagation?.();
+    event?.stopPropagation?.();
+
+    if (openHomePanel) {
+      hideLevelPanel();
+      hideEconomyPanel();
+      hideLivesPanel();
+      hidePrizePanel();
+    } else if (state.quitPanel && !state.quitPanel.hidden) {
+      hideQuitPanel();
+    } else {
+      showQuitPanel();
+    }
+    return true;
+  }
+
+  function restoreMatchHistoryState() {
+    if (!window.history || typeof window.history.pushState !== "function") return;
+    const baseState = (window.history.state && typeof window.history.state === "object")
+      ? window.history.state
+      : {};
+    try {
+      window.history.pushState({ ...baseState, __wtPage: PAGE_ID }, "", window.location.href);
+    } catch {}
+  }
+
+  function lolPopSkinUrl(name) {
+    return `${LOL_POP_PNG_BASE}${encodeURIComponent(String(name || ""))}.png`;
+  }
+
+  function poolFloatSkinUrl(name) {
+    return `${POOL_FLOAT_PNG_BASE}${encodeURIComponent(String(name || ""))}.png`;
+  }
+
+  function snoopDoggSkinUrl(name) {
+    return `${SNOOP_DOGG_PNG_BASE}${encodeURIComponent(String(name || ""))}.png`;
+  }
+
+  function jollyChimpSkinUrl(name) {
+    return `${JOLLY_CHIMP_PNG_BASE}${encodeURIComponent(String(name || ""))}.png`;
+  }
+
+  function preloadShelfGifts() {
+    LOL_POP_SKINS.forEach((name) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = lolPopSkinUrl(name);
+    });
+    POOL_FLOAT_SKINS.forEach((name) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = poolFloatSkinUrl(name);
+    });
+    SNOOP_DOGG_SKINS.forEach((name) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = snoopDoggSkinUrl(name);
+    });
+    JOLLY_CHIMP_SKINS.forEach((name) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = jollyChimpSkinUrl(name);
+    });
+  }
+
+  function renderShelfGift(nextIndex = 0) {
+    if (!state.shelfGiftA || !state.shelfGiftB || !LOL_POP_SKINS.length) return;
+
+    const safeIndex = ((nextIndex % LOL_POP_SKINS.length) + LOL_POP_SKINS.length) % LOL_POP_SKINS.length;
+    const target = state.shelfGiftFront === 0 ? state.shelfGiftB : state.shelfGiftA;
+    const current = state.shelfGiftFront === 0 ? state.shelfGiftA : state.shelfGiftB;
+    const skin = LOL_POP_SKINS[safeIndex];
+    const src = lolPopSkinUrl(skin);
+
+    target.src = src;
+    target.alt = skin;
+    requestAnimationFrame(() => {
+      target.classList.add("is-active");
+      current.classList.remove("is-active");
+      state.shelfGiftFront = state.shelfGiftFront === 0 ? 1 : 0;
+      state.shelfGiftIndex = safeIndex;
+    });
+  }
+
+  function startShelfGiftRotation() {
+    if (state.shelfGiftTimer || !LOL_POP_SKINS.length) return;
+    if (state.shelfGiftA) {
+      state.shelfGiftA.src = lolPopSkinUrl(LOL_POP_SKINS[0]);
+      state.shelfGiftA.alt = LOL_POP_SKINS[0];
+      state.shelfGiftA.classList.add("is-active");
+      state.shelfGiftFront = 0;
+      state.shelfGiftIndex = 0;
+    }
+    state.shelfGiftTimer = window.setInterval(() => {
+      renderShelfGift(state.shelfGiftIndex + 1);
+    }, SHELF_GIFT_ROTATE_MS);
+  }
+
+  function renderPoolFloatGift(nextIndex = 0) {
+    if (!state.poolFloatGiftA || !state.poolFloatGiftB || !POOL_FLOAT_SKINS.length) return;
+
+    const safeIndex = ((nextIndex % POOL_FLOAT_SKINS.length) + POOL_FLOAT_SKINS.length) % POOL_FLOAT_SKINS.length;
+    const target = state.poolFloatGiftFront === 0 ? state.poolFloatGiftB : state.poolFloatGiftA;
+    const current = state.poolFloatGiftFront === 0 ? state.poolFloatGiftA : state.poolFloatGiftB;
+    const skin = POOL_FLOAT_SKINS[safeIndex];
+    const src = poolFloatSkinUrl(skin);
+
+    target.src = src;
+    target.alt = skin;
+    requestAnimationFrame(() => {
+      target.classList.add("is-active");
+      current.classList.remove("is-active");
+      state.poolFloatGiftFront = state.poolFloatGiftFront === 0 ? 1 : 0;
+      state.poolFloatGiftIndex = safeIndex;
+    });
+  }
+
+  function startPoolFloatGiftRotation() {
+    if (state.poolFloatGiftTimer || !POOL_FLOAT_SKINS.length) return;
+    if (state.poolFloatGiftA) {
+      state.poolFloatGiftA.src = poolFloatSkinUrl(POOL_FLOAT_SKINS[0]);
+      state.poolFloatGiftA.alt = POOL_FLOAT_SKINS[0];
+      state.poolFloatGiftA.classList.add("is-active");
+      state.poolFloatGiftFront = 0;
+      state.poolFloatGiftIndex = 0;
+    }
+    state.poolFloatGiftTimer = window.setInterval(() => {
+      renderPoolFloatGift(state.poolFloatGiftIndex + 1);
+    }, SHELF_GIFT_ROTATE_MS);
+  }
+
+  function renderSnoopDoggGift(nextIndex = 0) {
+    if (!state.snoopDoggGiftA || !state.snoopDoggGiftB || !SNOOP_DOGG_SKINS.length) return;
+
+    const safeIndex = ((nextIndex % SNOOP_DOGG_SKINS.length) + SNOOP_DOGG_SKINS.length) % SNOOP_DOGG_SKINS.length;
+    const target = state.snoopDoggGiftFront === 0 ? state.snoopDoggGiftB : state.snoopDoggGiftA;
+    const current = state.snoopDoggGiftFront === 0 ? state.snoopDoggGiftA : state.snoopDoggGiftB;
+    const skin = SNOOP_DOGG_SKINS[safeIndex];
+    const src = snoopDoggSkinUrl(skin);
+
+    target.src = src;
+    target.alt = skin;
+    requestAnimationFrame(() => {
+      target.classList.add("is-active");
+      current.classList.remove("is-active");
+      state.snoopDoggGiftFront = state.snoopDoggGiftFront === 0 ? 1 : 0;
+      state.snoopDoggGiftIndex = safeIndex;
+    });
+  }
+
+  function startSnoopDoggGiftRotation() {
+    if (state.snoopDoggGiftTimer || !SNOOP_DOGG_SKINS.length) return;
+    if (state.snoopDoggGiftA) {
+      state.snoopDoggGiftA.src = snoopDoggSkinUrl(SNOOP_DOGG_SKINS[0]);
+      state.snoopDoggGiftA.alt = SNOOP_DOGG_SKINS[0];
+      state.snoopDoggGiftA.classList.add("is-active");
+      state.snoopDoggGiftFront = 0;
+      state.snoopDoggGiftIndex = 0;
+    }
+    state.snoopDoggGiftTimer = window.setInterval(() => {
+      renderSnoopDoggGift(state.snoopDoggGiftIndex + 1);
+    }, SHELF_GIFT_ROTATE_MS);
+  }
+
+  function renderJollyChimpGift(nextIndex = 0) {
+    if (!state.jollyChimpGiftA || !state.jollyChimpGiftB || !JOLLY_CHIMP_SKINS.length) return;
+
+    const safeIndex = ((nextIndex % JOLLY_CHIMP_SKINS.length) + JOLLY_CHIMP_SKINS.length) % JOLLY_CHIMP_SKINS.length;
+    const target = state.jollyChimpGiftFront === 0 ? state.jollyChimpGiftB : state.jollyChimpGiftA;
+    const current = state.jollyChimpGiftFront === 0 ? state.jollyChimpGiftA : state.jollyChimpGiftB;
+    const skin = JOLLY_CHIMP_SKINS[safeIndex];
+    const src = jollyChimpSkinUrl(skin);
+
+    target.src = src;
+    target.alt = skin;
+    requestAnimationFrame(() => {
+      target.classList.add("is-active");
+      current.classList.remove("is-active");
+      state.jollyChimpGiftFront = state.jollyChimpGiftFront === 0 ? 1 : 0;
+      state.jollyChimpGiftIndex = safeIndex;
+    });
+  }
+
+  function startJollyChimpGiftRotation() {
+    if (state.jollyChimpGiftTimer || !JOLLY_CHIMP_SKINS.length) return;
+    if (state.jollyChimpGiftA) {
+      state.jollyChimpGiftA.src = jollyChimpSkinUrl(JOLLY_CHIMP_SKINS[0]);
+      state.jollyChimpGiftA.alt = JOLLY_CHIMP_SKINS[0];
+      state.jollyChimpGiftA.classList.add("is-active");
+      state.jollyChimpGiftFront = 0;
+      state.jollyChimpGiftIndex = 0;
+    }
+    state.jollyChimpGiftTimer = window.setInterval(() => {
+      renderJollyChimpGift(state.jollyChimpGiftIndex + 1);
+    }, SHELF_GIFT_ROTATE_MS);
+  }
+
+  function normalizeLivesData(data = {}, now = Date.now()) {
+    let lives = Math.max(0, Math.min(MAX_LIVES, Math.round(Number(data.lives))));
+    if (!Number.isFinite(lives)) lives = MAX_LIVES;
+    let nextLifeAt = Math.max(0, Math.round(Number(data.nextLifeAt) || 0));
+
+    if (lives >= MAX_LIVES) {
+      return { lives: MAX_LIVES, nextLifeAt: 0 };
+    }
+
+    if (!nextLifeAt) nextLifeAt = now + LIFE_RESTORE_MS;
+
+    while (lives < MAX_LIVES && nextLifeAt <= now) {
+      lives += 1;
+      nextLifeAt += LIFE_RESTORE_MS;
+    }
+
+    if (lives >= MAX_LIVES) {
+      lives = MAX_LIVES;
+      nextLifeAt = 0;
+    }
+
+    return { lives, nextLifeAt };
+  }
+
+  function readLives() {
+    try {
+      const raw = localStorage.getItem(LIVES_STORAGE_KEY);
+      if (raw) return normalizeLivesData(JSON.parse(raw));
+    } catch {}
+    return normalizeLivesData({ lives: MAX_LIVES, nextLifeAt: 0 });
+  }
+
+  function writeLives(data) {
+    const next = normalizeLivesData(data);
+    try {
+      localStorage.setItem(LIVES_STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+    return next;
+  }
+
+  function formatLifeTimer(ms) {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+
+  function renderLives() {
+    const normalized = writeLives({ lives: state.lives, nextLifeAt: state.nextLifeAt });
+    state.lives = normalized.lives;
+    state.nextLifeAt = normalized.nextLifeAt;
+
+    document.querySelectorAll("[data-match-heart-count]").forEach((node) => {
+      node.textContent = String(state.lives);
+    });
+    document.querySelectorAll("[data-match-heart-timer]").forEach((node) => {
+      node.textContent = state.lives >= MAX_LIVES
+        ? getLivesFullText()
+        : formatLifeTimer(state.nextLifeAt - Date.now());
+    });
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("match:lives-update", {
+          detail: { lives: state.lives, nextLifeAt: state.nextLifeAt, maxLives: MAX_LIVES }
+        })
+      );
+    } catch {}
+  }
+
+  function refreshLives() {
+    const next = readLives();
+    state.lives = next.lives;
+    state.nextLifeAt = next.nextLifeAt;
+    renderLives();
+  }
+
+  function spendLife() {
+    refreshLives();
+    if (state.lives <= 0) return false;
+
+    const nextLives = Math.max(0, state.lives - 1);
+    const nextLifeAt = nextLives < MAX_LIVES
+      ? (state.nextLifeAt || Date.now() + LIFE_RESTORE_MS)
+      : 0;
+    const next = writeLives({ lives: nextLives, nextLifeAt });
+    state.lives = next.lives;
+    state.nextLifeAt = next.nextLifeAt;
+    renderLives();
+    return true;
+  }
+
+  function onMatchPopState(event) {
+    if (!state.page?.classList?.contains("page-active")) return;
+    if (!handleMatchBackAction(event)) return;
+    restoreMatchHistoryState();
   }
 
   function syncLanguage() {
@@ -1246,6 +2173,19 @@
     if (state.levelTitle) state.levelTitle.textContent = getLevelText();
     if (state.goalTitle) state.goalTitle.textContent = getGoalText();
     if (state.economyHint) state.economyHint.textContent = getEconomyHintText();
+    if (state.livesTitle) state.livesTitle.textContent = getLivesTitleText();
+    if (state.livesHint) state.livesHint.textContent = getLivesHintText();
+    if (state.prizeTitle) state.prizeTitle.textContent = getPrizeTitleText();
+    if (state.prizeHint) state.prizeHint.textContent = getPrizeHintText();
+    if (state.prizeBuy && !state.prizeBuy.disabled) state.prizeBuy.textContent = getPrizeBuyText();
+    if (state.quitTitle) state.quitTitle.textContent = getQuitTitleText();
+    if (state.quitWarning) state.quitWarning.textContent = getQuitWarningText();
+    if (state.quitConfirm) {
+      const quitText = getQuitButtonText();
+      state.quitConfirm.textContent = quitText;
+      state.quitConfirm.setAttribute("aria-label", quitText);
+    }
+    syncPrizeTickets();
   }
 
   function syncMatchLogo(pageId = "", gameOpenOverride = null) {
@@ -1278,11 +2218,33 @@
     state.playText = state.page.querySelector("[data-match-play-text]");
     state.playImages = Array.from(state.page.querySelectorAll("[data-match-play-image]"));
     state.playTexts = Array.from(state.page.querySelectorAll("[data-match-play-text]"));
+    state.shelfGiftA = state.page.querySelector("[data-match-shelf-gift-a]");
+    state.shelfGiftB = state.page.querySelector("[data-match-shelf-gift-b]");
+    state.poolFloatGiftA = state.page.querySelector("[data-match-pool-float-gift-a]");
+    state.poolFloatGiftB = state.page.querySelector("[data-match-pool-float-gift-b]");
+    state.snoopDoggGiftA = state.page.querySelector("[data-match-snoop-dogg-gift-a]");
+    state.snoopDoggGiftB = state.page.querySelector("[data-match-snoop-dogg-gift-b]");
+    state.jollyChimpGiftA = state.page.querySelector("[data-match-jolly-chimp-gift-a]");
+    state.jollyChimpGiftB = state.page.querySelector("[data-match-jolly-chimp-gift-b]");
     state.levelPanel = state.page.querySelector("[data-match-level-panel]");
     state.economyPanel = state.page.querySelector("[data-match-economy-panel]");
+    state.livesPanel = state.page.querySelector("[data-match-lives-panel]");
+    state.prizePanel = state.page.querySelector("[data-match-prize-panel]");
     state.levelTitle = state.page.querySelector("[data-match-level-title]");
+    state.livesTitle = state.page.querySelector("[data-match-lives-title]");
+    state.livesHint = state.page.querySelector("[data-match-lives-hint]");
     state.goalTitle = state.page.querySelector("[data-match-goal-title]");
     state.economyHint = state.page.querySelector("[data-match-economy-hint]");
+    state.prizeTitle = state.page.querySelector("[data-match-prize-title]");
+    state.prizePrice = state.page.querySelector("[data-match-prize-panel-price]");
+    state.prizeHint = state.page.querySelector("[data-match-prize-hint]");
+    state.prizeBuy = state.page.querySelector("[data-match-prize-buy]");
+    state.quitPanel = state.page.querySelector("[data-match-quit-panel]");
+    state.quitTitle = state.page.querySelector("[data-match-quit-title]");
+    state.quitWarning = state.page.querySelector("[data-match-quit-warning]");
+    state.quitConfirm = state.page.querySelector("[data-match-quit-confirm]");
+    state.hudMovesValue = state.page.querySelector("[data-match-moves]");
+    state.hudTargets = state.page.querySelector("[data-match-targets]");
     state.boardEl = state.page.querySelector("[data-match-board]");
     state.particlesEl = state.page.querySelector("[data-match-particles]");
 
@@ -1290,7 +2252,12 @@
     const startBtn = state.page.querySelector("[data-match-start]");
     const levelCloseBtn = state.page.querySelector("[data-match-level-close]");
     const economyCloseBtn = state.page.querySelector("[data-match-economy-close]");
+    const livesCloseBtn = state.page.querySelector("[data-match-lives-close]");
+    const prizeCloseBtn = state.page.querySelector("[data-match-prize-close]");
+    const livesOpenBtn = document.querySelector("[data-match-lives-open]");
     const closeBtn = state.page.querySelector("[data-match-close]");
+    const quitCloseBtn = state.page.querySelector("[data-match-quit-close]");
+    const quitConfirmBtn = state.page.querySelector("[data-match-quit-confirm]");
     state.page.querySelectorAll(".match-level-card__close img").forEach((img) => {
       img.src = CLOSE_BUTTON;
     });
@@ -1307,25 +2274,65 @@
     economyCloseBtn?.addEventListener("click", () => {
       hideEconomyPanel();
     });
+    livesOpenBtn?.addEventListener("click", () => {
+      showLivesPanel();
+    });
+    livesCloseBtn?.addEventListener("click", () => {
+      hideLivesPanel();
+    });
+    prizeCloseBtn?.addEventListener("click", () => {
+      hidePrizePanel();
+    });
+    state.prizeBuy?.addEventListener("click", () => {
+      buySelectedPrizeTicket();
+    });
+    state.page.querySelectorAll("[data-match-prize-price]").forEach((button) => {
+      button.addEventListener("click", () => {
+        showPrizePanel(button.getAttribute("data-match-prize-price") || "");
+      });
+    });
     closeBtn?.addEventListener("click", () => {
+      showQuitPanel();
+    });
+    quitCloseBtn?.addEventListener("click", () => {
+      hideQuitPanel();
+    });
+    quitConfirmBtn?.addEventListener("click", () => {
+      spendLife();
       closeGame();
     });
 
     state.boardEl?.addEventListener("pointerdown", onBoardPointerDown);
     window.addEventListener("pointerup", onGlobalPointerUp);
     window.addEventListener("pointercancel", onGlobalPointerUp);
+    window.addEventListener("popstate", onMatchPopState, true);
+    window.addEventListener("wt:mini-game-back", (event) => {
+      if (event?.detail?.pageId !== PAGE_ID) return;
+      handleMatchBackAction(event);
+    });
   }
 
   function initApi() {
     const getWildCoin = () => readWildCoin();
     window.WTMatch = {
       getWildCoin: () => getWildCoin(),
+      getLives: () => {
+        refreshLives();
+        return { lives: state.lives, nextLifeAt: state.nextLifeAt, maxLives: MAX_LIVES };
+      },
+      loseLife: () => spendLife(),
       getState: () => ({
         wildCoin: getWildCoin(),
+        lives: state.lives,
+        nextLifeAt: state.nextLifeAt,
+        maxLives: MAX_LIVES,
         gameOpen: !state.game?.hidden
       }),
       openEconomySheet: () => {
         showEconomyPanel();
+      },
+      openLivesSheet: () => {
+        showLivesPanel();
       }
     };
   }
@@ -1337,16 +2344,34 @@
     state.page = page;
 
     bindUi();
+    state.prizeTickets = readPrizeTickets();
     syncLanguage();
     syncMatchLogo();
     preloadMatchAssets();
+    preloadShelfGifts();
+    startShelfGiftRotation();
+    startPoolFloatGiftRotation();
+    startSnoopDoggGiftRotation();
+    startJollyChimpGiftRotation();
     initApi();
 
     const refreshWildCoin = () => emitWildCoin(readWildCoin());
     refreshWildCoin();
+    syncPrizeTickets();
+    loadMatchStateFromServer();
+    refreshLives();
+    if (!state.livesTimer) {
+      state.livesTimer = window.setInterval(() => {
+        refreshLives();
+      }, 1000);
+    }
 
-    window.addEventListener("language:changed", syncLanguage);
-    window.WT?.bus?.addEventListener?.("language:changed", syncLanguage);
+    const syncLocalizedUi = () => {
+      syncLanguage();
+      renderLives();
+    };
+    window.addEventListener("language:changed", syncLocalizedUi);
+    window.WT?.bus?.addEventListener?.("language:changed", syncLocalizedUi);
 
     try {
       window.WT?.bus?.addEventListener?.("page:change", (event) => {
@@ -1354,20 +2379,25 @@
         if (pageId === PAGE_ID) {
           syncMatchLogo(pageId, !state.game?.hidden);
           emitWildCoin(readWildCoin());
+          refreshLives();
           if (!state.game?.hidden) scheduleHint();
           return;
         }
         syncMatchLogo(pageId);
         if (state.levelPanel) state.levelPanel.hidden = true;
         if (state.economyPanel) state.economyPanel.hidden = true;
+        if (state.livesPanel) state.livesPanel.hidden = true;
+        if (state.prizePanel) state.prizePanel.hidden = true;
+        if (state.quitPanel) state.quitPanel.hidden = true;
         document.body?.classList?.remove("match-level-open");
         if (!state.game?.hidden) closeGame();
       });
     } catch {}
 
     window.addEventListener("storage", (event) => {
-      if (!STORAGE_KEYS.includes(String(event?.key || ""))) return;
-      refreshWildCoin();
+      const key = String(event?.key || "");
+      if (STORAGE_KEYS.includes(key)) refreshWildCoin();
+      if (key === LIVES_STORAGE_KEY) refreshLives();
     });
   }
 

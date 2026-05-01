@@ -118,6 +118,7 @@ function createMemoryDb() {
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
+  const matchPlayers = new Map(); // telegram_id(string) -> Match state
   const gameRoundMeta = new Map([
     ["crash", { counter: 0, hash: "", updatedAt: Date.now() }],
     ["wheel", { counter: 0, hash: "", updatedAt: Date.now() }]
@@ -215,6 +216,30 @@ function createMemoryDb() {
     const raw = Number(value);
     if (!Number.isFinite(raw) || raw <= 0) return 0;
     return Math.max(0, Math.trunc(raw));
+  }
+
+  function normalizeMatchCounter(value) {
+    const raw = Number(value);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.max(0, Math.trunc(raw));
+  }
+
+  function defaultMatchState(k) {
+    const u = users.get(k) || {};
+    const now = nowSec();
+    return {
+      telegramId: k,
+      telegramUsername: u.username || null,
+      wildCoin: 0,
+      tickets: {
+        "lol-pop": 0,
+        "pool-float": 0,
+        "snoop-dogg": 0,
+        "jolly-chimp": 0
+      },
+      createdAt: now,
+      updatedAt: now
+    };
   }
 
   function mapPendingCaseRound(row = {}) {
@@ -695,6 +720,35 @@ function createMemoryDb() {
         hash: next.hash,
         updatedAt: now
       };
+    },
+    async getMatchPlayerState(telegramId) {
+      const k = ensure(telegramId);
+      if (!matchPlayers.has(k)) matchPlayers.set(k, defaultMatchState(k));
+      const row = matchPlayers.get(k);
+      const u = users.get(k) || {};
+      row.telegramUsername = u.username || row.telegramUsername || null;
+      row.updatedAt = Math.max(Number(row.updatedAt || 0), nowSec());
+      matchPlayers.set(k, row);
+      return { ...row, tickets: { ...(row.tickets || {}) } };
+    },
+    async saveMatchPlayerState(telegramId, state = {}) {
+      const k = ensure(telegramId);
+      const current = matchPlayers.get(k) || defaultMatchState(k);
+      const tickets = state?.tickets || {};
+      const next = {
+        ...current,
+        telegramUsername: users.get(k)?.username || current.telegramUsername || null,
+        wildCoin: normalizeMatchCounter(state?.wildCoin ?? state?.wildcoin ?? state?.wildcoinBalance),
+        tickets: {
+          "lol-pop": normalizeMatchCounter(tickets["lol-pop"] ?? state?.giveaway1Tickets ?? state?.giveaway_1_tickets),
+          "pool-float": normalizeMatchCounter(tickets["pool-float"] ?? state?.giveaway2Tickets ?? state?.giveaway_2_tickets),
+          "snoop-dogg": normalizeMatchCounter(tickets["snoop-dogg"] ?? state?.giveaway3Tickets ?? state?.giveaway_3_tickets),
+          "jolly-chimp": normalizeMatchCounter(tickets["jolly-chimp"] ?? state?.giveaway4Tickets ?? state?.giveaway_4_tickets)
+        },
+        updatedAt: nowSec()
+      };
+      matchPlayers.set(k, next);
+      return { ...next, tickets: { ...next.tickets } };
     },
     async getTechPauseFlag() {
       return {
@@ -6502,6 +6556,50 @@ app.get("/api/balance", requireTelegramUser, async (req, res) => {
       ok: false,
       error: error.message || 'Failed to get balance'
     });
+  }
+});
+
+// ====== MATCH GAME STATE API ======
+app.get("/api/match/state", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userIdFromQuery = String(req.query?.userId || "").trim();
+    if (userIdFromQuery && userIdFromQuery !== tgUserId) {
+      return res.status(403).json({ ok: false, error: "Forbidden userId" });
+    }
+    if (!tgUserId) return res.status(400).json({ ok: false, error: "User ID is required" });
+    if (typeof db.getMatchPlayerState !== "function") {
+      return res.status(500).json({ ok: false, error: "Match state is not supported by DB driver" });
+    }
+
+    const state = await db.getMatchPlayerState(tgUserId);
+    return res.json({ ok: true, state });
+  } catch (error) {
+    console.error("[Match] state get error:", error);
+    return res.status(500).json({ ok: false, error: error?.message || "Failed to get match state" });
+  }
+});
+
+app.post("/api/match/state", requireTelegramUser, async (req, res) => {
+  try {
+    const tgUserId = String(req.tg?.user?.id || "").trim();
+    const userIdFromBody = String(req.body?.userId || "").trim();
+    if (userIdFromBody && userIdFromBody !== tgUserId) {
+      return res.status(403).json({ ok: false, error: "Forbidden userId" });
+    }
+    if (!tgUserId) return res.status(400).json({ ok: false, error: "User ID is required" });
+    if (typeof db.saveMatchPlayerState !== "function") {
+      return res.status(500).json({ ok: false, error: "Match state is not supported by DB driver" });
+    }
+
+    const state = await db.saveMatchPlayerState(tgUserId, {
+      wildCoin: req.body?.wildCoin,
+      tickets: req.body?.tickets || {}
+    });
+    return res.json({ ok: true, state });
+  } catch (error) {
+    console.error("[Match] state save error:", error);
+    return res.status(500).json({ ok: false, error: error?.message || "Failed to save match state" });
   }
 });
 

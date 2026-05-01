@@ -1459,12 +1459,13 @@ function prizeValue(item, currency) {
 }
 
 function formatAmount(currency, value) {
-    if (currency === 'ton') return (Math.round((parseFloat(value) || 0) * 100) / 100).toFixed(2);
-    return String(Math.round(parseFloat(value) || 0));
-
-
-    
+  const amount = parseFloat(value) || 0;
+  if (currency === 'ton') {
+    const rounded = Math.round(amount * 100) / 100;
+    return Math.abs(rounded) >= 100 ? String(Math.trunc(rounded)) : rounded.toFixed(2);
   }
+  return String(Math.round(amount));
+}
 
 function formatPillAmount(currency, value) {
   const base = formatAmount(currency, value);

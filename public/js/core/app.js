@@ -2808,6 +2808,14 @@
     if (!backButton) return;
 
     const onBackButtonClick = () => {
+      try {
+        const backEvent = new CustomEvent("wt:mini-game-back", {
+          cancelable: true,
+          detail: { pageId: getActivePageId() }
+        });
+        window.dispatchEvent(backEvent);
+        if (backEvent.defaultPrevented) return;
+      } catch {}
       navigateToGamesFromMiniGame({ preferHistoryBack: true });
     };
 
