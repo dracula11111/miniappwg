@@ -998,11 +998,26 @@
     const token = ++__wtBalanceAnimToken;
     const startNum = parseDisplayAmount(element.textContent);
     const toNum = Number(targetNum) || 0;
-    const duration = currencySnapshot === 'ton' ? 280 : 220;
+    const duration = currencySnapshot === 'wildcoin' ? 560 : (currencySnapshot === 'ton' ? 280 : 260);
 
     element.classList.remove('balance-jelly');
     void element.offsetWidth;
     element.classList.add('balance-jelly');
+    if (currencySnapshot === 'wildcoin') {
+      const pill = document.getElementById('tonPill');
+      const icon = document.getElementById('pillCurrencyIcon');
+      pill?.classList?.remove('wt-balance-arrive');
+      icon?.classList?.remove('wt-balance-arrive-icon');
+      void pill?.offsetWidth;
+      pill?.classList?.add('wt-balance-arrive');
+      icon?.classList?.add('wt-balance-arrive-icon');
+      setTimeout(() => {
+        if (token === __wtBalanceAnimToken) {
+          pill?.classList?.remove('wt-balance-arrive');
+          icon?.classList?.remove('wt-balance-arrive-icon');
+        }
+      }, 620);
+    }
 
     if (Math.abs(toNum - startNum) < (currencySnapshot === 'ton' ? 0.001 : 0.5)) {
       element.textContent = formatBalanceValue(currencySnapshot, toNum);
@@ -1015,7 +1030,7 @@
     }
 
     const startedAt = performance.now();
-    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, currencySnapshot === 'wildcoin' ? 4 : 3);
 
     const render = (ts) => {
       if (token !== __wtBalanceAnimToken) return;
@@ -1189,11 +1204,33 @@
       transform-origin: center;
     }
 
+    #tonPill.wt-balance-arrive {
+      animation: wtBalanceArrive 480ms cubic-bezier(0.18, 0.82, 0.18, 1) both;
+      transform-origin: center;
+    }
+
+    #pillCurrencyIcon.wt-balance-arrive-icon {
+      animation: wtCoinIconArrive 560ms cubic-bezier(0.18, 0.82, 0.18, 1) both;
+      transform-origin: center;
+    }
+
     @keyframes jellyBounce {
       0% { transform: scale3d(1, 1, 1); }
       35% { transform: scale3d(1.04, 1.04, 1); }
       65% { transform: scale3d(0.985, 0.985, 1); }
       100% { transform: scale3d(1, 1, 1); }
+    }
+
+    @keyframes wtBalanceArrive {
+      0% { transform: translateZ(0) scale(1); filter: none; }
+      34% { transform: translateZ(0) scale(1.045); filter: drop-shadow(0 0 12px rgba(255, 222, 92, 0.42)); }
+      100% { transform: translateZ(0) scale(1); filter: none; }
+    }
+
+    @keyframes wtCoinIconArrive {
+      0% { transform: translateZ(0) scale(1); filter: drop-shadow(0 6px 10px rgba(90, 53, 18, 0.42)); }
+      38% { transform: translateZ(0) scale(1.18) rotate(-5deg); filter: drop-shadow(0 7px 12px rgba(90, 53, 18, 0.44)) drop-shadow(0 0 14px rgba(255, 222, 92, 0.62)); }
+      100% { transform: translateZ(0) scale(1) rotate(0deg); filter: drop-shadow(0 6px 10px rgba(90, 53, 18, 0.42)); }
     }
 
     #pillCurrencyIcon {

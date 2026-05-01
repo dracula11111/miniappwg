@@ -163,6 +163,19 @@ function normalizeMatchCounter(value) {
   return Math.max(0, Math.trunc(raw));
 }
 
+const MATCH_GIVEAWAY_IDS = Object.freeze(["lol-pop", "pool-float", "snoop-dogg", "jolly-chimp"]);
+const DEFAULT_MATCH_GIVEAWAY_PARTICIPANTS = Object.freeze({
+  "lol-pop": 128,
+  "pool-float": 96,
+  "snoop-dogg": 74,
+  "jolly-chimp": 52
+});
+
+function normalizeMatchGiveawayId(value) {
+  const id = String(value || "").trim().toLowerCase();
+  return MATCH_GIVEAWAY_IDS.includes(id) ? id : "";
+}
+
 function mapMatchPlayerRow(row = {}) {
   return {
     telegramId: String(row.telegram_id || ""),
@@ -644,6 +657,12 @@ export async function initDatabase() {
       updated_at BIGINT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_match_players_updated ON match_players(updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS match_giveaways (
+      giveaway_id TEXT PRIMARY KEY CHECK (giveaway_id IN ('lol-pop','pool-float','snoop-dogg','jolly-chimp')),
+      participants_count BIGINT NOT NULL DEFAULT 0 CHECK (participants_count >= 0),
+      updated_at BIGINT NOT NULL
+    );
   `);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ton_balance NUMERIC(20,8) NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_balance BIGINT NOT NULL DEFAULT 0`);
@@ -664,6 +683,8 @@ export async function initDatabase() {
   await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS giveaway_4_tickets BIGINT NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS created_at BIGINT NOT NULL DEFAULT 0`);
   await query(`ALTER TABLE match_players ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_giveaways ADD COLUMN IF NOT EXISTS participants_count BIGINT NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE match_giveaways ADD COLUMN IF NOT EXISTS updated_at BIGINT NOT NULL DEFAULT 0`);
   await query(`
     UPDATE users AS u
     SET ton_balance = COALESCE(b.ton_balance, 0),
@@ -734,6 +755,17 @@ export async function initDatabase() {
      ON CONFLICT (game_key) DO NOTHING`,
     [Date.now()]
   );
+  {
+    const now = Math.floor(Date.now() / 1000);
+    for (const id of MATCH_GIVEAWAY_IDS) {
+      await query(
+        `INSERT INTO match_giveaways (giveaway_id, participants_count, updated_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (giveaway_id) DO NOTHING`,
+        [id, DEFAULT_MATCH_GIVEAWAY_PARTICIPANTS[id] || 0, now]
+      );
+    }
+  }
   await rebuildGiftReadableSnapshot();
   try {
     await hardenPublicSchemaAccess();
@@ -856,6 +888,20 @@ export async function getMatchPlayerState(telegramId) {
   );
 
   return mapMatchPlayerRow(r.rows[0] || {});
+}
+
+export async function getMatchGiveawayStats() {
+  const r = await query(
+    `SELECT giveaway_id, participants_count
+     FROM match_giveaways`
+  );
+  const participants = { ...DEFAULT_MATCH_GIVEAWAY_PARTICIPANTS };
+  for (const row of r.rows || []) {
+    const id = normalizeMatchGiveawayId(row.giveaway_id);
+    if (!id) continue;
+    participants[id] = normalizeMatchCounter(row.participants_count);
+  }
+  return { participants };
 }
 
 export async function saveMatchPlayerState(telegramId, state = {}) {

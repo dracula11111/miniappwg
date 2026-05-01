@@ -12,10 +12,14 @@
   const BOOM_IMAGE = "/images/match/boom.webp";
   const PLAY_BUTTON = "/images/match/PlayButton.webp";
   const CLOSE_BUTTON = "/images/match/close-icon.webp?v=2";
+  const PANEL_CLOSE_BUTTON = "/images/match/close.webp";
   const QUIT_BUTTON = "/images/match/quit.webp";
   const BROKEN_HEART_IMAGE = "/images/match/brokenheart.webp";
+  const HEART_IMAGE = "/images/match/heart.webp";
   const WILDCOIN_IMAGE = "/images/match/wildcoin.webp";
   const TICKET_IMAGE = "/images/match/ticket.webp";
+  const PARTICIPANTS_IMAGE = "/images/match/participants.svg";
+  const PILLOW_IMAGE = "/images/match/pillow.webp";
   const BOMB_ITEM = Object.freeze({ id: "bomb", src: "/images/match/bomb.webp" });
   const ITEM_DEFS = Object.freeze([
     { id: "bear", src: "/images/match/items/bear.webp" },
@@ -37,18 +41,19 @@
   const MATCH_MIN = 3;
   const BOMB_BLAST_RADIUS = 2;
   const RANDOM_BOMB_DROP_CHANCE = 0.2;
-  const SWAP_ANIMATION_MS = 300;
+  const SWAP_ANIMATION_MS = 220;
   const CLEAR_ANIMATION_MS = 240;
   const DROP_ANIMATION_MS = 280;
   const CASCADE_DELAY_MS = 170;
-  const SWAP_REVERT_DELAY_MS = 40;
+  const SWAP_REVERT_DELAY_MS = 30;
+  const SWAP_EASING = "cubic-bezier(0.2, 0.92, 0.18, 1)";
   const HINT_IDLE_MS = 4200;
-  const LEVEL_MOVES = 30;
+  const LEVEL_MOVES = 15;
+  const LEVEL_REWARD = 10;
   const MAX_LIVES = 5;
   const LIFE_RESTORE_MS = 30 * 60 * 1000;
   const LEVEL_TARGETS = Object.freeze([
-    { kind: "bear", count: 40 },
-    { kind: "gift", count: 32 }
+    { kind: "bear", count: 15 }
   ]);
   const SHELF_GIFT_ROTATE_MS = 3000;
   const LOL_POP_PNG_BASE = "https://cdn.changes.tg/gifts/models/Lol%20Pop/png/";
@@ -101,6 +106,12 @@
     { id: "snoop-dogg", price: 150 },
     { id: "jolly-chimp", price: 200 }
   ]);
+  const DEFAULT_GIVEAWAY_PARTICIPANTS = Object.freeze({
+    "lol-pop": 128,
+    "pool-float": 96,
+    "snoop-dogg": 74,
+    "jolly-chimp": 52
+  });
 
   const state = {
     page: null,
@@ -137,6 +148,9 @@
     levelTitle: null,
     livesTitle: null,
     livesHint: null,
+    livesCount: null,
+    livesTime: null,
+    livesPanelSource: "pill",
     goalTitle: null,
     economyHint: null,
     prizeTitle: null,
@@ -145,12 +159,28 @@
     prizeBuy: null,
     selectedPrizeId: "",
     prizeTickets: {},
+    giveawayParticipants: { ...DEFAULT_GIVEAWAY_PARTICIPANTS },
     matchStateSaveTimer: 0,
     matchStateLoaded: false,
     quitPanel: null,
     quitTitle: null,
     quitWarning: null,
     quitConfirm: null,
+    winPanel: null,
+    winTitle: null,
+    winRewardAmount: null,
+    winContinue: null,
+    winCoin: null,
+    failPanel: null,
+    failLevelTitle: null,
+    failStatus: null,
+    failTargets: null,
+    failRetry: null,
+    outOfMovesToast: null,
+    failTimer: 0,
+    levelTargetsPreview: null,
+    hudMovesTitle: null,
+    hudTargetTitle: null,
     hudMovesValue: null,
     hudTargets: null,
     boardEl: null,
@@ -160,6 +190,8 @@
     targets: [],
     selected: null,
     busy: false,
+    levelComplete: false,
+    levelFailed: false,
     pointer: null,
     wildCoin: 0,
     lives: MAX_LIVES,
@@ -198,6 +230,14 @@
     return resolveUiLanguage() === "ru" ? "\u0426\u0435\u043b\u044c" : "Goal";
   }
 
+  function getMovesText() {
+    return resolveUiLanguage() === "ru" ? "\u0425\u043e\u0434\u044b" : "Moves";
+  }
+
+  function getTargetText() {
+    return resolveUiLanguage() === "ru" ? "\u0426\u0435\u043b\u044c" : "Target";
+  }
+
   function getEconomyHintText() {
     return resolveUiLanguage() === "ru"
       ? "\u0412\u044b \u043c\u043e\u0436\u0435\u0442\u0435 \u043e\u0431\u043c\u0435\u043d\u044f\u0442\u044c WildCoin \u043d\u0430 \u0431\u0438\u043b\u0435\u0442\u044b, \u0447\u0442\u043e\u0431\u044b \u0443\u0447\u0430\u0441\u0442\u0432\u043e\u0432\u0430\u0442\u044c \u0432 \u0440\u043e\u0437\u044b\u0433\u0440\u044b\u0448\u0430\u0445 \u043d\u0430 NFT-\u043f\u043e\u0434\u0430\u0440\u043a\u0438."
@@ -219,7 +259,31 @@
   }
 
   function getParticipatingText() {
-    return "Participating";
+    return resolveUiLanguage() === "ru" ? "\u0423\u0447\u0430\u0441\u0442\u0432\u0443\u0435\u0448\u044c" : "Participating";
+  }
+
+  function getWellDoneText() {
+    return resolveUiLanguage() === "ru" ? "\u041e\u0442\u043b\u0438\u0447\u043d\u043e!" : "Well Done!";
+  }
+
+  function getContinueText() {
+    return resolveUiLanguage() === "ru" ? "\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c" : "Continue";
+  }
+
+  function getOutOfMovesText() {
+    return resolveUiLanguage() === "ru" ? "\u0425\u043e\u0434\u044b \u0437\u0430\u043a\u043e\u043d\u0447\u0438\u043b\u0438\u0441\u044c" : "Out of moves";
+  }
+
+  function getLevelFailedText() {
+    return resolveUiLanguage() === "ru" ? "\u0423\u0440\u043e\u0432\u0435\u043d\u044c \u043f\u0440\u043e\u0432\u0430\u043b\u0435\u043d" : "Level Failed";
+  }
+
+  function getTryAgainText() {
+    return resolveUiLanguage() === "ru" ? "\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c \u0441\u043d\u043e\u0432\u0430" : "Try again";
+  }
+
+  function getCloseText() {
+    return resolveUiLanguage() === "ru" ? "\u0417\u0430\u043a\u0440\u044b\u0442\u044c" : "Close";
   }
 
   function getNotEnoughWildCoinText() {
@@ -230,10 +294,25 @@
     return resolveUiLanguage() === "ru" ? "\u0416\u0438\u0437\u043d\u0438" : "Lives";
   }
 
-  function getLivesHintText() {
+  function getMoreLivesTitleText() {
+    return "More Lives";
+  }
+
+  function getNoMoreLivesTitleText() {
+    return "No more lives";
+  }
+
+  function getLivesPanelTitleText() {
+    if (state.lives <= 0) {
+      return state.livesPanelSource === "start" ? getNoMoreLivesTitleText() : getMoreLivesTitleText();
+    }
+    return getLivesTitleText();
+  }
+
+  function getNextLifeLabelText() {
     return resolveUiLanguage() === "ru"
-      ? "\u0416\u0438\u0437\u043d\u0438 \u043d\u0443\u0436\u043d\u044b, \u0447\u0442\u043e\u0431\u044b \u0438\u0433\u0440\u0430\u0442\u044c \u0443\u0440\u043e\u0432\u043d\u0438. \u0412\u044b\u0445\u043e\u0434 \u0438\u0437 \u0443\u0440\u043e\u0432\u043d\u044f \u0438\u043b\u0438 \u043f\u0440\u043e\u0438\u0433\u0440\u044b\u0448 \u0441\u043d\u0438\u043c\u0430\u0435\u0442 \u043e\u0434\u043d\u0443 \u0436\u0438\u0437\u043d\u044c. \u041e\u0434\u043d\u0430 \u0436\u0438\u0437\u043d\u044c \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u0430\u0432\u043b\u0438\u0432\u0430\u0435\u0442\u0441\u044f \u043a\u0430\u0436\u0434\u044b\u0435 30 \u043c\u0438\u043d\u0443\u0442."
-      : "Lives let you play levels. Quitting a level or losing costs one life. One life restores every 30 minutes.";
+      ? "\u0412\u0440\u0435\u043c\u0435\u043d\u0438 \u0434\u043e \u0441\u043b\u0435\u0434. \u0436\u0438\u0437\u043d\u0438:"
+      : "Time until next life:";
   }
 
   function getLivesFullText() {
@@ -365,11 +444,10 @@
   function applyMatchStateSnapshot(snapshot = {}) {
     const tickets = snapshot?.tickets || {};
     const nextTickets = {
-      ...(state.prizeTickets || {}),
-      "lol-pop": Math.max(getPrizeTicketCount("lol-pop"), getPrizeTicketCountFromValue(tickets["lol-pop"])),
-      "pool-float": Math.max(getPrizeTicketCount("pool-float"), getPrizeTicketCountFromValue(tickets["pool-float"])),
-      "snoop-dogg": Math.max(getPrizeTicketCount("snoop-dogg"), getPrizeTicketCountFromValue(tickets["snoop-dogg"])),
-      "jolly-chimp": Math.max(getPrizeTicketCount("jolly-chimp"), getPrizeTicketCountFromValue(tickets["jolly-chimp"]))
+      "lol-pop": getPrizeTicketCountFromValue(tickets["lol-pop"]),
+      "pool-float": getPrizeTicketCountFromValue(tickets["pool-float"]),
+      "snoop-dogg": getPrizeTicketCountFromValue(tickets["snoop-dogg"]),
+      "jolly-chimp": getPrizeTicketCountFromValue(tickets["jolly-chimp"])
     };
 
     state.prizeTickets = nextTickets;
@@ -377,10 +455,27 @@
       localStorage.setItem(PRIZE_TICKETS_STORAGE_KEY, JSON.stringify(nextTickets));
     } catch {}
 
-    const wildCoin = Math.max(readWildCoin(), parseWildCoin(snapshot?.wildCoin ?? snapshot?.wildcoin ?? snapshot?.wildcoinBalance));
+    const wildCoin = parseWildCoin(snapshot?.wildCoin ?? snapshot?.wildcoin ?? snapshot?.wildcoinBalance);
     const nextValue = writeWildCoin(wildCoin);
     emitWildCoin(nextValue);
     syncPrizeTickets();
+  }
+
+  function getParticipantsCount(prizeId) {
+    const fallback = DEFAULT_GIVEAWAY_PARTICIPANTS[prizeId] || 0;
+    const raw = state.giveawayParticipants?.[prizeId];
+    const value = Math.max(0, Math.round(Number(raw ?? fallback) || 0));
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function applyMatchGiveawayStats(stats = {}) {
+    const source = stats?.participants || stats?.giveaways || stats || {};
+    const next = { ...DEFAULT_GIVEAWAY_PARTICIPANTS };
+    SHELF_PRIZE_DEFS.forEach((def) => {
+      next[def.id] = Math.max(0, Math.round(Number(source?.[def.id] ?? next[def.id]) || 0));
+    });
+    state.giveawayParticipants = next;
+    syncGiveawayParticipants();
   }
 
   function getPrizeTicketCountFromValue(value) {
@@ -402,6 +497,7 @@
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.ok) return;
       applyMatchStateSnapshot(payload.state || {});
+      applyMatchGiveawayStats(payload.giveaways || {});
       state.matchStateLoaded = true;
     } catch (error) {
       console.warn("[Match] Failed to load state:", error?.message || error);
@@ -468,6 +564,10 @@
                 <img src="${TICKET_IMAGE}" alt="" draggable="false" />
                 <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
               </span>
+              <span class="match-home__participants" data-match-participants="lol-pop" aria-hidden="true">
+                <span class="match-home__participants-count" data-match-participants-count>128</span>
+                <img src="${PARTICIPANTS_IMAGE}" alt="" draggable="false" />
+              </span>
             </div>
             <div class="match-home__shelf-gift match-home__shelf-gift--pool-float" aria-label="Pool Float gift preview">
               <img class="match-home__shelf-gift-img is-active" data-match-pool-float-gift-a alt="" aria-hidden="true" draggable="false" />
@@ -479,6 +579,10 @@
               <span class="match-home__shelf-ticket" data-match-prize-ticket="pool-float" aria-hidden="true" hidden>
                 <img src="${TICKET_IMAGE}" alt="" draggable="false" />
                 <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+              <span class="match-home__participants" data-match-participants="pool-float" aria-hidden="true">
+                <span class="match-home__participants-count" data-match-participants-count>96</span>
+                <img src="${PARTICIPANTS_IMAGE}" alt="" draggable="false" />
               </span>
             </div>
             <div class="match-home__shelf-gift match-home__shelf-gift--snoop-dogg" aria-label="Snoop Dogg gift preview">
@@ -492,6 +596,10 @@
                 <img src="${TICKET_IMAGE}" alt="" draggable="false" />
                 <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
               </span>
+              <span class="match-home__participants" data-match-participants="snoop-dogg" aria-hidden="true">
+                <span class="match-home__participants-count" data-match-participants-count>74</span>
+                <img src="${PARTICIPANTS_IMAGE}" alt="" draggable="false" />
+              </span>
             </div>
             <div class="match-home__shelf-gift match-home__shelf-gift--jolly-chimp" aria-label="Jolly Chimp gift preview">
               <img class="match-home__shelf-gift-img is-active" data-match-jolly-chimp-gift-a alt="" aria-hidden="true" draggable="false" />
@@ -503,6 +611,10 @@
               <span class="match-home__shelf-ticket" data-match-prize-ticket="jolly-chimp" aria-hidden="true" hidden>
                 <img src="${TICKET_IMAGE}" alt="" draggable="false" />
                 <span class="match-home__shelf-ticket-count" data-match-prize-ticket-count>1</span>
+              </span>
+              <span class="match-home__participants" data-match-participants="jolly-chimp" aria-hidden="true">
+                <span class="match-home__participants-count" data-match-participants-count>52</span>
+                <img src="${PARTICIPANTS_IMAGE}" alt="" draggable="false" />
               </span>
             </div>
             <button class="match-home__play" type="button" data-match-open-level aria-label="Play">
@@ -518,7 +630,7 @@
                 <div class="match-level-card__body">
                   <div class="match-level-goal">
                     <div class="match-level-goal__title" data-match-goal-title>Goal</div>
-                    <div class="match-level-goal__targets" aria-hidden="true"></div>
+                    <div class="match-level-goal__targets" data-match-level-targets aria-hidden="true"></div>
                   </div>
                 </div>
                 <button class="match-home__play match-home__play--level" type="button" data-match-start aria-label="Play">
@@ -550,11 +662,15 @@
                 <button class="match-level-card__close" type="button" data-match-lives-close aria-label="Close">
                   <img src="${CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
                 </button>
-                <h2 class="match-lives-card__title" data-match-lives-title>${getLivesTitleText()}</h2>
-                <div class="match-lives-card__icon">
-                  <img src="/images/match/heart.webp" alt="" aria-hidden="true" draggable="false" />
+                <h2 class="match-lives-card__title" data-match-lives-title>${getLivesPanelTitleText()}</h2>
+                <div class="match-lives-card__icon" aria-hidden="true">
+                  <img src="${HEART_IMAGE}" alt="" draggable="false" />
+                  <span class="match-lives-card__count" data-match-lives-count>0</span>
                 </div>
-                <p class="match-economy-card__hint match-lives-card__hint" data-match-lives-hint>${getLivesHintText()}</p>
+                <div class="match-lives-card__timer">
+                  <div class="match-lives-card__timer-label" data-match-lives-hint>${getNextLifeLabelText()}</div>
+                  <div class="match-lives-card__timer-value" data-match-lives-time>00:00</div>
+                </div>
               </div>
             </section>
             <section class="match-level-panel match-prize-panel" data-match-prize-panel hidden aria-label="Ticket purchase">
@@ -578,13 +694,13 @@
           <section class="match-game" data-match-game hidden aria-label="Match Level 1">
             <div class="match-game__hud" aria-label="Level status">
               <section class="match-game__hud-panel match-game__hud-panel--moves" aria-label="Moves">
-                <div class="match-game__hud-title">Moves</div>
+                <div class="match-game__hud-title" data-match-moves-title>Moves</div>
                 <div class="match-game__hud-body match-game__hud-body--moves">
-                  <span class="match-game__moves-value" data-match-moves>30</span>
+                  <span class="match-game__moves-value" data-match-moves>15</span>
                 </div>
               </section>
               <section class="match-game__hud-panel match-game__hud-panel--target" aria-label="Target">
-                <div class="match-game__hud-title">Target</div>
+                <div class="match-game__hud-title" data-match-target-title>Target</div>
                 <div class="match-game__hud-body match-game__hud-body--target" data-match-targets></div>
               </section>
             </div>
@@ -599,6 +715,9 @@
                 </button>
               </div>
             </div>
+            <div class="match-out-of-moves" data-match-out-of-moves hidden aria-live="polite" aria-atomic="true">
+              ${getOutOfMovesText()}
+            </div>
             <section class="match-level-panel match-quit-panel" data-match-quit-panel hidden aria-label="Quit level">
               <div class="match-level-card match-quit-card">
                 <button class="match-level-card__close" type="button" data-match-quit-close aria-label="Close">
@@ -611,6 +730,38 @@
                   <button class="match-quit-card__confirm" type="button" data-match-quit-confirm aria-label="Quit Level">
                     ${getQuitButtonText()}
                   </button>
+                </div>
+              </div>
+            </section>
+            <section class="match-level-panel match-win-panel" data-match-win-panel hidden aria-label="Level complete">
+              <div class="match-win-card">
+                <h2 class="match-win-card__title" data-match-win-title>${getWellDoneText()}</h2>
+                <div class="match-win-card__reward" aria-hidden="true">
+                  <div class="match-win-card__rays">
+                    ${Array.from({ length: 10 }, (_, i) => `<span style="--i:${i}"></span>`).join("")}
+                  </div>
+                  <img class="match-win-card__pillow" src="${PILLOW_IMAGE}" alt="" draggable="false" />
+                  <div class="match-win-card__coin-wrap">
+                    <img class="match-win-card__coin" data-match-win-coin src="${WILDCOIN_IMAGE}" alt="" draggable="false" />
+                    <span class="match-win-card__amount" data-match-win-reward>10</span>
+                  </div>
+                </div>
+                <button class="match-win-card__continue" type="button" data-match-win-continue>${getContinueText()}</button>
+              </div>
+            </section>
+            <section class="match-level-panel match-fail-panel" data-match-fail-panel hidden aria-label="Level failed">
+              <div class="match-level-card match-fail-card">
+                <button class="match-level-card__close match-fail-card__close" type="button" data-match-fail-close aria-label="${getCloseText()}">
+                  <img src="${PANEL_CLOSE_BUTTON}" alt="" aria-hidden="true" draggable="false" />
+                </button>
+                <h2 class="match-level-card__title match-fail-card__level" data-match-fail-level>${getLevelText()}</h2>
+                <div class="match-fail-card__body">
+                  <div class="match-fail-card__status-row">
+                    <div class="match-fail-card__status" data-match-fail-status>${getLevelFailedText()}</div>
+                    <img class="match-fail-card__heart" src="${BROKEN_HEART_IMAGE}" alt="" aria-hidden="true" draggable="false" />
+                  </div>
+                  <div class="match-fail-card__goal" data-match-fail-targets aria-hidden="true"></div>
+                  <button class="match-fail-card__retry" type="button" data-match-fail-retry>${getTryAgainText()}</button>
                 </div>
               </div>
             </section>
@@ -630,10 +781,14 @@
       BOOM_IMAGE,
       PLAY_BUTTON,
       CLOSE_BUTTON,
+      PANEL_CLOSE_BUTTON,
       QUIT_BUTTON,
       BROKEN_HEART_IMAGE,
+      HEART_IMAGE,
       WILDCOIN_IMAGE,
       TICKET_IMAGE,
+      PARTICIPANTS_IMAGE,
+      PILLOW_IMAGE,
       BOMB_ITEM.src,
       ...ITEM_DEFS.map((item) => item.src)
     ];
@@ -936,6 +1091,28 @@
     return new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
+  function cancelElementAnimations(el) {
+    if (!el?.getAnimations) return;
+    el.getAnimations().forEach((animation) => {
+      try { animation.cancel(); } catch {}
+    });
+  }
+
+  async function animateSwapTilesFallback(aEl, bEl, dx, dy) {
+    aEl.style.setProperty("--swap-x", `${dx}px`);
+    aEl.style.setProperty("--swap-y", `${dy}px`);
+    bEl.style.setProperty("--swap-x", `${-dx}px`);
+    bEl.style.setProperty("--swap-y", `${-dy}px`);
+    await waitNextFrame();
+    aEl.classList.add("is-swapping--fallback");
+    bEl.classList.add("is-swapping--fallback");
+    await wait(SWAP_ANIMATION_MS);
+  }
+
+  function waitForAnimation(animation) {
+    return animation?.finished?.catch?.(() => null) || wait(SWAP_ANIMATION_MS);
+  }
+
   function renderBoard(options = {}) {
     if (!state.boardEl) return;
 
@@ -986,13 +1163,45 @@
         const item = ITEM_BY_ID[target.kind] || ITEM_DEFS[0];
         const remaining = Math.max(0, Math.round(Number(target.remaining) || 0));
         return `
-          <div class="match-game__target-item">
+          <div class="match-game__target-item" data-match-target-kind="${item.id}">
             <img class="match-game__target-icon" src="${item.src}" alt="" aria-hidden="true" draggable="false" />
             <span class="match-game__target-count">${remaining}</span>
           </div>
         `;
       })
       .join("");
+  }
+
+  function getLevelTargetsMarkup() {
+    return LEVEL_TARGETS.map((target) => {
+      const item = ITEM_BY_ID[target.kind] || ITEM_DEFS[0];
+      const count = Math.max(0, Math.round(Number(target.count) || 0));
+      return `
+        <div class="match-level-goal__target">
+          <img src="${item.src}" alt="" aria-hidden="true" draggable="false" />
+          <span>${count}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderLevelTargetsPreview() {
+    if (!state.levelTargetsPreview) return;
+    state.levelTargetsPreview.innerHTML = getLevelTargetsMarkup();
+  }
+
+  function renderFailedTargetsPreview() {
+    if (!state.failTargets) return;
+    state.failTargets.innerHTML = getLevelTargetsMarkup();
+  }
+
+  function setSmartText(node, text, { longAt = 12, veryLongAt = 18 } = {}) {
+    if (!node) return;
+    const value = String(text || "");
+    const compactLength = value.replace(/\s+/g, "").length;
+    node.textContent = value;
+    node.classList.toggle("is-long-text", compactLength >= longAt);
+    node.classList.toggle("is-very-long-text", compactLength >= veryLongAt);
   }
 
   function resetLevelHud() {
@@ -1016,6 +1225,112 @@
       changed = true;
     });
     if (changed) renderHud();
+  }
+
+  function areTargetsComplete() {
+    return Array.isArray(state.targets) &&
+      state.targets.length > 0 &&
+      state.targets.every((target) => Math.max(0, Math.round(Number(target.remaining) || 0)) <= 0);
+  }
+
+  function getTargetHits(cells) {
+    if (!Array.isArray(cells) || !cells.length || !state.targets.length) return [];
+    const remainingByKind = new Map(
+      state.targets.map((target) => [target.kind, Math.max(0, Math.round(Number(target.remaining) || 0))])
+    );
+    const hits = [];
+    cells.forEach((cell) => {
+      const left = remainingByKind.get(cell?.kind) || 0;
+      if (left <= 0) return;
+      remainingByKind.set(cell.kind, left - 1);
+      hits.push(cell);
+    });
+    return hits;
+  }
+
+  function pulseTarget(kind) {
+    const target = state.hudTargets?.querySelector?.(`[data-match-target-kind="${kind}"]`);
+    if (!target) return;
+    target.classList.remove("is-collecting");
+    void target.offsetWidth;
+    target.classList.add("is-collecting");
+    window.setTimeout(() => target.classList.remove("is-collecting"), 520);
+  }
+
+  function animateTargetCollect(cells, options = {}) {
+    if (!state.boardEl || !state.hudTargets) return;
+    const hits = Array.isArray(options.hits) ? options.hits : getTargetHits(cells);
+    if (!hits.length) return;
+
+    hits.forEach((cell, index) => {
+      const tile = getTileEl(cell.row, cell.col);
+      const target = state.hudTargets.querySelector?.(`[data-match-target-kind="${cell.kind}"] .match-game__target-icon`);
+      const item = ITEM_BY_ID[cell.kind];
+      if (!tile || !target || !item) return;
+
+      const tileRect = tile.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      if (!tileRect.width || !targetRect.width) return;
+
+      const startX = tileRect.left + tileRect.width / 2;
+      const startY = tileRect.top + tileRect.height / 2;
+      const endX = targetRect.left + targetRect.width / 2;
+      const endY = targetRect.top + targetRect.height / 2;
+      const distance = Math.hypot(endX - startX, endY - startY);
+      const liftY = -Math.max(12, Math.min(26, tileRect.height * 0.34));
+      const midX = startX + (endX - startX) * 0.56 + randomFloat(-14, 14);
+      const midY = Math.min(startY, endY) - Math.max(42, Math.min(94, distance * 0.2));
+      const size = Math.max(24, Math.min(tileRect.width, tileRect.height) * 0.76);
+      const flyer = document.createElement("img");
+      flyer.className = "match-target-flyer";
+      flyer.src = item.src;
+      flyer.alt = "";
+      flyer.setAttribute("aria-hidden", "true");
+      flyer.style.left = `${startX}px`;
+      flyer.style.top = `${startY}px`;
+      flyer.style.width = `${size}px`;
+      flyer.style.height = `${size}px`;
+      document.body.appendChild(flyer);
+
+      const delay = Math.min(220, index * 38);
+      const animation = flyer.animate(
+        [
+          {
+            transform: "translate(-50%, -50%) scale(.82)",
+            opacity: 0,
+            filter: "drop-shadow(0 6px 8px rgba(0,0,0,.16))",
+            offset: 0
+          },
+          {
+            transform: `translate(-50%, -50%) translate(${randomFloat(-4, 4).toFixed(1)}px, ${liftY.toFixed(1)}px) scale(1.08)`,
+            opacity: 1,
+            filter: "drop-shadow(0 9px 12px rgba(255,231,122,.38))",
+            offset: 0.16
+          },
+          {
+            transform: `translate(-50%, -50%) translate(${(midX - startX).toFixed(1)}px, ${(midY - startY).toFixed(1)}px) scale(.94)`,
+            opacity: 1,
+            filter: "drop-shadow(0 10px 14px rgba(255,231,122,.42))",
+            offset: 0.7
+          },
+          {
+            transform: `translate(-50%, -50%) translate(${(endX - startX).toFixed(1)}px, ${(endY - startY).toFixed(1)}px) scale(.42)`,
+            opacity: 0.16,
+            filter: "drop-shadow(0 0 16px rgba(255,241,170,.85))"
+          }
+        ],
+        {
+          duration: Math.max(620, Math.min(840, distance * 1.35)),
+          delay,
+          easing: "cubic-bezier(.22,.78,.16,1)",
+          fill: "forwards"
+        }
+      );
+      animation.onfinish = () => {
+        flyer.remove();
+        pulseTarget(cell.kind);
+      };
+    });
   }
 
   function explodeBombArea(seed, clearSet, processedBombs) {
@@ -1391,10 +1706,15 @@
     });
   }
 
-  function markTilesAsClearing(cells) {
+  function markTilesAsClearing(cells, targetHitKeys = new Set()) {
     cells.forEach((cell) => {
       const tileEl = getTileEl(cell.row, cell.col);
-      if (tileEl) tileEl.classList.add("is-clearing");
+      if (!tileEl) return;
+      if (targetHitKeys.has(cellKey(cell.row, cell.col))) {
+        tileEl.classList.add("is-target-collecting");
+      } else {
+        tileEl.classList.add("is-clearing");
+      }
     });
   }
 
@@ -1414,27 +1734,50 @@
     const bEl = getTileEl(b.row, b.col);
     if (!aEl || !bEl) return;
 
-    const dx = b.col - a.col;
-    const dy = b.row - a.row;
+    const aRect = aEl.getBoundingClientRect();
+    const bRect = bEl.getBoundingClientRect();
+    const dx = bRect.left - aRect.left;
+    const dy = bRect.top - aRect.top;
 
-    aEl.style.setProperty("--swap-x", `${dx * 100}%`);
-    aEl.style.setProperty("--swap-y", `${dy * 100}%`);
-    bEl.style.setProperty("--swap-x", `${-dx * 100}%`);
-    bEl.style.setProperty("--swap-y", `${-dy * 100}%`);
+    if (!dx && !dy) return;
 
-    void aEl.offsetWidth;
-    void bEl.offsetWidth;
-    await waitNextFrame();
-
+    cancelElementAnimations(aEl);
+    cancelElementAnimations(bEl);
     aEl.classList.add("is-swapping");
     bEl.classList.add("is-swapping");
-    await wait(SWAP_ANIMATION_MS);
-    aEl.classList.remove("is-swapping");
-    bEl.classList.remove("is-swapping");
-    aEl.style.removeProperty("--swap-x");
-    aEl.style.removeProperty("--swap-y");
-    bEl.style.removeProperty("--swap-x");
-    bEl.style.removeProperty("--swap-y");
+
+    if (!aEl.animate || !bEl.animate) {
+      await animateSwapTilesFallback(aEl, bEl, dx, dy);
+      return;
+    }
+
+    const options = {
+      duration: SWAP_ANIMATION_MS,
+      easing: SWAP_EASING,
+      fill: "forwards"
+    };
+    try {
+      const aAnimation = aEl.animate(
+        [
+          { transform: "translate3d(0, 0, 0) scale(1)" },
+          { transform: `translate3d(${dx * 0.82}px, ${dy * 0.82}px, 0) scale(1.045)`, offset: 0.72 },
+          { transform: `translate3d(${dx}px, ${dy}px, 0) scale(1)` }
+        ],
+        options
+      );
+      const bAnimation = bEl.animate(
+        [
+          { transform: "translate3d(0, 0, 0) scale(1)" },
+          { transform: `translate3d(${-dx * 0.82}px, ${-dy * 0.82}px, 0) scale(1.045)`, offset: 0.72 },
+          { transform: `translate3d(${-dx}px, ${-dy}px, 0) scale(1)` }
+        ],
+        options
+      );
+
+      await Promise.all([waitForAnimation(aAnimation), waitForAnimation(bAnimation)]);
+    } catch {
+      await animateSwapTilesFallback(aEl, bEl, dx, dy);
+    }
   }
 
   async function resolveBoard({ bombSeeds = [], swapPair = null } = {}) {
@@ -1484,12 +1827,18 @@
         cellsToClear.push({ row: pos.row, col: pos.col, kind: cell.kind });
       });
 
-      markTilesAsClearing(cellsToClear);
-      spawnFragments(cellsToClear);
+      const targetHits = getTargetHits(cellsToClear);
+      const targetHitKeys = new Set(targetHits.map((cell) => cellKey(cell.row, cell.col)));
+      const fragmentCells = cellsToClear.filter((cell) => !targetHitKeys.has(cellKey(cell.row, cell.col)));
+
+      markTilesAsClearing(cellsToClear, targetHitKeys);
+      animateTargetCollect(targetHits, { hits: targetHits });
+      spawnFragments(fragmentCells);
       if (detonations.length) {
         spawnBombBurstFragments(detonations);
       }
       applyTargetClears(cellsToClear);
+      if (areTargetsComplete()) state.levelComplete = true;
       await wait(CLEAR_ANIMATION_MS);
 
       cellsToClear.forEach((cell) => {
@@ -1516,6 +1865,7 @@
 
   async function attemptSwap(a, b) {
     if (state.busy) return;
+    if (state.movesLeft <= 0 || state.levelComplete) return;
     if (!inBounds(a.row, a.col) || !inBounds(b.row, b.col)) return;
     if (!isAdjacent(a, b)) return;
 
@@ -1541,12 +1891,23 @@
       shakeTiles([a, b]);
     }
 
+    if (resolved && state.levelComplete) {
+      state.busy = false;
+      window.setTimeout(showWinPanel, 360);
+      return;
+    }
+
+    if (resolved && triggerLevelFailed()) {
+      return;
+    }
+
     state.busy = false;
     scheduleHint();
   }
 
   async function triggerBombTap(row, col) {
     if (state.busy || !inBounds(row, col)) return;
+    if (state.movesLeft <= 0 || state.levelComplete) return;
     if (!isBombKind(state.board[row]?.[col]?.kind)) return;
 
     registerPlayerInteraction({ rerenderHint: true });
@@ -1556,6 +1917,14 @@
     await wait(30);
     await resolveBoard({ bombSeeds: [{ row, col }] });
     countMove();
+    if (state.levelComplete) {
+      state.busy = false;
+      window.setTimeout(showWinPanel, 360);
+      return;
+    }
+    if (triggerLevelFailed()) {
+      return;
+    }
     state.busy = false;
     scheduleHint();
   }
@@ -1646,19 +2015,231 @@
     attemptSwap({ row: pointer.row, col: pointer.col }, target);
   }
 
-  function startGame() {
-    refreshLives();
-    if (state.lives <= 0) {
-      showLivesPanel();
+  function clearFailTimer() {
+    if (!state.failTimer) return;
+    clearTimeout(state.failTimer);
+    state.failTimer = 0;
+  }
+
+  function hideOutOfMovesToast() {
+    clearFailTimer();
+    if (!state.outOfMovesToast) return;
+    state.outOfMovesToast.hidden = true;
+    state.outOfMovesToast.classList.remove("is-visible", "is-leaving");
+  }
+
+  function showOutOfMovesToastThenFail() {
+    const toast = state.outOfMovesToast;
+    if (!toast) {
+      showFailPanel();
       return;
     }
 
+    clearFailTimer();
+    setSmartText(toast, getOutOfMovesText(), { longAt: 12, veryLongAt: 18 });
+    toast.hidden = false;
+    toast.classList.remove("is-visible", "is-leaving");
+    void toast.offsetWidth;
+    toast.classList.add("is-visible");
+
+    state.failTimer = window.setTimeout(() => {
+      state.failTimer = 0;
+      toast.classList.add("is-leaving");
+      state.failTimer = window.setTimeout(() => {
+        state.failTimer = 0;
+        if (toast) {
+          toast.hidden = true;
+          toast.classList.remove("is-visible", "is-leaving");
+        }
+        showFailPanel();
+      }, 260);
+    }, 1100);
+  }
+
+  function showFailPanel() {
+    if (!state.failPanel) {
+      closeGame();
+      return;
+    }
+
+    clearFailTimer();
+    if (state.outOfMovesToast) {
+      state.outOfMovesToast.hidden = true;
+      state.outOfMovesToast.classList.remove("is-visible", "is-leaving");
+    }
+    clearHintTimer();
+    state.busy = true;
+    state.selected = null;
+    state.pointer = null;
+    state.hintPair = null;
+    if (state.quitPanel) state.quitPanel.hidden = true;
+    if (state.winPanel) state.winPanel.hidden = true;
+    if (state.failLevelTitle) state.failLevelTitle.textContent = getLevelText();
+    setSmartText(state.failStatus, getLevelFailedText(), { longAt: 12, veryLongAt: 17 });
+    setSmartText(state.failRetry, getTryAgainText(), { longAt: 10, veryLongAt: 16 });
+    renderFailedTargetsPreview();
+    state.failPanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+  }
+
+  function triggerLevelFailed() {
+    if (state.levelFailed || state.levelComplete || state.movesLeft > 0) return false;
+    state.levelFailed = true;
+    spendLife();
+    showOutOfMovesToastThenFail();
+    return true;
+  }
+
+  function retryFailedLevel() {
+    hideOutOfMovesToast();
+    if (state.failPanel) state.failPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
+    refreshLives();
+    if (state.lives <= 0) {
+      closeGame();
+      showLivesPanel("start");
+      return;
+    }
+    startGame();
+  }
+
+  function closeFailedLevel() {
+    hideOutOfMovesToast();
+    closeGame();
+  }
+
+  function showWinPanel() {
+    if (!state.winPanel || state.winPanel.hidden === false) return;
+    clearHintTimer();
+    state.busy = true;
+    state.selected = null;
+    state.pointer = null;
+    state.hintPair = null;
+    if (state.quitPanel) state.quitPanel.hidden = true;
+    if (state.winTitle) state.winTitle.textContent = getWellDoneText();
+    if (state.winRewardAmount) state.winRewardAmount.textContent = String(LEVEL_REWARD);
+    if (state.winContinue) state.winContinue.textContent = getContinueText();
+    state.winPanel.hidden = false;
+    document.body?.classList?.add("match-level-open");
+  }
+
+  function splitRewardAmount(amount, count) {
+    const total = Math.max(0, Math.round(Number(amount) || 0));
+    const safeCount = Math.max(1, Math.min(total || 1, Math.round(Number(count) || 1)));
+    const base = Math.floor(total / safeCount);
+    let remainder = total % safeCount;
+    return Array.from({ length: safeCount }, () => base + (remainder-- > 0 ? 1 : 0)).filter((chunk) => chunk > 0);
+  }
+
+  function animateRewardToBalance(sourceRect, amount, onArrive) {
+    const target = document.getElementById("pillCurrencyIcon") ||
+      document.querySelector("#tonPill img") ||
+      document.getElementById("tonPill");
+    const targetRect = target?.getBoundingClientRect?.();
+    if (!sourceRect?.width || !targetRect?.width) {
+      onArrive?.(Math.max(0, Math.round(Number(amount) || LEVEL_REWARD)));
+      return;
+    }
+
+    const startX = sourceRect.left + sourceRect.width / 2;
+    const startY = sourceRect.top + sourceRect.height / 2;
+    const endX = targetRect.left + targetRect.width / 2;
+    const endY = targetRect.top + targetRect.height / 2;
+    const distance = Math.hypot(endX - startX, endY - startY);
+    const chunks = splitRewardAmount(amount || LEVEL_REWARD, Math.max(6, Math.min(8, Math.round(Number(amount) || LEVEL_REWARD))));
+    const count = chunks.length;
+    let completed = 0;
+    const creditedChunks = new Set();
+    const creditChunk = (index) => {
+      if (creditedChunks.has(index)) return;
+      creditedChunks.add(index);
+      const chunk = chunks[index];
+      const safeChunk = Math.max(0, Math.round(Number(chunk) || 0));
+      if (!safeChunk) return;
+      onArrive?.(safeChunk);
+    };
+    const creditRemaining = () => {
+      chunks.forEach((_, index) => creditChunk(index));
+    };
+
+    for (let i = 0; i < count; i += 1) {
+      const flyer = document.createElement("img");
+      flyer.className = "match-reward-flyer";
+      flyer.src = WILDCOIN_IMAGE;
+      flyer.alt = "";
+      flyer.setAttribute("aria-hidden", "true");
+      flyer.style.left = `${startX + randomFloat(-sourceRect.width * 0.08, sourceRect.width * 0.08)}px`;
+      flyer.style.top = `${startY + randomFloat(-sourceRect.height * 0.06, sourceRect.height * 0.06)}px`;
+      document.body.appendChild(flyer);
+
+      const delay = i * 66;
+      const launchX = randomFloat(-14, 14);
+      const launchY = -randomFloat(18, 34);
+      const midX = startX + (endX - startX) * 0.5 + randomFloat(-24, 24);
+      const midY = Math.min(startY, endY) - Math.max(56, Math.min(118, distance * 0.22));
+      const animation = flyer.animate(
+        [
+          { transform: "translate(-50%, -50%) scale(.72)", opacity: 0, offset: 0 },
+          {
+            transform: `translate(-50%, -50%) translate(${launchX.toFixed(1)}px, ${launchY.toFixed(1)}px) scale(1.1)`,
+            opacity: 1,
+            offset: 0.18
+          },
+          {
+            transform: `translate(-50%, -50%) translate(${(midX - startX).toFixed(1)}px, ${(midY - startY).toFixed(1)}px) scale(.96)`,
+            opacity: 1,
+            offset: 0.68
+          },
+          {
+            transform: `translate(-50%, -50%) translate(${(endX - startX).toFixed(1)}px, ${(endY - startY).toFixed(1)}px) scale(.34)`,
+            opacity: 0.1
+          }
+        ],
+        {
+          duration: Math.max(760, Math.min(1040, distance * 1.1)),
+          delay,
+          easing: "cubic-bezier(.2,.78,.16,1)",
+          fill: "forwards"
+        }
+      );
+      animation.onfinish = () => {
+        flyer.remove();
+        completed += 1;
+        creditChunk(i);
+        if (completed >= count) creditRemaining();
+      };
+    }
+
+    window.setTimeout(creditRemaining, Math.max(940, Math.min(1280, distance * 1.1)) + count * 66);
+  }
+
+  function continueAfterWin() {
+    const rewardRect = state.winCoin?.getBoundingClientRect?.();
+    if (state.winPanel) state.winPanel.hidden = true;
+    document.body?.classList?.remove("match-level-open");
+    closeGame();
+    window.setTimeout(() => {
+      animateRewardToBalance(rewardRect, LEVEL_REWARD, (chunk = LEVEL_REWARD) => {
+        writeWildCoin(readWildCoin() + Math.max(0, Math.round(Number(chunk) || 0)));
+      });
+    }, 120);
+  }
+
+  function startGame() {
+    refreshLives();
+    if (state.lives <= 0) {
+      showLivesPanel("start");
+      return;
+    }
+
+    hideOutOfMovesToast();
     state.home.hidden = true;
     state.game.hidden = false;
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.prizePanel) state.prizePanel.hidden = true;
     if (state.livesPanel) state.livesPanel.hidden = true;
     if (state.quitPanel) state.quitPanel.hidden = true;
+    if (state.failPanel) state.failPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
     document.body?.classList?.add("match-game-open");
     syncMatchLogo(PAGE_ID, true);
@@ -1666,6 +2247,8 @@
     clearHintTimer();
     state.selected = null;
     state.busy = false;
+    state.levelComplete = false;
+    state.levelFailed = false;
     state.pointer = null;
     state.hintPair = null;
     state.board = createInitialBoard();
@@ -1677,18 +2260,23 @@
 
   function closeGame() {
     clearHintTimer();
+    hideOutOfMovesToast();
     state.home.hidden = false;
     state.game.hidden = true;
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.economyPanel) state.economyPanel.hidden = true;
     if (state.livesPanel) state.livesPanel.hidden = true;
     if (state.prizePanel) state.prizePanel.hidden = true;
+    if (state.winPanel) state.winPanel.hidden = true;
     if (state.quitPanel) state.quitPanel.hidden = true;
+    if (state.failPanel) state.failPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
     document.body?.classList?.remove("match-game-open");
     syncMatchLogo(PAGE_ID, false);
     state.selected = null;
     state.busy = false;
+    state.levelComplete = false;
+    state.levelFailed = false;
     state.pointer = null;
     state.hintPair = null;
   }
@@ -1719,6 +2307,7 @@
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.livesPanel) state.livesPanel.hidden = true;
     if (state.prizePanel) state.prizePanel.hidden = true;
+    if (state.winPanel) state.winPanel.hidden = true;
     state.economyPanel.hidden = false;
     document.body?.classList?.add("match-level-open");
   }
@@ -1728,15 +2317,17 @@
     document.body?.classList?.remove("match-level-open");
   }
 
-  function showLivesPanel() {
+  function showLivesPanel(source = "pill") {
     if (!state.livesPanel) return;
+    state.livesPanelSource = source === "start" ? "start" : "pill";
+    refreshLives();
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.economyPanel) state.economyPanel.hidden = true;
     if (state.prizePanel) state.prizePanel.hidden = true;
+    if (state.winPanel) state.winPanel.hidden = true;
     state.livesPanel.hidden = false;
     document.body?.classList?.add("match-level-open");
     syncLanguage();
-    refreshLives();
   }
 
   function hideLivesPanel() {
@@ -1764,6 +2355,15 @@
       const countNode = ticket.querySelector?.("[data-match-prize-ticket-count]");
       if (countNode) countNode.textContent = String(Math.max(1, count));
     });
+    syncGiveawayParticipants();
+  }
+
+  function syncGiveawayParticipants() {
+    state.page?.querySelectorAll?.("[data-match-participants]")?.forEach((node) => {
+      const prizeId = node.getAttribute("data-match-participants") || "";
+      const countNode = node.querySelector?.("[data-match-participants-count]");
+      if (countNode) countNode.textContent = String(getParticipantsCount(prizeId));
+    });
   }
 
   function showPrizePanel(prizeId) {
@@ -1773,6 +2373,7 @@
     if (state.levelPanel) state.levelPanel.hidden = true;
     if (state.economyPanel) state.economyPanel.hidden = true;
     if (state.livesPanel) state.livesPanel.hidden = true;
+    if (state.winPanel) state.winPanel.hidden = true;
     if (state.prizeTitle) state.prizeTitle.textContent = getPrizeTitleText();
     if (state.prizeHint) state.prizeHint.textContent = getPrizeHintText();
     if (state.prizePrice) state.prizePrice.textContent = String(def.price);
@@ -1859,19 +2460,23 @@
   }
 
   function handleMatchBackAction(event = null) {
-    const openHomePanel = [state.levelPanel, state.economyPanel, state.livesPanel, state.prizePanel]
+    const openHomePanel = [state.levelPanel, state.economyPanel, state.livesPanel, state.prizePanel, state.winPanel]
       .find((panel) => panel && !panel.hidden);
-    if (state.game?.hidden && !openHomePanel) return false;
+    const failPanelOpen = state.failPanel && !state.failPanel.hidden;
+    if (state.game?.hidden && !openHomePanel && !failPanelOpen) return false;
 
     event?.preventDefault?.();
     event?.stopImmediatePropagation?.();
     event?.stopPropagation?.();
 
-    if (openHomePanel) {
+    if (failPanelOpen) {
+      closeFailedLevel();
+    } else if (openHomePanel) {
       hideLevelPanel();
       hideEconomyPanel();
       hideLivesPanel();
       hidePrizePanel();
+      if (state.winPanel) state.winPanel.hidden = true;
     } else if (state.quitPanel && !state.quitPanel.hidden) {
       hideQuitPanel();
     } else {
@@ -2121,6 +2726,15 @@
         ? getLivesFullText()
         : formatLifeTimer(state.nextLifeAt - Date.now());
     });
+    document.querySelectorAll("[data-match-lives-count]").forEach((node) => {
+      node.textContent = String(state.lives);
+    });
+    document.querySelectorAll("[data-match-lives-time]").forEach((node) => {
+      node.textContent = state.lives >= MAX_LIVES
+        ? getLivesFullText()
+        : formatLifeTimer(state.nextLifeAt - Date.now());
+    });
+    if (state.livesTitle) state.livesTitle.textContent = getLivesPanelTitleText();
 
     try {
       window.dispatchEvent(
@@ -2160,21 +2774,26 @@
   }
 
   function syncLanguage() {
-    const text = getPlayButtonText();
+    const playText = getPlayButtonText();
+    const levelText = getLevelText();
     state.playImages.forEach((img) => {
       if (img) img.src = PLAY_BUTTON;
     });
-    state.playTexts.forEach((node) => {
-      if (node) node.textContent = text;
-    });
-    state.page?.querySelectorAll?.("[data-match-start], [data-match-open-level]")?.forEach((button) => {
-      button.setAttribute("aria-label", text);
-    });
-    if (state.levelTitle) state.levelTitle.textContent = getLevelText();
+    const openLevelButton = state.page?.querySelector?.("[data-match-open-level]");
+    const startButton = state.page?.querySelector?.("[data-match-start]");
+    const openLevelText = openLevelButton?.querySelector?.("[data-match-play-text]");
+    const startText = startButton?.querySelector?.("[data-match-play-text]");
+    if (openLevelText) openLevelText.textContent = levelText;
+    if (startText) startText.textContent = playText;
+    if (openLevelButton) openLevelButton.setAttribute("aria-label", levelText);
+    if (startButton) startButton.setAttribute("aria-label", playText);
+    if (state.levelTitle) state.levelTitle.textContent = levelText;
     if (state.goalTitle) state.goalTitle.textContent = getGoalText();
+    if (state.hudMovesTitle) state.hudMovesTitle.textContent = getMovesText();
+    if (state.hudTargetTitle) state.hudTargetTitle.textContent = getTargetText();
     if (state.economyHint) state.economyHint.textContent = getEconomyHintText();
-    if (state.livesTitle) state.livesTitle.textContent = getLivesTitleText();
-    if (state.livesHint) state.livesHint.textContent = getLivesHintText();
+    if (state.livesTitle) state.livesTitle.textContent = getLivesPanelTitleText();
+    if (state.livesHint) state.livesHint.textContent = getNextLifeLabelText();
     if (state.prizeTitle) state.prizeTitle.textContent = getPrizeTitleText();
     if (state.prizeHint) state.prizeHint.textContent = getPrizeHintText();
     if (state.prizeBuy && !state.prizeBuy.disabled) state.prizeBuy.textContent = getPrizeBuyText();
@@ -2185,6 +2804,18 @@
       state.quitConfirm.textContent = quitText;
       state.quitConfirm.setAttribute("aria-label", quitText);
     }
+    if (state.winTitle) state.winTitle.textContent = getWellDoneText();
+    if (state.winRewardAmount) state.winRewardAmount.textContent = String(LEVEL_REWARD);
+    if (state.winContinue) state.winContinue.textContent = getContinueText();
+    if (state.failLevelTitle) state.failLevelTitle.textContent = levelText;
+    setSmartText(state.failStatus, getLevelFailedText(), { longAt: 12, veryLongAt: 17 });
+    setSmartText(state.failRetry, getTryAgainText(), { longAt: 10, veryLongAt: 16 });
+    setSmartText(state.outOfMovesToast, getOutOfMovesText(), { longAt: 12, veryLongAt: 18 });
+    state.page?.querySelectorAll?.(".match-level-card__close")?.forEach((button) => {
+      button.setAttribute("aria-label", getCloseText());
+    });
+    renderLevelTargetsPreview();
+    renderFailedTargetsPreview();
     syncPrizeTickets();
   }
 
@@ -2233,6 +2864,8 @@
     state.levelTitle = state.page.querySelector("[data-match-level-title]");
     state.livesTitle = state.page.querySelector("[data-match-lives-title]");
     state.livesHint = state.page.querySelector("[data-match-lives-hint]");
+    state.livesCount = state.page.querySelector("[data-match-lives-count]");
+    state.livesTime = state.page.querySelector("[data-match-lives-time]");
     state.goalTitle = state.page.querySelector("[data-match-goal-title]");
     state.economyHint = state.page.querySelector("[data-match-economy-hint]");
     state.prizeTitle = state.page.querySelector("[data-match-prize-title]");
@@ -2243,6 +2876,20 @@
     state.quitTitle = state.page.querySelector("[data-match-quit-title]");
     state.quitWarning = state.page.querySelector("[data-match-quit-warning]");
     state.quitConfirm = state.page.querySelector("[data-match-quit-confirm]");
+    state.winPanel = state.page.querySelector("[data-match-win-panel]");
+    state.winTitle = state.page.querySelector("[data-match-win-title]");
+    state.winRewardAmount = state.page.querySelector("[data-match-win-reward]");
+    state.winContinue = state.page.querySelector("[data-match-win-continue]");
+    state.winCoin = state.page.querySelector("[data-match-win-coin]");
+    state.failPanel = state.page.querySelector("[data-match-fail-panel]");
+    state.failLevelTitle = state.page.querySelector("[data-match-fail-level]");
+    state.failStatus = state.page.querySelector("[data-match-fail-status]");
+    state.failTargets = state.page.querySelector("[data-match-fail-targets]");
+    state.failRetry = state.page.querySelector("[data-match-fail-retry]");
+    state.outOfMovesToast = state.page.querySelector("[data-match-out-of-moves]");
+    state.levelTargetsPreview = state.page.querySelector("[data-match-level-targets]");
+    state.hudMovesTitle = state.page.querySelector("[data-match-moves-title]");
+    state.hudTargetTitle = state.page.querySelector("[data-match-target-title]");
     state.hudMovesValue = state.page.querySelector("[data-match-moves]");
     state.hudTargets = state.page.querySelector("[data-match-targets]");
     state.boardEl = state.page.querySelector("[data-match-board]");
@@ -2258,8 +2905,11 @@
     const closeBtn = state.page.querySelector("[data-match-close]");
     const quitCloseBtn = state.page.querySelector("[data-match-quit-close]");
     const quitConfirmBtn = state.page.querySelector("[data-match-quit-confirm]");
+    const winContinueBtn = state.page.querySelector("[data-match-win-continue]");
+    const failCloseBtn = state.page.querySelector("[data-match-fail-close]");
+    const failRetryBtn = state.page.querySelector("[data-match-fail-retry]");
     state.page.querySelectorAll(".match-level-card__close img").forEach((img) => {
-      img.src = CLOSE_BUTTON;
+      img.src = img.closest(".match-fail-card__close") ? PANEL_CLOSE_BUTTON : CLOSE_BUTTON;
     });
 
     openLevelBtn?.addEventListener("click", () => {
@@ -2275,7 +2925,7 @@
       hideEconomyPanel();
     });
     livesOpenBtn?.addEventListener("click", () => {
-      showLivesPanel();
+      showLivesPanel("pill");
     });
     livesCloseBtn?.addEventListener("click", () => {
       hideLivesPanel();
@@ -2300,6 +2950,15 @@
     quitConfirmBtn?.addEventListener("click", () => {
       spendLife();
       closeGame();
+    });
+    winContinueBtn?.addEventListener("click", () => {
+      continueAfterWin();
+    });
+    failCloseBtn?.addEventListener("click", () => {
+      closeFailedLevel();
+    });
+    failRetryBtn?.addEventListener("click", () => {
+      retryFailedLevel();
     });
 
     state.boardEl?.addEventListener("pointerdown", onBoardPointerDown);
@@ -2332,7 +2991,7 @@
         showEconomyPanel();
       },
       openLivesSheet: () => {
-        showLivesPanel();
+        showLivesPanel("pill");
       }
     };
   }
@@ -2389,6 +3048,7 @@
         if (state.livesPanel) state.livesPanel.hidden = true;
         if (state.prizePanel) state.prizePanel.hidden = true;
         if (state.quitPanel) state.quitPanel.hidden = true;
+        if (state.winPanel) state.winPanel.hidden = true;
         document.body?.classList?.remove("match-level-open");
         if (!state.game?.hidden) closeGame();
       });
