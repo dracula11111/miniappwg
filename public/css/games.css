@@ -40,34 +40,12 @@
   /* iPhone/WebKit: explicitly lower the controls row to the logo level,
      then move the whole games content block down together. */
   @supports (-webkit-touch-callout: none) {
-    body.page-games .logo-header,
-    body:has(#gamesPage.page-active) .logo-header{
+    body.page-games .logo-header{
       top: max(
         calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 12px),
         calc(var(--tg-content-top, var(--safe-top, env(safe-area-inset-top, 0px))) + 8px)
       ) !important;
       z-index: 340;
-    }
-
-    body.page-games,
-    body:has(#gamesPage.page-active){
-      --wg-topbar-left-offset-y: 14px;
-      --wg-topbar-balance-offset-y: 14px;
-    }
-
-    body.page-games .topbar,
-    body:has(#gamesPage.page-active) .topbar{
-      padding-bottom: 14px;
-    }
-
-    body.page-games .topbar__left,
-    body:has(#gamesPage.page-active) .topbar__left{
-      margin-top: 14px !important;
-    }
-
-    body.page-games .topbar > .balance,
-    body:has(#gamesPage.page-active) .topbar > .balance{
-      transform: translateY(14px) !important;
     }
 
     body.page-games .games,

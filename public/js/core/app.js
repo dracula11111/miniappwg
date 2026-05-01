@@ -114,7 +114,7 @@
       `safe.top=${sample.safeTop} content.top=${sample.contentTop} overlay=${sample.overlayTop}`,
       `safe.l=${sample.safeLeft} safe.r=${sample.safeRight} content.l=${sample.contentLeft} content.r=${sample.contentRight}`,
       `logo.nudge=${sample.logoNudgeY} logo.shiftX=${sample.logoShiftX} leftGap=${sample.headerSideLeft} rightGap=${sample.headerSideRight}`,
-      `topbar.pad=${sample.topbarPadTop}/${sample.topbarPadTopCompact}`,
+      `topbar.pad=${sample.topbarPadTop}/${sample.topbarPadTopCompact} offset=${sample.topbarOffsetY}`,
       `vw=${sample.viewportW} vh=${sample.viewportH} dpr=${sample.dpr}`,
       `vvh=${sample.visualViewportH} vvTop=${sample.visualViewportOffsetTop}`,
       `platform=${sample.platform} fullscreen=${sample.isFullscreen ? 1 : 0}`
@@ -141,6 +141,7 @@
       logoShiftX: values.logoShiftX,
       topbarPadTop: values.topbarPadTop,
       topbarPadTopCompact: values.topbarPadTopCompact,
+      topbarOffsetY: values.topbarOffsetY,
       viewportW: Math.round(window.innerWidth || 0),
       viewportH: Math.round(window.innerHeight || 0),
       visualViewportH: Math.round(vv?.height || 0),
@@ -168,6 +169,7 @@
       sample.logoShiftX,
       sample.topbarPadTop,
       sample.topbarPadTopCompact,
+      sample.topbarOffsetY,
       sample.viewportW,
       sample.viewportH,
       sample.visualViewportH,
@@ -243,7 +245,12 @@
     const overlayTop = Math.max(0, contentTop - safeTop);
 
     const platform = String(tg?.platform || "").toLowerCase();
-    const isIosLike = platform === "ios" || platform === "macos";
+    const userAgent = String(navigator?.userAgent || "");
+    const navPlatform = String(navigator?.platform || "");
+    const isIosBrowser =
+      /iPad|iPhone|iPod/i.test(userAgent) ||
+      (navPlatform === "MacIntel" && Number(navigator?.maxTouchPoints || 0) > 1);
+    const isIosLike = platform === "ios" || platform === "macos" || isIosBrowser;
     const fullscreenActive = !!tg?.isFullscreen || overlayTop >= 30;
 
     // On many real devices fullscreen controls are visible with overlay ~16-20px.
@@ -284,6 +291,9 @@
       : 0;
     const topbarPadTop = 86 + iosTopbarBoost;
     const topbarPadTopCompact = 82 + iosTopbarBoost;
+    const topbarOffsetY = isIosLike
+      ? Math.max(12, Math.min(20, 14 + Math.round(Math.max(0, overlayTop - 16) * 0.12)))
+      : 0;
 
     root.style.setProperty("--safe-top", `${Math.round(safeTop)}px`);
     root.style.setProperty("--tg-content-top", `${Math.round(contentTop)}px`);
@@ -297,6 +307,7 @@
     root.style.setProperty("--wg-logo-shift-cases-x", `${logoShiftXCases}px`);
     root.style.setProperty("--wg-topbar-pad-top", `${topbarPadTop}px`);
     root.style.setProperty("--wg-topbar-pad-top-compact", `${topbarPadTopCompact}px`);
+    root.style.setProperty("--wg-ios-topbar-offset-y", `${topbarOffsetY}px`);
 
     const sample = buildTelegramChromeSample(reason, {
       platform,
@@ -312,7 +323,8 @@
       logoNudgeY,
       logoShiftX,
       topbarPadTop,
-      topbarPadTopCompact
+      topbarPadTopCompact,
+      topbarOffsetY
     });
     tgChromeLastSample = sample;
     renderTelegramChromeHud(sample);

@@ -11,6 +11,7 @@
 
 @supports (-webkit-touch-callout: none) {
   body:is(
+    .page-games,
     .page-market,
     .page-profile,
     .page-tasks,
@@ -19,11 +20,12 @@
     .page-match,
     .wt-unauth-mode
   ) {
-    --wg-topbar-left-offset-y: 14px;
-    --wg-topbar-balance-offset-y: 14px;
+    --wg-topbar-left-offset-y: var(--wg-ios-topbar-offset-y, 14px);
+    --wg-topbar-balance-offset-y: var(--wg-ios-topbar-offset-y, 14px);
   }
 
   body:is(
+    .page-games,
     .page-market,
     .page-profile,
     .page-tasks,
@@ -32,7 +34,7 @@
     .page-match,
     .wt-unauth-mode
   ) .topbar {
-    padding-bottom: 14px;
+    padding-bottom: var(--wg-ios-topbar-offset-y, 14px);
   }
 }
 

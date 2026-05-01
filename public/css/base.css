@@ -25,6 +25,7 @@
         --wg-logo-height: 34px;
         --wg-logo-nudge-y: 2px;
         --wg-logo-shift-x: 0px;
+        --wg-ios-topbar-offset-y: 14px;
       }
 
       *{
