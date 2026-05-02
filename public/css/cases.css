@@ -569,6 +569,66 @@ body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
   overflow: visible;
 }
 
+#casesPage .daily-case-badge,
+.daily-case-tile-badge,
+.daily-case-nav-badge{
+  position: absolute;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ff2f45;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.22), 0 8px 18px rgba(255,47,69,.34);
+  pointer-events: none;
+}
+
+.bottom-nav .nav-item,
+.game-tile--cases{
+  position: relative;
+}
+
+#casesPage .daily-case-badge[hidden],
+.daily-case-tile-badge[hidden],
+.daily-case-nav-badge[hidden]{
+  display: none !important;
+}
+
+#casesPage .daily-case-badge{
+  top: 10px;
+  right: 10px;
+}
+
+.daily-case-tile-badge{
+  top: 10px;
+  right: 10px;
+}
+
+.daily-case-nav-badge{
+  top: 5px;
+  right: 14px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+#casesPage .case-path-item--daily .case-path-price-val{
+  text-transform: uppercase;
+}
+
+.case-count-section.case-count-section--daily .case-count-switch,
+.case-count-section.case-count-section--daily .case-demo-toggle{
+  opacity: .45;
+  pointer-events: none;
+}
+
 @supports (-webkit-touch-callout: none){
   #casesPage .case-path-item::after{
     width: min(1100px, var(--wt-layout-w, 100vw));

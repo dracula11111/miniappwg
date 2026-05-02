@@ -117,6 +117,7 @@ function createMemoryDb() {
   const promoRedemptions = new Map(); // code(lower) -> Set(telegram_id)
   const taskClaims = new Map(); // telegram_id(string) -> Set(taskKey)
   const referrals = new Map(); // invitee_id(string) -> { inviterId, startParam, createdAt, rewardedAt, rewardCurrency, rewardAmount }
+  const dailyCaseOpenings = new Map(); // telegram_id(string) -> [{ openedAt, nextAvailableAt, item }]
   const tonDepositClaims = new Map(); // hash key -> { telegramId, amountTon, txHash, messageHash }
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
@@ -945,6 +946,85 @@ async addInventoryItems(telegramId, items, claimId = null) {
   }
   users.set(k, u);
   return u.__inv.slice();
+},
+async getDailyCaseStatus(telegramId, options = {}) {
+  const k = ensure(telegramId);
+  const cooldownSecRaw = Number(options?.cooldownSec || 24 * 60 * 60);
+  const cooldownSec = Math.max(60, Math.trunc(cooldownSecRaw) || 24 * 60 * 60);
+  const now = nowSec();
+  const periodKey = Math.floor(now / cooldownSec);
+  const periodStartedAt = periodKey * cooldownSec;
+  const periodExpiresAt = periodStartedAt + cooldownSec;
+  const list = dailyCaseOpenings.get(k) || [];
+  const last = list.find((entry) => Number(entry?.periodKey) === periodKey) || null;
+  const lastOpenedAt = Number(last?.openedAt || 0);
+  const available = !last;
+  return {
+    available,
+    lastOpenedAt,
+    nextAvailableAt: available ? 0 : periodExpiresAt,
+    expiresAt: periodExpiresAt,
+    periodStartedAt,
+    periodKey,
+    remainingSec: Math.max(0, periodExpiresAt - now),
+    cooldownSec,
+    burnsIfNotOpened: true
+  };
+},
+async openDailyCase(telegramId, item, options = {}) {
+  const k = ensure(telegramId);
+  const cooldownSecRaw = Number(options?.cooldownSec || 24 * 60 * 60);
+  const cooldownSec = Math.max(60, Math.trunc(cooldownSecRaw) || 24 * 60 * 60);
+  const now = nowSec();
+  const periodKey = Math.floor(now / cooldownSec);
+  const periodStartedAt = periodKey * cooldownSec;
+  const periodExpiresAt = periodStartedAt + cooldownSec;
+  const list = dailyCaseOpenings.get(k) || [];
+  const last = list.find((entry) => Number(entry?.periodKey) === periodKey) || null;
+  const lastOpenedAt = Number(last?.openedAt || 0);
+  if (last) {
+    return {
+      ok: false,
+      code: "DAILY_CASE_COOLDOWN",
+      available: false,
+      lastOpenedAt,
+      nextAvailableAt: periodExpiresAt,
+      expiresAt: periodExpiresAt,
+      periodStartedAt,
+      periodKey,
+      remainingSec: Math.max(0, periodExpiresAt - now),
+      cooldownSec,
+      burnsIfNotOpened: true
+    };
+  }
+  const nowMs = Date.now();
+  const instanceId = `daily_case_${k}_${now}_${crypto.randomBytes(5).toString("hex")}`;
+  const enriched = {
+    ...(item && typeof item === "object" ? item : {}),
+    type: item?.type || "gift",
+    instanceId,
+    acquiredAt: nowMs,
+    source: "daily_case",
+    dailyCase: true,
+    dailyCasePeriodKey: periodKey,
+    dailyCaseExpiresAt: periodExpiresAt * 1000
+  };
+  await this.addInventoryItems(k, [enriched], `daily_case_${k}_${now}`);
+  list.push({ periodKey, openedAt: now, nextAvailableAt: periodExpiresAt, item: enriched });
+  dailyCaseOpenings.set(k, list);
+  return {
+    ok: true,
+    item: enriched,
+    available: false,
+    lastOpenedAt: now,
+    nextAvailableAt: periodExpiresAt,
+    expiresAt: periodExpiresAt,
+    periodStartedAt,
+    periodKey,
+    remainingSec: Math.max(0, periodExpiresAt - now),
+    cooldownSec,
+    burnsIfNotOpened: true
+  };
 },
 async sellInventoryItems(telegramId, instanceIds, currency = 'ton') {
   const k = ensure(telegramId);
@@ -4198,6 +4278,41 @@ async function inventoryAdd(userId, items, claimId) {
   return { added: 0, items: await inventoryGet(userId), duplicated: false };
 }
 
+const DAILY_CASE_COOLDOWN_SEC = 24 * 60 * 60;
+const DAILY_CASE_PLACEHOLDERS = Object.freeze([
+  { id: "daily_slot_1", displayName: "Daily Slot 1", icon: "stars.webp", giftChance: 45, price: { ton: 0.003, stars: 1 }, rarity: "common" },
+  { id: "daily_slot_2", displayName: "Daily Slot 2", icon: "stars.webp", giftChance: 30, price: { ton: 0.006, stars: 2 }, rarity: "common" },
+  { id: "daily_slot_3", displayName: "Daily Slot 3", icon: "stars.webp", giftChance: 15, price: { ton: 0.01, stars: 3 }, rarity: "rare" },
+  { id: "daily_slot_4", displayName: "Daily Slot 4", icon: "stars.webp", giftChance: 8, price: { ton: 0.015, stars: 5 }, rarity: "epic" },
+  { id: "daily_slot_5", displayName: "Daily Slot 5", icon: "stars.webp", giftChance: 2, price: { ton: 0.03, stars: 10 }, rarity: "legendary" }
+]);
+
+function pickDailyCasePlaceholder() {
+  const pool = DAILY_CASE_PLACEHOLDERS;
+  const total = pool.reduce((sum, item) => sum + Math.max(0, Number(item.giftChance || 0)), 0);
+  let roll = Math.random() * (total || pool.length || 1);
+  for (const item of pool) {
+    roll -= Math.max(0, Number(item.giftChance || 0));
+    if (roll <= 0) return { ...item, price: { ...(item.price || {}) } };
+  }
+  const fallback = pool[0] || { id: "daily_slot", icon: "stars.webp", price: { ton: 0, stars: 0 }, rarity: "common" };
+  return { ...fallback, price: { ...(fallback.price || {}) } };
+}
+
+async function dailyCaseStatus(userId) {
+  if (typeof db.getDailyCaseStatus === "function") {
+    return await db.getDailyCaseStatus(userId, { cooldownSec: DAILY_CASE_COOLDOWN_SEC });
+  }
+  return { available: false, lastOpenedAt: 0, nextAvailableAt: 0, remainingSec: 0, cooldownSec: DAILY_CASE_COOLDOWN_SEC };
+}
+
+async function dailyCaseOpen(userId) {
+  if (typeof db.openDailyCase !== "function") {
+    return { ok: false, code: "DAILY_CASE_DB_NOT_READY", error: "Daily case is not configured" };
+  }
+  return await db.openDailyCase(userId, pickDailyCasePlaceholder(), { cooldownSec: DAILY_CASE_COOLDOWN_SEC });
+}
+
 async function inventorySell(userId, instanceIds, currency) {
   const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
   const cur = (currency === "stars") ? "stars" : "ton";
@@ -4310,6 +4425,34 @@ function getInventoryWithdrawLockUntil(item) {
   }
   return 0;
 }
+
+app.get("/api/daily-case/status", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    const status = await dailyCaseStatus(userId);
+    return res.json({ ok: true, items: DAILY_CASE_PLACEHOLDERS, ...status });
+  } catch (e) {
+    console.error("[DailyCase] status error:", e);
+    return res.status(500).json({ ok: false, error: "daily case status error" });
+  }
+});
+
+app.post("/api/daily-case/open", requireTelegramUser, requireTechPauseActionsAllowed, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    const opened = await dailyCaseOpen(userId);
+    if (!opened?.ok) {
+      const status = opened?.code === "DAILY_CASE_COOLDOWN" ? 409 : 503;
+      return res.status(status).json({ ok: false, ...opened });
+    }
+    return res.json({ ok: true, ...opened });
+  } catch (e) {
+    console.error("[DailyCase] open error:", e);
+    return res.status(500).json({ ok: false, error: "daily case open error" });
+  }
+});
 
 // GET inventory (NFTs) for a user
 app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
@@ -4875,6 +5018,69 @@ async function buildReferralStatusPayload(userId, options = {}) {
   };
 }
 
+async function buildPreparedReferralShareMessage(userId, options = {}) {
+  const payload = await buildReferralStatusPayload(userId, options);
+  const language = normalizeReferralLanguage(payload.language || "en");
+  const copy = getReferralInviteCopy(language);
+  const startAppUrl = withReferralStartParam(getWelcomeMiniAppUrl(), payload.code);
+  const photo = await resolveTelegramPhotoRef(getReferralWelcomePhotoRef());
+  const title = language === "ru" ? "Wild Gift Drop" : "Wild Gift Drop";
+  const description = String(payload.shareText || copy.shareText || "").slice(0, 96);
+  const caption = buildWelcomeMessageText({
+    referral: true,
+    language,
+    introCustom: false,
+    ctaCustom: false
+  });
+  const buttonText = getWelcomeButtonText({ referral: true, language });
+  const buttonUrl = isTelegramStartAppLink(startAppUrl) ? startAppUrl : payload.link;
+  const resultId = `ref_${String(userId).slice(0, 32)}_${Date.now().toString(36)}`;
+
+  if (!photo || !buttonUrl) {
+    return { ok: false, error: "Referral share message is not configured" };
+  }
+
+  const result = {
+    type: "photo",
+    id: resultId,
+    photo_url: photo,
+    thumbnail_url: photo,
+    title,
+    description,
+    caption,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[
+        { text: buttonText, url: buttonUrl }
+      ]]
+    }
+  };
+
+  const numericUserId = Number(userId);
+  const response = await callTelegramBotApi("savePreparedInlineMessage", {
+    user_id: Number.isFinite(numericUserId) ? numericUserId : String(userId),
+    result,
+    allow_user_chats: true,
+    allow_bot_chats: false,
+    allow_group_chats: true,
+    allow_channel_chats: false
+  });
+
+  if (!response?.ok || !response?.result?.id) {
+    return {
+      ok: false,
+      error: response?.error || "Failed to prepare referral share message"
+    };
+  }
+
+  return {
+    ok: true,
+    id: String(response.result.id),
+    expirationDate: Number(response.result.expiration_date || 0),
+    ...payload
+  };
+}
+
 app.get("/api/referrals/me", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg?.user?.id || "");
@@ -4884,6 +5090,30 @@ app.get("/api/referrals/me", requireTelegramUser, async (req, res) => {
   } catch (error) {
     console.error("[Referral] status error:", error);
     return res.status(500).json({ ok: false, error: "Failed to load referral status" });
+  }
+});
+
+app.post("/api/referrals/share-message", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg?.user?.id || "");
+    if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
+    const prepared = await buildPreparedReferralShareMessage(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
+    if (!prepared?.ok) {
+      return res.status(502).json({
+        ok: false,
+        error: prepared?.error || "Failed to prepare referral share message"
+      });
+    }
+    return res.json({
+      ok: true,
+      preparedMessageId: prepared.id,
+      expirationDate: prepared.expirationDate,
+      link: prepared.link,
+      shareText: prepared.shareText
+    });
+  } catch (error) {
+    console.error("[Referral] prepared share error:", error);
+    return res.status(500).json({ ok: false, error: "Failed to prepare referral share message" });
   }
 });
 

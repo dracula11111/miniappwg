@@ -9,6 +9,7 @@
   const TASK_SUBSCRIBE_CLAIM_URL = "/api/tasks/channel-subscription/claim";
   const TASK_INVITE_STATUS_URL = "/api/tasks/invite-friend/status";
   const TASK_INVITE_CLAIM_URL = "/api/tasks/invite-friend/claim";
+  const TASK_INVITE_SHARE_URL = "/api/referrals/share-message";
   const TASK_TOP_UP_STATUS_URL = "/api/tasks/top-up/status";
   const TASK_TOP_UP_CLAIM_URL = "/api/tasks/top-up/claim";
   const TASK_WIN_GAME_STATUS_URL = "/api/tasks/game-win/status";
@@ -157,10 +158,70 @@
   function openTelegramUrl(url) {
     const target = String(url || TASK_SUBSCRIBE_DEFAULT_URL).trim() || TASK_SUBSCRIBE_DEFAULT_URL;
     try {
-      if (typeof tg?.openTelegramLink === "function") return tg.openTelegramLink(target);
-      if (typeof tg?.openLink === "function") return tg.openLink(target);
+      if (typeof tg?.openTelegramLink === "function") {
+        tg.openTelegramLink(target);
+        return true;
+      }
+      if (typeof tg?.openLink === "function") {
+        tg.openLink(target);
+        return true;
+      }
     } catch {}
-    window.open(target, "_blank", "noopener,noreferrer");
+    try {
+      const opened = window.open(target, "_blank", "noopener,noreferrer");
+      if (opened) return true;
+    } catch {}
+    try {
+      window.location.href = target;
+      return true;
+    } catch {}
+    return false;
+  }
+
+  async function copyTextToClipboard(text) {
+    const value = String(text || "").trim();
+    if (!value) return false;
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext !== false) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {}
+
+    try {
+      const area = document.createElement("textarea");
+      area.value = value;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.left = "-9999px";
+      area.style.top = "0";
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, value.length);
+      const ok = document.execCommand("copy");
+      area.remove();
+      return !!ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function shareInviteFallback(link, shareText) {
+    const url = String(link || "").trim();
+    const text = String(shareText || "I left you a Wild Gift drop. Tap before it gets claimed.").trim();
+    if (!url) return false;
+
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+    if (openTelegramUrl(shareUrl)) return true;
+
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: "Wild Gift Drop", text, url });
+        return true;
+      }
+    } catch {}
+
+    return await copyTextToClipboard(`${text}\n${url}`);
   }
 
   function formatReferralPerson(person) {
@@ -754,6 +815,27 @@
     await checkSubscribeTask();
   }
 
+  async function sharePreparedInviteMessage() {
+    if (typeof tg?.shareMessage !== "function") return false;
+    try {
+      const response = await tgFetch(TASK_INVITE_SHARE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.ok || !json?.preparedMessageId) return false;
+
+      if (json?.link) inviteState.link = String(json.link);
+      if (json?.shareText) inviteState.shareText = String(json.shareText);
+
+      tg.shareMessage(String(json.preparedMessageId), () => {});
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function onInviteTaskClick() {
     if (inviteState.loading) return;
     if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
@@ -801,10 +883,20 @@
 
     inviteState.opened = true;
     render();
+    const sharedPrepared = await sharePreparedInviteMessage();
+    if (sharedPrepared) {
+      showToast("Choose a chat and send the invite. Then return and tap Check.");
+      haptic("light");
+      return;
+    }
+
     const shareText = String(inviteState.shareText || "I left you a Wild Gift drop. Tap before it gets claimed.").trim();
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`;
-    openTelegramUrl(shareUrl);
-    showToast("Send the invite. When a friend starts the bot, return and tap Check.");
+    const sharedFallback = await shareInviteFallback(link, shareText);
+    if (sharedFallback) {
+      showToast("Send the invite. When a friend starts the bot, return and tap Check.");
+    } else {
+      showToast("Could not open sharing. Invite link copied if your device allowed it.", "warning");
+    }
     haptic("light");
   }
 

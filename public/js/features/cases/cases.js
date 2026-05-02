@@ -189,6 +189,23 @@
     }
   };
 
+  const DAILY_CASE_ID = 'daily';
+  const DAILY_CASE_STATUS_URL = '/api/daily-case/status';
+  const DAILY_CASE_OPEN_URL = '/api/daily-case/open';
+  const DAILY_CASE_PLACEHOLDERS = [
+    { id: 'daily_slot_1', displayName: 'Daily Slot 1', icon: 'stars.webp', giftChance: 45, price: { ton: 0.003, stars: 1 }, rarity: 'common' },
+    { id: 'daily_slot_2', displayName: 'Daily Slot 2', icon: 'stars.webp', giftChance: 30, price: { ton: 0.006, stars: 2 }, rarity: 'common' },
+    { id: 'daily_slot_3', displayName: 'Daily Slot 3', icon: 'stars.webp', giftChance: 15, price: { ton: 0.01, stars: 3 }, rarity: 'rare' },
+    { id: 'daily_slot_4', displayName: 'Daily Slot 4', icon: 'stars.webp', giftChance: 8, price: { ton: 0.015, stars: 5 }, rarity: 'epic' },
+    { id: 'daily_slot_5', displayName: 'Daily Slot 5', icon: 'stars.webp', giftChance: 2, price: { ton: 0.03, stars: 10 }, rarity: 'legendary' }
+  ];
+  const DAILY_CASE = {
+    id: DAILY_CASE_ID,
+    name: 'Daily Free',
+    price: { ton: 0, stars: 0 },
+    items: DAILY_CASE_PLACEHOLDERS,
+    isDaily: true
+  };
   const DEFAULT_GIFT_ICONS = [
     'gift1.png',
     'gift2.png',
@@ -301,9 +318,20 @@
   enrichCasesWithDefaultGifts(TON_CASES, 'ton');
   enrichCasesWithDefaultGifts(STAR_CASES, 'stars');
 
+  function getDailyCaseForUi() {
+    return {
+      ...DAILY_CASE,
+      items: Array.isArray(dailyCaseState?.items) && dailyCaseState.items.length
+        ? dailyCaseState.items
+        : DAILY_CASE_PLACEHOLDERS
+    };
+  }
+
   function getActiveCases(currencyOverride) {
     const currency = currencyOverride || (window.WildTimeCurrency?.current || 'ton');
-    return currency === 'stars' ? STAR_CASES : TON_CASES;
+    const baseCases = currency === 'stars' ? STAR_CASES : TON_CASES;
+    if (!dailyCaseState?.available) return baseCases;
+    return { [DAILY_CASE_ID]: getDailyCaseForUi(), ...baseCases };
   }
 
   // Use global test mode from wheel.js (window.TEST_MODE).
@@ -320,6 +348,9 @@
   let casesLowMotion = false;
   const caseIconPreloadCache = new Map();
   let pendingRound = null; // { roundId, currency, demo, ... }
+  let dailyCaseState = { available: false, loaded: false, items: DAILY_CASE_PLACEHOLDERS };
+  let dailyCaseStatusInFlight = null;
+  let dailyCaseRefreshTimer = 0;
 
   let carousels = [];
   let animationFrames = [];
@@ -1672,6 +1703,7 @@ function getBalanceSafe(currency) {
   }
 
   function getCaseImagePath(caseId, currency) {
+    if (String(caseId || '').toLowerCase() === DAILY_CASE_ID) return assetUrl('images/cases/starcases/case1.png');
     const rawId = String(caseId || 'case1').toLowerCase();
     const safeId = rawId.replace(/[^a-z0-9_-]/g, '') || 'case1';
     return assetUrl(`images/cases/${getCaseImageFolder(currency)}/${safeId}.png`);
@@ -1783,6 +1815,7 @@ function getBalanceSafe(currency) {
     const apply = () => {
       if (casesPage.classList.contains('page-active')) {
         startHistoryPolling();
+        loadDailyCaseStatus({ rerender: true }).catch(() => {});
       } else {
         stopHistoryPolling();
       }
@@ -1915,6 +1948,7 @@ function getBalanceSafe(currency) {
     preloadCasesThemeBackgrounds();
     clearLegacyCasesCurrencySwapArtifacts();
     generateCasesGrid();
+    loadDailyCaseStatus({ rerender: true }).catch(e => console.warn('[Cases] Failed to load daily case:', e));
 
     // Загрузить floor prices при старте
     ensurePeekFloorsLoaded().catch(e => {
@@ -2191,7 +2225,7 @@ function getBalanceSafe(currency) {
 
     casesArray.forEach((caseData, index) => {
       const price = caseData.price[currency];
-      const priceDisplay = formatAmount(currency, price);
+      const priceDisplay = caseData.isDaily ? 'FREE' : formatAmount(currency, price);
       const caseImageSrc = getCaseImagePath(caseData.id, currency);
       const adaptiveTileGlowMarkup = currency === 'ton'
         ? '<div class="case-path-image-glow" aria-hidden="true"></div>'
@@ -2204,6 +2238,7 @@ function getBalanceSafe(currency) {
       pathItem.className = 'case-path-item is-visible';
       pathItem.dataset.caseId = caseData.id;
       pathItem.dataset.variant = String((index % 3) + 1);
+      if (caseData.isDaily) pathItem.classList.add('case-path-item--daily');
 
       if (isMeadowTheme) {
         pathItem.classList.add('case-path-item--stars');
@@ -2263,6 +2298,7 @@ function getBalanceSafe(currency) {
       }
 
       applyAdaptiveCasePathGlow(pathItem, caseImageSrc, currency, caseData.id);
+      if (caseData.isDaily) pathItem.insertAdjacentHTML('beforeend', '<span class="daily-case-badge">1</span>');
 
       pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
       casesPath.appendChild(pathItem);
@@ -2597,6 +2633,7 @@ function getBalanceSafe(currency) {
     if (countSection) {
       const caseImg = getCaseImagePath(currentCase.id, currency);
       countSection.style.setProperty('--current-case-image', `url('${caseImg}')`);
+      countSection.classList.toggle('case-count-section--daily', !!currentCase.isDaily);
       if (!caseThumbImg) caseThumbImg = document.getElementById('caseCurrentThumbImg');
       if (caseThumbImg) {
         caseThumbImg.src = caseImg;
@@ -2638,11 +2675,12 @@ function getBalanceSafe(currency) {
     const currency = window.WildTimeCurrency?.current || 'ton';
     const totalPrice = currentCase.price[currency] * selectedCount;
     const demoActive = isCasesTestMode() || isDemoMode;
+    const dailyActive = !!currentCase.isDaily;
     const iconEl = document.getElementById('caseCurrencyIcon');
 
     const priceEl = document.getElementById('casePrice');
     if (priceEl) {
-      priceEl.textContent = demoActive ? 'FREE' : formatAmount(currency, totalPrice);
+      priceEl.textContent = (demoActive || dailyActive) ? 'FREE' : formatAmount(currency, totalPrice);
     }
     if (iconEl) {
       iconEl.src = (currency === 'ton')
@@ -2650,7 +2688,8 @@ function getBalanceSafe(currency) {
         : getCaseCurrencyIcon(currency);
     }
 
-    openBtn.classList.toggle('demo-mode', demoActive);
+    openBtn.classList.toggle('demo-mode', demoActive || dailyActive);
+    openBtn.classList.toggle('daily-mode', dailyActive);
   }
 
   function getCaseCurrencyIcon(currency) {
@@ -3266,6 +3305,7 @@ function getBalanceSafe(currency) {
 
   // ====== SELECT COUNT ======
   function selectCount(count) {
+    if (currentCase?.isDaily) return;
     if (isAnimating || isSpinning || selectedCount === count) return;
 
     selectedCount = count;
@@ -3336,6 +3376,10 @@ function getBalanceSafe(currency) {
   }
     async function handleOpenCase() {
     if (isAnimating || isSpinning || !currentCase || !openBtn) return;
+    if (currentCase.isDaily) {
+      await handleOpenDailyCase();
+      return;
+    }
 
     const tgWeb = window.Telegram?.WebApp;
     const tgUserId = (tgWeb?.initDataUnsafe?.user?.id) ? String(tgWeb.initDataUnsafe.user.id) : "guest";
@@ -4114,6 +4158,143 @@ async function fetchJsonSafe(url, options = {}, timeoutMs = 6000) {
   }
 }
 
+function getTelegramAuthHeaders(extra = {}) {
+  const initData = String(window.Telegram?.WebApp?.initData || '').trim();
+  return initData ? { ...extra, 'x-telegram-init-data': initData } : { ...extra };
+}
+
+function scheduleDailyCaseRefresh(payload = {}) {
+  if (dailyCaseRefreshTimer) {
+    clearTimeout(dailyCaseRefreshTimer);
+    dailyCaseRefreshTimer = 0;
+  }
+  const remainingSec = Number(payload.remainingSec || 0);
+  const boundarySec = Number(payload.nextAvailableAt || payload.expiresAt || 0);
+  const delayMs = Number.isFinite(remainingSec) && remainingSec > 0
+    ? Math.max(1000, remainingSec * 1000 + 1200)
+    : Math.max(1000, (boundarySec * 1000) - Date.now() + 1200);
+  if (!Number.isFinite(delayMs) || delayMs > 2147483000) return;
+  dailyCaseRefreshTimer = setTimeout(() => {
+    dailyCaseRefreshTimer = 0;
+    loadDailyCaseStatus({ rerender: true }).catch(() => {});
+  }, delayMs);
+}
+function setDailyCaseState(payload = {}) {
+  dailyCaseState = {
+    available: !!payload.available,
+    loaded: true,
+    lastOpenedAt: Number(payload.lastOpenedAt || 0),
+    nextAvailableAt: Number(payload.nextAvailableAt || 0),
+    remainingSec: Number(payload.remainingSec || 0),
+    cooldownSec: Number(payload.cooldownSec || 24 * 60 * 60),
+    items: Array.isArray(payload.items) && payload.items.length ? payload.items : DAILY_CASE_PLACEHOLDERS
+  };
+  updateDailyCaseBadges();
+  scheduleDailyCaseRefresh(dailyCaseState);
+}
+
+function ensureDailyBadge(host, className) {
+  if (!host) return null;
+  let badge = host.querySelector(`.${className}`);
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = className;
+    badge.textContent = '1';
+    badge.setAttribute('aria-hidden', 'true');
+    host.appendChild(badge);
+  }
+  badge.hidden = !dailyCaseState?.available;
+  return badge;
+}
+
+function updateDailyCaseBadges() {
+  const visible = !!dailyCaseState?.available;
+  const casesTile = document.querySelector('.game-tile--cases');
+  const gamesNav = document.querySelector('.bottom-nav .nav-item[data-target="gamesPage"]');
+  ensureDailyBadge(casesTile, 'daily-case-tile-badge');
+  ensureDailyBadge(gamesNav, 'daily-case-nav-badge');
+  document.querySelectorAll('.daily-case-tile-badge,.daily-case-nav-badge,.daily-case-badge').forEach((badge) => {
+    badge.hidden = !visible;
+  });
+}
+
+async function loadDailyCaseStatus(options = {}) {
+  const rerender = !!options.rerender;
+  const initData = String(window.Telegram?.WebApp?.initData || '').trim();
+  if (!initData) {
+    setDailyCaseState({ available: false, items: DAILY_CASE_PLACEHOLDERS });
+    if (rerender) generateCasesGrid();
+    return dailyCaseState;
+  }
+  if (dailyCaseStatusInFlight) return dailyCaseStatusInFlight;
+  dailyCaseStatusInFlight = (async () => {
+    const r = await fetchJsonSafe(DAILY_CASE_STATUS_URL, {
+      method: 'GET',
+      headers: getTelegramAuthHeaders()
+    }, 6500);
+    if (r.ok && r.json) {
+      setDailyCaseState(r.json);
+      if (rerender) generateCasesGrid();
+    } else {
+      updateDailyCaseBadges();
+    }
+    return dailyCaseState;
+  })().finally(() => {
+    dailyCaseStatusInFlight = null;
+  });
+  return dailyCaseStatusInFlight;
+}
+
+async function handleOpenDailyCase() {
+  const initData = String(window.Telegram?.WebApp?.initData || '').trim();
+  if (!initData) {
+    showToast(casesText('Open the app through Telegram to claim the daily case.', 'Open the app through Telegram to claim the daily case.'));
+    safeHaptic('notification', 'error');
+    return;
+  }
+
+  isSpinning = true;
+  if (openBtn) {
+    openBtn.disabled = true;
+    openBtn.style.opacity = '0.6';
+  }
+  setControlsLocked(true);
+
+  try {
+    const r = await fetchJsonSafe(DAILY_CASE_OPEN_URL, {
+      method: 'POST',
+      headers: getTelegramAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({})
+    }, 8000);
+
+    if (!r.ok || !r.json?.ok) {
+      if (r.status === 409 || r.json?.code === 'DAILY_CASE_COOLDOWN') {
+        setDailyCaseState(r.json || { available: false });
+        generateCasesGrid();
+        closeBottomSheet({ force: true });
+        showToast(casesText('Daily case will be back in 24 hours.', 'Daily case will be back in 24 hours.'));
+        return;
+      }
+      showToast(casesText('Could not open daily case. Try again.', 'Could not open daily case. Try again.'));
+      safeHaptic('notification', 'error');
+      return;
+    }
+
+    setDailyCaseState({ ...r.json, available: false, items: DAILY_CASE_PLACEHOLDERS });
+    generateCasesGrid();
+    try { window.dispatchEvent(new Event('inventory:update')); } catch (_) {}
+    safeHaptic('notification', 'success');
+    showToast(casesText('Daily reward added to inventory.', 'Daily reward added to inventory.'));
+    closeBottomSheet({ force: true });
+  } finally {
+    isSpinning = false;
+    if (openBtn) {
+      openBtn.disabled = false;
+      openBtn.style.opacity = '1';
+    }
+    setControlsLocked(false);
+  }
+}
 function setBtnLoading(btn, loading) {
   if (!btn) return;
   btn.disabled = !!loading;
