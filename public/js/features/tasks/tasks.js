@@ -384,6 +384,14 @@
     return { type: "start", text: "Start", disabled: false };
   }
 
+  function hasInviteProgress() {
+    return (
+      Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0 ||
+      Math.max(0, Number(inviteState.inviteCount || 0)) > 0 ||
+      Math.max(0, Number(inviteState.rewardedCount || 0)) > 0
+    );
+  }
+
   function getButtonConfig(task) {
     if (task.id === TASK_SUBSCRIBE_ID) return getSubscribeButtonConfig();
     if (task.id === TASK_INVITE_ID) return getInviteButtonConfig();
@@ -860,7 +868,11 @@
         showToast("Invite confirmed. Tap Claim.", "success");
         haptic("success");
       } else {
-        showToast("No friends have started the bot from your invite yet.", "warning");
+        if (!hasInviteProgress()) {
+          inviteState.opened = false;
+          render();
+        }
+        showToast("No friends have started the bot yet. You can send the invite again.", "warning");
         haptic("warning");
       }
       return;
@@ -895,6 +907,8 @@
     if (sharedFallback) {
       showToast("Send the invite. When a friend starts the bot, return and tap Check.");
     } else {
+      inviteState.opened = false;
+      render();
       showToast("Could not open sharing. Invite link copied if your device allowed it.", "warning");
     }
     haptic("light");

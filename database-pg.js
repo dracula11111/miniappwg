@@ -21,7 +21,6 @@ const RLS_PROTECTED_TABLES = [
   "bets",
   "inventory_claims",
   "inventory_items",
-  "daily_case_openings",
   "market_items",
   "gift_readable",
   "promo_codes",
@@ -542,26 +541,6 @@ export async function initDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_inventory_items_user ON inventory_items(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_inventory_items_created ON inventory_items(created_at DESC);
-
-    CREATE TABLE IF NOT EXISTS daily_case_openings (
-      id BIGSERIAL PRIMARY KEY,
-      telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
-      telegram_username TEXT,
-      period_key BIGINT,
-      opened_at BIGINT NOT NULL,
-      next_available_at BIGINT NOT NULL,
-      item_json JSONB NOT NULL
-    );
-    ALTER TABLE daily_case_openings ADD COLUMN IF NOT EXISTS period_key BIGINT;
-    UPDATE daily_case_openings
-       SET period_key = FLOOR(opened_at::numeric / 86400)::BIGINT
-     WHERE period_key IS NULL;
-    CREATE INDEX IF NOT EXISTS idx_daily_case_openings_user_opened
-      ON daily_case_openings(telegram_id, opened_at DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_case_openings_user_period
-      ON daily_case_openings(telegram_id, period_key)
-      WHERE period_key IS NOT NULL;
-
 
     CREATE TABLE IF NOT EXISTS market_items (
   id TEXT PRIMARY KEY,
@@ -2132,153 +2111,6 @@ export async function addInventoryItems(telegramId, items, claimId = null) {
 
     await client.query("COMMIT");
     return inv.rows.map(row => row.item_json);
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
-}
-
-export async function getDailyCaseStatus(telegramId, options = {}) {
-  const id = BigInt(telegramId);
-  const cooldownSecRaw = Number(options?.cooldownSec || 24 * 60 * 60);
-  const cooldownSec = Math.max(60, Math.trunc(cooldownSecRaw) || 24 * 60 * 60);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const periodKey = Math.floor(nowSec / cooldownSec);
-  const periodStartedAt = periodKey * cooldownSec;
-  const periodExpiresAt = periodStartedAt + cooldownSec;
-
-  const r = await query(
-    `SELECT opened_at, next_available_at
-       FROM daily_case_openings
-      WHERE telegram_id = $1
-        AND period_key = $2
-      LIMIT 1`,
-    [id, periodKey]
-  );
-
-  const row = r.rows[0] || null;
-  const lastOpenedAt = row ? Number(row.opened_at || 0) : 0;
-  const available = !row;
-
-  return {
-    available,
-    lastOpenedAt,
-    nextAvailableAt: available ? 0 : periodExpiresAt,
-    expiresAt: periodExpiresAt,
-    periodStartedAt,
-    periodKey,
-    remainingSec: Math.max(0, periodExpiresAt - nowSec),
-    cooldownSec,
-    burnsIfNotOpened: true
-  };
-}
-
-export async function openDailyCase(telegramId, item, options = {}) {
-  const id = BigInt(telegramId);
-  const cooldownSecRaw = Number(options?.cooldownSec || 24 * 60 * 60);
-  const cooldownSec = Math.max(60, Math.trunc(cooldownSecRaw) || 24 * 60 * 60);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const nowMs = Date.now();
-  const periodKey = Math.floor(nowSec / cooldownSec);
-  const periodStartedAt = periodKey * cooldownSec;
-  const periodExpiresAt = periodStartedAt + cooldownSec;
-  const baseItem = item && typeof item === "object" ? item : null;
-  if (!baseItem) return { ok: false, code: "DAILY_CASE_ITEM_REQUIRED", error: "Daily case item is required" };
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
-    await client.query(
-      `INSERT INTO users (telegram_id, created_at, last_seen) VALUES ($1,$2,$2)
-       ON CONFLICT (telegram_id) DO UPDATE SET last_seen = EXCLUDED.last_seen`,
-      [id, nowSec]
-    );
-
-    await client.query(`SELECT telegram_id FROM users WHERE telegram_id = $1 FOR UPDATE`, [id]);
-
-    const last = await client.query(
-      `SELECT opened_at, next_available_at
-         FROM daily_case_openings
-        WHERE telegram_id = $1
-          AND period_key = $2
-        LIMIT 1`,
-      [id, periodKey]
-    );
-
-    const lastRow = last.rows[0] || null;
-    if (lastRow) {
-      const lastOpenedAt = Number(lastRow.opened_at || 0);
-      await client.query("ROLLBACK");
-      return {
-        ok: false,
-        code: "DAILY_CASE_COOLDOWN",
-        available: false,
-        lastOpenedAt,
-        nextAvailableAt: periodExpiresAt,
-        expiresAt: periodExpiresAt,
-        periodStartedAt,
-        periodKey,
-        remainingSec: Math.max(0, periodExpiresAt - nowSec),
-        cooldownSec,
-        burnsIfNotOpened: true
-      };
-    }
-
-    const instanceId = String(baseItem.instanceId || `daily_case_${id}_${nowSec}_${crypto.randomBytes(5).toString("hex")}`);
-    const enriched = {
-      ...baseItem,
-      type: baseItem.type || "gift",
-      instanceId,
-      acquiredAt: nowMs,
-      source: "daily_case",
-      dailyCase: true,
-      dailyCasePeriodKey: periodKey,
-      dailyCaseExpiresAt: periodExpiresAt * 1000
-    };
-
-    await client.query(
-      `INSERT INTO daily_case_openings (telegram_id, telegram_username, period_key, opened_at, next_available_at, item_json)
-       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4,$5)`,
-      [id, periodKey, nowSec, periodExpiresAt, enriched]
-    );
-
-    const ins = await client.query(
-      `INSERT INTO inventory_items (telegram_id, telegram_username, instance_id, item_json, created_at)
-       VALUES ($1,(SELECT username FROM users WHERE telegram_id = $1),$2,$3,$4)
-       ON CONFLICT (instance_id) DO NOTHING
-       RETURNING id, instance_id, item_json, created_at`,
-      [id, instanceId, enriched, nowSec]
-    );
-
-    if (ins.rowCount > 0) {
-      const row = ins.rows[0] || {};
-      const readableSourceId = inventoryReadableSourceIdFromRow(row) || instanceId;
-      await upsertGiftReadableEntry(client, {
-        source: "inventory",
-        sourceId: readableSourceId,
-        telegramId: id,
-        item: row.item_json || enriched,
-        createdAt: enriched.acquiredAt || nowMs
-      });
-    }
-
-    await client.query("COMMIT");
-    return {
-      ok: true,
-      item: enriched,
-      available: false,
-      lastOpenedAt: nowSec,
-      nextAvailableAt: periodExpiresAt,
-      expiresAt: periodExpiresAt,
-      periodStartedAt,
-      periodKey,
-      remainingSec: Math.max(0, periodExpiresAt - nowSec),
-      cooldownSec,
-      burnsIfNotOpened: true
-    };
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
