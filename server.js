@@ -1522,6 +1522,9 @@ function makeRoundHash(gameKey, counter, entropy = "") {
 }
 
 async function loadGameRoundMeta(gameKey) {
+  if (!dbReady && !IS_TEST) {
+    return { counter: 0, hash: "", updatedAt: 0 };
+  }
   if (typeof db?.getGameRoundMeta !== "function") {
     return { counter: 0, hash: "", updatedAt: 0 };
   }
@@ -1539,6 +1542,7 @@ async function loadGameRoundMeta(gameKey) {
 }
 
 function persistGameRoundMeta(gameKey, counter, hash) {
+  if (!dbReady && !IS_TEST) return;
   if (typeof db?.setGameRoundMeta !== "function") return;
   const safeCounter = normalizeGameCounterValue(counter);
   const safeHash = normalizeRoundHashValue(hash);

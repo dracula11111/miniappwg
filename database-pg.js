@@ -24,6 +24,10 @@ const pool = new Pool({
   allowExitOnIdle: true
 });
 
+const PG_CIRCUIT_OPEN_MS = envInt("PG_CIRCUIT_OPEN_MS", 15000, 1000, 120000);
+let pgCircuitOpenUntil = 0;
+let pgCircuitLastError = "";
+
 const RLS_PROTECTED_TABLES = [
   "users",
   "balances",
@@ -46,7 +50,22 @@ const RLS_PROTECTED_TABLES = [
 ];
 
 async function query(text, params) {
-  const client = await pool.connect();
+  const now = Date.now();
+  if (pgCircuitOpenUntil > now) {
+    const err = new Error(pgCircuitLastError || "Postgres temporarily unavailable");
+    err.code = "PG_CIRCUIT_OPEN";
+    throw err;
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (e) {
+    pgCircuitLastError = e?.message || String(e || "Postgres connection failed");
+    pgCircuitOpenUntil = Date.now() + PG_CIRCUIT_OPEN_MS;
+    throw e;
+  }
+
   try {
     return await client.query(text, params);
   } finally {

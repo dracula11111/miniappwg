@@ -324,6 +324,50 @@
     );
   }
 
+  function makeLocalDailyCase(dateKey = todayLocalKey()) {
+    const user = getTelegramUser();
+    return {
+      type: 'daily_case',
+      id: 'daily_case',
+      baseId: 'daily_case',
+      name: 'Daily Case',
+      title: 'Daily Case',
+      icon: DAILY_CASE_IMAGE,
+      image: DAILY_CASE_IMAGE,
+      previewUrl: DAILY_CASE_IMAGE,
+      instanceId: `local_daily_case_${user.id || 'guest'}_${dateKey}`,
+      dailyCaseDate: dateKey,
+      opened: false,
+      price: { ton: 0, stars: 0 },
+      acquiredAt: Date.now(),
+      localOnly: true
+    };
+  }
+
+  function claimLocalDailyCaseFallback() {
+    const user = getTelegramUser();
+    const dateKey = todayLocalKey();
+    if (hasOpenedDailyCase(user.id, dateKey)) return null;
+
+    const current = readLocalInventory(user.id);
+    const exists = current.some((item) =>
+      isDailyCaseItem(item) &&
+      String(item?.dailyCaseDate || '') === dateKey
+    );
+    const items = exists ? current : [makeLocalDailyCase(dateKey), ...current];
+    writeLocalInventory(user.id, items);
+    renderInventory(items);
+
+    if (!exists && !hasViewedDailyCase(user.id, dateKey)) {
+      updateDailyCaseBadge(false);
+      showDailyCasePanel(dateKey);
+    } else {
+      updateDailyCaseBadge(!hasViewedDailyCase(user.id, dateKey));
+    }
+
+    return { ok: true, localOnly: true, dateKey, items };
+  }
+
   async function claimDailyCase() {
     if (dailyCaseClaimPromise) return dailyCaseClaimPromise;
     const user = getTelegramUser();
@@ -335,9 +379,9 @@
       try {
         const r = await tgFetch('/api/daily-case/claim', { method: 'POST' });
         data = await r.json().catch(() => null);
-        if (!r.ok || !data?.ok) return null;
+        if (!r.ok || !data?.ok) return claimLocalDailyCaseFallback();
       } catch {
-        return null;
+        return claimLocalDailyCaseFallback();
       }
 
       const items = Array.isArray(data.items) ? data.items : null;
