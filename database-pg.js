@@ -8,9 +8,20 @@ if (!process.env.DATABASE_URL) {
   console.warn("[DB] ⚠️ DATABASE_URL is not set. Postgres will not work.");
 }
 
+function envInt(name, fallback, min, max) {
+  const raw = Number(process.env[name]);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(raw)));
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
+  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+  max: envInt("PG_POOL_MAX", 2, 1, 20),
+  min: 0,
+  idleTimeoutMillis: envInt("PG_IDLE_TIMEOUT_MS", 5000, 1000, 60000),
+  connectionTimeoutMillis: envInt("PG_CONNECTION_TIMEOUT_MS", 30000, 1000, 60000),
+  allowExitOnIdle: true
 });
 
 const RLS_PROTECTED_TABLES = [
