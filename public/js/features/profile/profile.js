@@ -181,6 +181,23 @@
 
   // ====== LOCAL INVENTORY FALLBACK ======
   const LS_PREFIX = 'WT_INV_'; // WT_INV_<userId> => JSON array
+  const DAILY_CASE_IMAGE = '/images/cases/daily/dailyCase.webp';
+  const DAILY_CASE_VIEW_PREFIX = 'WT_DAILY_CASE_VIEWED_';
+  const DAILY_CASE_OPEN_PREFIX = 'WT_DAILY_CASE_OPENED_';
+  const DAILY_CASE_STAR_ICON = '/icons/currency/stars.svg';
+  const DAILY_CASE_REWARDS = [
+    { id: 'plush-pepe-princess', type: 'gift', name: 'Plush Pepe', image: 'https://cdn.changes.tg/gifts/models/Plush%20Pepe/png/Princess.png' },
+    { id: 'precious-peach-shocking', type: 'gift', name: 'Precious Peach', image: 'https://cdn.changes.tg/gifts/models/Precious%20Peach/png/Shocking.png' },
+    { id: 'heroic-helmet-praetorian', type: 'gift', name: 'Heroic Helmet', image: 'https://cdn.changes.tg/gifts/models/Heroic%20Helmet/png/Praetorian.png' },
+    { id: 'perfume-bottle-twilight-bliss', type: 'gift', name: 'Perfume Bottle', image: 'https://cdn.changes.tg/gifts/models/Perfume%20Bottle/png/Twilight%20Bliss.png' },
+    { id: 'signet-ring-ton', type: 'gift', name: 'Signet Ring', image: 'https://cdn.changes.tg/gifts/models/Signet%20Ring/png/TON.png' },
+    { id: 'astral-shard-candy-flossite', type: 'gift', name: 'Astral Shard', image: 'https://cdn.changes.tg/gifts/models/Astral%20Shard/png/Candy%20Flossite.png' },
+    { id: 'stars-3-2', type: 'stars', name: '3.2 Stars', image: DAILY_CASE_STAR_ICON, amount: '3.2' },
+    { id: 'stars-5', type: 'stars', name: '5 Stars', image: DAILY_CASE_STAR_ICON, amount: '5' }
+  ];
+  let dailyCaseClaimPromise = null;
+  let dailyCaseSheet = null;
+  let dailyCaseOpening = false;
 
   function getTelegramUser() {
     return tg?.initDataUnsafe?.user || { id: 'guest', username: null, first_name: 'Guest' };
@@ -196,6 +213,338 @@
       "x-telegram-init-data": initData
     };
     return fetch(url, { ...options, headers });
+  }
+
+  function isDailyCaseItem(item) {
+    return String(item?.type || '') === 'daily_case' || String(item?.id || item?.baseId || '') === 'daily_case';
+  }
+
+  function todayLocalKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function dailyCaseViewKey(userId, dateKey) {
+    return `${DAILY_CASE_VIEW_PREFIX}${userId || 'guest'}_${dateKey || todayLocalKey()}`;
+  }
+
+  function dailyCaseOpenKey(userId, dateKey) {
+    return `${DAILY_CASE_OPEN_PREFIX}${userId || 'guest'}_${dateKey || todayLocalKey()}`;
+  }
+
+  function hasViewedDailyCase(userId, dateKey) {
+    try { return localStorage.getItem(dailyCaseViewKey(userId, dateKey)) === '1'; } catch { return false; }
+  }
+
+  function hasOpenedDailyCase(userId, dateKey) {
+    try { return localStorage.getItem(dailyCaseOpenKey(userId, dateKey)) === '1'; } catch { return false; }
+  }
+
+  function markDailyCaseOpened(dateKey = todayLocalKey()) {
+    const user = getTelegramUser();
+    try { localStorage.setItem(dailyCaseOpenKey(user.id, dateKey), '1'); } catch {}
+    markDailyCaseViewed(dateKey);
+  }
+
+  function markDailyCaseViewed(dateKey = todayLocalKey()) {
+    const user = getTelegramUser();
+    try { localStorage.setItem(dailyCaseViewKey(user.id, dateKey), '1'); } catch {}
+    updateDailyCaseBadge(false);
+  }
+
+  function updateDailyCaseBadge(show) {
+    document.body.classList.toggle('daily-case-unread', !!show);
+    document.querySelectorAll('[data-daily-case-badge]').forEach((el) => { el.hidden = !show; });
+  }
+
+  function ensureDailyCaseBadges() {
+    const targets = [
+      document.getElementById('userAvatarBtn'),
+      document.querySelector('.bottom-nav .nav-item[data-target="profilePage"]')
+    ].filter(Boolean);
+
+    targets.forEach((target) => {
+      if (target.querySelector('[data-daily-case-badge]')) return;
+      const badge = document.createElement('span');
+      badge.className = 'daily-case-badge';
+      badge.dataset.dailyCaseBadge = '1';
+      badge.textContent = '1';
+      badge.hidden = true;
+      target.appendChild(badge);
+    });
+  }
+
+  function hideDailyCasePanel() {
+    const panel = document.getElementById('dailyCasePanel');
+    if (panel) panel.hidden = true;
+  }
+
+  function showDailyCasePanel(dateKey) {
+    let panel = document.getElementById('dailyCasePanel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'dailyCasePanel';
+      panel.className = 'daily-case-panel';
+      panel.hidden = true;
+      panel.innerHTML = `
+        <div class="daily-case-panel__backdrop" aria-hidden="true"></div>
+        <section class="daily-case-panel__box" role="dialog" aria-modal="true" aria-label="Daily Case">
+          <div class="daily-case-panel__imagewrap">
+            <img class="daily-case-panel__image" src="${DAILY_CASE_IMAGE}" alt="">
+          </div>
+          <div class="daily-case-panel__title">Daily Case</div>
+          <div class="daily-case-panel__text">Можете открыть в инвентаре.</div>
+          <button class="daily-case-panel__open" type="button">Open</button>
+        </section>
+      `;
+      document.body.appendChild(panel);
+      panel.querySelector('.daily-case-panel__open')?.addEventListener('click', () => {
+        markDailyCaseViewed(panel.dataset.dateKey || todayLocalKey());
+        hideDailyCasePanel();
+        window.WT?.activatePage?.('profilePage');
+        haptic('success');
+      });
+    }
+
+    panel.dataset.dateKey = dateKey || todayLocalKey();
+    panel.hidden = false;
+    haptic('success');
+  }
+
+  function hasUnopenedDailyCaseForDate(items, dateKey) {
+    const key = String(dateKey || todayLocalKey());
+    return (Array.isArray(items) ? items : []).some((item) =>
+      isDailyCaseItem(item) &&
+      String(item?.dailyCaseDate || key) === key &&
+      item?.opened !== true &&
+      !hasOpenedDailyCase(getTelegramUser().id, key)
+    );
+  }
+
+  async function claimDailyCase() {
+    if (dailyCaseClaimPromise) return dailyCaseClaimPromise;
+    const user = getTelegramUser();
+    if (!user?.id || String(user.id) === 'guest') return null;
+
+    dailyCaseClaimPromise = (async () => {
+      ensureDailyCaseBadges();
+      let data = null;
+      try {
+        const r = await tgFetch('/api/daily-case/claim', { method: 'POST' });
+        data = await r.json().catch(() => null);
+        if (!r.ok || !data?.ok) return null;
+      } catch {
+        return null;
+      }
+
+      const items = Array.isArray(data.items) ? data.items : null;
+      if (items) {
+        writeLocalInventory(user.id, items);
+        renderInventory(items);
+      }
+
+      const dateKey = String(data.dateKey || todayLocalKey());
+      const hasUnopened = hasUnopenedDailyCaseForDate(items || lastInventory, dateKey);
+
+      if (data.newlyClaimed) {
+        updateDailyCaseBadge(false);
+        showDailyCasePanel(dateKey);
+      } else {
+        updateDailyCaseBadge(hasUnopened && !hasViewedDailyCase(user.id, dateKey));
+      }
+
+      return data;
+    })();
+
+    return dailyCaseClaimPromise;
+  }
+
+  function pickDailyCaseReward() {
+    return DAILY_CASE_REWARDS[Math.floor(Math.random() * DAILY_CASE_REWARDS.length)] || DAILY_CASE_REWARDS[0];
+  }
+
+  function dailyCaseRewardHtml(reward, extraClass = '') {
+    const isStars = reward?.type === 'stars';
+    return `
+      <div class="daily-case-reward ${extraClass}" data-reward-type="${escapeHtml(reward?.type || 'gift')}">
+        <div class="daily-case-reward__visual">
+          <img src="${escapeHtml(reward?.image || DAILY_CASE_IMAGE)}" alt="" loading="eager" decoding="async">
+          ${isStars ? `<span class="daily-case-reward__amount">${escapeHtml(reward.amount)}</span>` : ''}
+        </div>
+        <div class="daily-case-reward__name">${escapeHtml(reward?.name || 'Prize')}</div>
+      </div>
+    `;
+  }
+
+  function ensureDailyCaseSheet() {
+    if (dailyCaseSheet) return dailyCaseSheet;
+
+    const sheet = document.createElement('div');
+    sheet.id = 'dailyCaseSheet';
+    sheet.className = 'daily-case-sheet';
+    sheet.hidden = true;
+    sheet.innerHTML = `
+      <div class="daily-case-sheet__overlay" data-daily-case-close="1"></div>
+      <div class="daily-case-sheet__panel" role="dialog" aria-modal="true" aria-label="Daily Case">
+        <div class="daily-case-sheet__header">
+          <h2>Daily Case</h2>
+          <button class="daily-case-sheet__close" type="button" aria-label="Close" data-daily-case-close="1">
+            <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+          </button>
+        </div>
+
+        <div class="daily-case-sheet__hero">
+          <img src="${DAILY_CASE_IMAGE}" alt="">
+        </div>
+
+        <div class="daily-case-sheet__carousels" data-daily-case-carousels></div>
+
+        <section class="daily-case-sheet__contents" aria-label="Daily case contents">
+          <h3>Contents</h3>
+          <div class="daily-case-sheet__grid">
+            ${DAILY_CASE_REWARDS.map((reward) => dailyCaseRewardHtml(reward)).join('')}
+          </div>
+        </section>
+
+        <div class="daily-case-sheet__bottom">
+          <button class="daily-case-sheet__open" type="button" data-daily-case-open>Open</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(sheet);
+    sheet.querySelectorAll('[data-daily-case-close]').forEach((el) => {
+      el.addEventListener('click', () => closeDailyCaseSheet());
+    });
+    sheet.querySelector('[data-daily-case-open]')?.addEventListener('click', () => openDailyCaseRewards());
+    dailyCaseSheet = sheet;
+    return sheet;
+  }
+
+  function closeDailyCaseSheet() {
+    if (dailyCaseOpening) return;
+    const sheet = ensureDailyCaseSheet();
+    sheet.hidden = true;
+    document.body.classList.remove('daily-case-sheet-open');
+  }
+
+  function openDailyCaseSheet(item = null) {
+    const dateKey = String(item?.dailyCaseDate || todayLocalKey());
+    if (hasOpenedDailyCase(getTelegramUser().id, dateKey)) {
+      showToast('Daily Case already opened.');
+      return;
+    }
+
+    const sheet = ensureDailyCaseSheet();
+    dailyCaseOpening = false;
+    sheet.dataset.opened = '0';
+    sheet.dataset.dateKey = dateKey;
+    sheet.dataset.instanceId = String(item?.instanceId || '');
+    sheet.hidden = false;
+    document.body.classList.add('daily-case-sheet-open');
+    sheet.querySelector('[data-daily-case-carousels]').innerHTML = '';
+    const openBtn = sheet.querySelector('[data-daily-case-open]');
+    if (openBtn) {
+      openBtn.disabled = false;
+      openBtn.textContent = 'Open';
+    }
+    haptic('light');
+  }
+
+  function makeDailyCaseStrip(winner, rowIndex) {
+    const strip = [];
+    for (let i = 0; i < 34; i++) {
+      strip.push(DAILY_CASE_REWARDS[(i + rowIndex * 3 + Math.floor(Math.random() * DAILY_CASE_REWARDS.length)) % DAILY_CASE_REWARDS.length]);
+    }
+    strip.push(winner);
+    for (let i = 0; i < 6; i++) strip.push(pickDailyCaseReward());
+    return strip;
+  }
+
+  function openDailyCaseRewards() {
+    const sheet = ensureDailyCaseSheet();
+    if (dailyCaseOpening || sheet.hidden) return;
+    if (sheet.dataset.opened === '1') {
+      closeDailyCaseSheet();
+      return;
+    }
+
+    dailyCaseOpening = true;
+    sheet.dataset.opened = '0';
+    const openBtn = sheet.querySelector('[data-daily-case-open]');
+    const carousels = sheet.querySelector('[data-daily-case-carousels]');
+    const count = Math.random() < 0.5 ? 2 : 3;
+    const winners = Array.from({ length: count }, () => pickDailyCaseReward());
+
+    if (openBtn) {
+      openBtn.disabled = true;
+      openBtn.textContent = 'Opening...';
+    }
+
+    carousels.innerHTML = winners.map((winner, idx) => {
+      const strip = makeDailyCaseStrip(winner, idx);
+      return `
+        <div class="daily-case-roll" data-winner-index="34">
+          <div class="daily-case-roll__items">
+            ${strip.map((reward, itemIdx) => dailyCaseRewardHtml(reward, itemIdx === 34 ? 'daily-case-reward--winner' : '')).join('')}
+          </div>
+          <div class="daily-case-roll__line" aria-hidden="true"></div>
+        </div>
+      `;
+    }).join('');
+
+    const rolls = Array.from(carousels.querySelectorAll('.daily-case-roll'));
+    requestAnimationFrame(() => {
+      rolls.forEach((roll, idx) => {
+        const items = roll.querySelector('.daily-case-roll__items');
+        const winnerEl = roll.querySelector('.daily-case-reward--winner');
+        if (!items || !winnerEl) return;
+        const rollRect = roll.getBoundingClientRect();
+        const winRect = winnerEl.getBoundingClientRect();
+        const offset = (winRect.left + winRect.width / 2) - (rollRect.left + rollRect.width / 2);
+        items.style.transitionDuration = `${2.4 + idx * 0.28}s`;
+        items.style.transform = `translate3d(${-offset}px, 0, 0)`;
+      });
+    });
+
+    setTimeout(() => {
+      rolls.forEach((roll) => roll.classList.add('is-finished'));
+      if (openBtn) {
+        openBtn.disabled = false;
+        openBtn.textContent = 'Done';
+      }
+      sheet.dataset.opened = '1';
+      markDailyCaseOpened(sheet.dataset.dateKey || todayLocalKey());
+      removeOpenedDailyCase(sheet.dataset.instanceId || '');
+      dailyCaseOpening = false;
+      haptic('success');
+    }, 3300);
+  }
+
+  async function removeOpenedDailyCase(instanceId) {
+    const user = getTelegramUser();
+    const inst = String(instanceId || '').trim();
+    if (!inst) return;
+
+    const localLeft = lastInventory.filter((item) => String(item?.instanceId || '') !== inst);
+    writeLocalInventory(user.id, localLeft);
+    renderInventory(localLeft);
+
+    try {
+      const r = await tgFetch('/api/daily-case/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId: inst })
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.ok && Array.isArray(j.items)) {
+        writeLocalInventory(user.id, j.items);
+        renderInventory(j.items);
+      }
+    } catch {}
   }
   
 
@@ -315,6 +664,7 @@
   
   function itemDisplayName(item) {
     if (!item) return 'Item';
+    if (isDailyCaseItem(item)) return 'Daily Case';
     const t = itemType(item);
     const icon = String(item.icon || '');
     if (t === 'nft' && NFT_DISPLAY_NAME_BY_ICON[icon]) return NFT_DISPLAY_NAME_BY_ICON[icon];
@@ -325,6 +675,7 @@
 
   
   function itemType(item) {
+    if (isDailyCaseItem(item)) return 'daily_case';
     if (item?.type) return item.type;
     const id = String(item?.baseId || item?.id || '');
     return id.startsWith('nft') ? 'nft' : 'gift';
@@ -404,6 +755,7 @@
   }
 
   function inventoryFallbackImageByItem(item) {
+    if (isDailyCaseItem(item)) return DAILY_CASE_IMAGE;
     const tgData = item?.tg && typeof item.tg === 'object' ? item.tg : null;
     const sample = [
       String(item?.name || '').toLowerCase(),
@@ -427,6 +779,13 @@
   }
 
   function itemVisual(item) {
+    if (isDailyCaseItem(item)) {
+      return {
+        src: DAILY_CASE_IMAGE,
+        fallbackQueue: ['/icons/app/market.webp']
+      };
+    }
+
     const tgData = item?.tg && typeof item.tg === 'object' ? item.tg : null;
     const previewSrc =
       safeVisualRef(item?.previewUrl) ||
@@ -490,6 +849,7 @@
     }
 
   function itemValue(item, currency) {
+  if (isDailyCaseItem(item)) return 0;
   const v = item?.price?.[currency];
   let n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : NaN);
 
@@ -1486,6 +1846,13 @@ async function withdrawContinue() {
         return;
       }
 
+      if (action === 'daily-case-open') {
+        const found = findInventoryItemByKey(key);
+        openDailyCaseSheet(found?.item || null);
+        haptic('light');
+        return;
+      }
+
       if (action === 'return-market') {
         await returnToMarket(key);
         return;
@@ -1706,6 +2073,8 @@ async function withdrawContinue() {
     grid.innerHTML = arr.map((it, idx) => {
       const key = itemKey(it, idx);
       const val = itemValue(it, currency);
+      const isDailyCase = isDailyCaseItem(it);
+      const isDailyCaseOpened = isDailyCase && hasOpenedDailyCase(getTelegramUser().id, it?.dailyCaseDate || todayLocalKey());
       const marketOnlyWithdraw = isMarketGiftItem(it);
       const returnMarket = canReturnToMarket(it);
       const visual = itemVisual(it);
@@ -1715,14 +2084,14 @@ async function withdrawContinue() {
       const lockUntilMs = getItemWithdrawLockUntil(it, idx);
       const isWithdrawLocked = lockUntilMs > Date.now();
       const showWithdrawTimer = isWithdrawLocked;
-      const cardClass = `inv-card${isWithdrawLocked ? ' inv-card--locked' : ''}`;
+      const cardClass = `inv-card${isWithdrawLocked ? ' inv-card--locked' : ''}${isDailyCase ? ' inv-card--daily-case' : ''}`;
       const cardActionAttr = isWithdrawLocked ? ' data-action="withdraw-locked-info"' : '';
       const lockOverlayHtml = isWithdrawLocked ? `
             <div class="inv-card__lock-overlay" aria-hidden="true">
               <img class="inv-card__lock-icon" src="/icons/ui/lock.svg" alt="">
             </div>
       ` : '';
-      const sellBtnHtml = marketOnlyWithdraw ? '' : `
+      const sellBtnHtml = (marketOnlyWithdraw || isDailyCase) ? '' : `
           <button class="inv-btn inv-btn--sell ${sellBtnClass}" type="button"
                   data-action="sell" data-key="${key}">
             <span class="inv-btn__label">Sell</span>
@@ -1753,6 +2122,13 @@ async function withdrawContinue() {
             Withdraw
           </button>
       `;
+      const dailyOpenBtnHtml = isDailyCase ? `
+          <button class="inv-btn inv-btn--daily-open" type="button"
+                  ${isDailyCaseOpened ? 'disabled aria-disabled="true"' : ''}
+                  data-action="daily-case-open" data-key="${key}">
+            ${isDailyCaseOpened ? 'Opened' : 'Open'}
+          </button>
+      ` : '';
 
       return `
         <div class="${cardClass}" data-key="${key}"${cardActionAttr}>
@@ -1765,8 +2141,8 @@ async function withdrawContinue() {
 
           ${sellBtnHtml}
           ${returnBtnHtml}
-  
-          ${withdrawBtnHtml}
+   
+          ${isDailyCase ? dailyOpenBtnHtml : withdrawBtnHtml}
         </div>
       `;
     }).join('');
@@ -1894,9 +2270,11 @@ async function withdrawContinue() {
   let walletsSetup = false;
 
   function refreshAll() {
+    ensureDailyCaseBadges();
     updateUserUI();
     updateWalletUI();
     loadInventory();
+    claimDailyCase();
     setupPromocode();
 
     if (!walletsSetup) {
@@ -1924,6 +2302,12 @@ window.addEventListener('wt-wallet-changed', () => {
 window.addEventListener('currency:changed', () => {
   renderInventory(lastInventory);
 });
+
+  window.WT?.bus?.addEventListener?.('page:change', (event) => {
+    if (event?.detail?.id !== 'profilePage') return;
+    const currentDaily = lastInventory.find(isDailyCaseItem);
+    markDailyCaseViewed(currentDaily?.dailyCaseDate || todayLocalKey());
+  });
 
 
   window.addEventListener('inventory:update', (ev) => {

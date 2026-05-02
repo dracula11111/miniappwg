@@ -4193,6 +4193,32 @@ function isRelayerAdminUserId(userId) {
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.
 
+const DAILY_CASE_IMAGE = "/images/cases/daily/dailyCase.webp";
+
+function dailyCaseDateKey(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+function createDailyCaseInventoryItem(dateKey, userId) {
+  const key = String(dateKey || dailyCaseDateKey());
+  const uid = String(userId || "user");
+  return {
+    type: "daily_case",
+    id: "daily_case",
+    baseId: "daily_case",
+    name: "Daily Case",
+    title: "Daily Case",
+    icon: DAILY_CASE_IMAGE,
+    image: DAILY_CASE_IMAGE,
+    previewUrl: DAILY_CASE_IMAGE,
+    instanceId: `daily_case_${uid}_${key}`,
+    dailyCaseDate: key,
+    opened: false,
+    price: { ton: 0, stars: 0 },
+    acquiredAt: Date.now()
+  };
+}
+
 async function inventoryGet(userId) {
   if (typeof db.getUserInventory === "function") return await db.getUserInventory(userId);
   return [];
@@ -4337,6 +4363,58 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   } catch (e) {
     console.error("[Inventory] get error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
+  }
+});
+
+app.post("/api/daily-case/claim", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const dateKey = dailyCaseDateKey();
+    const claimId = `daily_case_${userId}_${dateKey}`;
+    const result = await inventoryAdd(userId, [createDailyCaseInventoryItem(dateKey, userId)], claimId);
+    const items = Array.isArray(result.items) ? result.items : await inventoryGet(userId);
+    const dailyCase = items.find((item) =>
+      String(item?.type || "") === "daily_case" &&
+      String(item?.dailyCaseDate || "") === dateKey
+    ) || null;
+
+    return res.json({
+      ok: true,
+      dateKey,
+      newlyClaimed: Number(result.added || 0) > 0,
+      duplicated: !!result.duplicated,
+      item: dailyCase,
+      items,
+      nfts: items
+    });
+  } catch (e) {
+    console.error("[DailyCase] claim error:", e);
+    return res.status(500).json({ ok: false, error: "daily case error" });
+  }
+});
+
+app.post("/api/daily-case/open", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const instanceId = String(req.body?.instanceId || "").trim();
+    if (!instanceId) return res.status(400).json({ ok: false, error: "instanceId required" });
+
+    const items = await inventoryGet(userId);
+    const item = items.find((it) => String(it?.instanceId || "") === instanceId) || null;
+    if (!item || String(item?.type || "") !== "daily_case") {
+      return res.status(404).json({ ok: false, error: "Daily Case not found" });
+    }
+
+    if (typeof db.deleteInventoryItems !== "function") {
+      return res.status(500).json({ ok: false, error: "inventory delete unavailable" });
+    }
+
+    await db.deleteInventoryItems(userId, [instanceId]);
+    const left = await inventoryGet(userId);
+    return res.json({ ok: true, deleted: 1, items: left, nfts: left });
+  } catch (e) {
+    console.error("[DailyCase] open error:", e);
+    return res.status(500).json({ ok: false, error: "daily case open error" });
   }
 });
 
