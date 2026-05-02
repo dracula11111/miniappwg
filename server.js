@@ -1023,19 +1023,47 @@ async deleteInventoryItemByLookup(telegramId, lookup = {}) {
 }
 
 const dbMem = createMemoryDb();
+let dbReady = IS_TEST;
+let dbInitError = null;
+
+async function initRealDatabaseWithRetry() {
+  const retryMs = Math.max(
+    5000,
+    Math.min(120000, Number(process.env.DB_INIT_RETRY_MS || 15000) || 15000)
+  );
+
+  for (;;) {
+    try {
+      dbReady = false;
+      dbInitError = null;
+      await dbReal.initDatabase();
+      if (typeof dbReal.ensurePromoSeed === "function") {
+        await dbReal.ensurePromoSeed();
+      }
+      dbReady = true;
+      console.log("[DB] ✅ Postgres ready");
+      return;
+    } catch (e) {
+      dbReady = false;
+      dbInitError = e;
+      console.error(`[DB] init failed; retrying in ${retryMs}ms:`, e?.message || e);
+      await sleep(retryMs);
+    }
+  }
+}
 
 // Real DB init (Postgres) вЂ” load only after dotenv has run.
 if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
-  await dbReal.initDatabase();
-  if (typeof dbReal.ensurePromoSeed === "function") {
-    await dbReal.ensurePromoSeed();
-  }
+  initRealDatabaseWithRetry().catch((e) => {
+    console.error("[DB] init retry loop crashed:", e);
+  });
 } else {
   await dbMem.initDatabase();
   if (typeof dbMem.ensurePromoSeed === "function") {
     await dbMem.ensurePromoSeed();
   }
+  dbReady = true;
 }
 
 // Select DB
@@ -1238,6 +1266,14 @@ const __dirname  = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000; // port
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
+
+app.get("/healthz", (req, res) => {
+  res.status(dbReady ? 200 : 503).json({
+    ok: true,
+    dbReady,
+    dbError: dbReady ? null : String(dbInitError?.message || dbInitError || "")
+  });
+});
 
 const TG_CHROME_METRICS_PATH =
   process.env.TG_CHROME_METRICS_PATH ||
