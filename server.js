@@ -122,6 +122,12 @@ function createMemoryDb() {
   const webhookEvents = new Map(); // eventKey -> { createdAt, payload }
   const pendingCaseRounds = new Map(); // roundId -> pending/refunded metadata
   const matchPlayers = new Map(); // telegram_id(string) -> Match state
+  const matchGiveawayParticipants = new Map([
+    ["lol-pop", 128],
+    ["pool-float", 96],
+    ["snoop-dogg", 74],
+    ["jolly-chimp", 52]
+  ]);
   const gameRoundMeta = new Map([
     ["crash", { counter: 0, hash: "", updatedAt: Date.now() }],
     ["wheel", { counter: 0, hash: "", updatedAt: Date.now() }]
@@ -888,6 +894,16 @@ function createMemoryDb() {
       row.updatedAt = Math.max(Number(row.updatedAt || 0), nowSec());
       matchPlayers.set(k, row);
       return { ...row, tickets: { ...(row.tickets || {}) } };
+    },
+    async getMatchGiveawayStats() {
+      return {
+        participants: {
+          "lol-pop": normalizeMatchCounter(matchGiveawayParticipants.get("lol-pop")),
+          "pool-float": normalizeMatchCounter(matchGiveawayParticipants.get("pool-float")),
+          "snoop-dogg": normalizeMatchCounter(matchGiveawayParticipants.get("snoop-dogg")),
+          "jolly-chimp": normalizeMatchCounter(matchGiveawayParticipants.get("jolly-chimp"))
+        }
+      };
     },
     async saveMatchPlayerState(telegramId, state = {}) {
       const k = ensure(telegramId);
@@ -7198,7 +7214,10 @@ app.get("/api/match/state", requireTelegramUser, async (req, res) => {
     }
 
     const state = await db.getMatchPlayerState(tgUserId);
-    return res.json({ ok: true, state });
+    const giveaways = typeof db.getMatchGiveawayStats === "function"
+      ? await db.getMatchGiveawayStats()
+      : { participants: {} };
+    return res.json({ ok: true, state, giveaways });
   } catch (error) {
     console.error("[Match] state get error:", error);
     return res.status(500).json({ ok: false, error: error?.message || "Failed to get match state" });
