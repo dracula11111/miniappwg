@@ -1834,13 +1834,15 @@ export async function registerReferral(input = {}) {
   const inviterId = BigInt(input?.inviterId ?? input?.inviterTelegramId);
   if (inviteeId === inviterId) return { ok: false, registered: false, reason: "self" };
   const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
-  if (inviteeKnownBeforeStart) {
+  const allowRecentExistingInvitee = input?.allowRecentExistingInvitee === true;
+  if (inviteeKnownBeforeStart && !allowRecentExistingInvitee) {
     return { ok: true, registered: false, reason: "existing_user" };
   }
 
   const startParam = normalizeOptionalText(input?.startParam, 128);
   const taskKey = normalizeOptionalText(input?.taskKey, 64);
   const now = Math.floor(Date.now() / 1000);
+  const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
 
   const client = await connect();
   try {
@@ -1855,18 +1857,22 @@ export async function registerReferral(input = {}) {
 
     if (input?.inviteeWasExisting !== false) {
       const existingInvitee = await client.query(
-        `SELECT 1 FROM users WHERE telegram_id = $1 LIMIT 1`,
+        `SELECT created_at FROM users WHERE telegram_id = $1 LIMIT 1`,
         [inviteeId]
       );
       if (Number(existingInvitee.rowCount || 0) > 0) {
-        await client.query("COMMIT");
-        return {
-          ok: true,
-          registered: false,
-          reason: "existing_user",
-          inviteeId: String(inviteeId),
-          inviterId: String(inviterId)
-        };
+        const createdAt = Number(existingInvitee.rows[0]?.created_at || 0);
+        const isRecent = createdAt > 0 && createdAt >= now - maxExistingAgeSec;
+        if (!allowRecentExistingInvitee || !isRecent) {
+          await client.query("COMMIT");
+          return {
+            ok: true,
+            registered: false,
+            reason: "existing_user",
+            inviteeId: String(inviteeId),
+            inviterId: String(inviterId)
+          };
+        }
       }
     }
 

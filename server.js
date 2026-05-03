@@ -588,8 +588,9 @@ function createMemoryDb() {
       if (!invitee || !inviter) return { ok: false, registered: false, reason: "missing" };
       if (invitee === inviter) return { ok: false, registered: false, reason: "self" };
       const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
+      const allowRecentExistingInvitee = input?.allowRecentExistingInvitee === true;
       const inviteeAlreadyKnown = inviteeKnownBeforeStart || (input?.inviteeWasExisting !== false && users.has(invitee));
-      if (inviteeAlreadyKnown) return { ok: true, registered: false, reason: "existing_user" };
+      if (inviteeAlreadyKnown && !allowRecentExistingInvitee) return { ok: true, registered: false, reason: "existing_user" };
 
       ensure(inviter);
       ensure(invitee);
@@ -598,7 +599,7 @@ function createMemoryDb() {
       const now = nowSec();
       const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
       const createdAt = Number(inviteeUser.created_at || now);
-      if (createdAt < now - maxExistingAgeSec) {
+      if (inviteeAlreadyKnown && (!allowRecentExistingInvitee || createdAt < now - maxExistingAgeSec)) {
         return { ok: true, registered: false, reason: "existing_user" };
       }
       const taskKey = String(input?.taskKey || "").trim();
@@ -4906,6 +4907,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
       taskKey: TASK_INVITE_FRIEND_KEY,
       source,
       inviteeWasExisting: options?.inviteeWasExisting === true,
+      allowRecentExistingInvitee: source === "miniapp" || source === "bot_start",
       maxExistingAgeSec: REFERRAL_MAX_EXISTING_AGE_SEC
     });
     if (result?.registered) {
@@ -5171,7 +5173,6 @@ async function buildPreparedReferralShareMessage(userId, options = {}) {
   const payload = await buildReferralStatusPayload(userId, options);
   const language = normalizeReferralLanguage(payload.language || "en");
   const copy = getReferralInviteCopy(language);
-  const startAppUrl = withReferralStartParam(getWelcomeMiniAppUrl(), payload.code);
   const photo = await resolveTelegramPhotoRef(getReferralWelcomePhotoRef());
   const title = language === "ru" ? "Wild Gift Drop" : "Wild Gift Drop";
   const description = String(payload.shareText || copy.shareText || "").slice(0, 96);
@@ -5182,7 +5183,7 @@ async function buildPreparedReferralShareMessage(userId, options = {}) {
     ctaCustom: false
   });
   const buttonText = getWelcomeButtonText({ referral: true, language });
-  const buttonUrl = isTelegramStartAppLink(startAppUrl) ? startAppUrl : payload.link;
+  const buttonUrl = payload.link;
   const resultId = `ref_${String(userId).slice(0, 32)}_${Date.now().toString(36)}`;
 
   if (!photo || !buttonUrl) {
