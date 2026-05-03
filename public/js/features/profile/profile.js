@@ -185,15 +185,29 @@
   const DAILY_CASE_VIEW_PREFIX = 'WT_DAILY_CASE_VIEWED_';
   const DAILY_CASE_OPEN_PREFIX = 'WT_DAILY_CASE_OPENED_';
   const DAILY_CASE_STAR_ICON = '/icons/currency/stars.svg';
+  const DAILY_CASE_TON_ICON = '/icons/currency/ton.svg';
+  const DAILY_CASE_STAR_WHITE_ICON = '/icons/currency/tgStarWhite.svg';
+  const DAILY_CASE_TON_WHITE_ICON = '/icons/currency/tgTonWhite.svg';
+  const DAILY_CASE_PRICE_CACHE_TTL = 10 * 60 * 1000;
+  const dailyCasePriceMap = new Map();
+  let dailyCasePricesLoadedAt = 0;
+  let dailyCasePricesPromise = null;
   const DAILY_CASE_REWARDS = [
-    { id: 'plush-pepe-princess', type: 'gift', name: 'Plush Pepe', image: 'https://cdn.changes.tg/gifts/models/Plush%20Pepe/png/Princess.png' },
-    { id: 'precious-peach-shocking', type: 'gift', name: 'Precious Peach', image: 'https://cdn.changes.tg/gifts/models/Precious%20Peach/png/Shocking.png' },
-    { id: 'heroic-helmet-praetorian', type: 'gift', name: 'Heroic Helmet', image: 'https://cdn.changes.tg/gifts/models/Heroic%20Helmet/png/Praetorian.png' },
-    { id: 'perfume-bottle-twilight-bliss', type: 'gift', name: 'Perfume Bottle', image: 'https://cdn.changes.tg/gifts/models/Perfume%20Bottle/png/Twilight%20Bliss.png' },
-    { id: 'signet-ring-ton', type: 'gift', name: 'Signet Ring', image: 'https://cdn.changes.tg/gifts/models/Signet%20Ring/png/TON.png' },
-    { id: 'astral-shard-candy-flossite', type: 'gift', name: 'Astral Shard', image: 'https://cdn.changes.tg/gifts/models/Astral%20Shard/png/Candy%20Flossite.png' },
-    { id: 'stars-3-2', type: 'stars', name: '3.2 Stars', image: DAILY_CASE_STAR_ICON, amount: '3.2' },
-    { id: 'stars-5', type: 'stars', name: '5 Stars', image: DAILY_CASE_STAR_ICON, amount: '5' }
+    { id: 'plush-pepe-princess', type: 'gift', name: 'Plush Pepe', image: dailyCaseGiftModelUrl('Plush Pepe', 'Princess') },
+    { id: 'precious-peach-shocking', type: 'gift', name: 'Precious Peach', image: dailyCaseGiftModelUrl('Precious Peach', 'Shocking') },
+    { id: 'heroic-helmet-praetorian', type: 'gift', name: 'Heroic Helmet', image: dailyCaseGiftModelUrl('Heroic Helmet', 'Praetorian') },
+    { id: 'perfume-bottle-twilight-bliss', type: 'gift', name: 'Perfume Bottle', image: dailyCaseGiftModelUrl('Perfume Bottle', 'Twilight Bliss') },
+    { id: 'signet-ring-ton', type: 'gift', name: 'Signet Ring', image: dailyCaseGiftModelUrl('Signet Ring', 'TON') },
+    { id: 'astral-shard-candy-flossite', type: 'gift', name: 'Astral Shard', image: dailyCaseGiftModelUrl('Astral Shard', 'Candy Flossite') },
+    { id: 'artisan-brick-diamond', type: 'gift', name: 'Artisan Brick', image: dailyCaseGiftModelUrl('Artisan Brick', 'Diamond') },
+    { id: 'gem-signet-pink-quartz', type: 'gift', name: 'Gem Signet', image: dailyCaseGiftModelUrl('Gem Signet', 'Pink Quartz') },
+    { id: 'neko-helmet-kawaii', type: 'gift', name: 'Neko Helmet', image: dailyCaseGiftModelUrl('Neko Helmet', 'Kawaii') },
+    { id: 'lol-pop-heart-pop', type: 'gift', name: 'Lol Pop', image: dailyCaseGiftModelUrl('Lol Pop', 'Heart Pop') },
+    { id: 'love-potion-juliet', type: 'gift', name: 'Love Potion', image: dailyCaseGiftModelUrl('Love Potion', 'Juliet') },
+    { id: 'stars-2', type: 'stars', name: 'Stars', image: DAILY_CASE_STAR_ICON, amount: '2', price: { ton: 0.02, stars: 2 } },
+    { id: 'stars-3', type: 'stars', name: 'Stars', image: DAILY_CASE_STAR_ICON, amount: '3', price: { ton: 0.03, stars: 3 } },
+    { id: 'ton-0-02', type: 'ton', name: 'TON', image: DAILY_CASE_TON_ICON, amount: '0.02', price: { ton: 0.02, stars: 2 } },
+    { id: 'ton-0-03', type: 'ton', name: 'TON', image: DAILY_CASE_TON_ICON, amount: '0.03', price: { ton: 0.03, stars: 3 } }
   ];
   let dailyCaseClaimPromise = null;
   let dailyCaseSheet = null;
@@ -227,6 +241,11 @@
     return `${y}-${m}-${day}`;
   }
 
+  function isLocalhostDailyCaseTestMode() {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  }
+
   function dailyCaseViewKey(userId, dateKey) {
     return `${DAILY_CASE_VIEW_PREFIX}${userId || 'guest'}_${dateKey || todayLocalKey()}`;
   }
@@ -240,6 +259,7 @@
   }
 
   function hasOpenedDailyCase(userId, dateKey) {
+    if (isLocalhostDailyCaseTestMode()) return false;
     try { return localStorage.getItem(dailyCaseOpenKey(userId, dateKey)) === '1'; } catch { return false; }
   }
 
@@ -279,7 +299,11 @@
 
   function hideDailyCasePanel() {
     const panel = document.getElementById('dailyCasePanel');
-    if (panel) panel.hidden = true;
+    if (!panel) return;
+    panel.classList.remove('is-open');
+    window.setTimeout(() => {
+      if (!panel.classList.contains('is-open')) panel.hidden = true;
+    }, 260);
   }
 
   function showDailyCasePanel(dateKey) {
@@ -296,11 +320,12 @@
             <img class="daily-case-panel__image" src="${DAILY_CASE_IMAGE}" alt="">
           </div>
           <div class="daily-case-panel__title">Daily Case</div>
-          <div class="daily-case-panel__text">Можете открыть в инвентаре.</div>
+          <div class="daily-case-panel__text">Available in your inventory.</div>
           <button class="daily-case-panel__open" type="button">Open</button>
         </section>
       `;
       document.body.appendChild(panel);
+      panel.querySelector('.daily-case-panel__backdrop')?.addEventListener('click', hideDailyCasePanel);
       panel.querySelector('.daily-case-panel__open')?.addEventListener('click', () => {
         markDailyCaseViewed(panel.dataset.dateKey || todayLocalKey());
         hideDailyCasePanel();
@@ -311,6 +336,7 @@
 
     panel.dataset.dateKey = dateKey || todayLocalKey();
     panel.hidden = false;
+    requestAnimationFrame(() => panel.classList.add('is-open'));
     haptic('success');
   }
 
@@ -344,6 +370,23 @@
     };
   }
 
+  function withLocalhostDailyCase(items) {
+    const arr = Array.isArray(items) ? items.slice() : [];
+    if (!isLocalhostDailyCaseTestMode()) return arr;
+
+    const dateKey = todayLocalKey();
+    const existingIdx = arr.findIndex((item) =>
+      isDailyCaseItem(item) &&
+      String(item?.dailyCaseDate || dateKey) === dateKey
+    );
+    if (existingIdx >= 0) {
+      arr[existingIdx] = { ...arr[existingIdx], opened: false };
+      return arr;
+    }
+
+    return [{ ...makeLocalDailyCase(dateKey), instanceId: `localhost_daily_case_${dateKey}` }, ...arr];
+  }
+
   function claimLocalDailyCaseFallback() {
     const user = getTelegramUser();
     const dateKey = todayLocalKey();
@@ -354,7 +397,7 @@
       isDailyCaseItem(item) &&
       String(item?.dailyCaseDate || '') === dateKey
     );
-    const items = exists ? current : [makeLocalDailyCase(dateKey), ...current];
+    const items = withLocalhostDailyCase(exists ? current : [makeLocalDailyCase(dateKey), ...current]);
     writeLocalInventory(user.id, items);
     renderInventory(items);
 
@@ -407,20 +450,302 @@
   }
 
   function pickDailyCaseReward() {
-    return DAILY_CASE_REWARDS[Math.floor(Math.random() * DAILY_CASE_REWARDS.length)] || DAILY_CASE_REWARDS[0];
+    const rewards = dailyCaseActiveRewards();
+    return rewards[Math.floor(Math.random() * rewards.length)] || DAILY_CASE_REWARDS[0];
+  }
+
+  function dailyCaseRewardCurrency(currency = getCurrency()) {
+    return currency === 'stars' ? 'stars' : 'ton';
+  }
+
+  function dailyCaseActiveRewards(currency = getCurrency()) {
+    const rewardCurrency = dailyCaseRewardCurrency(currency);
+    return DAILY_CASE_REWARDS.filter((reward) => reward?.type === 'gift' || reward?.type === rewardCurrency);
+  }
+
+  function dailyCaseCurrencyRewards(currency = getCurrency()) {
+    const rewardCurrency = dailyCaseRewardCurrency(currency);
+    return DAILY_CASE_REWARDS.filter((reward) => reward?.type === rewardCurrency);
+  }
+
+  function pickDailyCaseWinningReward(currency = getCurrency()) {
+    const rewards = dailyCaseCurrencyRewards(currency);
+    return rewards[Math.floor(Math.random() * rewards.length)] || DAILY_CASE_REWARDS[0];
+  }
+
+  function dailyCaseCurrencyRewardByAmount(amount, currency = getCurrency()) {
+    const rewardCurrency = dailyCaseRewardCurrency(currency);
+    const value = Number(amount);
+    const rewards = dailyCaseCurrencyRewards(rewardCurrency);
+    if (rewardCurrency === 'stars') {
+      const normalized = String(Math.trunc(value || 0));
+      return rewards.find((reward) =>
+        String(Math.trunc(Number(reward.amount) || 0)) === normalized
+      ) || pickDailyCaseWinningReward(rewardCurrency);
+    }
+    return rewards.find((reward) => Math.abs(Number(reward.amount) - value) < 0.000001) ||
+      pickDailyCaseWinningReward(rewardCurrency);
+  }
+
+  function dailyCaseGiftModelUrl(giftName, modelName) {
+    return `https://cdn.changes.tg/gifts/models/${encodeURIComponent(giftName)}/png/${encodeURIComponent(modelName)}.png`;
+  }
+
+  function normalizeDailyCaseGiftName(name) {
+    return String(name || '').trim().toLowerCase();
+  }
+
+  function dailyCaseGiftNames() {
+    return Array.from(new Set(
+      DAILY_CASE_REWARDS
+        .filter((reward) => reward?.type === 'gift')
+        .map((reward) => String(reward.name || '').trim())
+        .filter(Boolean)
+    ));
+  }
+
+  function extractDailyCasePriceItems(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+
+    const out = [];
+    if (Array.isArray(payload.items)) out.push(...payload.items);
+    if (Array.isArray(payload.prices)) out.push(...payload.prices);
+    if (payload.prices && typeof payload.prices === 'object' && !Array.isArray(payload.prices)) {
+      out.push(...Object.values(payload.prices));
+    }
+    return out;
+  }
+
+  function parseDailyCasePriceEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+
+    const rawTon = Number(
+      entry.priceTon ??
+      entry.price_ton ??
+      entry.ton ??
+      entry.floor_price ??
+      entry.floorPrice ??
+      entry.floor ??
+      null
+    );
+    const rawStars = Number(entry.priceStars ?? entry.price_stars ?? entry.stars ?? null);
+    const rawPrice = Number(entry.price ?? null);
+    const currencyTag = String(entry.currency || entry.currencyCode || '').toUpperCase();
+
+    let ton = Number.isFinite(rawTon) && rawTon > 0 ? rawTon : null;
+    let stars = Number.isFinite(rawStars) && rawStars > 0 ? Math.round(rawStars) : null;
+
+    if (Number.isFinite(rawPrice) && rawPrice > 0) {
+      if (!stars && (currencyTag === 'XTR' || currencyTag === 'STAR' || currencyTag === 'STARS')) {
+        stars = Math.round(rawPrice);
+      } else if (!ton) {
+        ton = rawPrice;
+      }
+    }
+
+    if (!stars && ton) stars = tonToStars(ton);
+    if (!ton && stars) ton = starsToTon(stars);
+    if (!ton && !stars) return null;
+
+    return { ton, stars };
+  }
+
+  function dailyCasePriceUrls(path, params = {}) {
+    const urls = [];
+    const addParams = (url) => {
+      try {
+        const next = new URL(url, window.location?.origin || document.baseURI);
+        Object.entries(params).forEach(([key, value]) => next.searchParams.set(key, String(value)));
+        return next.toString();
+      } catch (_) {
+        const query = new URLSearchParams(params).toString();
+        return query ? `${url}?${query}` : url;
+      }
+    };
+
+    try { urls.push(addParams(new URL(path.replace(/^\//, ''), document.baseURI).toString())); } catch (_) {}
+    urls.push(addParams(path));
+    urls.push(addParams(`http://localhost:7700${path}`));
+    return Array.from(new Set(urls));
+  }
+
+  async function fetchDailyCasePricePayload(path, params = {}) {
+    for (const url of dailyCasePriceUrls(path, params)) {
+      try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (response.ok) return await response.json();
+      } catch (e) {
+        console.warn(`[DailyCase] Failed to fetch price data from ${url}:`, e);
+      }
+    }
+    return null;
+  }
+
+  async function loadDailyCaseGiftPrices({ force = false } = {}) {
+    const now = Date.now();
+    if (!force && dailyCasePriceMap.size && (now - dailyCasePricesLoadedAt) < DAILY_CASE_PRICE_CACHE_TTL) {
+      return dailyCasePriceMap;
+    }
+    if (dailyCasePricesPromise) return dailyCasePricesPromise;
+
+    dailyCasePricesPromise = (async () => {
+      const payload = await fetchDailyCasePricePayload('/api/gifts/prices');
+      const giftNames = dailyCaseGiftNames();
+      const wanted = new Set(dailyCaseGiftNames().map(normalizeDailyCaseGiftName));
+      for (const item of extractDailyCasePriceItems(payload)) {
+        const name = String(item?.name || item?.title || item?.gift || item?.key || '').trim();
+        const normalized = normalizeDailyCaseGiftName(name);
+        if (!wanted.has(normalized)) continue;
+        const price = parseDailyCasePriceEntry(item);
+        if (price) dailyCasePriceMap.set(normalized, price);
+      }
+
+      const missing = giftNames.filter((name) => !dailyCasePriceMap.has(normalizeDailyCaseGiftName(name)));
+      await Promise.all(missing.map(async (name) => {
+        const singlePayload = await fetchDailyCasePricePayload('/api/gifts/price', { name });
+        const item = singlePayload?.item || singlePayload;
+        const price = parseDailyCasePriceEntry(item);
+        if (price) dailyCasePriceMap.set(normalizeDailyCaseGiftName(name), price);
+      }));
+
+      dailyCasePricesLoadedAt = Date.now();
+      return dailyCasePriceMap;
+    })().finally(() => {
+      dailyCasePricesPromise = null;
+    });
+
+    return dailyCasePricesPromise;
+  }
+
+  function dailyCaseServerPrice(reward) {
+    if (reward?.type !== 'gift') return null;
+    return dailyCasePriceMap.get(normalizeDailyCaseGiftName(reward?.name));
+  }
+
+  function dailyCaseRewardPriceValue(reward, currency = getCurrency()) {
+    const serverPrice = dailyCaseServerPrice(reward);
+    const value = Number((reward?.type === 'gift' ? serverPrice?.[currency] : reward?.price?.[currency]) || 0);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  function formatDailyCaseCompactPrice(value, currency = getCurrency()) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return '...';
+    if (n >= 1000000) return `${(Math.round(n / 100000) / 10).toFixed(n >= 10000000 ? 0 : 1).replace(/\.0$/, '')}m`;
+    if (n >= 1000) return `${(Math.round(n / 100) / 10).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '')}k`;
+    if (currency === 'stars') return String(Math.max(1, Math.round(n)));
+    if (n >= 100) return String(Math.round(n));
+    if (n >= 10) return String(Math.round(n * 10) / 10).replace(/\.0$/, '');
+    return String(Math.round(n * 100) / 100).replace(/\.?0+$/, '');
+  }
+
+  function dailyCaseRewardPriceLabel(reward) {
+    const currency = getCurrency();
+    const value = dailyCaseRewardPriceValue(reward, currency);
+    if (reward?.type === 'gift' && (!Number.isFinite(value) || value <= 0)) return 'Loading';
+    return formatDailyCaseCompactPrice(value, currency);
+  }
+
+  function dailyCaseRewardCompactPriceLabel(reward) {
+    const currency = getCurrency();
+    return formatDailyCaseCompactPrice(dailyCaseRewardPriceValue(reward, currency), currency);
+  }
+
+  function dailyCaseRewardPriceIcon(currency = getCurrency(), white = false) {
+    const normalized = currency === 'stars' ? 'stars' : 'ton';
+    if (white) return normalized === 'ton' ? DAILY_CASE_TON_WHITE_ICON : DAILY_CASE_STAR_WHITE_ICON;
+    return normalized === 'ton' ? '/icons/currency/ton.svg' : DAILY_CASE_STAR_ICON;
+  }
+
+  function dailyCaseRewardById(id) {
+    const key = String(id || '');
+    return DAILY_CASE_REWARDS.find((reward) => String(reward?.id || '') === key) || null;
+  }
+
+  function updateDailyCaseRewardPricePills(root = dailyCaseSheet) {
+    if (!root) return;
+    root.querySelectorAll('[data-daily-case-price-id]').forEach((pill) => {
+      const reward = dailyCaseRewardById(pill.getAttribute('data-daily-case-price-id'));
+      if (!reward) return;
+      const label = pill.querySelector('[data-daily-case-price-label]');
+      const icon = pill.querySelector('[data-daily-case-price-icon]');
+      if (label) label.textContent = dailyCaseRewardCompactPriceLabel(reward);
+      if (icon) icon.src = dailyCaseRewardPriceIcon(getCurrency(), true);
+    });
+  }
+
+  function dailyCaseContentRowHtml(reward) {
+    return `
+      <div class="daily-case-inside-card">
+        <div class="daily-case-inside-card__visual">
+          <img src="${escapeHtml(reward?.image || DAILY_CASE_IMAGE)}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${DAILY_CASE_IMAGE}'">
+        </div>
+        <div class="daily-case-inside-card__name">${escapeHtml(reward?.name || 'Prize')}</div>
+        <div class="daily-case-inside-card__price">
+            <span>${escapeHtml(dailyCaseRewardPriceLabel(reward))}</span>
+            <img src="${dailyCaseRewardPriceIcon(getCurrency(), true)}" alt="">
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDailyCaseInsideList() {
+    const list = dailyCaseSheet?.querySelector?.('[data-daily-case-inside-list]');
+    if (!list) return;
+    list.innerHTML = dailyCaseActiveRewards().map((reward) => dailyCaseContentRowHtml(reward)).join('');
   }
 
   function dailyCaseRewardHtml(reward, extraClass = '') {
     const isStars = reward?.type === 'stars';
+    const isTon = reward?.type === 'ton';
+    const rewardType = isStars ? 'stars' : (isTon ? 'ton' : 'nft');
     return `
-      <div class="daily-case-reward ${extraClass}" data-reward-type="${escapeHtml(reward?.type || 'gift')}">
+      <div class="daily-case-reward case-carousel-item ${extraClass}" data-reward-type="${escapeHtml(reward?.type || 'gift')}" data-item-type="${rewardType}">
         <div class="daily-case-reward__visual">
-          <img src="${escapeHtml(reward?.image || DAILY_CASE_IMAGE)}" alt="" loading="eager" decoding="async">
-          ${isStars ? `<span class="daily-case-reward__amount">${escapeHtml(reward.amount)}</span>` : ''}
+          <img class="case-carousel-item__img" src="${escapeHtml(reward?.image || DAILY_CASE_IMAGE)}" alt="" loading="eager" decoding="async" onerror="this.onerror=null;this.src='${DAILY_CASE_IMAGE}'">
+          <div class="daily-case-reward__price" data-daily-case-price-id="${escapeHtml(reward?.id || '')}">
+            <span data-daily-case-price-label>${escapeHtml(dailyCaseRewardCompactPriceLabel(reward))}</span>
+            <img data-daily-case-price-icon src="${escapeHtml(dailyCaseRewardPriceIcon(getCurrency(), true))}" alt="">
+          </div>
         </div>
         <div class="daily-case-reward__name">${escapeHtml(reward?.name || 'Prize')}</div>
       </div>
     `;
+  }
+
+  function lockDailyCaseSheetScreen() {
+    document.documentElement.classList.add('case-sheet-open', 'daily-case-sheet-open');
+    document.body.classList.add('case-sheet-open', 'daily-case-sheet-open');
+  }
+
+  function unlockDailyCaseSheetScreen() {
+    document.documentElement.classList.remove('case-sheet-open', 'daily-case-sheet-open');
+    document.body.classList.remove('case-sheet-open', 'daily-case-sheet-open');
+  }
+
+  function openDailyCaseInsideSheet() {
+    const sheet = ensureDailyCaseSheet();
+    const inside = sheet.querySelector('[data-daily-case-inside]');
+    if (!inside) return;
+    renderDailyCaseInsideList();
+    loadDailyCaseGiftPrices().then(() => {
+      renderDailyCaseInsideList();
+      updateDailyCaseRewardPricePills();
+    }).catch((e) => console.warn('[DailyCase] price load failed:', e));
+    inside.hidden = false;
+    requestAnimationFrame(() => inside.classList.add('is-open'));
+    haptic('light');
+  }
+
+  function closeDailyCaseInsideSheet() {
+    const sheet = dailyCaseSheet;
+    const inside = sheet?.querySelector?.('[data-daily-case-inside]');
+    if (!inside) return;
+    inside.classList.remove('is-open');
+    window.setTimeout(() => {
+      if (!inside.classList.contains('is-open')) inside.hidden = true;
+    }, 240);
   }
 
   function ensureDailyCaseSheet() {
@@ -444,17 +769,34 @@
           <img src="${DAILY_CASE_IMAGE}" alt="">
         </div>
 
-        <div class="daily-case-sheet__carousels" data-daily-case-carousels></div>
+        <div class="daily-case-sheet__carousels case-carousels-wrapper case-carousels-wrapper--count-1" data-daily-case-carousels></div>
 
         <section class="daily-case-sheet__contents" aria-label="Daily case contents">
           <h3>Contents</h3>
           <div class="daily-case-sheet__grid">
-            ${DAILY_CASE_REWARDS.map((reward) => dailyCaseRewardHtml(reward)).join('')}
+            ${dailyCaseActiveRewards().map((reward) => dailyCaseRewardHtml(reward)).join('')}
           </div>
         </section>
 
-        <div class="daily-case-sheet__bottom">
-          <button class="daily-case-sheet__open" type="button" data-daily-case-open>Open</button>
+        <button class="daily-case-inside-pill" type="button" data-daily-case-inside-open>What's inside?</button>
+
+        <div class="daily-case-sheet__bottom case-bottom-button">
+          <button class="daily-case-sheet__open case-open-btn" type="button" data-daily-case-open>Open</button>
+        </div>
+
+        <div class="daily-case-inside-sheet" data-daily-case-inside hidden>
+          <div class="daily-case-inside-sheet__overlay" data-daily-case-inside-close></div>
+          <section class="daily-case-inside-sheet__panel" aria-label="What's inside?">
+            <div class="daily-case-inside-sheet__grabber"></div>
+            <div class="daily-case-inside-sheet__head">
+              <h3>What's inside?</h3>
+              <button class="daily-case-inside-sheet__close" type="button" data-daily-case-inside-close aria-label="Close">
+                <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+              </button>
+            </div>
+            <div class="daily-case-inside-sheet__list" data-daily-case-inside-list></div>
+            <button class="daily-case-inside-sheet__bottom-close" type="button" data-daily-case-inside-close>Close</button>
+          </section>
         </div>
       </div>
     `;
@@ -464,6 +806,10 @@
       el.addEventListener('click', () => closeDailyCaseSheet());
     });
     sheet.querySelector('[data-daily-case-open]')?.addEventListener('click', () => openDailyCaseRewards());
+    sheet.querySelector('[data-daily-case-inside-open]')?.addEventListener('click', () => openDailyCaseInsideSheet());
+    sheet.querySelectorAll('[data-daily-case-inside-close]').forEach((el) => {
+      el.addEventListener('click', () => closeDailyCaseInsideSheet());
+    });
     dailyCaseSheet = sheet;
     return sheet;
   }
@@ -471,8 +817,10 @@
   function closeDailyCaseSheet() {
     if (dailyCaseOpening) return;
     const sheet = ensureDailyCaseSheet();
+    closeDailyCaseInsideSheet();
     sheet.hidden = true;
-    document.body.classList.remove('daily-case-sheet-open');
+    sheet.classList.remove('is-ready', 'is-opening', 'is-finished');
+    unlockDailyCaseSheetScreen();
   }
 
   function openDailyCaseSheet(item = null) {
@@ -483,13 +831,19 @@
     }
 
     const sheet = ensureDailyCaseSheet();
+    sheet.classList.remove('is-opening', 'is-finished');
+    sheet.classList.add('is-ready');
     dailyCaseOpening = false;
     sheet.dataset.opened = '0';
     sheet.dataset.dateKey = dateKey;
     sheet.dataset.instanceId = String(item?.instanceId || '');
     sheet.hidden = false;
-    document.body.classList.add('daily-case-sheet-open');
-    sheet.querySelector('[data-daily-case-carousels]').innerHTML = '';
+    lockDailyCaseSheetScreen();
+    renderDailyCaseIdleRolls();
+    loadDailyCaseGiftPrices().then(() => {
+      updateDailyCaseRewardPricePills(sheet);
+      renderDailyCaseInsideList();
+    }).catch((e) => console.warn('[DailyCase] price preload failed:', e));
     const openBtn = sheet.querySelector('[data-daily-case-open]');
     if (openBtn) {
       openBtn.disabled = false;
@@ -500,15 +854,95 @@
 
   function makeDailyCaseStrip(winner, rowIndex) {
     const strip = [];
-    for (let i = 0; i < 34; i++) {
-      strip.push(DAILY_CASE_REWARDS[(i + rowIndex * 3 + Math.floor(Math.random() * DAILY_CASE_REWARDS.length)) % DAILY_CASE_REWARDS.length]);
+    const rewards = dailyCaseActiveRewards();
+    for (let i = 0; i < 46; i++) {
+      strip.push(rewards[(i + rowIndex * 3 + Math.floor(Math.random() * rewards.length)) % rewards.length]);
     }
     strip.push(winner);
-    for (let i = 0; i < 6; i++) strip.push(pickDailyCaseReward());
+    for (let i = 0; i < 8; i++) strip.push(pickDailyCaseReward());
     return strip;
   }
 
-  function openDailyCaseRewards() {
+  function makeDailyCaseIdleStrip(rowIndex = 0) {
+    const strip = [];
+    const rewards = dailyCaseActiveRewards();
+    for (let i = 0; i < 18; i++) {
+      strip.push(rewards[(i + rowIndex * 2) % rewards.length]);
+    }
+    return strip.concat(strip);
+  }
+
+  function dailyCaseRollHtml(strip, rowIndex = 0, winnerIndex = -1) {
+    return `
+      <div class="daily-case-roll case-carousel active" data-row="${rowIndex}" data-winner-index="${winnerIndex}">
+        <div class="daily-case-roll__items case-carousel-items">
+          ${strip.map((reward, itemIdx) => dailyCaseRewardHtml(reward, itemIdx === winnerIndex ? 'daily-case-reward--winner winning' : '')).join('')}
+        </div>
+        <div class="daily-case-roll__line case-carousel-indicator" aria-hidden="true"></div>
+      </div>
+    `;
+  }
+
+  function renderDailyCaseIdleRolls() {
+    const sheet = ensureDailyCaseSheet();
+    const carousels = sheet.querySelector('[data-daily-case-carousels]');
+    if (!carousels) return;
+    carousels.innerHTML = dailyCaseRollHtml(makeDailyCaseIdleStrip(0), 0);
+    requestAnimationFrame(() => {
+      const items = carousels.querySelector('.daily-case-roll__items');
+      if (!items) return;
+      const children = Array.from(items.children || []);
+      const halfIdx = Math.floor(children.length / 2);
+      const first = children[0];
+      const middle = children[halfIdx];
+      const measured = first && middle ? Number(middle.offsetLeft || 0) - Number(first.offsetLeft || 0) : 0;
+      const distance = Math.max(260, Math.round(measured || (items.scrollWidth || 0) / 2));
+      items.style.setProperty('--daily-case-idle-distance', `${distance}px`);
+    });
+  }
+
+  async function commitDailyCaseOpen(instanceId, fallbackWinner) {
+    const user = getTelegramUser();
+    const inst = String(instanceId || '').trim();
+    const rewardCurrency = dailyCaseRewardCurrency();
+    const fallbackAmount = Number(fallbackWinner?.amount || (rewardCurrency === 'ton' ? 0.02 : 2));
+    const fallbackReward = dailyCaseCurrencyRewardByAmount(fallbackAmount, rewardCurrency);
+
+    if (inst) {
+      try {
+        const r = await tgFetch('/api/daily-case/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instanceId: inst, currency: rewardCurrency, rewardAmount: fallbackAmount })
+        });
+        const j = await r.json().catch(() => null);
+        if (r.ok && j?.ok) {
+          const responseCurrency = dailyCaseRewardCurrency(j?.reward?.currency || j?.currency || rewardCurrency);
+          const rewardAmount = Number(j?.reward?.amount || j?.amount || fallbackAmount);
+          const winner = dailyCaseCurrencyRewardByAmount(rewardAmount, responseCurrency);
+          if (Array.isArray(j.items)) {
+            writeLocalInventory(user.id, j.items);
+            renderInventory(j.items);
+          }
+          const nextBalance = responseCurrency === 'ton'
+            ? (Number.isFinite(Number(j.tonBalance)) ? Number(j.tonBalance) : Number(j.newBalance))
+            : (Number.isFinite(Number(j.starsBalance)) ? Number(j.starsBalance) : Number(j.newBalance));
+          if (Number.isFinite(nextBalance)) setBalance(responseCurrency, nextBalance);
+          return { winner, committed: true };
+        }
+      } catch {}
+    }
+
+    if (inst) {
+      const localLeft = lastInventory.filter((item) => String(item?.instanceId || '') !== inst);
+      writeLocalInventory(user.id, localLeft);
+      renderInventory(localLeft);
+    }
+    addBalance(rewardCurrency, fallbackAmount);
+    return { winner: fallbackReward, committed: false };
+  }
+
+  async function openDailyCaseRewards() {
     const sheet = ensureDailyCaseSheet();
     if (dailyCaseOpening || sheet.hidden) return;
     if (sheet.dataset.opened === '1') {
@@ -520,24 +954,23 @@
     sheet.dataset.opened = '0';
     const openBtn = sheet.querySelector('[data-daily-case-open]');
     const carousels = sheet.querySelector('[data-daily-case-carousels]');
-    const count = Math.random() < 0.5 ? 2 : 3;
-    const winners = Array.from({ length: count }, () => pickDailyCaseReward());
+    const count = 1;
+    const fallbackWinner = pickDailyCaseWinningReward();
 
     if (openBtn) {
       openBtn.disabled = true;
       openBtn.textContent = 'Opening...';
     }
 
+    const commit = await commitDailyCaseOpen(sheet.dataset.instanceId || '', fallbackWinner);
+    const winners = Array.from({ length: count }, () => commit.winner || fallbackWinner);
+    sheet.classList.add('is-opening');
+    sheet.classList.remove('is-finished');
+    sheet.classList.remove('is-ready');
+
     carousels.innerHTML = winners.map((winner, idx) => {
       const strip = makeDailyCaseStrip(winner, idx);
-      return `
-        <div class="daily-case-roll" data-winner-index="34">
-          <div class="daily-case-roll__items">
-            ${strip.map((reward, itemIdx) => dailyCaseRewardHtml(reward, itemIdx === 34 ? 'daily-case-reward--winner' : '')).join('')}
-          </div>
-          <div class="daily-case-roll__line" aria-hidden="true"></div>
-        </div>
-      `;
+      return dailyCaseRollHtml(strip, idx, 46);
     }).join('');
 
     const rolls = Array.from(carousels.querySelectorAll('.daily-case-roll'));
@@ -549,7 +982,7 @@
         const rollRect = roll.getBoundingClientRect();
         const winRect = winnerEl.getBoundingClientRect();
         const offset = (winRect.left + winRect.width / 2) - (rollRect.left + rollRect.width / 2);
-        items.style.transitionDuration = `${2.4 + idx * 0.28}s`;
+        items.style.transitionDuration = `${4.8 + idx * 0.35}s`;
         items.style.transform = `translate3d(${-offset}px, 0, 0)`;
       });
     });
@@ -561,36 +994,13 @@
         openBtn.textContent = 'Done';
       }
       sheet.dataset.opened = '1';
+      sheet.classList.remove('is-opening');
+      sheet.classList.add('is-finished');
       markDailyCaseOpened(sheet.dataset.dateKey || todayLocalKey());
-      removeOpenedDailyCase(sheet.dataset.instanceId || '');
       dailyCaseOpening = false;
       haptic('success');
-    }, 3300);
+    }, 5600);
   }
-
-  async function removeOpenedDailyCase(instanceId) {
-    const user = getTelegramUser();
-    const inst = String(instanceId || '').trim();
-    if (!inst) return;
-
-    const localLeft = lastInventory.filter((item) => String(item?.instanceId || '') !== inst);
-    writeLocalInventory(user.id, localLeft);
-    renderInventory(localLeft);
-
-    try {
-      const r = await tgFetch('/api/daily-case/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceId: inst })
-      });
-      const j = await r.json().catch(() => null);
-      if (r.ok && j?.ok && Array.isArray(j.items)) {
-        writeLocalInventory(user.id, j.items);
-        renderInventory(j.items);
-      }
-    } catch {}
-  }
-  
 
   function readLocalInventory(userId) {
     try {
@@ -2081,7 +2491,7 @@ async function withdrawContinue() {
     const emptyText = getEmptyTextEl();
     const dyn = ensureInvDynamic();
   
-    const arr = Array.isArray(items) ? items : [];
+    const arr = withLocalhostDailyCase(items);
     lastInventory = arr;
   
     // убираем старые выделения (теперь не нужны)
@@ -2298,15 +2708,16 @@ async function withdrawContinue() {
         const j = await r.json().catch(() => null);
         if (j && j.ok === true && Array.isArray(j.items)) {
           isRelayerAdmin = !!j.isAdmin;
-          writeLocalInventory(userId, j.items);
-          renderInventory(j.items);
+          const items = withLocalhostDailyCase(j.items);
+          writeLocalInventory(userId, items);
+          renderInventory(items);
           return;
         }
       }
     } catch {}
 
     isRelayerAdmin = false;
-    const local = readLocalInventory(userId);
+    const local = withLocalhostDailyCase(readLocalInventory(userId));
     renderInventory(local);
   }
 
@@ -2345,6 +2756,11 @@ window.addEventListener('wt-wallet-changed', () => {
 
 window.addEventListener('currency:changed', () => {
   renderInventory(lastInventory);
+  if (dailyCaseSheet && !dailyCaseSheet.hidden && !dailyCaseOpening && dailyCaseSheet.classList.contains('is-ready')) {
+    renderDailyCaseIdleRolls();
+  }
+  renderDailyCaseInsideList();
+  updateDailyCaseRewardPricePills();
 });
 
   window.WT?.bus?.addEventListener?.('page:change', (event) => {
