@@ -3327,6 +3327,9 @@ let giftsCatalog = [
   "Ice Cream",
     "Berry Box",
     "Lol Pop",
+    "Love Potion",
+    "Artisan Brick",
+    "Astian Brick",
     "Cookie Heart",
     "Mousse Cake",
       "Electric Skull",
@@ -3541,6 +3544,18 @@ function createGiftSourceError(message, extras = {}) {
 
 function normalizeGiftName(s) {
   return String(s || "").trim();
+}
+
+function canonicalGiftName(s) {
+  const name = normalizeGiftName(s);
+  const low = name.toLowerCase();
+  if (low === "astian brick") return "Artisan Brick";
+  return name;
+}
+
+function resolveCatalogGiftName(s) {
+  const canonical = canonicalGiftName(s);
+  return giftsCatalog.find(n => String(n).toLowerCase() === String(canonical).toLowerCase()) || canonical;
 }
 
 
@@ -4536,9 +4551,39 @@ app.post("/api/daily-case/open", requireTelegramUser, async (req, res) => {
       return res.status(500).json({ ok: false, error: "inventory delete unavailable" });
     }
 
+    const rewardCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+    const rewardUnit = Math.random() < 0.5 ? 2 : 3;
+    const rewardAmount = rewardCurrency === "ton"
+      ? (rewardUnit === 3 ? 0.03 : 0.02)
+      : rewardUnit;
     await db.deleteInventoryItems(userId, [instanceId]);
+    let newBalance = null;
+    let balance = null;
+    if (typeof db.updateBalance === "function") {
+      newBalance = await db.updateBalance(
+        userId,
+        rewardCurrency,
+        rewardAmount,
+        "daily_case_reward",
+        "Daily Case reward",
+        { instanceId, rewardCurrency, rewardAmount, rewardStars: rewardUnit }
+      );
+      balance = await db.getUserBalance(userId).catch(() => null);
+      try { broadcastBalanceUpdate(userId); } catch {}
+    }
     const left = await inventoryGet(userId);
-    return res.json({ ok: true, deleted: 1, items: left, nfts: left });
+    return res.json({
+      ok: true,
+      deleted: 1,
+      items: left,
+      nfts: left,
+      reward: { type: rewardCurrency, currency: rewardCurrency, amount: rewardAmount },
+      currency: rewardCurrency,
+      amount: rewardAmount,
+      newBalance: Number(newBalance ?? (rewardCurrency === "ton" ? balance?.ton_balance : balance?.stars_balance) ?? 0),
+      starsBalance: Number(balance?.stars_balance ?? (rewardCurrency === "stars" ? newBalance : 0) ?? 0),
+      tonBalance: Number(balance?.ton_balance ?? (rewardCurrency === "ton" ? newBalance : 0) ?? 0)
+    });
   } catch (e) {
     console.error("[DailyCase] open error:", e);
     return res.status(500).json({ ok: false, error: "daily case open error" });
@@ -8921,7 +8966,7 @@ app.get("/api/gifts/price", async (req, res) => {
   if (!q) return res.status(400).json({ ok: false, error: "name required" });
 
   // Resolve name from catalog case-insensitively
-  const foundName = giftsCatalog.find(n => String(n).toLowerCase() === String(q).toLowerCase()) || q;
+  const foundName = resolveCatalogGiftName(q);
   const p = priceManager.getPrice(foundName);
 
   if (!p) {
@@ -8957,7 +9002,7 @@ app.get("/api/gifts/prices", async (req, res) => {
 
   const list = [];
   for (const name of giftsCatalog) {
-    const p = priceManager.getPrice(name);
+    const p = priceManager.getPrice(canonicalGiftName(name));
     if (!p) continue;
     list.push(buildManagedGiftResponse(name, p, tonUsd));
   }

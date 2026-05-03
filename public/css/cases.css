@@ -332,12 +332,12 @@ body.page-cases .topbar > .balance{
 body:has(.page-active#casesPage) .logo-header,
 body.page-cases .logo-header{
   position: fixed !important;
-  --wg-logo-height: 28px;
+  --wg-logo-height: 34px;
   top: max(
     calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px + var(--wg-logo-nudge-y, 2px)),
     calc(
       var(--safe-top, env(safe-area-inset-top, 0px))
-      + ((var(--tg-overlay-top, 0px) - var(--wg-logo-height, 28px)) / 2)
+      + ((var(--tg-overlay-top, 0px) - var(--wg-logo-height, 34px)) / 2)
       + var(--wg-logo-nudge-y, 2px)
     )
   ) !important;
@@ -349,7 +349,7 @@ body.page-cases .logo-header{
 
 body:has(.page-active#casesPage) .logo-header .main-logo,
 body.page-cases .logo-header .main-logo{
-  height: 28px;
+  height: var(--wg-logo-height, 34px);
   width: auto;
 }
 

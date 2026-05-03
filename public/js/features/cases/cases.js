@@ -1361,6 +1361,16 @@ function easeOutQuart(t) {
   const x = Math.max(0, Math.min(1, Number(t) || 0));
   return 1 - Math.pow(1 - x, 4);
 }
+
+function easeCaseSuspense(t) {
+  const x = Math.max(0, Math.min(1, Number(t) || 0));
+  if (x < 0.58) {
+    const p = x / 0.58;
+    return 0.72 * (1 - Math.pow(1 - p, 3));
+  }
+  const p = (x - 0.58) / 0.42;
+  return 0.72 + 0.28 * (1 - Math.pow(1 - p, 2.15));
+}
 function safeHaptic(kind, style) {
   const h = window.Telegram?.WebApp?.HapticFeedback || tg?.HapticFeedback;
   if (!h) return;
@@ -3591,11 +3601,11 @@ function getBalanceSafe(currency) {
     const starsPerfMode = (currency === 'stars' || currency === 'ton') && (carousels.length >= 3 || isStarsCarouselPerfStress());
     const iosSpinTuned = isIOSDevice();
     let MIN_STRIP_LENGTH = starsPerfMode
-      ? (casesLowMotion ? 84 : 108)
-      : (casesLowMotion ? 96 : 132);
+      ? (casesLowMotion ? 96 : 150)
+      : (casesLowMotion ? 112 : 176);
     let TAIL_AFTER_WIN = starsPerfMode
-      ? (casesLowMotion ? 14 : 20)
-      : (casesLowMotion ? 18 : 24);
+      ? (casesLowMotion ? 18 : 30)
+      : (casesLowMotion ? 22 : 36);
     // iPhone-only tuning: lighter strips + slightly closer win tail for smoother frame pacing.
     if (iosSpinTuned) {
       MIN_STRIP_LENGTH = Math.max(72, MIN_STRIP_LENGTH - (casesLowMotion ? 16 : 10));
@@ -3746,8 +3756,8 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
 
         // 10) Минимальная "дистанция", чтобы не было ощущения микро-дерга
         const minTravelSteps = iosSpinTuned
-          ? (casesLowMotion ? 14 : 18)
-          : (casesLowMotion ? 12 : 16);
+          ? (casesLowMotion ? 18 : 30)
+          : (casesLowMotion ? 16 : 34);
         const minTravel = step * minTravelSteps;
         if (targetPosition - startPosition < minTravel) {
           targetPosition = Math.min(maxTarget, startPosition + minTravel);
@@ -3756,12 +3766,12 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
         const totalDistance = targetPosition - startPosition;
 
         // 11) Плавная анимация
-        const baseDuration = (casesLowMotion ? 2500 : (starsPerfMode ? 3600 : 4300));
+        const baseDuration = (casesLowMotion ? 3900 : (starsPerfMode ? 6200 : 6800));
         const duration = iosSpinTuned
-          ? (baseDuration + (casesLowMotion ? 1450 : 900) + index * (casesLowMotion ? 90 : 130) + Math.random() * (casesLowMotion ? 320 : 480))
-          : (baseDuration + index * (casesLowMotion ? 110 : 170) + Math.random() * (casesLowMotion ? 240 : 420));
-        const easingFn = iosSpinTuned ? easeOutQuart : easeInOutCubic;
-        const hapticIntervalMs = iosSpinTuned ? 180 : 140;
+          ? (baseDuration + (casesLowMotion ? 1500 : 700) + index * (casesLowMotion ? 130 : 260) + Math.random() * (casesLowMotion ? 360 : 760))
+          : (baseDuration + index * (casesLowMotion ? 170 : 320) + Math.random() * (casesLowMotion ? 360 : 840));
+        const easingFn = casesLowMotion ? easeOutQuart : easeCaseSuspense;
+        const hapticIntervalMs = iosSpinTuned ? 230 : 190;
         const startTime = performance.now();
         let lastHaptic = 0;
 
@@ -3777,7 +3787,7 @@ if (!(Number.isFinite(step) && step > 5)) { resolve(); return; }
           updateLeftSideCullForCarousel(carousel, { now: currentTime });
 
           // тактилка не чаще, чем раз в 140мс
-          if (progress < 0.85 && (currentTime - lastHaptic) > hapticIntervalMs) {
+          if (progress < 0.92 && (currentTime - lastHaptic) > hapticIntervalMs) {
             safeHaptic('impact', 'light');
             lastHaptic = currentTime;
           }
