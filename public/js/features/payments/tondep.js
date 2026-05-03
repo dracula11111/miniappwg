@@ -5,6 +5,7 @@
   const PROJECT_TON_ADDRESS = 'UQCtVhhBFPBvCoT8H7szNQUhEvHgbvnX50r8v6d8y5wdr19J';
   const MIN_DEPOSIT = 0.1;
   const TEST_LS_KEY = 'WT_TON_TEST_WALLET_V1';
+  const TEST_WALLET_ADDRESS = 'UQAW000000000000000000000000000000000000000000xjWy';
   const TONCONNECT_UI_FALLBACK_SOURCES = [
     'https://cdn.jsdelivr.net/npm/@tonconnect/ui@latest/dist/tonconnect-ui.min.js',
     'https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js'
@@ -85,7 +86,7 @@
     const prev = loadTestState();
     const addr = (typeof address === 'string' && address.trim())
       ? address.trim()
-      : (typeof prev.address === 'string' && prev.address ? prev.address : PROJECT_TON_ADDRESS);
+      : (typeof prev.address === 'string' && prev.address ? prev.address : TEST_WALLET_ADDRESS);
 
     const bal = (typeof balanceTon === 'number' && Number.isFinite(balanceTon)) ? balanceTon : 0.06;
     saveTestState({ enabled: true, address: addr, balanceTon: bal });
@@ -436,6 +437,11 @@
 
     try {
       setConnectBtnState('Connecting...', true);
+      if (isLocalDevHost() && setTestConnected(true)) {
+        setConnectBtnState('Connect Wallet', false);
+        return;
+      }
+
       if (!tc) {
         await ensureTonConnectLibrary().catch(() => {});
         if (!tc && window.TON_CONNECT_UI) {
@@ -543,6 +549,14 @@
     }
   });
 
+  if (isLocalDevHost()) {
+    window.WTDevTonWallet = {
+      connect: (address = TEST_WALLET_ADDRESS, balanceTon = 0.06) => setTestConnected(true, address, balanceTon),
+      disconnect: () => setTestConnected(false),
+      address: TEST_WALLET_ADDRESS
+    };
+  }
+
   async function initTonConnectUI() {
     if (tc) return tc;
     if (!window.TON_CONNECT_UI) return null;
@@ -590,6 +604,13 @@
   }
 
   (async () => {
+    if (isLocalDevHost()) {
+      const params = new URLSearchParams(location.search || '');
+      if (params.get('testWallet') === '1') {
+        setTestConnected(true);
+      }
+    }
+
     if (!window.TON_CONNECT_UI) {
       await ensureTonConnectLibrary().catch(() => {});
     }

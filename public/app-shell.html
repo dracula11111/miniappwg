@@ -335,13 +335,13 @@
 
     <!-- Переключатель валюты -->
     <div class="currency-switch">
-      <button class="curr-btn curr-btn--active" data-currency="ton">
-        <img src="/icons/currency/ton.svg" alt="" class="curr-icon">
-        <span>TON</span>
-      </button>
       <button class="curr-btn" data-currency="stars">
         <img src="/icons/currency/stars.svg" alt="" class="curr-icon">
         <span>Stars</span>
+      </button>
+      <button class="curr-btn curr-btn--active" data-currency="ton">
+        <img src="/icons/currency/ton.svg" alt="" class="curr-icon">
+        <span>TON</span>
       </button>
     </div>
 
@@ -530,7 +530,12 @@
       <span class="error-text">Minimum deposit: 0.1 TON</span>
     </div>
 
-    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit</button>
+    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>
+      <span class="deposit-popup__button-icon" aria-hidden="true">
+        <img src="/icons/currency/tgTonWhite.svg" alt="">
+      </span>
+      <span class="deposit-popup__button-text">Deposit</span>
+    </button>
 
     <div class="deposit-popup__wallet-info">
       <span class="deposit-popup__wallet-chip">
@@ -566,7 +571,7 @@
       </span>
       <span class="wt-connect-wallet__text">Connect Wallet</span>
     </button>
-    
+
     <!-- Баланс кошелька -->
     <div class="deposit-popup__wallet-info">
       <span class="deposit-popup__wallet-icon" aria-hidden="true">

@@ -1512,8 +1512,16 @@
     'url("/images/games/crash2.webp")'
   ];
   const GAMES_BANNER_SLIDES = [
-    "/images/games/banners/banner-1.webp",
-    "/images/games/banners/banner-2.webp"
+    {
+      src: "/images/games/banners/banner-1.webp",
+      target: "marketPage",
+      label: "Open Market"
+    },
+    {
+      src: "/images/games/banners/banner-2.webp",
+      target: "",
+      label: "Games banner 2"
+    }
   ];
   const TILE_ROTATE_MIN_SEC = 8;
   const TILE_ROTATE_MAX_SEC = 14;
@@ -2205,6 +2213,8 @@
     let autoTimer = null;
     let dragStartX = 0;
     let dragOffsetX = 0;
+    let lastDragEndAt = 0;
+    let lastDragDistance = 0;
     let isDragging = false;
     let isMouseDragBound = false;
     let viewportWidth = Math.max(1, Math.round(viewport.getBoundingClientRect().width || 1));
@@ -2301,6 +2311,8 @@
       isDragging = false;
       carousel.classList.remove("is-dragging");
       releaseMouseDrag();
+      lastDragEndAt = Date.now();
+      lastDragDistance = Math.abs(dragOffsetX);
 
       const swipeThreshold = Math.max(
         GAMES_BANNER_MIN_SWIPE_PX,
@@ -2317,6 +2329,40 @@
       dragOffsetX = 0;
       startAuto();
     };
+
+    const openBannerTarget = (interactive) => {
+      const target = String(interactive.getAttribute("data-banner-target") || "").trim();
+      if (!target) return false;
+
+      if (!document.getElementById(target)) {
+        console.warn(`[WT] Page not found: ${target}`);
+        return false;
+      }
+      activatePage(target);
+      return true;
+    };
+
+    carousel.addEventListener("click", (event) => {
+      const interactive = event.target?.closest?.("[data-banner-target]");
+      if (!interactive || !carousel.contains(interactive)) return;
+
+      const recentDrag = Date.now() - lastDragEndAt < 350;
+      if (recentDrag && lastDragDistance >= 8) {
+        event.preventDefault();
+        return;
+      }
+
+      if (openBannerTarget(interactive)) event.preventDefault();
+    });
+
+    carousel.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+
+      const interactive = event.target?.closest?.("[data-banner-target]");
+      if (!interactive || !carousel.contains(interactive)) return;
+
+      if (openBannerTarget(interactive)) event.preventDefault();
+    });
 
     function onMouseMove(event) {
       if (!isDragging) return;
@@ -2855,16 +2901,24 @@
     page = document.createElement("main");
     page.id = GAMES_PAGE_ID;
     page.className = "page";
-    const gamesBannerSlidesMarkup = GAMES_BANNER_SLIDES.map((bannerSrc, index) => `
+    const gamesBannerSlidesMarkup = GAMES_BANNER_SLIDES.map((banner, index) => {
+      const bannerSrc = String(banner?.src || "").trim();
+      const target = String(banner?.target || "").trim();
+      const label = String(banner?.label || `Games banner ${index + 1}`).trim();
+      const targetAttr = target ? ` data-banner-target="${target}" tabindex="0"` : "";
+
+      return `
                 <div class="games-banners__slide">
                   <div
-                    class="games-banners__card"
-                    role="img"
-                    aria-label="Games banner ${index + 1}"
+                    class="games-banners__card${target ? " games-banners__card--link" : ""}"
+                    role="${target ? "button" : "img"}"
+                    aria-label="${label}"
+                    ${targetAttr}
                     style="--games-banner-image:url('${bannerSrc}');"
                   ></div>
                 </div>
-              `).join("");
+              `;
+    }).join("");
 
     page.innerHTML = `
       <section class="games">

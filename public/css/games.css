@@ -181,6 +181,15 @@
       0 8px 24px rgba(0, 0, 0, 0.24);
   }
 
+  .games-banners__card--link{
+    cursor: pointer;
+  }
+
+  .games-banners__card--link:focus-visible{
+    outline: 2px solid rgba(255, 255, 255, 0.88);
+    outline-offset: -4px;
+  }
+
   .games-banners__card::after{
     content: "";
     position: absolute;
