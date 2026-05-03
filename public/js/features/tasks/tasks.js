@@ -36,7 +36,7 @@
       id: TASK_INVITE_ID,
       section: "one",
       title: "Invite friend",
-      subtitle: "One-time reward per friend",
+      subtitle: "One-time reward",
       rewardStars: 5,
       icon: "/icons/nav/profile.svg",
       iconBg: "#9b4dff",
@@ -75,7 +75,7 @@
   };
 
   const inviteState = {
-    opened: readInviteAttempt(),
+    opened: false,
     loading: false,
     claimed: false,
     link: "",
@@ -273,7 +273,7 @@
       const more = count > names.length ? ` +${count - names.length}` : "";
       parts.push(`Invited ${count}${names.length ? `: ${names.join(", ")}${more}` : ""}`);
     } else {
-      parts.push("One-time reward per friend");
+      parts.push("One-time reward");
     }
 
     if (inviteState.invitedBy) {
@@ -728,7 +728,6 @@
           return;
         }
         if (json?.code === "TASK_NOT_COMPLETED") {
-          inviteState.pendingRewardCount = 0;
           showToast("Invite a friend first.", "warning");
           haptic("warning");
         } else {
@@ -939,7 +938,7 @@
         render();
         showToast(
           hasInviteProgress()
-            ? "This invite task can be rewarded only once."
+            ? "This task is already completed."
             : "No friends have started the bot yet. You can send the invite again.",
           "warning"
         );

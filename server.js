@@ -4861,7 +4861,13 @@ function getReferralBotUsername() {
 function buildReferralLink(userId, language = "en") {
   const code = encodeReferralStartParam(userId, language);
   const bot = getReferralBotUsername();
-  if (!code || !bot) return "";
+  if (!code || !bot) {
+    if (!buildReferralLink._warned) {
+      console.warn("[Referral] buildReferralLink returned empty link", { hasCode: !!code, hasBot: !!bot, userId: String(userId || "") });
+      buildReferralLink._warned = true;
+    }
+    return "";
+  }
   return `https://t.me/${bot}?start=${encodeURIComponent(code)}`;
 }
 

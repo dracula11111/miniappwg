@@ -2122,7 +2122,7 @@ export async function claimReferralRewards(
     const before = cur === "ton" ? ton : stars;
     const after = before + delta;
     let nextTon = ton;
-    let nextStars = Math.trunc(stars);
+    let nextStars = stars;
 
     if (cur === "ton") {
       nextTon = after;
