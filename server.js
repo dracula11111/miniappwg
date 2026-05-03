@@ -1069,6 +1069,52 @@ if (!IS_TEST) {
 // Select DB
 const db = IS_TEST ? dbMem : dbReal;
 
+function getDbStatusSnapshot() {
+  if (typeof db?.getPostgresStatus !== "function") return null;
+  try {
+    return db.getPostgresStatus();
+  } catch {
+    return null;
+  }
+}
+
+function isDbCurrentlyUnavailable() {
+  if (IS_TEST) return false;
+  const status = getDbStatusSnapshot();
+  return !dbReady || status?.circuitOpen === true;
+}
+
+function isDbUnavailableError(error) {
+  if (IS_TEST) return false;
+  if (typeof db?.isPostgresUnavailableError === "function" && db.isPostgresUnavailableError(error)) {
+    return true;
+  }
+  const code = String(error?.code || "");
+  const message = String(error?.message || error || "").toLowerCase();
+  return code === "PG_CIRCUIT_OPEN" ||
+    message.includes("timeout exceeded when trying to connect") ||
+    message.includes("connection terminated") ||
+    message.includes("connect etimedout") ||
+    message.includes("econnrefused") ||
+    message.includes("enotfound");
+}
+
+function sendDbUnavailable(res, error = null) {
+  const status = getDbStatusSnapshot();
+  const retryAfterMs = Number(status?.retryAfterMs || 0);
+  if (retryAfterMs > 0) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil(retryAfterMs / 1000))));
+  }
+  return res.status(503).json({
+    ok: false,
+    code: "DB_UNAVAILABLE",
+    error: "Database temporarily unavailable",
+    retryAfterMs,
+    dbReady,
+    dbError: String(error?.message || status?.lastError || dbInitError?.message || dbInitError || "")
+  });
+}
+
 // SSE clients: userId -> Set(response)
 const balanceClients = new Map();
 const adminPanelSessions = new Map();
@@ -1099,6 +1145,7 @@ const techPauseState = {
 };
 
 let techPauseSyncPromise = null;
+let lastTechPauseDbUnavailableLogAt = 0;
 let caseRoundRefundSweepPromise = null;
 const CASE_ROUND_REFUND_EVENT_PREFIX = "case_round_refund:";
 const CASE_ROUND_REFUND_SWEEP_LIMIT = Math.max(
@@ -1271,7 +1318,8 @@ app.get("/healthz", (req, res) => {
   res.status(dbReady ? 200 : 503).json({
     ok: true,
     dbReady,
-    dbError: dbReady ? null : String(dbInitError?.message || dbInitError || "")
+    dbError: dbReady ? null : String(dbInitError?.message || dbInitError || ""),
+    postgres: getDbStatusSnapshot()
   });
 });
 
@@ -2902,6 +2950,14 @@ async function syncTechPauseFromDb(source = "poll") {
       }
       applyTechPauseState(false, source);
     } catch (error) {
+      if (isDbUnavailableError(error)) {
+        const now = Date.now();
+        if (now - lastTechPauseDbUnavailableLogAt > 30000) {
+          lastTechPauseDbUnavailableLogAt = now;
+          console.warn("[TechPause] DB unavailable; keeping last known state:", error?.message || error);
+        }
+        return;
+      }
       console.error("[TechPause] sync error:", error?.message || error);
     }
   })().finally(() => {
@@ -4762,6 +4818,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
     }
     return result;
   } catch (error) {
+    if (isDbUnavailableError(error)) return null;
     console.error("[Referral] register failed:", error?.message || error);
     return null;
   }
@@ -9146,16 +9203,23 @@ async function requireTelegramUser(req, res, next) {
     let user = null;
     try { user = JSON.parse(check.params.user || "null"); } catch {}
     if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+    if (isDbCurrentlyUnavailable()) return sendDbUnavailable(res);
 
     try {
       await db.saveUser(user);
     } catch (saveErr) {
+      if (isDbUnavailableError(saveErr)) return sendDbUnavailable(res, saveErr);
       console.error("[Auth] Failed to save Telegram user profile:", saveErr);
     }
 
     await maybeRegisterReferralForUser(user, check.params?.start_param, "miniapp");
 
-    const dbUser = await db.getUserById(user.id).catch(() => null);
+    let dbUser = null;
+    try {
+      dbUser = await db.getUserById(user.id);
+    } catch (getUserErr) {
+      if (isDbUnavailableError(getUserErr)) return sendDbUnavailable(res, getUserErr);
+    }
     if (Number(dbUser?.ban) === 1) {
       return res.status(403).json({
         ok: false,
