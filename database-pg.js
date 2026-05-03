@@ -8,10 +8,74 @@ if (!process.env.DATABASE_URL) {
   console.warn("[DB] ⚠️ DATABASE_URL is not set. Postgres will not work.");
 }
 
+function envInt(name, fallback, min, max) {
+  const raw = Number(process.env[name]);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(raw)));
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
+  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+  max: envInt("PG_POOL_MAX", 2, 1, 20),
+  min: 0,
+  idleTimeoutMillis: envInt("PG_IDLE_TIMEOUT_MS", 5000, 1000, 60000),
+  connectionTimeoutMillis: envInt("PG_CONNECTION_TIMEOUT_MS", 30000, 1000, 60000),
+  allowExitOnIdle: true
 });
+
+const PG_CIRCUIT_OPEN_MS = envInt("PG_CIRCUIT_OPEN_MS", 15000, 1000, 120000);
+let pgCircuitOpenUntil = 0;
+let pgCircuitLastError = "";
+
+function setPostgresCircuitOpen(error) {
+  pgCircuitLastError = error?.message || String(error || "Postgres connection failed");
+  pgCircuitOpenUntil = Date.now() + PG_CIRCUIT_OPEN_MS;
+}
+
+function makePostgresCircuitOpenError() {
+  const err = new Error(pgCircuitLastError || "Postgres temporarily unavailable");
+  err.code = "PG_CIRCUIT_OPEN";
+  err.retryAfterMs = Math.max(0, pgCircuitOpenUntil - Date.now());
+  return err;
+}
+
+async function connect() {
+  const now = Date.now();
+  if (pgCircuitOpenUntil > now) {
+    throw makePostgresCircuitOpenError();
+  }
+
+  try {
+    return await pool.connect();
+  } catch (e) {
+    setPostgresCircuitOpen(e);
+    throw e;
+  }
+}
+
+export function getPostgresStatus() {
+  const now = Date.now();
+  return {
+    circuitOpen: pgCircuitOpenUntil > now,
+    retryAfterMs: Math.max(0, pgCircuitOpenUntil - now),
+    lastError: pgCircuitLastError || null,
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount
+  };
+}
+
+export function isPostgresUnavailableError(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || error || "").toLowerCase();
+  return code === "PG_CIRCUIT_OPEN" ||
+    message.includes("timeout exceeded when trying to connect") ||
+    message.includes("connection terminated") ||
+    message.includes("connect etimedout") ||
+    message.includes("econnrefused") ||
+    message.includes("enotfound");
+}
 
 const RLS_PROTECTED_TABLES = [
   "users",
@@ -35,7 +99,8 @@ const RLS_PROTECTED_TABLES = [
 ];
 
 async function query(text, params) {
-  const client = await pool.connect();
+  const client = await connect();
+
   try {
     return await client.query(text, params);
   } finally {
@@ -1134,7 +1199,7 @@ export async function getMarketItems(limit = 200) {
 export async function addMarketItem(item) {
   const id = String(item.id);
   const now = Date.now();
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
     await client.query(
@@ -1160,7 +1225,7 @@ export async function addMarketItem(item) {
 }
 
 export async function clearMarketItems() {
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
     await client.query(`TRUNCATE market_items`);
@@ -1178,7 +1243,7 @@ export async function clearMarketItems() {
 export async function takeMarketItemById(id) {
   const k = String(id || "").trim();
   if (!k) return null;
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
     const r = await client.query(
@@ -1378,7 +1443,7 @@ export async function updateBalance(telegramId, currency, amount, type, descript
   const cur = currency === "stars" ? "stars" : "ton";
   const now = Math.floor(Date.now() / 1000);
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -1496,7 +1561,7 @@ export async function applyVerifiedTonDeposit({
     ? JSON.stringify(payload)
     : null;
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -1776,7 +1841,7 @@ export async function registerReferral(input = {}) {
   const now = Math.floor(Date.now() / 1000);
   const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -1916,7 +1981,7 @@ export async function claimReferralRewards(
   const now = Math.floor(Date.now() / 1000);
   const description = normalizeOptionalText(options?.description, 256) || "One-time referral reward";
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -2055,7 +2120,7 @@ export async function addInventoryItems(telegramId, items, claimId = null) {
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return await getUserInventory(id);
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -2136,7 +2201,7 @@ export async function sellInventoryItems(telegramId, instanceIds, currency = "to
 
   const now = Math.floor(Date.now() / 1000);
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -2249,7 +2314,7 @@ export async function deleteInventoryItems(telegramId, instanceIds) {
   const ids = Array.isArray(instanceIds) ? instanceIds.map(String) : [];
   if (!ids.length) return { deleted: 0 };
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -2290,7 +2355,7 @@ export async function deleteInventoryItemByLookup(telegramId, lookup = {}) {
   const tgMessageId = normalize(lookup?.tgMessageId ?? lookup?.messageId ?? lookup?.msgId, 128);
   if (!instanceId && !marketId && !itemId && !tgMessageId) return { deleted: 0 };
 
-  const client = await pool.connect();
+  const client = await connect();
   const deleteByExpr = async (expr, value) => {
     if (!value) return null;
     const del = await client.query(
@@ -2381,7 +2446,7 @@ export async function awardTaskReward(
   const now = Math.floor(Date.now() / 1000);
   const payload = (metadata && typeof metadata === "object" && !Array.isArray(metadata)) ? metadata : {};
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 
@@ -2532,7 +2597,7 @@ export async function redeemPromocode(telegramId, code) {
   const now = Math.floor(Date.now() / 1000);
   const h = promoHash(code);
 
-  const client = await pool.connect();
+  const client = await connect();
   try {
     await client.query("BEGIN");
 

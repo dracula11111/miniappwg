@@ -1029,23 +1029,97 @@ async deleteInventoryItemByLookup(telegramId, lookup = {}) {
 }
 
 const dbMem = createMemoryDb();
+let dbReady = IS_TEST;
+let dbInitError = null;
+
+async function initRealDatabaseWithRetry() {
+  const retryMs = Math.max(
+    5000,
+    Math.min(120000, Number(process.env.DB_INIT_RETRY_MS || 15000) || 15000)
+  );
+
+  for (;;) {
+    try {
+      dbReady = false;
+      dbInitError = null;
+      await dbReal.initDatabase();
+      if (typeof dbReal.ensurePromoSeed === "function") {
+        await dbReal.ensurePromoSeed();
+      }
+      dbReady = true;
+      console.log("[DB] ✅ Postgres ready");
+      return;
+    } catch (e) {
+      dbReady = false;
+      dbInitError = e;
+      console.error(`[DB] init failed; retrying in ${retryMs}ms:`, e?.message || e);
+      await sleep(retryMs);
+    }
+  }
+}
 
 // Real DB init (Postgres) вЂ” load only after dotenv has run.
 if (!IS_TEST) {
   dbReal = await import("./database-pg.js");
-  await dbReal.initDatabase();
-  if (typeof dbReal.ensurePromoSeed === "function") {
-    await dbReal.ensurePromoSeed();
-  }
+  initRealDatabaseWithRetry().catch((e) => {
+    console.error("[DB] init retry loop crashed:", e);
+  });
 } else {
   await dbMem.initDatabase();
   if (typeof dbMem.ensurePromoSeed === "function") {
     await dbMem.ensurePromoSeed();
   }
+  dbReady = true;
 }
 
 // Select DB
 const db = IS_TEST ? dbMem : dbReal;
+
+function getDbStatusSnapshot() {
+  if (typeof db?.getPostgresStatus !== "function") return null;
+  try {
+    return db.getPostgresStatus();
+  } catch {
+    return null;
+  }
+}
+
+function isDbCurrentlyUnavailable() {
+  if (IS_TEST) return false;
+  const status = getDbStatusSnapshot();
+  return !dbReady || status?.circuitOpen === true;
+}
+
+function isDbUnavailableError(error) {
+  if (IS_TEST) return false;
+  if (typeof db?.isPostgresUnavailableError === "function" && db.isPostgresUnavailableError(error)) {
+    return true;
+  }
+  const code = String(error?.code || "");
+  const message = String(error?.message || error || "").toLowerCase();
+  return code === "PG_CIRCUIT_OPEN" ||
+    message.includes("timeout exceeded when trying to connect") ||
+    message.includes("connection terminated") ||
+    message.includes("connect etimedout") ||
+    message.includes("econnrefused") ||
+    message.includes("enotfound");
+}
+
+function sendDbUnavailable(res, error = null) {
+  const status = getDbStatusSnapshot();
+  const retryAfterMs = Number(status?.retryAfterMs || 0);
+  if (retryAfterMs > 0) {
+    res.setHeader("Retry-After", String(Math.max(1, Math.ceil(retryAfterMs / 1000))));
+  }
+  return res.status(503).json({
+    ok: false,
+    code: "DB_UNAVAILABLE",
+    error: "Database temporarily unavailable",
+    retryAfterMs,
+    dbReady,
+    dbError: String(error?.message || status?.lastError || dbInitError?.message || dbInitError || "")
+  });
+}
 
 // SSE clients: userId -> Set(response)
 const balanceClients = new Map();
@@ -1077,6 +1151,7 @@ const techPauseState = {
 };
 
 let techPauseSyncPromise = null;
+let lastTechPauseDbUnavailableLogAt = 0;
 let caseRoundRefundSweepPromise = null;
 const CASE_ROUND_REFUND_EVENT_PREFIX = "case_round_refund:";
 const CASE_ROUND_REFUND_SWEEP_LIMIT = Math.max(
@@ -1244,6 +1319,15 @@ const __dirname  = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000; // port
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
+
+app.get("/healthz", (req, res) => {
+  res.status(dbReady ? 200 : 503).json({
+    ok: true,
+    dbReady,
+    dbError: dbReady ? null : String(dbInitError?.message || dbInitError || ""),
+    postgres: getDbStatusSnapshot()
+  });
+});
 
 const TG_CHROME_METRICS_PATH =
   process.env.TG_CHROME_METRICS_PATH ||
@@ -1492,6 +1576,9 @@ function makeRoundHash(gameKey, counter, entropy = "") {
 }
 
 async function loadGameRoundMeta(gameKey) {
+  if (!dbReady && !IS_TEST) {
+    return { counter: 0, hash: "", updatedAt: 0 };
+  }
   if (typeof db?.getGameRoundMeta !== "function") {
     return { counter: 0, hash: "", updatedAt: 0 };
   }
@@ -1509,6 +1596,7 @@ async function loadGameRoundMeta(gameKey) {
 }
 
 function persistGameRoundMeta(gameKey, counter, hash) {
+  if (!dbReady && !IS_TEST) return;
   if (typeof db?.setGameRoundMeta !== "function") return;
   const safeCounter = normalizeGameCounterValue(counter);
   const safeHash = normalizeRoundHashValue(hash);
@@ -2868,6 +2956,14 @@ async function syncTechPauseFromDb(source = "poll") {
       }
       applyTechPauseState(false, source);
     } catch (error) {
+      if (isDbUnavailableError(error)) {
+        const now = Date.now();
+        if (now - lastTechPauseDbUnavailableLogAt > 30000) {
+          lastTechPauseDbUnavailableLogAt = now;
+          console.warn("[TechPause] DB unavailable; keeping last known state:", error?.message || error);
+        }
+        return;
+      }
       console.error("[TechPause] sync error:", error?.message || error);
     }
   })().finally(() => {
@@ -4199,6 +4295,32 @@ function isRelayerAdminUserId(userId) {
 // Inventory is persisted in Postgres via database-pg.js.
 // Endpoints return { items, nfts } for backward compatibility.
 
+const DAILY_CASE_IMAGE = "/images/cases/daily/dailyCase.webp";
+
+function dailyCaseDateKey(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+function createDailyCaseInventoryItem(dateKey, userId) {
+  const key = String(dateKey || dailyCaseDateKey());
+  const uid = String(userId || "user");
+  return {
+    type: "daily_case",
+    id: "daily_case",
+    baseId: "daily_case",
+    name: "Daily Case",
+    title: "Daily Case",
+    icon: DAILY_CASE_IMAGE,
+    image: DAILY_CASE_IMAGE,
+    previewUrl: DAILY_CASE_IMAGE,
+    instanceId: `daily_case_${uid}_${key}`,
+    dailyCaseDate: key,
+    opened: false,
+    price: { ton: 0, stars: 0 },
+    acquiredAt: Date.now()
+  };
+}
+
 async function inventoryGet(userId) {
   if (typeof db.getUserInventory === "function") return await db.getUserInventory(userId);
   return [];
@@ -4343,6 +4465,58 @@ app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   } catch (e) {
     console.error("[Inventory] get error:", e);
     return res.status(500).json({ ok: false, error: "inventory error" });
+  }
+});
+
+app.post("/api/daily-case/claim", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const dateKey = dailyCaseDateKey();
+    const claimId = `daily_case_${userId}_${dateKey}`;
+    const result = await inventoryAdd(userId, [createDailyCaseInventoryItem(dateKey, userId)], claimId);
+    const items = Array.isArray(result.items) ? result.items : await inventoryGet(userId);
+    const dailyCase = items.find((item) =>
+      String(item?.type || "") === "daily_case" &&
+      String(item?.dailyCaseDate || "") === dateKey
+    ) || null;
+
+    return res.json({
+      ok: true,
+      dateKey,
+      newlyClaimed: Number(result.added || 0) > 0,
+      duplicated: !!result.duplicated,
+      item: dailyCase,
+      items,
+      nfts: items
+    });
+  } catch (e) {
+    console.error("[DailyCase] claim error:", e);
+    return res.status(500).json({ ok: false, error: "daily case error" });
+  }
+});
+
+app.post("/api/daily-case/open", requireTelegramUser, async (req, res) => {
+  try {
+    const userId = String(req.tg.user.id);
+    const instanceId = String(req.body?.instanceId || "").trim();
+    if (!instanceId) return res.status(400).json({ ok: false, error: "instanceId required" });
+
+    const items = await inventoryGet(userId);
+    const item = items.find((it) => String(it?.instanceId || "") === instanceId) || null;
+    if (!item || String(item?.type || "") !== "daily_case") {
+      return res.status(404).json({ ok: false, error: "Daily Case not found" });
+    }
+
+    if (typeof db.deleteInventoryItems !== "function") {
+      return res.status(500).json({ ok: false, error: "inventory delete unavailable" });
+    }
+
+    await db.deleteInventoryItems(userId, [instanceId]);
+    const left = await inventoryGet(userId);
+    return res.json({ ok: true, deleted: 1, items: left, nfts: left });
+  } catch (e) {
+    console.error("[DailyCase] open error:", e);
+    return res.status(500).json({ ok: false, error: "daily case open error" });
   }
 });
 
@@ -4662,6 +4836,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
     }
     return result;
   } catch (error) {
+    if (isDbUnavailableError(error)) return null;
     console.error("[Referral] register failed:", error?.message || error);
     return null;
   }
@@ -9049,12 +9224,14 @@ async function requireTelegramUser(req, res, next) {
     let user = null;
     try { user = JSON.parse(check.params.user || "null"); } catch {}
     if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
+    if (isDbCurrentlyUnavailable()) return sendDbUnavailable(res);
 
     const userExistedBeforeAuth = await userExistsBeforeReferral(user.id);
 
     try {
       await db.saveUser(user);
     } catch (saveErr) {
+      if (isDbUnavailableError(saveErr)) return sendDbUnavailable(res, saveErr);
       console.error("[Auth] Failed to save Telegram user profile:", saveErr);
     }
 
@@ -9062,7 +9239,12 @@ async function requireTelegramUser(req, res, next) {
       inviteeWasExisting: userExistedBeforeAuth
     });
 
-    const dbUser = await db.getUserById(user.id).catch(() => null);
+    let dbUser = null;
+    try {
+      dbUser = await db.getUserById(user.id);
+    } catch (getUserErr) {
+      if (isDbUnavailableError(getUserErr)) return sendDbUnavailable(res, getUserErr);
+    }
     if (Number(dbUser?.ban) === 1) {
       return res.status(403).json({
         ok: false,
