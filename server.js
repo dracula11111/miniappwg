@@ -318,6 +318,10 @@ function createMemoryDb() {
       const b = balances.get(k);
       return { ...u, ...b };
     },
+    async userExists(telegramId) {
+      const s = String(telegramId ?? "").trim();
+      return !!s && users.has(s);
+    },
     async listTelegramRecipientsForBroadcast(options = {}) {
       const rawLimit = Number(options?.limit);
       const limit = Number.isFinite(rawLimit)
@@ -582,6 +586,8 @@ function createMemoryDb() {
       const inviter = String(input?.inviterId ?? input?.inviterTelegramId ?? "").trim();
       if (!invitee || !inviter) return { ok: false, registered: false, reason: "missing" };
       if (invitee === inviter) return { ok: false, registered: false, reason: "self" };
+      const inviteeAlreadyKnown = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true || users.has(invitee);
+      if (inviteeAlreadyKnown) return { ok: true, registered: false, reason: "existing_user" };
 
       ensure(inviter);
       ensure(invitee);
@@ -4624,7 +4630,18 @@ function withReferralStartParam(urlValue, startParam) {
   }
 }
 
-async function maybeRegisterReferralForUser(user, startParam, source = "miniapp") {
+async function userExistsBeforeReferral(userId) {
+  const id = String(userId || "").trim();
+  if (!id) return false;
+  try {
+    if (typeof db?.userExists === "function") return !!(await db.userExists(id));
+    return !!(await db.getUserById(id));
+  } catch {
+    return false;
+  }
+}
+
+async function maybeRegisterReferralForUser(user, startParam, source = "miniapp", options = {}) {
   const inviteeId = String(user?.id || "").trim();
   const normalizedStartParam = normalizeReferralStartParam(startParam);
   const inviterId = decodeReferralStartParam(normalizedStartParam);
@@ -4637,6 +4654,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
       inviterId,
       startParam: normalizedStartParam,
       source,
+      inviteeWasExisting: options?.inviteeWasExisting === true,
       maxExistingAgeSec: REFERRAL_MAX_EXISTING_AGE_SEC
     });
     if (result?.registered) {
@@ -7348,8 +7366,11 @@ app.post("/api/stars/webhook", async (req, res) => {
         return res.json({ ok: true, duplicate: true, reason: "welcome_duplicate" });
       }
 
+      const userExistedBeforeWelcome = await userExistsBeforeReferral(userId);
       try { await db.saveUser(welcomeTrigger.user); } catch {}
-      await maybeRegisterReferralForUser(welcomeTrigger.user, welcomeTrigger.startParam, "bot_start");
+      await maybeRegisterReferralForUser(welcomeTrigger.user, welcomeTrigger.startParam, "bot_start", {
+        inviteeWasExisting: userExistedBeforeWelcome
+      });
 
       const welcomeResult = await sendTelegramWelcomeMessage(userId, {
         startParam: welcomeTrigger.startParam
@@ -9029,13 +9050,17 @@ async function requireTelegramUser(req, res, next) {
     try { user = JSON.parse(check.params.user || "null"); } catch {}
     if (!user?.id) return res.status(403).json({ ok: false, error: "No user in initData" });
 
+    const userExistedBeforeAuth = await userExistsBeforeReferral(user.id);
+
     try {
       await db.saveUser(user);
     } catch (saveErr) {
       console.error("[Auth] Failed to save Telegram user profile:", saveErr);
     }
 
-    await maybeRegisterReferralForUser(user, check.params?.start_param, "miniapp");
+    await maybeRegisterReferralForUser(user, check.params?.start_param, "miniapp", {
+      inviteeWasExisting: userExistedBeforeAuth
+    });
 
     const dbUser = await db.getUserById(user.id).catch(() => null);
     if (Number(dbUser?.ban) === 1) {

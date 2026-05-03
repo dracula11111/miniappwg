@@ -1264,6 +1264,12 @@ export async function getUserById(telegramId) {
   return r.rows[0] || null;
 }
 
+export async function userExists(telegramId) {
+  const id = BigInt(telegramId);
+  const r = await query(`SELECT 1 FROM users WHERE telegram_id = $1 LIMIT 1`, [id]);
+  return Number(r.rowCount || 0) > 0;
+}
+
 export async function setUserUiLanguage(telegramId, language) {
   const id = BigInt(telegramId);
   const lang = normalizeExplicitUiLanguageCode(language);
@@ -1762,6 +1768,9 @@ export async function registerReferral(input = {}) {
   const inviteeId = BigInt(input?.inviteeId ?? input?.inviteeTelegramId);
   const inviterId = BigInt(input?.inviterId ?? input?.inviterTelegramId);
   if (inviteeId === inviterId) return { ok: false, registered: false, reason: "self" };
+  if (input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true) {
+    return { ok: true, registered: false, reason: "existing_user" };
+  }
 
   const startParam = normalizeOptionalText(input?.startParam, 128);
   const now = Math.floor(Date.now() / 1000);

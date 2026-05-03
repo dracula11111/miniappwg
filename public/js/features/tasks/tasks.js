@@ -75,7 +75,7 @@
   };
 
   const inviteState = {
-    opened: false,
+    opened: readInviteAttempt(),
     loading: false,
     link: "",
     code: "",
@@ -118,6 +118,30 @@
 
   function getInitData() {
     return window.Telegram?.WebApp?.initData || "";
+  }
+
+  function getTasksUserId() {
+    return String(tg?.initDataUnsafe?.user?.id || "guest").trim() || "guest";
+  }
+
+  function getInviteAttemptKey() {
+    return `wt_invite_attempt_${getTasksUserId()}`;
+  }
+
+  function readInviteAttempt() {
+    try {
+      return localStorage.getItem(getInviteAttemptKey()) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function setInviteAttempt(value) {
+    try {
+      const key = getInviteAttemptKey();
+      if (value) localStorage.setItem(key, "1");
+      else localStorage.removeItem(key);
+    } catch {}
   }
 
   async function tgFetch(url, options = {}) {
@@ -454,7 +478,12 @@
       inviteState.rewardedCount = Math.max(0, Math.trunc(Number(json?.rewardedCount || 0)));
       inviteState.invitedBy = json?.invitedBy || null;
       inviteState.invites = Array.isArray(json?.invites) ? json.invites : [];
-      inviteState.opened = inviteState.opened || inviteState.inviteCount > 0 || !!inviteState.invitedBy;
+      const hasOwnInviteProgress =
+        inviteState.inviteCount > 0 ||
+        inviteState.pendingRewardCount > 0 ||
+        inviteState.rewardedCount > 0;
+      inviteState.opened = readInviteAttempt() || inviteState.opened || hasOwnInviteProgress;
+      if (hasOwnInviteProgress) setInviteAttempt(true);
       inviteState.checkError = "";
       return true;
     } catch {
@@ -870,6 +899,7 @@
       } else {
         if (!hasInviteProgress()) {
           inviteState.opened = false;
+          setInviteAttempt(false);
           render();
         }
         showToast("No friends have started the bot yet. You can send the invite again.", "warning");
@@ -894,6 +924,7 @@
     }
 
     inviteState.opened = true;
+    setInviteAttempt(true);
     render();
     const sharedPrepared = await sharePreparedInviteMessage();
     if (sharedPrepared) {
@@ -908,6 +939,7 @@
       showToast("Send the invite. When a friend starts the bot, return and tap Check.");
     } else {
       inviteState.opened = false;
+      setInviteAttempt(false);
       render();
       showToast("Could not open sharing. Invite link copied if your device allowed it.", "warning");
     }
