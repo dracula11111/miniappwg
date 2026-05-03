@@ -1833,13 +1833,14 @@ export async function registerReferral(input = {}) {
   const inviteeId = BigInt(input?.inviteeId ?? input?.inviteeTelegramId);
   const inviterId = BigInt(input?.inviterId ?? input?.inviterTelegramId);
   if (inviteeId === inviterId) return { ok: false, registered: false, reason: "self" };
-  if (input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true) {
+  const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
+  if (inviteeKnownBeforeStart) {
     return { ok: true, registered: false, reason: "existing_user" };
   }
 
   const startParam = normalizeOptionalText(input?.startParam, 128);
+  const taskKey = normalizeOptionalText(input?.taskKey, 64);
   const now = Math.floor(Date.now() / 1000);
-  const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
 
   const client = await connect();
   try {
@@ -1851,11 +1852,60 @@ export async function registerReferral(input = {}) {
        ON CONFLICT (telegram_id) DO NOTHING`,
       [inviterId, now]
     );
+
+    if (input?.inviteeWasExisting !== false) {
+      const existingInvitee = await client.query(
+        `SELECT 1 FROM users WHERE telegram_id = $1 LIMIT 1`,
+        [inviteeId]
+      );
+      if (Number(existingInvitee.rowCount || 0) > 0) {
+        await client.query("COMMIT");
+        return {
+          ok: true,
+          registered: false,
+          reason: "existing_user",
+          inviteeId: String(inviteeId),
+          inviterId: String(inviterId)
+        };
+      }
+    }
+
+    const inviterLimit = await client.query(
+      `SELECT 1 FROM referrals WHERE inviter_telegram_id = $1 LIMIT 1`,
+      [inviterId]
+    );
+    if (Number(inviterLimit.rowCount || 0) > 0) {
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        registered: false,
+        reason: "inviter_limit_reached",
+        inviteeId: String(inviteeId),
+        inviterId: String(inviterId)
+      };
+    }
+
+    if (taskKey) {
+      const taskClaimed = await client.query(
+        `SELECT 1 FROM user_task_claims WHERE telegram_id = $1 AND task_key = $2 LIMIT 1`,
+        [inviterId, taskKey]
+      );
+      if (Number(taskClaimed.rowCount || 0) > 0) {
+        await client.query("COMMIT");
+        return {
+          ok: true,
+          registered: false,
+          reason: "inviter_task_claimed",
+          inviteeId: String(inviteeId),
+          inviterId: String(inviterId)
+        };
+      }
+    }
+
     await client.query(
       `INSERT INTO users (telegram_id, created_at, last_seen)
        VALUES ($1,$2,$2)
-       ON CONFLICT (telegram_id) DO UPDATE SET
-         last_seen = GREATEST(COALESCE(users.last_seen, 0), EXCLUDED.last_seen)`,
+       ON CONFLICT (telegram_id) DO NOTHING`,
       [inviteeId, now]
     );
 
@@ -1863,14 +1913,13 @@ export async function registerReferral(input = {}) {
       `INSERT INTO referrals (invitee_telegram_id, inviter_telegram_id, start_param, created_at)
        SELECT $1,$2,$3,$4
        WHERE $1 <> $2
-         AND COALESCE((SELECT created_at FROM users WHERE telegram_id = $1), $4) >= $4 - $5
          AND NOT EXISTS (
            SELECT 1 FROM referrals
            WHERE invitee_telegram_id = $2 AND inviter_telegram_id = $1
          )
        ON CONFLICT (invitee_telegram_id) DO NOTHING
        RETURNING invitee_telegram_id`,
-      [inviteeId, inviterId, startParam, now, maxExistingAgeSec]
+      [inviteeId, inviterId, startParam, now]
     );
 
     await client.query("COMMIT");
@@ -1971,6 +2020,10 @@ export async function claimReferralRewards(
 ) {
   const id = BigInt(telegramId);
   const cur = String(options?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+  const taskKey = normalizeOptionalText(options?.taskKey, 64);
+  const taskPayload = (options?.taskPayload && typeof options.taskPayload === "object" && !Array.isArray(options.taskPayload))
+    ? options.taskPayload
+    : {};
   const maxCountRaw = Number(options?.maxCount || 100);
   const maxCount = Number.isFinite(maxCountRaw) ? Math.max(1, Math.min(100, Math.trunc(maxCountRaw))) : 100;
   let amountPerInvite = Number(options?.amountPerInvite || 0);
@@ -2028,6 +2081,47 @@ export async function claimReferralRewards(
         starsBalance: stars,
         pendingRewardCount: 0
       };
+    }
+
+    if (taskKey) {
+      const taskClaimRes = await client.query(
+        `INSERT INTO user_task_claims (telegram_id, task_key, task_payload, claimed_at)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (telegram_id, task_key) DO NOTHING
+         RETURNING id`,
+        [
+          id,
+          taskKey,
+          {
+            ...taskPayload,
+            referralInvitees: inviteeIds.map(String),
+            referralRewardCurrency: cur,
+            referralRewardAmount: amountPerInvite
+          },
+          now
+        ]
+      );
+
+      if (taskClaimRes.rowCount === 0) {
+        const pendingRes = await client.query(
+          `SELECT COUNT(*)::BIGINT AS pending_count
+           FROM referrals
+           WHERE inviter_telegram_id = $1 AND rewarded_at IS NULL`,
+          [id]
+        );
+        await client.query("COMMIT");
+        return {
+          ok: true,
+          alreadyClaimed: true,
+          claimedCount: 0,
+          currency: cur,
+          added: 0,
+          newBalance: cur === "ton" ? ton : stars,
+          tonBalance: ton,
+          starsBalance: stars,
+          pendingRewardCount: Math.max(0, Number(pendingRes.rows[0]?.pending_count || 0))
+        };
+      }
     }
 
     let delta = amountPerInvite * inviteeIds.length;

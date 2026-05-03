@@ -586,7 +586,8 @@ function createMemoryDb() {
       const inviter = String(input?.inviterId ?? input?.inviterTelegramId ?? "").trim();
       if (!invitee || !inviter) return { ok: false, registered: false, reason: "missing" };
       if (invitee === inviter) return { ok: false, registered: false, reason: "self" };
-      const inviteeAlreadyKnown = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true || users.has(invitee);
+      const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
+      const inviteeAlreadyKnown = inviteeKnownBeforeStart || (input?.inviteeWasExisting !== false && users.has(invitee));
       if (inviteeAlreadyKnown) return { ok: true, registered: false, reason: "existing_user" };
 
       ensure(inviter);
@@ -598,6 +599,15 @@ function createMemoryDb() {
       const createdAt = Number(inviteeUser.created_at || now);
       if (createdAt < now - maxExistingAgeSec) {
         return { ok: true, registered: false, reason: "existing_user" };
+      }
+      const taskKey = String(input?.taskKey || "").trim();
+      if (taskKey && taskClaims.get(inviter)?.has(taskKey)) {
+        return { ok: true, registered: false, reason: "inviter_task_claimed" };
+      }
+      for (const ref of referrals.values()) {
+        if (ref?.inviterId === inviter) {
+          return { ok: true, registered: false, reason: "inviter_limit_reached" };
+        }
       }
       const reciprocal = referrals.get(inviter);
       if (reciprocal?.inviterId === invitee) {
@@ -659,6 +669,7 @@ function createMemoryDb() {
     async claimReferralRewards(telegramId, options = {}) {
       const uid = ensure(telegramId);
       const cur = String(options?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+      const taskKey = String(options?.taskKey || "").trim();
       const maxCountRaw = Number(options?.maxCount || 100);
       const maxCount = Number.isFinite(maxCountRaw) ? Math.max(1, Math.min(100, Math.trunc(maxCountRaw))) : 100;
       let amountPerInvite = Number(options?.amountPerInvite || 0);
@@ -684,6 +695,25 @@ function createMemoryDb() {
           starsBalance: Number(bal.stars_balance || 0),
           pendingRewardCount: 0
         };
+      }
+
+      if (taskKey) {
+        if (!taskClaims.has(uid)) taskClaims.set(uid, new Set());
+        const userClaims = taskClaims.get(uid);
+        if (userClaims.has(taskKey)) {
+          return {
+            ok: true,
+            alreadyClaimed: true,
+            claimedCount: 0,
+            currency: cur,
+            added: 0,
+            newBalance: cur === "ton" ? Number(bal.ton_balance || 0) : Number(bal.stars_balance || 0),
+            tonBalance: Number(bal.ton_balance || 0),
+            starsBalance: Number(bal.stars_balance || 0),
+            pendingRewardCount: claimable.length
+          };
+        }
+        userClaims.add(taskKey);
       }
 
       let total = amountPerInvite * claimable.length;
@@ -4827,6 +4857,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
       inviteeId,
       inviterId,
       startParam: normalizedStartParam,
+      taskKey: TASK_INVITE_FRIEND_KEY,
       source,
       inviteeWasExisting: options?.inviteeWasExisting === true,
       maxExistingAgeSec: REFERRAL_MAX_EXISTING_AGE_SEC
@@ -5068,9 +5099,13 @@ async function buildReferralStatusPayload(userId, options = {}) {
   const inviteCopy = getReferralInviteCopy(language);
   const code = encodeReferralStartParam(userId, language);
   const link = buildReferralLink(userId, language);
+  const claimed = typeof db?.hasTaskClaim === "function"
+    ? !!(await db.hasTaskClaim(userId, TASK_INVITE_FRIEND_KEY))
+    : false;
   return {
     taskKey: TASK_INVITE_FRIEND_KEY,
     rewardMode: "one_time",
+    claimed,
     rewardStars: TASK_INVITE_FRIEND_REWARD_STARS,
     language,
     code,
@@ -5152,7 +5187,7 @@ app.get("/api/referrals/me", requireTelegramUser, async (req, res) => {
     const userId = String(req.tg?.user?.id || "");
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
     const payload = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
-    return res.json({ ok: true, ...payload, canClaim: payload.pendingRewardCount > 0 });
+    return res.json({ ok: true, ...payload, canClaim: !payload.claimed && payload.pendingRewardCount > 0 });
   } catch (error) {
     console.error("[Referral] status error:", error);
     return res.status(500).json({ ok: false, error: "Failed to load referral status" });
@@ -5188,7 +5223,7 @@ app.get("/api/tasks/invite-friend/status", requireTelegramUser, async (req, res)
     const userId = String(req.tg?.user?.id || "");
     if (!userId) return res.status(403).json({ ok: false, error: "No user in initData" });
     const payload = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
-    return res.json({ ok: true, ...payload, canClaim: payload.pendingRewardCount > 0 });
+    return res.json({ ok: true, ...payload, canClaim: !payload.claimed && payload.pendingRewardCount > 0 });
   } catch (error) {
     console.error("[Tasks] invite status error:", error);
     return res.status(500).json({ ok: false, error: "Failed to load task status" });
@@ -5204,6 +5239,27 @@ app.post("/api/tasks/invite-friend/claim", requireTelegramUser, requireTechPause
     }
 
     const status = await buildReferralStatusPayload(userId, { dbUser: req.dbUser, tgUser: req.tg?.user });
+    if (status.claimed) {
+      const balance = await db.getUserBalance(userId).catch(() => null);
+      const preferredCurrency = String(req.body?.currency || "stars").toLowerCase() === "ton" ? "ton" : "stars";
+      const newBalance = preferredCurrency === "ton"
+        ? Number(balance?.ton_balance || 0)
+        : Number(balance?.stars_balance || 0);
+      return res.json({
+        ok: true,
+        claimed: true,
+        alreadyClaimed: true,
+        claimedCount: 0,
+        currency: preferredCurrency,
+        added: 0,
+        newBalance,
+        tonBalance: Number(balance?.ton_balance || 0),
+        starsBalance: Number(balance?.stars_balance || 0),
+        ...status,
+        canClaim: false
+      });
+    }
+
     const pending = Math.max(0, Number(status.pendingRewardCount || 0));
     if (pending < 1) {
       return res.status(409).json({
@@ -5220,8 +5276,13 @@ app.post("/api/tasks/invite-friend/claim", requireTelegramUser, requireTechPause
     const claimResult = await db.claimReferralRewards(userId, {
       currency: reward.currency,
       amountPerInvite: reward.amount,
-      maxCount: pending,
-      description: `One-time task reward: invite ${pending} friend(s)`
+      maxCount: 1,
+      taskKey: TASK_INVITE_FRIEND_KEY,
+      taskPayload: {
+        task: TASK_INVITE_FRIEND_KEY,
+        baseRewardStars: reward.baseStars
+      },
+      description: "One-time task reward: invite friend"
     });
 
     try { broadcastBalanceUpdate(userId); } catch {}
@@ -5233,7 +5294,7 @@ app.post("/api/tasks/invite-friend/claim", requireTelegramUser, requireTechPause
 
     return res.json({
       ok: true,
-      claimed: Number(claimResult?.claimedCount || 0) > 0,
+      alreadyClaimed: !!claimResult?.alreadyClaimed,
       claimedCount: Math.max(0, Number(claimResult?.claimedCount || 0)),
       currency: String(claimResult?.currency || reward.currency),
       added: Number(claimResult?.added || 0),
@@ -5241,7 +5302,8 @@ app.post("/api/tasks/invite-friend/claim", requireTelegramUser, requireTechPause
       tonBalance: Number(claimResult?.tonBalance || 0),
       starsBalance: Number(claimResult?.starsBalance || 0),
       ...nextStatus,
-      canClaim: Number(nextStatus?.pendingRewardCount || 0) > 0
+      claimed: true,
+      canClaim: false
     });
   } catch (error) {
     console.error("[Tasks] invite claim error:", error);

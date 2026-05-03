@@ -77,6 +77,7 @@
   const inviteState = {
     opened: readInviteAttempt(),
     loading: false,
+    claimed: false,
     link: "",
     code: "",
     shareText: "I left you a Wild Gift drop. Tap before it gets claimed.",
@@ -280,7 +281,11 @@
     }
 
     const pending = Math.max(0, Math.trunc(Number(inviteState.pendingRewardCount || 0)));
-    if (pending > 0) parts.push(`${pending} one-time reward${pending === 1 ? "" : "s"} ready`);
+    if (inviteState.claimed) {
+      parts.push("Reward already claimed");
+    } else if (pending > 0) {
+      parts.push(`${pending} one-time reward${pending === 1 ? "" : "s"} ready`);
+    }
     return parts.join(" / ");
   }
 
@@ -400,6 +405,7 @@
   }
 
   function getInviteButtonConfig() {
+    if (inviteState.claimed) return { type: "claimed", text: "Claimed", disabled: true };
     if (inviteState.loading) return { type: "check", text: "Loading...", disabled: true };
     if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
       return { type: "claim", text: "Claim", disabled: false };
@@ -473,6 +479,7 @@
       inviteState.code = String(json?.code || inviteState.code || "");
       inviteState.shareText = String(json?.shareText || inviteState.shareText || "");
       inviteState.rewardStars = Math.max(1, Math.round(Number(json?.rewardStars || inviteState.rewardStars || 5)));
+      inviteState.claimed = !!json?.claimed;
       inviteState.inviteCount = Math.max(0, Math.trunc(Number(json?.inviteCount || 0)));
       inviteState.pendingRewardCount = Math.max(0, Math.trunc(Number(json?.pendingRewardCount || 0)));
       inviteState.rewardedCount = Math.max(0, Math.trunc(Number(json?.rewardedCount || 0)));
@@ -482,8 +489,17 @@
         inviteState.inviteCount > 0 ||
         inviteState.pendingRewardCount > 0 ||
         inviteState.rewardedCount > 0;
-      inviteState.opened = readInviteAttempt() || inviteState.opened || hasOwnInviteProgress;
-      if (hasOwnInviteProgress) setInviteAttempt(true);
+      if (inviteState.claimed) {
+        inviteState.opened = false;
+        setInviteAttempt(false);
+      } else {
+        inviteState.opened = Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0
+          ? false
+          : (readInviteAttempt() || inviteState.opened);
+        if (hasOwnInviteProgress && Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
+          setInviteAttempt(true);
+        }
+      }
       inviteState.checkError = "";
       return true;
     } catch {
@@ -703,6 +719,14 @@
 
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) {
+        if (json?.code === "TASK_ALREADY_CLAIMED") {
+          inviteState.claimed = true;
+          inviteState.opened = false;
+          setInviteAttempt(false);
+          showToast("Reward already claimed.", "warning");
+          haptic("warning");
+          return;
+        }
         if (json?.code === "TASK_NOT_COMPLETED") {
           inviteState.pendingRewardCount = 0;
           showToast("Invite a friend first.", "warning");
@@ -719,15 +743,23 @@
       inviteState.code = String(json?.code || inviteState.code || "");
       inviteState.shareText = String(json?.shareText || inviteState.shareText || "");
       inviteState.rewardStars = Math.max(1, Math.round(Number(json?.rewardStars || inviteState.rewardStars || 5)));
+      inviteState.claimed = !!json?.claimed;
       inviteState.inviteCount = Math.max(0, Math.trunc(Number(json?.inviteCount || inviteState.inviteCount || 0)));
       inviteState.pendingRewardCount = Math.max(0, Math.trunc(Number(json?.pendingRewardCount || 0)));
       inviteState.rewardedCount = Math.max(0, Math.trunc(Number(json?.rewardedCount || inviteState.rewardedCount || 0)));
       inviteState.invitedBy = json?.invitedBy || inviteState.invitedBy || null;
       inviteState.invites = Array.isArray(json?.invites) ? json.invites : inviteState.invites;
+      if (inviteState.claimed || Math.max(0, Number(inviteState.pendingRewardCount || 0)) <= 0) {
+        inviteState.opened = false;
+        setInviteAttempt(false);
+      }
 
       applyClaimedBalance(json.currency, json.newBalance, json.tonBalance, json.starsBalance);
       const claimedCount = Math.max(0, Math.trunc(Number(json?.claimedCount || 0)));
-      if (claimedCount > 0) {
+      if (json?.alreadyClaimed) {
+        showToast("Reward already claimed.", "warning");
+        haptic("warning");
+      } else if (claimedCount > 0) {
         showToast(`Claim successful: ${buildRewardText(json.currency, json.added)}`, "success");
         haptic("success");
       } else {
@@ -875,6 +907,11 @@
 
   async function onInviteTaskClick() {
     if (inviteState.loading) return;
+    if (inviteState.claimed) {
+      showToast("Reward already claimed.", "warning");
+      haptic("warning");
+      return;
+    }
     if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
       await claimInviteTask();
       return;
@@ -897,12 +934,15 @@
         showToast("Invite confirmed. Tap Claim.", "success");
         haptic("success");
       } else {
-        if (!hasInviteProgress()) {
-          inviteState.opened = false;
-          setInviteAttempt(false);
-          render();
-        }
-        showToast("No friends have started the bot yet. You can send the invite again.", "warning");
+        inviteState.opened = false;
+        setInviteAttempt(false);
+        render();
+        showToast(
+          hasInviteProgress()
+            ? "This invite task can be rewarded only once."
+            : "No friends have started the bot yet. You can send the invite again.",
+          "warning"
+        );
         haptic("warning");
       }
       return;
