@@ -9264,6 +9264,21 @@ function getInitDataFromReq(req) {
   );
 }
 
+function getReferralStartParamFromReq(req, verifiedParams = {}) {
+  const signedStartParam = normalizeReferralStartParam(verifiedParams?.start_param || "");
+  if (signedStartParam) return signedStartParam;
+
+  return normalizeReferralStartParam(
+    req.headers["x-telegram-start-param"] ||
+    req.body?.startParam ||
+    req.body?.start_param ||
+    req.query?.startParam ||
+    req.query?.start_param ||
+    req.query?.tgWebAppStartParam ||
+    ""
+  );
+}
+
 function getTelegramInitDataMaxAgeSec() {
   return Math.max(
     60,
@@ -9286,6 +9301,7 @@ async function requireTelegramUser(req, res, next) {
     if (isDbCurrentlyUnavailable()) return sendDbUnavailable(res);
 
     const userExistedBeforeAuth = await userExistsBeforeReferral(user.id);
+    const referralStartParam = getReferralStartParamFromReq(req, check.params);
 
     try {
       await db.saveUser(user);
@@ -9294,7 +9310,7 @@ async function requireTelegramUser(req, res, next) {
       console.error("[Auth] Failed to save Telegram user profile:", saveErr);
     }
 
-    await maybeRegisterReferralForUser(user, check.params?.start_param, "miniapp", {
+    await maybeRegisterReferralForUser(user, referralStartParam, "miniapp", {
       inviteeWasExisting: userExistedBeforeAuth
     });
 
