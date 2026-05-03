@@ -1426,7 +1426,7 @@ function updateAmountButtonsUI(currency) {
     }
     
   } else {
-    const starsAmounts = [1, 5, 10, 25];
+    const starsAmounts = [10, 15, 25, 50];
     amountBtns.forEach((btn, index) => {
       if (index < starsAmounts.length) {
         const amount = starsAmounts[index];
@@ -1442,7 +1442,7 @@ function updateAmountButtonsUI(currency) {
     const firstBtn = amountBtns[0];
     if (firstBtn) {
       firstBtn.classList.add('active');
-      currentAmount = 1;
+      currentAmount = 10;
     }
   }
   

@@ -519,7 +519,7 @@
       <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
-    <h2 class="deposit-popup__title">Top up TON Balance</h2>
+    <h2 class="deposit-popup__title">Buy Ton</h2>
     
     <!-- Уведомление об ошибке -->
     <div id="tonErrorNotification" class="error-notification" hidden>
@@ -528,6 +528,17 @@
         <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
       <span class="error-text">Minimum deposit: 0.1 TON</span>
+    </div>
+
+    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit</button>
+
+    <div class="deposit-popup__wallet-info">
+      <span class="deposit-popup__wallet-chip">
+        <span class="deposit-popup__wallet-icon" aria-hidden="true">
+          <img src="/icons/ui/wallet.svg" class="deposit-popup__wallet-icon-img" alt="">
+        </span>
+        <span id="tonWalletBalance">Not connected</span>
+      </span>
     </div>
     
     <!-- Поле ввода суммы -->
@@ -543,28 +554,37 @@
           inputmode="decimal"
           autocomplete="off"
         >
-        <span class="deposit-popup__input-currency">TON</span>
+        <span class="deposit-popup__input-currency" aria-label="TON">
+          <img src="/icons/currency/tgTonWhite.svg" alt="">
+        </span>
       </div>
     </div>
+
+    <button id="btnConnectTonWallet" class="wt-connect-wallet" type="button">
+      <span class="wt-connect-wallet__icon" aria-hidden="true">
+        <img src="/icons/currency/tgTonWhite.svg" class="wt-tgwallet-icon" alt="">
+      </span>
+      <span class="wt-connect-wallet__text">Connect Wallet</span>
+    </button>
     
     <!-- Баланс кошелька -->
     <div class="deposit-popup__wallet-info">
       <span class="deposit-popup__wallet-icon" aria-hidden="true">
         <img src="/icons/ui/wallet.svg" class="deposit-popup__wallet-icon-img" alt="">
       </span>
-      <span id="tonWalletBalance">—</span>
+      <span class="deposit-popup__legacy-wallet-balance">—</span>
     </div>
     
     <div class="deposit-popup__divider"></div>
     
-    <button id="btnConnectTonWallet" class="wt-connect-wallet" type="button">
+    <button class="wt-connect-wallet wt-connect-wallet--legacy" type="button">
       <span class="wt-connect-wallet__icon" aria-hidden="true">
-        <img src="/icons/social/TelegramBlack.svg" class="wt-tgwallet-icon" alt="">
+        <img src="/icons/currency/tgTonWhite.svg" class="wt-tgwallet-icon" alt="">
       </span>
       <span class="wt-connect-wallet__text">Connect Wallet</span>
     </button>
     
-    <button id="btnDepositTon" class="deposit-popup__button" style="display:none;" disabled>Deposit TON</button>
+    <button class="deposit-popup__button deposit-popup__button--legacy" style="display:none;" disabled>Deposit</button>
   </div>
 </div>
 
@@ -576,7 +596,7 @@
       <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
     </button>
     
-    <h2 class="deposit-popup__title">Buy Telegram Stars</h2>
+    <h2 class="deposit-popup__title">Buy Stars</h2>
     
     <!-- Уведомление об ошибке -->
     <div id="starsErrorNotification" class="error-notification" hidden>
@@ -600,13 +620,16 @@
           inputmode="numeric"
           autocomplete="off"
         >
-        <span class="deposit-popup__input-currency">Stars</span>
+        <span class="deposit-popup__input-currency" aria-label="Stars">
+          <img src="/icons/currency/tgStarsWhite.svg" alt="">
+        </span>
       </div>
     </div>
 
     <div class="stars-terms">
       <label class="stars-terms__label" for="starsTermsAgree">
         <input type="checkbox" id="starsTermsAgree" class="stars-terms__checkbox">
+        <span class="stars-terms__box" aria-hidden="true"></span>
         <span class="stars-terms__text">
           I agree with
           <a id="starsTermsLink" class="stars-terms__link" href="#" role="button">Stars top up rules</a>
@@ -616,7 +639,12 @@
     
     <div class="deposit-popup__divider"></div>
     
-    <button id="btnBuyStars" class="deposit-popup__button" disabled>Buy Stars</button>
+    <button id="btnBuyStars" class="deposit-popup__button" disabled>
+      <span class="deposit-popup__button-icon" aria-hidden="true">
+        <img src="/icons/currency/tgStarsWhite.svg" alt="">
+      </span>
+      <span class="deposit-popup__button-text">Buy Stars</span>
+    </button>
   </div>
 </div>
 

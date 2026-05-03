@@ -50,6 +50,13 @@
     return canBuy;
   }
 
+  function syncAmountInputWidth() {
+    if (!amountInput) return;
+    const value = amountInput.value || amountInput.placeholder || '0';
+    const len = Math.max(1, Math.min(8, String(value).length));
+    amountInput.style.setProperty('--deposit-amount-width', `${len + 0.25}ch`);
+  }
+
   function openRulesSheet(event) {
     event?.preventDefault?.();
     event?.stopPropagation?.();
@@ -129,6 +136,7 @@
     console.log('[STARS] 📂 Open popup');
     popup.classList.add('deposit-popup--open');
     updateUI();
+    syncAmountInputWidth();
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
   }
 
@@ -158,6 +166,7 @@
     const caret = amountInput.selectionStart;
     amountInput.value = amountInput.value.replace(/[^0-9]/g, "");
     try { amountInput.setSelectionRange(caret, caret); } catch {}
+    syncAmountInputWidth();
     validateAmount();
   });
 

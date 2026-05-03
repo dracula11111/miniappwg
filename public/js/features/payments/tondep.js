@@ -149,6 +149,28 @@
     return isTestConnected() ? getTestAddress() : getFriendlyConnectedAddress();
   }
 
+  function shortAddress(addr) {
+    const text = String(addr || '').trim();
+    if (!text) return 'Not connected';
+    if (text.length <= 12) return text;
+    return `${text.slice(0, 4)}...${text.slice(-4)}`;
+  }
+
+  function syncWalletAddressDisplay() {
+    const address = getConnectedAddress();
+    if (!walletBalance) return;
+    walletBalance.textContent = shortAddress(address);
+    if (address) walletBalance.title = address;
+    else walletBalance.removeAttribute('title');
+  }
+
+  function syncAmountInputWidth() {
+    if (!amountInput) return;
+    const value = amountInput.value || amountInput.placeholder || '0';
+    const len = Math.max(1, Math.min(8, String(value).length));
+    amountInput.style.setProperty('--deposit-amount-width', `${len + 0.25}ch`);
+  }
+
   function getInitData() {
     return window.Telegram?.WebApp?.initData || '';
   }
@@ -275,50 +297,15 @@
   }
 
   async function fetchWalletBalance() {
-    if (isTestConnected()) {
-      if (walletBalance) walletBalance.textContent = `${getTestBalanceTon().toFixed(2)} TON`;
-      return;
-    }
-
-    const address = tc?.account?.address;
-    if (!address) {
-      if (walletBalance) walletBalance.textContent = '-';
-      return;
-    }
-
-    if (walletBalance) walletBalance.textContent = 'Loading...';
-
-    try {
-      try {
-        const localRes = await fetch(`/api/ton/balance?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
-        const localJson = await localRes.json().catch(() => null);
-        if (localRes.ok && localJson?.ok) {
-          if (typeof localJson.ton === 'number' && Number.isFinite(localJson.ton)) {
-            if (walletBalance) walletBalance.textContent = `${localJson.ton.toFixed(2)} TON`;
-            return;
-          }
-          const localNano = localJson.nano ?? localJson.result;
-          const localTonText = nanoToTonText(localNano);
-          if (localTonText) {
-            if (walletBalance) walletBalance.textContent = `${localTonText} TON`;
-            return;
-          }
-        }
-      } catch {}
-
-      const res = await fetch(`https://toncenter.com/api/v2/getAddressBalance?address=${encodeURIComponent(address)}`);
-      const data = await res.json().catch(() => null);
-      const tonText = data?.ok && data?.result ? nanoToTonText(data.result) : null;
-      if (walletBalance) walletBalance.textContent = tonText ? `${tonText} TON` : 'Error';
-    } catch {
-      if (walletBalance) walletBalance.textContent = 'Error';
-    }
+    syncWalletAddressDisplay();
   }
 
   function updateUI() {
     const connected = !!getConnectedAddress();
     const validAmount = validateAmount();
 
+    popup.classList.toggle('deposit-popup--wallet-connected', connected);
+    syncWalletAddressDisplay();
     if (btnConnect) btnConnect.style.display = connected ? 'none' : 'block';
     if (btnDeposit) {
       btnDeposit.style.display = connected ? 'block' : 'none';
@@ -329,6 +316,7 @@
   function openPopup() {
     popup.classList.add('deposit-popup--open');
     updateUI();
+    syncAmountInputWidth();
     fetchWalletBalance().catch(() => {});
     try { tg?.HapticFeedback?.impactOccurred?.('light'); } catch {}
   }
@@ -433,6 +421,7 @@
       .replace(/[^0-9.]/g, '')
       .replace(/^(\d*\.\d*).*$/, '$1');
     try { amountInput.setSelectionRange(caret, caret); } catch {}
+    syncAmountInputWidth();
     updateUI();
   });
 
@@ -489,7 +478,7 @@
       messages: [{ address: PROJECT_TON_ADDRESS, amount: toNanoStr(amount) }]
     };
 
-    const oldText = btnDeposit?.textContent || 'Deposit TON';
+    const oldText = btnDeposit?.textContent || 'Deposit';
     if (btnDeposit) {
       btnDeposit.disabled = true;
       btnDeposit.textContent = 'Opening wallet...';
