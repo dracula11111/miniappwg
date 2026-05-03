@@ -1870,21 +1870,6 @@ export async function registerReferral(input = {}) {
       }
     }
 
-    const inviterLimit = await client.query(
-      `SELECT 1 FROM referrals WHERE inviter_telegram_id = $1 LIMIT 1`,
-      [inviterId]
-    );
-    if (Number(inviterLimit.rowCount || 0) > 0) {
-      await client.query("COMMIT");
-      return {
-        ok: true,
-        registered: false,
-        reason: "inviter_limit_reached",
-        inviteeId: String(inviteeId),
-        inviterId: String(inviterId)
-      };
-    }
-
     if (taskKey) {
       const taskClaimed = await client.query(
         `SELECT 1 FROM user_task_claims WHERE telegram_id = $1 AND task_key = $2 LIMIT 1`,

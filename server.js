@@ -604,11 +604,6 @@ function createMemoryDb() {
       if (taskKey && taskClaims.get(inviter)?.has(taskKey)) {
         return { ok: true, registered: false, reason: "inviter_task_claimed" };
       }
-      for (const ref of referrals.values()) {
-        if (ref?.inviterId === inviter) {
-          return { ok: true, registered: false, reason: "inviter_limit_reached" };
-        }
-      }
       const reciprocal = referrals.get(inviter);
       if (reciprocal?.inviterId === invitee) {
         return { ok: true, registered: false, reason: "reciprocal" };
@@ -4864,6 +4859,8 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
     });
     if (result?.registered) {
       console.log("[Referral] registered:", { inviteeId, inviterId, source });
+    } else if (result?.reason) {
+      console.log("[Referral] skipped:", { inviteeId, inviterId, source, reason: result.reason });
     }
     return result;
   } catch (error) {
