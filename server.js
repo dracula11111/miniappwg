@@ -26,6 +26,7 @@ function rotateServerSeed() {
 // =====================
 const NODE_ENV = process.env.NODE_ENV || "development";
 const IS_PROD = NODE_ENV === "production";
+const IS_RENDER = /^(1|true|yes)$/i.test(String(process.env.RENDER || ""));
 // In non-prod, set TEST_MODE=1 to make DB non-persistent (in-memory only)
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 const TEST_API_ENABLED = !IS_PROD && /^(1|true|yes)$/i.test(String(process.env.TEST_API_ENABLED || ""));
@@ -1343,7 +1344,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000; // port
-const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
+const HOST = (() => {
+  const explicitHost = String(process.env.SERVER_HOST || "").trim();
+  if (explicitHost) return explicitHost;
+  if (IS_RENDER || IS_PROD) return "0.0.0.0";
+  return String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
+})();
 
 app.get("/healthz", (req, res) => {
   res.status(dbReady ? 200 : 503).json({
