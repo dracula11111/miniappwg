@@ -1833,16 +1833,10 @@ export async function registerReferral(input = {}) {
   const inviteeId = BigInt(input?.inviteeId ?? input?.inviteeTelegramId);
   const inviterId = BigInt(input?.inviterId ?? input?.inviterTelegramId);
   if (inviteeId === inviterId) return { ok: false, registered: false, reason: "self" };
-  const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
-  const allowRecentExistingInvitee = input?.allowRecentExistingInvitee === true;
-  if (inviteeKnownBeforeStart && !allowRecentExistingInvitee) {
-    return { ok: true, registered: false, reason: "existing_user" };
-  }
 
   const startParam = normalizeOptionalText(input?.startParam, 128);
   const taskKey = normalizeOptionalText(input?.taskKey, 64);
   const now = Math.floor(Date.now() / 1000);
-  const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
 
   const client = await connect();
   try {
@@ -1850,36 +1844,15 @@ export async function registerReferral(input = {}) {
 
     await client.query(
       `INSERT INTO users (telegram_id, created_at, last_seen)
-       VALUES ($1,$2,$2)
+       VALUES ($1::bigint,$2,$2)
        ON CONFLICT (telegram_id) DO NOTHING`,
-      [inviterId, now]
+      [String(inviterId), now]
     );
-
-    if (input?.inviteeWasExisting !== false) {
-      const existingInvitee = await client.query(
-        `SELECT created_at FROM users WHERE telegram_id = $1 LIMIT 1`,
-        [inviteeId]
-      );
-      if (Number(existingInvitee.rowCount || 0) > 0) {
-        const createdAt = Number(existingInvitee.rows[0]?.created_at || 0);
-        const isRecent = createdAt > 0 && createdAt >= now - maxExistingAgeSec;
-        if (!allowRecentExistingInvitee || !isRecent) {
-          await client.query("COMMIT");
-          return {
-            ok: true,
-            registered: false,
-            reason: "existing_user",
-            inviteeId: String(inviteeId),
-            inviterId: String(inviterId)
-          };
-        }
-      }
-    }
 
     if (taskKey) {
       const taskClaimed = await client.query(
-        `SELECT 1 FROM user_task_claims WHERE telegram_id = $1 AND task_key = $2 LIMIT 1`,
-        [inviterId, taskKey]
+        `SELECT 1 FROM user_task_claims WHERE telegram_id = $1::bigint AND task_key = $2 LIMIT 1`,
+        [String(inviterId), taskKey]
       );
       if (Number(taskClaimed.rowCount || 0) > 0) {
         await client.query("COMMIT");
@@ -1895,31 +1868,31 @@ export async function registerReferral(input = {}) {
 
     await client.query(
       `INSERT INTO users (telegram_id, created_at, last_seen)
-       VALUES ($1,$2,$2)
+       VALUES ($1::bigint,$2,$2)
        ON CONFLICT (telegram_id) DO NOTHING`,
-      [inviteeId, now]
+      [String(inviteeId), now]
     );
 
     const inserted = await client.query(
       `INSERT INTO referrals (invitee_telegram_id, inviter_telegram_id, start_param, created_at)
-       SELECT $1,$2,$3,$4
-       WHERE $1 <> $2
+       SELECT $1::bigint,$2::bigint,$3,$4
+       WHERE $1::bigint <> $2::bigint
          AND NOT EXISTS (
            SELECT 1 FROM referrals
-           WHERE invitee_telegram_id = $2 AND inviter_telegram_id = $1
+           WHERE invitee_telegram_id = $2::bigint AND inviter_telegram_id = $1::bigint
          )
        ON CONFLICT (invitee_telegram_id) DO NOTHING
        RETURNING invitee_telegram_id`,
-      [inviteeId, inviterId, startParam, now]
+      [String(inviteeId), String(inviterId), startParam, now]
     );
 
     if (Number(inserted?.rowCount || 0) === 0) {
       const existingReferral = await client.query(
         `SELECT inviter_telegram_id, rewarded_at
          FROM referrals
-         WHERE invitee_telegram_id = $1
+         WHERE invitee_telegram_id = $1::bigint
          LIMIT 1`,
-        [inviteeId]
+        [String(inviteeId)]
       );
       const existing = existingReferral.rows?.[0] || null;
       await client.query("COMMIT");

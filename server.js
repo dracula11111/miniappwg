@@ -587,21 +587,11 @@ function createMemoryDb() {
       const inviter = String(input?.inviterId ?? input?.inviterTelegramId ?? "").trim();
       if (!invitee || !inviter) return { ok: false, registered: false, reason: "missing" };
       if (invitee === inviter) return { ok: false, registered: false, reason: "self" };
-      const inviteeKnownBeforeStart = input?.inviteeWasExisting === true || input?.inviteeAlreadyKnown === true;
-      const allowRecentExistingInvitee = input?.allowRecentExistingInvitee === true;
-      const inviteeAlreadyKnown = inviteeKnownBeforeStart || (input?.inviteeWasExisting !== false && users.has(invitee));
-      if (inviteeAlreadyKnown && !allowRecentExistingInvitee) return { ok: true, registered: false, reason: "existing_user" };
 
       ensure(inviter);
       ensure(invitee);
 
-      const inviteeUser = users.get(invitee) || {};
       const now = nowSec();
-      const maxExistingAgeSec = Math.max(60, Math.min(24 * 60 * 60, Number(input?.maxExistingAgeSec || 10 * 60) || 10 * 60));
-      const createdAt = Number(inviteeUser.created_at || now);
-      if (inviteeAlreadyKnown && (!allowRecentExistingInvitee || createdAt < now - maxExistingAgeSec)) {
-        return { ok: true, registered: false, reason: "existing_user" };
-      }
       const taskKey = String(input?.taskKey || "").trim();
       if (taskKey && taskClaims.get(inviter)?.has(taskKey)) {
         return { ok: true, registered: false, reason: "inviter_task_claimed" };
@@ -4747,10 +4737,6 @@ const TASK_WIN_ONCE_KEY = "win_once_wheel_crash_v1";
 const TASK_WIN_ONCE_REWARD_STARS = 10;
 const TASK_INVITE_FRIEND_KEY = "invite_friend_v1";
 const TASK_INVITE_FRIEND_REWARD_STARS = 5;
-const REFERRAL_MAX_EXISTING_AGE_SEC = Math.max(
-  60,
-  Math.min(24 * 60 * 60, Number(process.env.REFERRAL_MAX_EXISTING_AGE_SEC || 10 * 60) || 10 * 60)
-);
 const TASK_SUBSCRIBE_CHANNEL_DEFAULT = "@wildgift_channel";
 const TASK_SUBSCRIBE_CHANNEL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL || TASK_SUBSCRIBE_CHANNEL_DEFAULT).trim() || TASK_SUBSCRIBE_CHANNEL_DEFAULT;
 const TASK_SUBSCRIBE_CHANNEL_URL_RAW = String(process.env.TASK_SUBSCRIBE_CHANNEL_URL || "").trim();
@@ -4949,9 +4935,7 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
       startParam: normalizedStartParam,
       taskKey: TASK_INVITE_FRIEND_KEY,
       source,
-      inviteeWasExisting: options?.inviteeWasExisting === true,
-      allowRecentExistingInvitee: source === "miniapp" || source === "bot_start",
-      maxExistingAgeSec: REFERRAL_MAX_EXISTING_AGE_SEC
+      inviteeWasExisting: options?.inviteeWasExisting === true
     });
     if (result?.registered) {
       console.log("[Referral] registered:", { inviteeId, inviterId, source });
