@@ -4885,10 +4885,25 @@ function withReferralStartParam(urlValue, startParam) {
   }
 }
 
+function getWelcomeStartAppDirectUrl() {
+  const configured = normalizeTelegramButtonUrl(
+    process.env.TG_WELCOME_STARTAPP_URL ||
+    process.env.TELEGRAM_WELCOME_STARTAPP_URL ||
+    DEFAULT_WELCOME_STARTAPP_URL
+  );
+  try {
+    const parsed = new URL(configured);
+    const host = String(parsed.hostname || "").toLowerCase();
+    const isTelegramLink = host === "t.me" || host === "www.t.me" || host === "telegram.me" || host === "www.telegram.me";
+    if (isTelegramLink) return configured;
+  } catch {}
+  return `https://t.me/${getReferralBotUsername()}?startapp=1`;
+}
+
 function buildReferralMiniAppLink(startParam) {
   const param = normalizeReferralStartParam(startParam);
   if (!param) return "";
-  const url = normalizeTelegramButtonUrl(withReferralStartParam(getWelcomeMiniAppUrl(), param));
+  const url = normalizeTelegramButtonUrl(withReferralStartParam(getWelcomeStartAppDirectUrl(), param));
   if (!url) return "";
   try {
     const parsed = new URL(url);

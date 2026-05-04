@@ -163,6 +163,14 @@
     return window.Telegram?.WebApp?.initData || "";
   }
 
+  function getReferralStartParam() {
+    try {
+      return String(window.WTReferral?.getStartParam?.() || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
   function getTasksUserId() {
     return String(tg?.initDataUnsafe?.user?.id || "guest").trim() || "guest";
   }
@@ -188,9 +196,11 @@
   }
 
   async function tgFetch(url, options = {}) {
+    const startParam = getReferralStartParam();
     const headers = {
       ...(options.headers || {}),
-      "x-telegram-init-data": getInitData()
+      "x-telegram-init-data": getInitData(),
+      ...(startParam ? { "x-telegram-start-param": startParam } : {})
     };
     return fetch(url, { ...options, headers });
   }
