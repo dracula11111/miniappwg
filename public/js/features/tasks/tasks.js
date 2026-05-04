@@ -20,6 +20,48 @@
   const TOP_UP_CLAIM_TOAST = "Top up at least 0.5 TON or 50 Stars first.";
   const GAME_CHECK_TOAST = "Win once in Wheel or Crash, then tap Check.";
   const GAME_CLAIM_TOAST = "Win once in Wheel or Crash first.";
+  const INVITE_MESSAGES = {
+    alreadyClaimed: {
+      en: "Reward already claimed.",
+      ru: "Награда уже получена."
+    },
+    inviteFirst: {
+      en: "Invite a friend first.",
+      ru: "Сначала пригласи друга."
+    },
+    failedCheck: {
+      en: "Failed to check invite task. Try again.",
+      ru: "Не удалось проверить приглашение. Попробуй еще раз."
+    },
+    confirmed: {
+      en: "Invite confirmed. Tap Claim.",
+      ru: "Приглашение подтверждено. Нажми «Получить»."
+    },
+    completed: {
+      en: "This task is already completed.",
+      ru: "Это задание уже выполнено."
+    },
+    notConfirmed: {
+      en: "No confirmed invite yet. Your friend must open the drop from your invite, then tap Check again.",
+      ru: "Пока нет подтвержденного приглашения. Друг должен открыть дроп из твоего приглашения, затем нажми «Проверить» снова."
+    },
+    createLinkFailed: {
+      en: "Failed to create invite link. Try again.",
+      ru: "Не удалось создать ссылку приглашения. Попробуй еще раз."
+    },
+    chooseChat: {
+      en: "Choose a chat and send the invite. Then return and tap Check.",
+      ru: "Выбери чат и отправь приглашение. Затем вернись и нажми «Проверить»."
+    },
+    sendInvite: {
+      en: "Send the invite. When your friend opens the drop, return and tap Check.",
+      ru: "Отправь приглашение. Когда друг откроет дроп, вернись и нажми «Проверить»."
+    },
+    shareFailed: {
+      en: "Could not open sharing. Invite link copied if your device allowed it.",
+      ru: "Не удалось открыть отправку. Ссылка скопирована, если устройство это разрешило."
+    }
+  };
 
   const TASKS = [
     {
@@ -166,6 +208,21 @@
       try { tg.showAlert(text); return; } catch {}
     }
     try { alert(text); } catch {}
+  }
+
+  function getInviteLanguage() {
+    const candidates = [
+      window.WT?.i18n?.getLanguage?.(),
+      tg?.initDataUnsafe?.user?.language_code,
+      tg?.initDataUnsafe?.user?.languageCode,
+      navigator.language
+    ];
+    return candidates.some((value) => String(value || "").toLowerCase().startsWith("ru")) ? "ru" : "en";
+  }
+
+  function inviteMessage(key) {
+    const lang = getInviteLanguage();
+    return INVITE_MESSAGES[key]?.[lang] || INVITE_MESSAGES[key]?.en || String(key || "");
   }
 
   function haptic(kind = "light") {
@@ -723,12 +780,12 @@
           inviteState.claimed = true;
           inviteState.opened = false;
           setInviteAttempt(false);
-          showToast("Reward already claimed.", "warning");
+          showToast(inviteMessage("alreadyClaimed"), "warning");
           haptic("warning");
           return;
         }
         if (json?.code === "TASK_NOT_COMPLETED") {
-          showToast("Invite a friend first.", "warning");
+          showToast(inviteMessage("inviteFirst"), "warning");
           haptic("warning");
         } else {
           showToast(json?.error || "Failed to claim reward.", "error");
@@ -756,7 +813,7 @@
       applyClaimedBalance(json.currency, json.newBalance, json.tonBalance, json.starsBalance);
       const claimedCount = Math.max(0, Math.trunc(Number(json?.claimedCount || 0)));
       if (json?.alreadyClaimed) {
-        showToast("Reward already claimed.", "warning");
+        showToast(inviteMessage("alreadyClaimed"), "warning");
         haptic("warning");
       } else if (claimedCount > 0) {
         showToast(`Claim successful: ${buildRewardText(json.currency, json.added)}`, "success");
@@ -907,7 +964,7 @@
   async function onInviteTaskClick() {
     if (inviteState.loading) return;
     if (inviteState.claimed) {
-      showToast("Reward already claimed.", "warning");
+      showToast(inviteMessage("alreadyClaimed"), "warning");
       haptic("warning");
       return;
     }
@@ -924,13 +981,13 @@
       render();
 
       if (!ok) {
-        showToast("Failed to check invite task. Try again.", "error");
+        showToast(inviteMessage("failedCheck"), "error");
         haptic("error");
         return;
       }
 
       if (Math.max(0, Number(inviteState.pendingRewardCount || 0)) > 0) {
-        showToast("Invite confirmed. Tap Claim.", "success");
+        showToast(inviteMessage("confirmed"), "success");
         haptic("success");
       } else {
         inviteState.opened = false;
@@ -938,8 +995,8 @@
         render();
         showToast(
           hasInviteProgress()
-            ? "This task is already completed."
-            : "No friends have started the bot yet. You can send the invite again.",
+            ? inviteMessage("completed")
+            : inviteMessage("notConfirmed"),
           "warning"
         );
         haptic("warning");
@@ -957,7 +1014,7 @@
 
     const link = String(inviteState.link || "").trim();
     if (!link) {
-      showToast("Failed to create invite link. Try again.", "error");
+      showToast(inviteMessage("createLinkFailed"), "error");
       haptic("error");
       return;
     }
@@ -967,7 +1024,7 @@
     render();
     const sharedPrepared = await sharePreparedInviteMessage();
     if (sharedPrepared) {
-      showToast("Choose a chat and send the invite. Then return and tap Check.");
+      showToast(inviteMessage("chooseChat"));
       haptic("light");
       return;
     }
@@ -975,12 +1032,12 @@
     const shareText = String(inviteState.shareText || "I left you a Wild Gift drop. Tap before it gets claimed.").trim();
     const sharedFallback = await shareInviteFallback(link, shareText);
     if (sharedFallback) {
-      showToast("Send the invite. When a friend starts the bot, return and tap Check.");
+      showToast(inviteMessage("sendInvite"));
     } else {
       inviteState.opened = false;
       setInviteAttempt(false);
       render();
-      showToast("Could not open sharing. Invite link copied if your device allowed it.", "warning");
+      showToast(inviteMessage("shareFailed"), "warning");
     }
     haptic("light");
   }

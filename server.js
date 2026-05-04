@@ -4877,13 +4877,27 @@ function withReferralStartParam(urlValue, startParam) {
   try {
     const parsed = new URL(String(urlValue || "").trim());
     const host = String(parsed.hostname || "").toLowerCase();
-    if (host !== "t.me" && host !== "www.t.me" && host !== "telegram.me" && host !== "www.telegram.me") {
-      return urlValue;
-    }
-    parsed.searchParams.set("startapp", param);
+    const isTelegramLink = host === "t.me" || host === "www.t.me" || host === "telegram.me" || host === "www.telegram.me";
+    parsed.searchParams.set(isTelegramLink ? "startapp" : "start_param", param);
     return parsed.toString();
   } catch {
     return urlValue;
+  }
+}
+
+function buildReferralMiniAppLink(startParam) {
+  const param = normalizeReferralStartParam(startParam);
+  if (!param) return "";
+  const url = normalizeTelegramButtonUrl(withReferralStartParam(getWelcomeMiniAppUrl(), param));
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    const host = String(parsed.hostname || "").toLowerCase();
+    const isTelegramLink = host === "t.me" || host === "www.t.me" || host === "telegram.me" || host === "www.telegram.me";
+    const carriedParam = isTelegramLink ? parsed.searchParams.get("startapp") : parsed.searchParams.get("start_param");
+    return normalizeReferralStartParam(carriedParam) === param ? url : "";
+  } catch {
+    return "";
   }
 }
 
@@ -4902,7 +4916,15 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
   const inviteeId = String(user?.id || "").trim();
   const normalizedStartParam = normalizeReferralStartParam(startParam);
   const inviterId = decodeReferralStartParam(normalizedStartParam);
-  if (!inviteeId || !inviterId || inviteeId === inviterId) return null;
+  if (!inviteeId || !inviterId || inviteeId === inviterId) {
+    console.log("[Referral] ignored:", {
+      inviteeId,
+      source,
+      startParam: normalizedStartParam || "",
+      reason: !inviteeId ? "missing_invitee" : (!inviterId ? "missing_or_bad_start_param" : "self")
+    });
+    return null;
+  }
   if (typeof db?.registerReferral !== "function") return null;
 
   try {
@@ -4919,7 +4941,14 @@ async function maybeRegisterReferralForUser(user, startParam, source = "miniapp"
     if (result?.registered) {
       console.log("[Referral] registered:", { inviteeId, inviterId, source });
     } else if (result?.reason) {
-      console.log("[Referral] skipped:", { inviteeId, inviterId, source, reason: result.reason });
+      console.log("[Referral] skipped:", {
+        inviteeId,
+        inviterId,
+        source,
+        reason: result.reason,
+        existingInviterId: result.existingInviterId || null,
+        existingRewarded: result.existingRewarded ?? null
+      });
     }
     return result;
   } catch (error) {
@@ -5154,7 +5183,9 @@ async function buildReferralStatusPayload(userId, options = {}) {
   const language = normalizeReferralLanguage(languagePreference?.language || "en");
   const inviteCopy = getReferralInviteCopy(language);
   const code = encodeReferralStartParam(userId, language);
-  const link = buildReferralLink(userId, language);
+  const botLink = buildReferralLink(userId, language);
+  const appLink = buildReferralMiniAppLink(code);
+  const link = appLink || botLink;
   const claimed = typeof db?.hasTaskClaim === "function"
     ? !!(await db.hasTaskClaim(userId, TASK_INVITE_FRIEND_KEY))
     : false;
@@ -5166,6 +5197,8 @@ async function buildReferralStatusPayload(userId, options = {}) {
     language,
     code,
     link,
+    appLink,
+    botLink,
     shareText: inviteCopy.shareText,
     inviteCount: Math.max(0, Number(summary?.inviteCount || 0)),
     pendingRewardCount: Math.max(0, Number(summary?.pendingRewardCount || 0)),
@@ -5189,12 +5222,18 @@ async function buildPreparedReferralShareMessage(userId, options = {}) {
     ctaCustom: false
   });
   const buttonText = getWelcomeButtonText({ referral: true, language });
-  const buttonUrl = payload.link;
+  const buttonUrl = payload.appLink || payload.link;
   const resultId = `ref_${String(userId).slice(0, 32)}_${Date.now().toString(36)}`;
 
   if (!photo || !buttonUrl) {
     return { ok: false, error: "Referral share message is not configured" };
   }
+
+  console.log("[Referral] prepared invite:", {
+    userId: String(userId),
+    code: String(payload.code || ""),
+    buttonUrl
+  });
 
   const result = {
     type: "photo",
@@ -7640,6 +7679,12 @@ app.post("/api/stars/webhook", async (req, res) => {
     const welcomeTrigger = isTelegramWelcomeTrigger(update);
     if (welcomeTrigger) {
       const userId = String(welcomeTrigger?.user?.id || "").trim();
+      console.log("[Referral] welcome trigger:", {
+        reason: welcomeTrigger.reason,
+        userId,
+        startParam: String(welcomeTrigger.startParam || ""),
+        text: String(welcomeTrigger?.message?.text || "").slice(0, 160)
+      });
       const updateIdRaw = Number(update?.update_id);
       const fallbackMsgId = String(welcomeTrigger?.message?.message_id || "").trim();
       const eventSuffix = Number.isFinite(updateIdRaw) ? String(updateIdRaw) : `${userId}:${fallbackMsgId || "na"}`;

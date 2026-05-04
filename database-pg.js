@@ -1913,10 +1913,31 @@ export async function registerReferral(input = {}) {
       [inviteeId, inviterId, startParam, now]
     );
 
+    if (Number(inserted?.rowCount || 0) === 0) {
+      const existingReferral = await client.query(
+        `SELECT inviter_telegram_id, rewarded_at
+         FROM referrals
+         WHERE invitee_telegram_id = $1
+         LIMIT 1`,
+        [inviteeId]
+      );
+      const existing = existingReferral.rows?.[0] || null;
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        registered: false,
+        reason: existing ? "already_registered" : "insert_conflict",
+        inviteeId: String(inviteeId),
+        inviterId: String(inviterId),
+        existingInviterId: existing?.inviter_telegram_id ? String(existing.inviter_telegram_id) : null,
+        existingRewarded: existing ? existing.rewarded_at !== null && existing.rewarded_at !== undefined : false
+      };
+    }
+
     await client.query("COMMIT");
     return {
       ok: true,
-      registered: Number(inserted?.rowCount || 0) > 0,
+      registered: true,
       inviteeId: String(inviteeId),
       inviterId: String(inviterId)
     };
