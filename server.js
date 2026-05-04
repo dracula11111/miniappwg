@@ -5185,7 +5185,7 @@ async function buildReferralStatusPayload(userId, options = {}) {
   const code = encodeReferralStartParam(userId, language);
   const botLink = buildReferralLink(userId, language);
   const appLink = buildReferralMiniAppLink(code);
-  const link = appLink || botLink;
+  const link = appLink;
   const claimed = typeof db?.hasTaskClaim === "function"
     ? !!(await db.hasTaskClaim(userId, TASK_INVITE_FRIEND_KEY))
     : false;
@@ -5222,7 +5222,7 @@ async function buildPreparedReferralShareMessage(userId, options = {}) {
     ctaCustom: false
   });
   const buttonText = getWelcomeButtonText({ referral: true, language });
-  const buttonUrl = payload.appLink || payload.link;
+  const buttonUrl = payload.appLink;
   const resultId = `ref_${String(userId).slice(0, 32)}_${Date.now().toString(36)}`;
 
   if (!photo || !buttonUrl) {
