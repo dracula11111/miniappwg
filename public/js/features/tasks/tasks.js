@@ -330,30 +330,7 @@
   }
 
   function buildInviteSubtitle() {
-    const parts = [];
-    const count = Math.max(0, Math.trunc(Number(inviteState.inviteCount || 0)));
-    if (count > 0) {
-      const names = (Array.isArray(inviteState.invites) ? inviteState.invites : [])
-        .slice(0, 3)
-        .map(formatReferralPerson)
-        .filter(Boolean);
-      const more = count > names.length ? ` +${count - names.length}` : "";
-      parts.push(`Invited ${count}${names.length ? `: ${names.join(", ")}${more}` : ""}`);
-    } else {
-      parts.push("One-time reward");
-    }
-
-    if (inviteState.invitedBy) {
-      parts.push(`Invited by ${formatReferralPerson(inviteState.invitedBy)}`);
-    }
-
-    const pending = Math.max(0, Math.trunc(Number(inviteState.pendingRewardCount || 0)));
-    if (inviteState.claimed) {
-      parts.push("Reward already claimed");
-    } else if (pending > 0) {
-      parts.push(`${pending} one-time reward${pending === 1 ? "" : "s"} ready`);
-    }
-    return parts.join(" / ");
+    return "";
   }
 
   function openDepositPanel() {
