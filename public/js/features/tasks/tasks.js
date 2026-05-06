@@ -80,7 +80,7 @@
       title: "Invite friend",
       subtitle: "One-time reward",
       rewardStars: 5,
-      icon: "/icons/nav/profile.svg",
+      icon: "/images/tasks/friend.webp",
       iconBg: "#9b4dff",
       button: { type: "start", text: "Invite" }
     },

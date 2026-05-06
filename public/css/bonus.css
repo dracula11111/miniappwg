@@ -1357,24 +1357,23 @@
   #wildTimeOverlay .wt-slot::after {
     content: '';
     position: absolute;
-    inset: clamp(14px, 3vw, 26px) clamp(8px, 2.4vw, 18px);
-    border-radius: 20px;
-    border: none;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(251, 191, 36, 0.34) 0%,
-      rgba(245, 158, 11, 0.20) 36%,
-      rgba(251, 191, 36, 0.08) 54%,
-      transparent 75%
-    );
-    box-shadow:
-      0 0 24px rgba(245, 158, 11, 0.32),
-      0 0 54px rgba(251, 191, 36, 0.22);
-    filter: blur(2px);
-    opacity: 0;
-    transform: scale(0.90);
-    transition: opacity 260ms ease, transform 300ms var(--spring), box-shadow 260ms ease;
+    left: 50%;
+    top: 50%;
+    width: clamp(150px, 25vw, 270px);
+    height: clamp(92px, 14vw, 150px);
+    border-radius: 999px;
     pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.92);
+    background:
+      radial-gradient(ellipse at center, rgba(255,248,198,0.62) 0%, rgba(255,207,74,0.35) 26%, rgba(245,158,11,0.16) 52%, transparent 78%);
+    box-shadow:
+      inset 0 0 28px rgba(255,238,165,0.40),
+      inset 0 0 58px rgba(245,158,11,0.28),
+      0 0 34px rgba(255,213,91,0.42),
+      0 0 76px rgba(245,158,11,0.30);
+    filter: blur(0.4px);
+    transition: opacity 220ms ease, transform 280ms var(--spring);
   }
 
   #wildTimeOverlay .wt-slot.wt-slot--selected {
@@ -1384,10 +1383,12 @@
 
   #wildTimeOverlay .wt-slot.wt-slot--selected::after {
     opacity: 1;
-    transform: scale(1.02);
+    transform: translate(-50%, -50%) scale(1);
     box-shadow:
-      0 0 32px rgba(245, 158, 11, 0.55),
-      0 0 74px rgba(251, 191, 36, 0.38);
+      inset 0 0 34px rgba(255,246,190,0.52),
+      inset 0 0 72px rgba(245,158,11,0.36),
+      0 0 42px rgba(255,213,91,0.62),
+      0 0 96px rgba(245,158,11,0.42);
   }
   
   /* Multiplier text — liquid gold */
@@ -1402,7 +1403,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     line-height: 1;
     margin: 0;
     opacity: 1;
@@ -1415,6 +1416,10 @@
       drop-shadow(0 4px 10px rgba(0,0,0,0.55))
       drop-shadow(0 0 18px rgba(251,191,36,0.25));
     position: relative;
+    z-index: 1;
+    text-shadow:
+      0 1px 0 rgba(255,255,255,0.18),
+      0 8px 22px rgba(0,0,0,0.48);
   }
   
   /* Gloss shine on mult text */

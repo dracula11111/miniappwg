@@ -170,16 +170,16 @@
     style.id = 'adminPanelStyles';
     style.textContent = `
       #adminToggleBtn{
-        position:fixed; right:14px; bottom:calc(59px + env(safe-area-inset-bottom, 0px)); z-index:99999;
+        position:fixed; right:14px; bottom:calc(var(--wt-app-bottom-inset, calc(90px + env(safe-area-inset-bottom, 0px))) + 8px); z-index:99999;
         padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
         background: rgba(20,20,20,.72); color:#fff; font-weight:700; font-size:13px;
         backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         box-shadow: 0 12px 30px rgba(0,0,0,.28);
       }
       #adminPanel{
-        position:fixed; right:14px; bottom:calc(62px + env(safe-area-inset-bottom, 0px)); z-index:99999;
+        position:fixed; right:14px; bottom:calc(var(--wt-app-bottom-inset, calc(90px + env(safe-area-inset-bottom, 0px))) + 12px); z-index:99999;
         width:min(360px, calc(100vw - 28px));
-        max-height:min(680px, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
+        max-height:min(680px, calc(100dvh - var(--wt-app-bottom-inset, calc(90px + env(safe-area-inset-bottom, 0px))) - env(safe-area-inset-top, 0px) - 28px));
         overflow:hidden;
         border-radius:18px;
         border:1px solid rgba(255,255,255,.12);
@@ -190,7 +190,7 @@
         display:none;
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
       }
-      #adminPanel.open{ display:block; }
+      #adminPanel.open{ display:flex; flex-direction:column; }
       .ap-head{
         padding:12px 12px 10px;
         display:flex; align-items:center; justify-content:space-between;
@@ -207,7 +207,7 @@
         font-weight:700;
         cursor:pointer;
       }
-      .ap-body{ padding:12px; display:flex; flex-direction:column; gap:12px; overflow:auto; max-height: calc(680px - 52px); }
+      .ap-body{ padding:12px; display:flex; flex-direction:column; gap:12px; overflow:auto; min-height:0; flex:1 1 auto; }
       .ap-card{
         border:1px solid rgba(255,255,255,.10);
         background: rgba(255,255,255,.05);
@@ -338,6 +338,22 @@
           <div class="ap-row" id="apQuickBtns"></div>
         </div>
 
+        <div class="ap-card" id="apDailyCaseTestCard">
+          <div class="ap-label">Daily Case</div>
+          <div class="ap-row">
+            <button class="ap-btn primary" id="apActivateDailyCasePanel">Activate Daily case panel</button>
+          </div>
+        </div>
+
+        <div class="ap-card" id="apMatchLevelStarterCard">
+          <div class="ap-label">Match levels</div>
+          <div class="ap-sub" style="margin-top:-4px; opacity:.85">Instant start, skips level panel and intro</div>
+          <div class="ap-row" style="margin-top:10px">
+            <button class="ap-btn primary" id="apMatchStartLevel1">Start Level 1</button>
+            <button class="ap-btn primary" id="apMatchStartLevel2">Start Level 2</button>
+          </div>
+        </div>
+
         <div class="ap-card">
           <div class="ap-label">Tools</div>
           <div class="ap-row">
@@ -415,6 +431,9 @@
     const techPauseOnBtn = $('#apTechPauseOn', panel);
     const techPauseOffBtn = $('#apTechPauseOff', panel);
     const techPauseRefreshBtn = $('#apTechPauseRefresh', panel);
+    const activateDailyCasePanelBtn = $('#apActivateDailyCasePanel', panel);
+    const matchStartLevel1Btn = $('#apMatchStartLevel1', panel);
+    const matchStartLevel2Btn = $('#apMatchStartLevel2', panel);
     let techPauseUiState = null;
 
     // try to auto-fill userId from Telegram WebApp
@@ -674,7 +693,38 @@
       });
     }
 
+    if (activateDailyCasePanelBtn) {
+      activateDailyCasePanelBtn.disabled = panelMode !== 'LOCAL_TEST';
+      activateDailyCasePanelBtn.addEventListener('click', () => {
+        if (panelMode !== 'LOCAL_TEST') {
+          log('Daily Case panel activator is available only on localhost in TEST mode.', 'warn');
+          return;
+        }
+        if (window.WildGiftDailyCasePanel && typeof window.WildGiftDailyCasePanel.show === 'function') {
+          window.WildGiftDailyCasePanel.show();
+          log('Daily Case panel activated', 'ok');
+          return;
+        }
+        window.dispatchEvent(new CustomEvent('daily-case-panel:test-activate'));
+        log('Daily Case panel activation event dispatched', 'warn');
+      });
+    }
 
+    function startMatchLevel(level) {
+      if (!window.MatchAdmin || typeof window.MatchAdmin.startLevel !== 'function') {
+        log('MatchAdmin API is not loaded yet. Open Match once or reload the app.', 'err');
+        return;
+      }
+      try {
+        window.MatchAdmin.startLevel(level, { instant: true });
+        log(`Match Level ${level} started instantly`, 'ok');
+      } catch (error) {
+        log(`Match Level ${level} start failed: ${String(error?.message || error)}`, 'err');
+      }
+    }
+
+    matchStartLevel1Btn?.addEventListener('click', () => startMatchLevel(1));
+    matchStartLevel2Btn?.addEventListener('click', () => startMatchLevel(2));
 
     // fill options
     const forceSelect = $('#apForceSelect', panel);
@@ -901,7 +951,30 @@
   async function onTestSegment(seg) {
     seg = normSeg(seg);
 
-    // Bonuses: run directly (it’s how admin тест обычно делают)
+    // Prefer the wheel's real round flow; older builds fall back to direct bonus launch below.
+    if (window.WheelAdmin && typeof window.WheelAdmin.runTestRound === 'function') {
+      try {
+        if (seg === '50&50') {
+          const ok = await ensure5050Loaded();
+          if (!ok) throw new Error('50/50 module not loaded');
+        } else if (seg === 'Loot Rush') {
+          const ok = await ensureLootRushLoaded();
+          if (!ok) throw new Error('Loot Rush module not loaded');
+        } else if (seg === 'Wild Time') {
+          const ok = await ensureWildTimeLoaded();
+          if (!ok) throw new Error('wildtime.js not loaded');
+        }
+
+        const res = await window.WheelAdmin.runTestRound(seg, 1);
+        const mode = res?.mode === 'server' ? 'shared' : 'local';
+        log(`Test round started (${mode}) -> <b>${seg}</b>`, 'ok');
+        renderState();
+      } catch (e) {
+        log(`Test round error -> ${fmt(e?.message || e)}`, 'err');
+      }
+      return;
+    }
+
     if (seg === '50&50') {
       const ok = await ensure5050Loaded();
       if (!ok) {

@@ -326,6 +326,7 @@
   let casesPerfResizeRaf = 0;
   let casesPathObserver = null;
   let caseSheetUiMetricsRaf = 0;
+  let casesSwipeSuppressClickUntil = 0;
   const CASE_SHEET_HISTORY_KEY = '__wtCaseSheet';
   const APP_PAGE_HISTORY_KEY = '__wtPage';
   let caseSheetBackNavPending = false;
@@ -1889,6 +1890,10 @@ function getBalanceSafe(currency) {
             }
           }
         }
+        const casesPath = document.getElementById('casesGrid');
+        if (casesPath?.querySelector?.('.cases-swipe-track')) {
+          applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || 'ton', 0);
+        }
         if (document.body.classList.contains('case-sheet-open')) {
           scheduleCaseSheetUiMetricsUpdate();
         }
@@ -2150,7 +2155,7 @@ function getBalanceSafe(currency) {
   }
 
   function ensureCasesThemeBackdrop() {
-    const host = document.body;
+    const host = document.getElementById('root') || document.body;
     if (!host) return;
     if (document.getElementById('casesThemeBackdrop')) return;
 
@@ -2186,38 +2191,204 @@ function getBalanceSafe(currency) {
     casesPath.style.removeProperty('--cases-swap-in-x');
   }
 
+  function getCasesPageIndex(currency) {
+    return currency === 'stars' ? 0 : 1;
+  }
+
+  function getCasesPageCurrencyFromIndex(index) {
+    return index <= 0 ? 'stars' : 'ton';
+  }
+
+  function applyCasesSwipeState(casesPath, currency, dragX = 0) {
+    const activeCurrency = currency === 'stars' ? 'stars' : 'ton';
+    const pageIndex = getCasesPageIndex(activeCurrency);
+    const root = document.documentElement;
+    const widthSource = document.querySelector('.app') || casesPath || document.getElementById('casesGrid') || document.body;
+    const rect = widthSource?.getBoundingClientRect?.();
+    const pageW = Math.max(1, Math.round(rect?.width || window.innerWidth || 1));
+    const dragPx = Math.round(Number(dragX) || 0);
+    const pageX = Math.round((-pageIndex * pageW) + dragPx);
+
+    root.style.setProperty('--cases-page-index', String(pageIndex));
+    root.style.setProperty('--cases-page-w', pageW + 'px');
+    root.style.setProperty('--cases-page-x', pageX + 'px');
+    root.style.setProperty('--cases-drag-x', dragPx + 'px');
+
+    if (!casesPath) return;
+    casesPath.dataset.currency = activeCurrency;
+    casesPath.style.setProperty('--cases-page-index', String(pageIndex));
+    casesPath.style.setProperty('--cases-page-w', pageW + 'px');
+    casesPath.style.setProperty('--cases-page-x', pageX + 'px');
+    casesPath.style.setProperty('--cases-drag-x', dragPx + 'px');
+  }
+
+  function switchCasesCurrencyPage(currency) {
+    const next = currency === 'stars' ? 'stars' : 'ton';
+    const current = window.WildTimeCurrency?.current || 'ton';
+    const casesPath = document.getElementById('casesGrid');
+
+    if (next === current) {
+      applyCasesSwipeState(casesPath, next, 0);
+      return;
+    }
+
+    if (window.WildTimeCurrency && typeof window.WildTimeCurrency.switchTo === 'function') {
+      window.WildTimeCurrency.switchTo(next);
+    } else {
+      applyCasesSwipeState(casesPath, next, 0);
+    }
+  }
+
+  function attachCasesSwipeNavigation(casesPath) {
+    if (!casesPath || casesPath.dataset.swipeBound === '1') return;
+    casesPath.dataset.swipeBound = '1';
+
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    let dragging = false;
+
+    const resetDrag = () => {
+      pointerId = null;
+      startX = 0;
+      startY = 0;
+      lastX = 0;
+      dragging = false;
+      casesPath.classList.remove('is-dragging');
+      document.documentElement.classList.remove('cases-swipe-dragging');
+      applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || casesPath.dataset.currency || 'ton', 0);
+    };
+
+    casesPath.addEventListener('pointerdown', (event) => {
+      if (event.button != null && event.button !== 0) return;
+      if (isAnimating || isSpinning || document.body.classList.contains('case-sheet-open')) return;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      lastX = startX;
+      dragging = false;
+      try { casesPath.setPointerCapture(pointerId); } catch (_) {}
+    });
+
+    casesPath.addEventListener('pointermove', (event) => {
+      if (pointerId == null || event.pointerId !== pointerId) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      lastX = event.clientX;
+
+      if (!dragging) {
+        if (Math.abs(dx) < 10) return;
+        if (Math.abs(dx) < Math.abs(dy) * 1.12) return;
+        dragging = true;
+        casesPath.classList.add('is-dragging');
+        document.documentElement.classList.add('cases-swipe-dragging');
+      }
+
+      const activeIndex = getCasesPageIndex(window.WildTimeCurrency?.current || casesPath.dataset.currency || 'ton');
+      const isOutsideEdge = (activeIndex === 0 && dx > 0) || (activeIndex === 1 && dx < 0);
+      const clamped = isOutsideEdge ? 0 : Math.max(-160, Math.min(160, dx));
+      applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || casesPath.dataset.currency || 'ton', clamped);
+      event.preventDefault();
+    });
+
+    const finish = (event) => {
+      if (pointerId == null || (event?.pointerId != null && event.pointerId !== pointerId)) return;
+      const dx = lastX - startX;
+      const width = Math.max(1, casesPath.getBoundingClientRect().width || window.innerWidth || 1);
+      const threshold = Math.min(92, Math.max(48, width * 0.16));
+      const currentIndex = getCasesPageIndex(window.WildTimeCurrency?.current || casesPath.dataset.currency || 'ton');
+      let nextIndex = currentIndex;
+
+      if (dragging && Math.abs(dx) >= threshold) {
+        nextIndex = dx < 0 ? Math.min(1, currentIndex + 1) : Math.max(0, currentIndex - 1);
+      }
+
+      if (dragging) {
+        casesSwipeSuppressClickUntil = Date.now() + 360;
+        try { safeHaptic('selection'); } catch (_) {}
+      }
+
+      casesPath.classList.remove('is-dragging');
+      document.documentElement.classList.remove('cases-swipe-dragging');
+      applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || casesPath.dataset.currency || 'ton', 0);
+      pointerId = null;
+      dragging = false;
+
+      const nextCurrency = getCasesPageCurrencyFromIndex(nextIndex);
+      if (nextCurrency !== (window.WildTimeCurrency?.current || 'ton')) {
+        switchCasesCurrencyPage(nextCurrency);
+      }
+    };
+
+    casesPath.addEventListener('pointerup', finish);
+    casesPath.addEventListener('pointercancel', resetDrag);
+    casesPath.addEventListener('lostpointercapture', () => {
+      if (pointerId != null && dragging) resetDrag();
+    });
+  }
+
   function generateCasesGrid() {
     const casesPath = document.getElementById('casesGrid');
     if (!casesPath) return;
 
-    // Change class to cases-path for new styling
-    casesPath.className = 'cases-path';
+    casesPath.className = 'cases-path cases-swipe';
     casesPath.innerHTML = '';
+    applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || 'ton', 0);
 
-    const currency = window.WildTimeCurrency?.current || 'ton';
-    const casesArray = Object.values(getActiveCases(currency));
-    const isMeadowTheme = currency === 'stars' || currency === 'ton';
-    const icon = currency === 'ton' ? assetUrl('icons/currency/tgTonWhite.svg') : assetUrl('icons/currency/tgStarsWhite.svg');
+    const viewport = document.createElement('div');
+    viewport.className = 'cases-swipe-viewport';
 
-    casesArray.forEach((caseData, index) => {
-      const price = caseData.price[currency];
-      const priceDisplay = formatAmount(currency, price);
-      const caseImageSrc = getCaseImagePath(caseData.id, currency);
-      const adaptiveTileGlowMarkup = currency === 'ton'
-        ? '<div class="case-path-image-glow" aria-hidden="true"></div>'
-        : '';
-      
-      // Low-motion keeps fewer moving objects to reduce main-thread load.
-      const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
+    const track = document.createElement('div');
+    track.className = 'cases-swipe-track';
 
-      const pathItem = document.createElement('div');
-      pathItem.className = 'case-path-item is-visible';
-      pathItem.dataset.caseId = caseData.id;
-      pathItem.dataset.variant = String((index % 3) + 1);
+    ['stars', 'ton'].forEach((currency) => {
+      const page = document.createElement('section');
+      page.className = 'cases-currency-page';
+      page.dataset.currency = currency;
+      page.setAttribute('aria-label', currency === 'stars' ? 'Stars cases' : 'TON cases');
 
-      if (isMeadowTheme) {
-        pathItem.classList.add('case-path-item--stars');
+      const casesArray = Object.values(getActiveCases(currency));
+      const icon = currency === 'ton' ? assetUrl('icons/currency/tgTonWhite.svg') : assetUrl('icons/currency/tgStarsWhite.svg');
+
+      casesArray.forEach((caseData, index) => {
+        const price = caseData.price[currency];
+        const priceDisplay = formatAmount(currency, price);
+        const caseImageSrc = getCaseImagePath(caseData.id, currency);
+        const adaptiveTileGlowMarkup = currency === 'ton'
+          ? '<div class="case-path-image-glow" aria-hidden="true"></div>'
+          : '';
+        const displayItems = caseData.items.slice(0, casesLowMotion ? 2 : 3);
+
+        const pathItem = document.createElement('div');
+        pathItem.className = 'case-path-item is-visible case-path-item--stars';
+        pathItem.dataset.caseId = caseData.id;
+        pathItem.dataset.currency = currency;
+        pathItem.dataset.variant = String((index % 3) + 1);
+
+        const shouldAnimateIntroCover = caseData.id === 'case2';
+        const shouldRenderIntroItems = false;
+        if (shouldAnimateIntroCover) {
+          pathItem.classList.add('case-path-item--intro-cover');
+          const introItemCount = shouldRenderIntroItems ? displayItems.length : 0;
+          const coverDelay = 0.46 * introItemCount + (casesLowMotion ? 0.34 : 0.18);
+          pathItem.style.setProperty('--case-cover-delay', `${coverDelay.toFixed(2)}s`);
+        }
+
         pathItem.innerHTML = `
+          ${shouldRenderIntroItems ? `
+            <div class="case-path-items">
+              ${displayItems.map((item, itemIndex) => `
+                <div class="case-path-item-float" style="--gift-duration:${(casesLowMotion ? 8.2 : 5.4).toFixed(1)}s;--gift-delay:${(-(casesLowMotion ? 2.9 : 1.8) * itemIndex).toFixed(2)}s;--gift-intro-delay:${(itemIndex * 0.46).toFixed(2)}s">
+                  <img src="${itemIconPath(item)}"
+                       alt="${item.id || caseData.name}"
+                       loading="lazy"
+                       decoding="async"
+                       onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
           <div class="case-path-case">
             <div class="case-path-image-wrapper">
               ${adaptiveTileGlowMarkup}
@@ -2233,58 +2404,33 @@ function getBalanceSafe(currency) {
             </div>
           </div>
         `;
-      } else {
-        pathItem.innerHTML = `
-          <!-- Premium horizontal track with border & shimmer -->
-          <div class="case-path-track">
-            <div class="case-path-track-shimmer"></div>
-          </div>
-          
-          <!-- Animated items sliding on track -->
-          <div class="case-path-items">
-            ${displayItems.map((item, itemIndex) => `
-              <div class="case-path-item-float" style="--gift-duration:${(casesLowMotion ? 8.2 : 5.4).toFixed(1)}s;--gift-delay:${(-(casesLowMotion ? 2.9 : 1.8) * itemIndex).toFixed(2)}s">
-                <img src="${itemIconPath(item)}" 
-                     alt="${item.id || caseData.name}"
-                     loading="lazy"
-                     decoding="async"
-                     onerror="this.onerror=null;this.src='${ITEM_ICON_FALLBACK}'">
-              </div>
-            `).join('')}
-          </div>
-          
-          <!-- Case positioned ON the track -->
-          <div class="case-path-case">
-            <div class="case-path-image-wrapper">
-              <div class="case-path-glow"></div>
-              <img src="${caseImageSrc}" 
-                   alt="${caseData.name}" 
-                   loading="lazy"
-                   decoding="async"
-                   class="case-path-image">
-            </div>
-            <!-- Liquid glass price pill OVER the case -->
-            <div class="case-path-price">
-              <img src="${icon}" class="case-path-price-icon" alt="${currency}">
-              <span class="case-path-price-val">${priceDisplay}</span>
-            </div>
-          </div>
-        `;
+
+        applyAdaptiveCasePathGlow(pathItem, caseImageSrc, currency, caseData.id);
+
+        pathItem.addEventListener('click', () => {
+          if (Date.now() < casesSwipeSuppressClickUntil) return;
+          if ((window.WildTimeCurrency?.current || 'ton') !== currency) {
+            switchCasesCurrencyPage(currency);
+            return;
+          }
+          openBottomSheet(caseData.id, currency);
+        });
+
+        page.appendChild(pathItem);
+      });
+
+      if (currency === 'stars') {
+        appendStarsFireflies(page);
       }
 
-      applyAdaptiveCasePathGlow(pathItem, caseImageSrc, currency, caseData.id);
-
-      pathItem.addEventListener('click', () => openBottomSheet(caseData.id));
-      casesPath.appendChild(pathItem);
+      track.appendChild(page);
     });
 
-    if (currency === 'stars') {
-      appendStarsFireflies(casesPath);
-    }
+    viewport.appendChild(track);
+    casesPath.appendChild(viewport);
+    attachCasesSwipeNavigation(casesPath);
     setupCasesPathAnimationVisibility(casesPath);
   }
-
-
   // ====== OPEN BOTTOM SHEET ======
   function updateCaseSheetUiMetrics(force) {
     if (!force && !document.body.classList.contains('case-sheet-open')) return;
@@ -2500,10 +2646,15 @@ function getBalanceSafe(currency) {
     clearCaseSheetUiMetrics();
   }
 
-  function openBottomSheet(caseId) {
+  function openBottomSheet(caseId, currencyOverride) {
     if (isAnimating || document.body.classList.contains('case-sheet-open')) return;
 
-    currentCase = getActiveCases()[caseId];
+    const sheetCurrency = currencyOverride || (window.WildTimeCurrency?.current || 'ton');
+    if (sheetCurrency !== (window.WildTimeCurrency?.current || 'ton')) {
+      switchCasesCurrencyPage(sheetCurrency);
+    }
+
+    currentCase = getActiveCases(sheetCurrency)[caseId];
     if (!currentCase) return;
 
     console.log('[Cases] 🎁 Opening:', currentCase.name);
@@ -2516,7 +2667,7 @@ function getBalanceSafe(currency) {
     pushCaseSheetHistoryState();
 
     updateSheetContent();
-    try { void preloadCurrentCaseItemIcons(window.WildTimeCurrency?.current || 'ton', { highPriority: false, maxItems: 18, timeoutMs: 700 }); } catch (_) {}
+    try { void preloadCurrentCaseItemIcons(sheetCurrency, { highPriority: false, maxItems: 18, timeoutMs: 700 }); } catch (_) {}
 
     overlay?.classList.add('active');
 
@@ -4840,7 +4991,13 @@ async function onNftSellClick() {
     renderHistory(historyState);
     ensureCasesThemeBackdrop();
     clearLegacyCasesCurrencySwapArtifacts();
-    generateCasesGrid();
+
+    const casesPath = document.getElementById('casesGrid');
+    if (casesPath?.querySelector?.('.cases-swipe-track')) {
+      applyCasesSwipeState(casesPath, window.WildTimeCurrency?.current || 'ton', 0);
+    } else {
+      generateCasesGrid();
+    }
 
     if (currentCase && sheetPanel?.classList.contains('active')) {
       updateSheetContent();

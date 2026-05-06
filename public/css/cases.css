@@ -119,12 +119,24 @@ body.page-cases .app{
   transform: translateX(-50%);
   display: none;
   pointer-events: none;
-  overflow: visible;
-  z-index: -1;
+  overflow: hidden;
+  z-index: 0;
   opacity: 0;
   background: #272727;
   will-change: opacity;
   transition: opacity 300ms ease;
+}
+
+#root > #casesThemeBackdrop{
+  left: 0;
+  width: 100%;
+  transform: none;
+}
+
+body:has(.page-active#casesPage) #root > .app,
+body.page-cases #root > .app{
+  position: relative;
+  z-index: 1;
 }
 
 body:has(.page-active#casesPage) #casesThemeBackdrop,
@@ -189,6 +201,43 @@ html.currency-ton #casesThemeBackdrop .cases-theme-bg-layer--stars{
 html.currency-ton #casesThemeBackdrop .cases-theme-bg-layer--ton{
   opacity: 1;
   transform: translate3d(0, 0, 0);
+}
+
+body:has(.page-active#casesPage) #casesThemeBackdrop .cases-theme-bg-layer,
+body.page-cases #casesThemeBackdrop .cases-theme-bg-layer{
+  --cases-bg-overlap: 56px;
+  width: calc(100% + var(--cases-bg-overlap));
+  opacity: 1 !important;
+  transition:
+    transform 640ms cubic-bezier(0.18, 0.86, 0.14, 1),
+    filter 640ms cubic-bezier(0.18, 0.86, 0.14, 1) !important;
+  will-change: transform;
+}
+
+body:has(.page-active#casesPage) #casesThemeBackdrop .cases-theme-bg-layer--stars,
+body.page-cases #casesThemeBackdrop .cases-theme-bg-layer--stars{
+  transform: translate3d(
+    calc(var(--cases-page-x, -100%) - (var(--cases-bg-overlap, 56px) / 2)),
+    0,
+    0
+  ) !important;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 112px), rgba(0,0,0,0.68) calc(100% - 54px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 112px), rgba(0,0,0,0.68) calc(100% - 54px), transparent 100%);
+}
+
+body:has(.page-active#casesPage) #casesThemeBackdrop .cases-theme-bg-layer--ton,
+body.page-cases #casesThemeBackdrop .cases-theme-bg-layer--ton{
+  transform: translate3d(
+    calc(var(--cases-page-x, -100%) + var(--cases-page-w, 100%) - (var(--cases-bg-overlap, 56px) / 2)),
+    0,
+    0
+  ) !important;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.68) 54px, #000 112px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.68) 54px, #000 112px, #000 100%);
+}
+
+html.cases-swipe-dragging #casesThemeBackdrop .cases-theme-bg-layer{
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -267,6 +316,60 @@ html:is(.currency-stars,.currency-ton) body:has(.page-active#casesPage)::after{
 #casesPage .cases-path{
   overscroll-behavior-x: none;
   touch-action: pan-y;
+}
+
+#casesPage #casesGrid.cases-path.cases-swipe,
+#casesPage .cases-path.cases-swipe{
+  overflow: hidden !important;
+  touch-action: pan-y;
+  --cases-page-index: 1;
+  --cases-page-w: var(--wt-layout-w, 100vw);
+  --cases-page-x: calc(-1 * var(--cases-page-w));
+  --cases-drag-x: 0px;
+}
+
+#casesPage .cases-swipe-viewport{
+  position: relative;
+  width: var(--cases-page-w, var(--wt-layout-w, 100vw));
+  max-width: var(--cases-page-w, var(--wt-layout-w, 100vw));
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+#casesPage .cases-swipe-track{
+  display: flex;
+  width: calc(var(--cases-page-w, var(--wt-layout-w, 100vw)) * 2);
+  min-height: inherit;
+  transform: translate3d(var(--cases-page-x, -100%), 0, 0);
+  transition: transform 640ms cubic-bezier(0.18, 0.86, 0.14, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+#casesPage .cases-path.is-dragging .cases-swipe-track{
+  transition: none;
+  cursor: grabbing;
+}
+
+#casesPage .cases-currency-page{
+  position: relative;
+  flex: 0 0 var(--cases-page-w, var(--wt-layout-w, 100vw));
+  width: var(--cases-page-w, var(--wt-layout-w, 100vw));
+  min-width: var(--cases-page-w, var(--wt-layout-w, 100vw));
+  min-height: inherit;
+  overflow: visible;
+  transform: translateZ(0);
+}
+
+#casesPage .cases-currency-page[data-currency="stars"] .case-stars-fireflies{
+  inset: 0;
+}
+
+@media (prefers-reduced-motion: reduce){
+  #casesPage .cases-swipe-track{
+    transition-duration: 1ms;
+  }
 }
 
 /* Center TON/Stars switch in topbar, visible only on Cases page */
@@ -800,6 +903,24 @@ body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
   filter: drop-shadow(0 10px 18px rgba(0,0,0,0.42));
 }
 
+/* Level 2 intro: gifts enter first, then the case covers them. */
+#casesPage .case-path-item--intro-cover .case-path-item-float img{
+  opacity: 0;
+  transform: translateY(8px) scale(0.82);
+  animation: wtGiftIntroAppear 0.42s cubic-bezier(0.2, 0.85, 0.25, 1.18) var(--gift-intro-delay, 0s) forwards;
+}
+
+@keyframes wtGiftIntroAppear{
+  0%{
+    opacity: 0;
+    transform: translateY(8px) scale(0.82);
+  }
+  100%{
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* ----------------------------
    Case (center)
    ---------------------------- */
@@ -813,6 +934,45 @@ body.page-cases .topbar .cases-topbar-switch .curr-btn--active .curr-icon{
   place-items: center;
   z-index: 3;
   pointer-events: none; /* click is on .case-path-item */
+}
+
+#casesPage .case-path-item--intro-cover .case-path-case{
+  opacity: 0;
+  transform: translate(-50%, -48%) scale(0.9);
+  animation: wtCaseIntroCover 0.62s cubic-bezier(0.2, 0.88, 0.18, 1.16) var(--case-cover-delay, 1.55s) forwards;
+}
+
+@keyframes wtCaseIntroCover{
+  0%{
+    opacity: 0;
+    transform: translate(-50%, -42%) scale(0.86);
+    filter: drop-shadow(0 0 0 rgba(255,255,255,0));
+  }
+  64%{
+    opacity: 1;
+    transform: translate(-50%, -58%) scale(1.04);
+  }
+  100%{
+    opacity: 1;
+    transform: translate(-50%, -56%) scale(1);
+    filter: drop-shadow(0 18px 34px rgba(0,0,0,0.28));
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  #casesPage .case-path-item--intro-cover .case-path-item-float img,
+  #casesPage .case-path-item--intro-cover .case-path-case{
+    animation: none !important;
+    opacity: 1;
+  }
+
+  #casesPage .case-path-item--intro-cover .case-path-item-float img{
+    transform: none;
+  }
+
+  #casesPage .case-path-item--intro-cover .case-path-case{
+    transform: translate(-50%, -56%);
+  }
 }
 
 #casesPage .case-path-image-wrapper{
@@ -1095,10 +1255,54 @@ html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-p
   display: none !important;
 }
 
+html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars.case-path-item--intro-cover .case-path-items{
+  display: block !important;
+  top: 39%;
+  width: min(520px, 88vw);
+  height: clamp(96px, 22vw, 132px);
+  z-index: 5;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars.case-path-item--intro-cover .case-path-item-float{
+  width: clamp(42px, 11vw, 68px);
+  height: clamp(42px, 11vw, 68px);
+}
+
 html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars .case-path-case{
   top: 39%;
   transform: translate(-50%, -50%);
   z-index: 6;
+}
+
+html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars.case-path-item--intro-cover .case-path-case{
+  transform: translate(-50%, -44%) scale(0.9);
+  animation-name: wtStarsCaseIntroCover;
+}
+
+@keyframes wtStarsCaseIntroCover{
+  0%{
+    opacity: 0;
+    transform: translate(-50%, -34%) scale(0.86);
+    filter: drop-shadow(0 0 0 rgba(255,255,255,0));
+  }
+  64%{
+    opacity: 1;
+    transform: translate(-50%, -52%) scale(1.04);
+  }
+  100%{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    filter: drop-shadow(0 14px 26px rgba(0,0,0,0.22));
+  }
+}
+
+@media (prefers-reduced-motion: reduce){
+  html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars.case-path-item--intro-cover .case-path-case{
+    transform: translate(-50%, -50%);
+  }
 }
 
 html:is(.currency-stars,.currency-ton) #casesPage .case-path-item--stars[data-case-id="case1"] .case-path-case{

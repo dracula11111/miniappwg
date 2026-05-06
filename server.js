@@ -31,8 +31,11 @@ const IS_RENDER = /^(1|true|yes)$/i.test(String(process.env.RENDER || ""));
 const IS_TEST = !IS_PROD && process.env.TEST_MODE === "1";
 const TEST_API_ENABLED = !IS_PROD && /^(1|true|yes)$/i.test(String(process.env.TEST_API_ENABLED || ""));
 const CASES_BROWSER_PLAY_ENABLED = /^(1|true|yes)$/i.test(String(process.env.CASES_BROWSER_PLAY_ENABLED || ""));
+
+
 // Manual frontend test toggle (wheel/cases demo behavior). Change true/false here when needed.
-const FRONTEND_TEST_MODE = false;
+const FRONTEND_TEST_MODE = true;
+
 const DEFAULT_NOTIFY_EMOJI_ID_TON = "5239983985156703956";
 const DEFAULT_NOTIFY_EMOJI_ID_STARS = "6005661956931850799";
 const DEFAULT_WELCOME_EMOJI_ID = "5330356071364046086";
@@ -2577,6 +2580,50 @@ function wheelPickResult() {
   return { sliceIndex, type };
 }
 
+function wheelPickSliceIndexByType(type) {
+  const target = normWheelSeg(type);
+  const indices = [];
+  for (let i = 0; i < WHEEL_ORDER.length; i++) {
+    if (WHEEL_ORDER[i] === target) indices.push(i);
+  }
+  if (!indices.length) return -1;
+  return indices[Math.floor(Math.random() * indices.length)];
+}
+
+function wheelStartAdminForcedSpin(type) {
+  const target = normWheelSeg(type);
+  const sliceIndex = wheelPickSliceIndexByType(target);
+  if (sliceIndex < 0 || !WHEEL_ALLOWED.has(target)) return false;
+
+  wheelClearPhaseTimeout();
+
+  wheelGame.phase = 'spin';
+  wheelGame.phaseStart = Date.now();
+  wheelGame.bonus = null;
+  wheelGame.settlement = null;
+  wheelGame.settlementPromise = null;
+
+  wheelGame.spin = {
+    sliceIndex,
+    type: target,
+    accelMs: 450,
+    decelMs: 1600,
+    extraTurns: 2,
+    spinStartAt: wheelGame.phaseStart,
+    spinTotalMs: 2050,
+    forcedByAdmin: true
+  };
+
+  broadcastWheelState();
+
+  wheelGame.phaseTimeout = setTimeout(() => {
+    wheelSpinFinished();
+  }, wheelGame.spin.spinTotalMs);
+
+  console.log(`[WheelAdmin] Forced shared wheel spin to ${target}`);
+  return true;
+}
+
 function wheelStartSpin() {
   if (wheelGame.phase !== 'betting') return;
   if ((wheelGame.players?.size || 0) <= 0) {
@@ -2704,6 +2751,20 @@ wheelWss.on('connection', (ws) => {
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data);
+
+      if (msg.type === 'adminForceSpin') {
+        if (IS_PROD) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Admin wheel tests are disabled in production' }));
+          return;
+        }
+
+        const seg = normWheelSeg(msg.segment);
+        const ok = wheelStartAdminForcedSpin(seg);
+        if (!ok) {
+          wsSendSafe(ws, JSON.stringify({ type: 'error', message: 'Invalid forced wheel segment' }));
+        }
+        return;
+      }
 
       if (msg.type === 'placeBet') {
         if (isTechPauseBlockingActions()) {
@@ -4358,9 +4419,42 @@ function createDailyCaseInventoryItem(dateKey, userId) {
   };
 }
 
+function isDailyCaseInventoryItem(item) {
+  return String(item?.type || "") === "daily_case" || String(item?.id || item?.baseId || "") === "daily_case";
+}
+
+function isExpiredUnopenedDailyCaseItem(item, currentDateKey = dailyCaseDateKey()) {
+  if (!isDailyCaseInventoryItem(item)) return false;
+  if (item?.opened === true) return false;
+  const itemDateKey = String(item?.dailyCaseDate || "").trim();
+  return !!itemDateKey && itemDateKey !== String(currentDateKey || dailyCaseDateKey());
+}
+
 async function inventoryGet(userId) {
   if (typeof db.getUserInventory === "function") return await db.getUserInventory(userId);
   return [];
+}
+
+async function inventoryDelete(userId, instanceIds) {
+  const ids = Array.isArray(instanceIds) ? instanceIds.map(String).filter(Boolean) : [];
+  if (!ids.length) return { deleted: 0 };
+  if (typeof db.deleteInventoryItems === "function") return await db.deleteInventoryItems(userId, ids);
+  return { deleted: 0 };
+}
+
+async function pruneExpiredDailyCases(userId, items = null, currentDateKey = dailyCaseDateKey()) {
+  const list = Array.isArray(items) ? items : await inventoryGet(userId);
+  const expiredIds = list
+    .filter((item) => isExpiredUnopenedDailyCaseItem(item, currentDateKey))
+    .map((item) => String(item?.instanceId || "").trim())
+    .filter(Boolean);
+
+  if (expiredIds.length) {
+    await inventoryDelete(userId, expiredIds);
+    return await inventoryGet(userId);
+  }
+
+  return list;
 }
 
 async function inventoryAdd(userId, items, claimId) {
@@ -4496,7 +4590,7 @@ function getInventoryWithdrawLockUntil(item) {
 app.get("/api/user/inventory", requireTelegramUser, async (req, res) => {
   try {
     const userId = String(req.tg.user.id);
-    const items = await inventoryGet(userId);
+    const items = await pruneExpiredDailyCases(userId);
     const isAdmin = isRelayerAdminUserId(userId);
     return res.json({ ok: true, items, nfts: items, isAdmin });
   } catch (e) {
@@ -4510,10 +4604,11 @@ app.post("/api/daily-case/claim", requireTelegramUser, async (req, res) => {
     const userId = String(req.tg.user.id);
     const dateKey = dailyCaseDateKey();
     const claimId = `daily_case_${userId}_${dateKey}`;
+    await pruneExpiredDailyCases(userId, null, dateKey);
     const result = await inventoryAdd(userId, [createDailyCaseInventoryItem(dateKey, userId)], claimId);
-    const items = Array.isArray(result.items) ? result.items : await inventoryGet(userId);
+    const items = await pruneExpiredDailyCases(userId, Array.isArray(result.items) ? result.items : null, dateKey);
     const dailyCase = items.find((item) =>
-      String(item?.type || "") === "daily_case" &&
+      isDailyCaseInventoryItem(item) &&
       String(item?.dailyCaseDate || "") === dateKey
     ) || null;
 
@@ -4540,8 +4635,15 @@ app.post("/api/daily-case/open", requireTelegramUser, async (req, res) => {
 
     const items = await inventoryGet(userId);
     const item = items.find((it) => String(it?.instanceId || "") === instanceId) || null;
-    if (!item || String(item?.type || "") !== "daily_case") {
+    if (!item || !isDailyCaseInventoryItem(item)) {
       return res.status(404).json({ ok: false, error: "Daily Case not found" });
+    }
+
+    const dateKey = dailyCaseDateKey();
+    if (isExpiredUnopenedDailyCaseItem(item, dateKey)) {
+      await inventoryDelete(userId, [instanceId]);
+      const left = await inventoryGet(userId);
+      return res.status(410).json({ ok: false, error: "Daily Case expired", items: left, nfts: left });
     }
 
     if (typeof db.deleteInventoryItems !== "function") {
@@ -4553,7 +4655,7 @@ app.post("/api/daily-case/open", requireTelegramUser, async (req, res) => {
     const rewardAmount = rewardCurrency === "ton"
       ? (rewardUnit === 3 ? 0.03 : 0.02)
       : rewardUnit;
-    await db.deleteInventoryItems(userId, [instanceId]);
+    await inventoryDelete(userId, [instanceId]);
     let newBalance = null;
     let balance = null;
     if (typeof db.updateBalance === "function") {

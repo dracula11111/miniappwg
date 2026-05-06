@@ -88,7 +88,7 @@ class Bonus5050 {
     const overlay = document.getElementById('bonus5050Overlay');
     if (!overlay) return;
 
-    overlay.classList.remove('bonus-overlay--active');
+    overlay.classList.remove('bonus-overlay--active', 'b5050-fire');
     overlay.style.display = 'none';
 
     // Allow user to continue using the app while bonus continues in background
@@ -124,7 +124,7 @@ class Bonus5050 {
     overlay.classList.add('bonus-overlay--leave');
     await this._wait(260);
 
-    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'b5050-fire');
     overlay.style.display = 'none';
 
     if (this.container) this.container.innerHTML = '';
@@ -533,7 +533,7 @@ class Bonus5050 {
       overlay.classList.add('bonus-overlay--leave');
       await this._wait(260);
 
-      overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+      overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'b5050-fire');
       overlay.style.display = 'none';
 
       this.container.innerHTML = '';

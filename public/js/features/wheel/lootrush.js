@@ -186,7 +186,7 @@ class LootRush {
     const overlay = this._overlayEl();
     if (!overlay) return;
 
-    overlay.classList.remove('bonus-overlay--active');
+    overlay.classList.remove('bonus-overlay--active', 'lootrush-fire');
     overlay.style.display = 'none';
 
     // Allow user to continue using the app while bonus continues in background
@@ -679,7 +679,7 @@ class LootRush {
       overlay.classList.add('bonus-overlay--leave');
       await this._wait(Math.max(100, 300 / speedupFactor));
 
-      overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+      overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'lootrush-fire');
       overlay.style.display = 'none';
 
       if (this._noBetOverlayTimer) {

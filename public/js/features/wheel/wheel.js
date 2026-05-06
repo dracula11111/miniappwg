@@ -473,17 +473,22 @@ async function startSpinFromServer(spin) {
   if (!spin) return;
 
   const roundId = Number(wheelServerState?.roundId || 0) || null;
-  const alreadyStartedThisRound = wheelSpinStartedForRound === roundId;
+  const spinKey = `${roundId}:${Number(spin.spinStartAt || 0)}:${normSeg(spin.type)}:${Number(spin.sliceIndex ?? -1)}`;
+  const alreadyStartedThisRound = wheelSpinStartedForRound === spinKey;
   const localSpinIsActive = phase === 'accelerate' || phase === 'decelerate' || !!decel;
 
   // Prevent duplicate spin starts, but allow recovering animation after reconnect/lost frame.
   if (alreadyStartedThisRound && localSpinIsActive) return;
-  wheelSpinStartedForRound = roundId;
+  wheelSpinStartedForRound = spinKey;
+
+  if (spin.forcedByAdmin) {
+    try { closeBonusOverlayIfOpen(); } catch (_) {}
+  }
 
   setBetPanel(false);
 
   const accelMs = Math.max(450, Number(spin.accelMs || 1200));
-  const decelMs = Math.max(2400, Number(spin.decelMs || 6000));
+  const decelMs = Math.max(900, Number(spin.decelMs || 6000));
   const extraTurns = Math.max(2, Number(spin.extraTurns || 4));
   const totalMs = accelMs + decelMs;
 
@@ -629,7 +634,6 @@ function applyWheelServerState(state) {
     setPhase('result_waiting', { force: true });
     setOmega(0, { force: true });
     hideWheelBonusBar();
-
     // NOTE: do NOT force-close bonus overlays on phase switch.
     // Let the client-side bonus animation finish naturally based on remaining time.
     // (Fixes: bonus overlay getting cut off when server moves to result phase.)
@@ -710,6 +714,34 @@ function applyWheelServerState(state) {
 
 // Если TEST_MODE включен, экспортируем дополнительные функции
 if (window.TEST_MODE) {
+  async function runLocalAdminTestRound(segmentName, betAmount = 1) {
+    const target = normSeg(segmentName);
+    const idx = pickSliceIndexByLabel(target);
+
+    if (!target || idx < 0) {
+      throw new Error(`Unknown wheel segment: ${segmentName}`);
+    }
+
+    if (typeof window.bonusLockEnd === 'function' && window.__bonusLock?.active) {
+      window.bonusLockEnd({ phase: 'betting', omega: IDLE_OMEGA });
+    }
+
+    try { closeBonusOverlayIfOpen(); } catch (_) {}
+    try { stopCountdown(); } catch (_) {}
+
+    // Local fallback should behave like a client round, even if an old WS snapshot exists.
+    wheelServerState = null;
+    wheelSpinStartedForRound = null;
+    decel = null;
+    window.forcedNextSegment = null;
+
+    setBetPanel(false);
+    setPhase('accelerate', { force: true });
+    await accelerateTo(FAST_OMEGA, 350);
+    await decelerateToSlice(idx, 1400, 2, target);
+
+    return { mode: 'local', segment: target, betAmount };
+  }
   console.log('[Wheel] 🔧 TEST MODE ACTIVE - Exporting admin functions');
   
   // Создаем глобальный объект для админских функций
@@ -765,6 +797,24 @@ if (window.TEST_MODE) {
     },
     
     // Симуляция выпадения сегмента
+    runTestRound: async function(segmentName, betAmount = 1) {
+      const target = normSeg(segmentName);
+      if (!target) throw new Error('Segment is required');
+
+      if (wheelWs && wheelWs.readyState === WebSocket.OPEN) {
+        wheelWsSend({
+          type: 'adminForceSpin',
+          segment: target,
+          betAmount
+        });
+        console.log('[WheelAdmin] Shared test round requested:', target);
+        return { mode: 'server', segment: target, betAmount };
+      }
+
+      console.warn('[WheelAdmin] Wheel WS is not open; running local test round fallback');
+      return runLocalAdminTestRound(target, betAmount);
+    },
+
     simulateSegmentWin: function(segmentName, betAmount = 1) {
       console.log('[WheelAdmin] Simulating win for:', segmentName, 'with bet:', betAmount);
       
@@ -1730,7 +1780,6 @@ function prepareCanvas(){
 
 
 
-
 function drawWheel(angle=0){
   if (!ctx) return;
   const w = canvas.width / DPR, h = canvas.height / DPR;
@@ -1768,7 +1817,7 @@ function drawWheel(angle=0){
       
       const mid = a0 + SLICE_ANGLE/2;
       ctx.rotate(mid);
-      
+
       const imgWidth = R * 1.15;
       const imgHeight = R * Math.tan(SLICE_ANGLE/2) * 2.4;
       
@@ -2457,6 +2506,7 @@ let __wheelBonusBarEl = null;
 let __wheelBonusBarStyleDone = false;
 let __wheelBonusBarShownForId = null;
 let __wheelBonusBarTimer = null;
+let __wheelBonusFireHideTimer = null;
 
 function getBonusEndsAt(bonus) {
   if (!bonus) return null;
@@ -2495,12 +2545,6 @@ function getBonusRemainingMs(bonus, now = Date.now()) {
   return null;
 }
 
-function formatBonusRemaining(remainingMs) {
-  if (!Number.isFinite(remainingMs)) return '';
-  const sec = Math.max(0, Math.ceil(remainingMs / 1000));
-  return `${sec}s left`;
-}
-
 function ensureWheelBonusBarStyles() {
   if (__wheelBonusBarStyleDone) return;
   __wheelBonusBarStyleDone = true;
@@ -2511,7 +2555,6 @@ function ensureWheelBonusBarStyles() {
       position:absolute;
       left:50%;
       top:50%;
-      transform: translate(60px, -50%);
       width: min(620px, calc(var(--wt-layout-w, 100vw) - 24px));
       height: 66px;
       display:flex;
@@ -2527,23 +2570,64 @@ function ensureWheelBonusBarStyles() {
       -webkit-backdrop-filter: blur(18px) saturate(1.4);
       color: #fff;
       opacity: 0;
+      transform: translate(60px, -50%) scale(.98);
       pointer-events: none;
       z-index: 9999;
+      transition:
+        opacity .34s cubic-bezier(0.22, 1, 0.36, 1),
+        transform .34s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: opacity, transform;
     }
     #wheelBonusBar.active{
       opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
       pointer-events: auto;
-      animation: wheelBonusBarIn .28s ease forwards;
-    }
-    @keyframes wheelBonusBarIn{
-      from{ transform: translate(60px, -50%); opacity: 0; }
-      to{ transform: translate(-50%, -50%); opacity: 1; }
     }
     #wheelBonusBar .wbb-left{ display:flex; align-items:center; gap: 12px; min-width: 0; }
-    #wheelBonusBar .wbb-icon{ width: 42px; height: 42px; border-radius: 14px; object-fit: cover; flex: 0 0 auto; box-shadow: 0 8px 18px rgba(0,0,0,0.25); }
-    #wheelBonusBar .wbb-text{ display:flex; flex-direction:column; min-width: 0; line-height: 1.05; }
-    #wheelBonusBar .wbb-title{ font-weight: 700; font-size: 14px; letter-spacing: 0.3px; opacity: 0.95; }
-    #wheelBonusBar .wbb-sub{ font-size: 12px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #wheelBonusBar .wbb-icon-wrap{
+      position:relative;
+      width:48px;
+      height:48px;
+      flex:0 0 auto;
+      display:grid;
+      place-items:center;
+    }
+    #wheelBonusBar .wbb-icon-wrap::before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:74px;
+      height:74px;
+      transform:translate(-50%, -58%) scale(.92);
+      opacity:0;
+      pointer-events:none;
+      background:url("/images/wheel/WildTimeFlame.webp") center/contain no-repeat;
+      filter:drop-shadow(0 0 14px rgba(255, 36, 36, .88));
+      -webkit-mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+      mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+      transition:opacity .22s ease, transform .22s ease;
+      z-index:0;
+    }
+    #wheelBonusBar.wbb-wild-time .wbb-icon-wrap::before{
+      opacity:.9;
+      transform:translate(-50%, -60%) scale(1);
+    }
+    #wheelBonusBar.wbb-loot-rush .wbb-icon-wrap::before{
+      background:url("/images/wheel/LootRushFlame.webp") center/contain no-repeat;
+      opacity:.9;
+      transform:translate(-50%, -60%) scale(1);
+      filter:drop-shadow(0 0 14px rgba(24, 235, 220, .88));
+    }
+    #wheelBonusBar.wbb-5050 .wbb-icon-wrap::before{
+      background:url("/images/wheel/5050Flame.webp") center/contain no-repeat;
+      opacity:.9;
+      transform:translate(-50%, -60%) scale(1);
+      filter:drop-shadow(0 0 14px rgba(255, 78, 190, .88));
+    }
+    #wheelBonusBar .wbb-icon{ position:relative; z-index:1; width:42px; height:42px; border-radius:14px; object-fit:cover; box-shadow:0 8px 18px rgba(0,0,0,0.25); }
+    #wheelBonusBar .wbb-text{ display:flex; align-items:center; min-width: 0; line-height: 1.05; }
+    #wheelBonusBar .wbb-title{ font-weight: 700; font-size: 14px; letter-spacing: 0.3px; opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #wheelBonusBar .wbb-btn{
       border: 1px solid rgba(255,255,255,0.22);
       background: rgba(255,255,255,0.10);
@@ -2574,13 +2658,12 @@ function ensureWheelBonusBar() {
   el.id = 'wheelBonusBar';
   el.innerHTML = `
     <div class="wbb-left">
-      <img class="wbb-icon" alt="bonus" />
+      <span class="wbb-icon-wrap"><img class="wbb-icon" alt="bonus" /></span>
       <div class="wbb-text">
         <div class="wbb-title">Bonus round in progress</div>
-        <div class="wbb-sub">—</div>
       </div>
     </div>
-    <button class="wbb-btn" type="button">Watch live</button>
+    <button class="wbb-btn" type="button">Смотреть</button>
   `;
 
   host.appendChild(el);
@@ -2594,15 +2677,25 @@ function showWheelBonusBar(bonus) {
 
   const el = ensureWheelBonusBar();
   const icon = el.querySelector('.wbb-icon');
-  const sub = el.querySelector('.wbb-sub');
   const btn = el.querySelector('.wbb-btn');
 
   const type = normSeg(bonus.type);
   const iconSrc = __WHEEL_HISTORY_ICONS[type] || '/images/history/loot_small.png';
   if (icon) icon.src = iconSrc;
-  const liveBonusNow = wheelServerState?.bonus || bonus;
-  const remaining = formatBonusRemaining(getBonusRemainingMs(liveBonusNow));
-  if (sub) sub.textContent = remaining ? `Bonus: ${type} • ${remaining}` : `Bonus: ${type}`;
+  el.classList.toggle('wbb-wild-time', type === 'Wild Time');
+  el.classList.toggle('wbb-5050', type === '50&50');
+  el.classList.toggle('wbb-loot-rush', type === 'Loot Rush');
+  const wheelEl = canvas?.closest?.('.wheel') || document.querySelector('#wheelPage .wheel');
+  if (wheelEl) {
+    if (__wheelBonusFireHideTimer) {
+      clearTimeout(__wheelBonusFireHideTimer);
+      __wheelBonusFireHideTimer = null;
+    }
+    wheelEl.classList.remove('wheel-bonus-fire-leave');
+    wheelEl.classList.toggle('wild-time-wheel-fire', type === 'Wild Time');
+    wheelEl.classList.toggle('wheel-5050-fire', type === '50&50');
+    wheelEl.classList.toggle('wheel-lootrush-fire', type === 'Loot Rush');
+  }
 
   // bind click once per bonus id
   const bonusId = String(bonus.id || `${bonus.type}:${bonus.startedAt || ''}`);
@@ -2624,22 +2717,29 @@ function showWheelBonusBar(bonus) {
   }
 
   el.classList.add('active');
-
-  if (__wheelBonusBarTimer) clearInterval(__wheelBonusBarTimer);
-  __wheelBonusBarTimer = setInterval(() => {
-    if (!wheelServerState || wheelServerState.phase !== 'bonus') {
-      clearInterval(__wheelBonusBarTimer);
-      __wheelBonusBarTimer = null;
-      return;
-    }
-    const liveBonus = wheelServerState?.bonus || bonus;
-    const nextRemaining = formatBonusRemaining(getBonusRemainingMs(liveBonus));
-    if (sub && nextRemaining) sub.textContent = `Bonus: ${type} • ${nextRemaining}`;
-  }, 1000);
 }
 
 function hideWheelBonusBar() {
   if (__wheelBonusBarEl) __wheelBonusBarEl.classList.remove('active');
+  const wheelEl = canvas?.closest?.('.wheel') || document.querySelector('#wheelPage .wheel');
+  if (wheelEl) {
+    const hasFire = wheelEl.classList.contains('wild-time-wheel-fire') ||
+      wheelEl.classList.contains('wheel-5050-fire') ||
+      wheelEl.classList.contains('wheel-lootrush-fire');
+
+    if (__wheelBonusFireHideTimer) clearTimeout(__wheelBonusFireHideTimer);
+
+    if (hasFire) {
+      wheelEl.classList.add('wheel-bonus-fire-leave');
+      __wheelBonusFireHideTimer = setTimeout(() => {
+        wheelEl.classList.remove('wild-time-wheel-fire', 'wheel-5050-fire', 'wheel-lootrush-fire', 'wheel-bonus-fire-leave');
+        __wheelBonusFireHideTimer = null;
+      }, 320);
+    } else {
+      wheelEl.classList.remove('wheel-bonus-fire-leave');
+      __wheelBonusFireHideTimer = null;
+    }
+  }
   if (__wheelBonusBarTimer) {
     clearInterval(__wheelBonusBarTimer);
     __wheelBonusBarTimer = null;
@@ -2668,7 +2768,7 @@ function closeBonusOverlayIfOpen() {
   if (!overlay.classList.contains('bonus-overlay--active')) return;
   overlay.classList.add('bonus-overlay--leave');
   setTimeout(() => {
-    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+    overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'b5050-fire', 'lootrush-fire');
     overlay.style.display = 'none';
     const container = overlay.querySelector('.bonus-container');
     if (container) container.innerHTML = '';
@@ -3616,7 +3716,7 @@ function getMultiplier(type) {
           overlay.classList.add('bonus-overlay--leave');
 
           setTimeout(() => {
-            overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+            overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'b5050-fire', 'lootrush-fire');
             overlay.style.display = 'none';
 
             // Keep DOM so an in-progress bonus can resume if user re-opens it
@@ -3633,7 +3733,6 @@ function getMultiplier(type) {
     overlay.className = 'bonus-overlay';
     overlay.innerHTML = `
       <div class="bonus-overlay__blur-backdrop"></div>
-      
       <!-- Универсальная кнопка Back для всех бонусов -->
       <button class="universal-back-btn" id="bonusBackBtn" aria-label="Go back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -3641,7 +3740,7 @@ function getMultiplier(type) {
         </svg>
         <span class="universal-back-text">Back</span>
       </button>
-      
+
       <div class="bonus-container"></div>
     `;
 
@@ -3662,7 +3761,7 @@ function getMultiplier(type) {
         overlay.classList.add('bonus-overlay--leave');
 
         setTimeout(() => {
-          overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave');
+          overlay.classList.remove('bonus-overlay--active', 'bonus-overlay--leave', 'b5050-fire', 'lootrush-fire');
           overlay.style.display = 'none';
 
           // Keep DOM so an in-progress bonus can resume if user re-opens it

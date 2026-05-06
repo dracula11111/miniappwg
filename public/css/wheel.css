@@ -154,7 +154,255 @@ body.page-wheel .app::after {
   }
   
   /* Р‘Р»СЋСЂ СЌС„С„РµРєС‚ СѓР±СЂР°РЅ - РєР°СЂС‚РѕС‡РєРё С‚РµРїРµСЂСЊ РІРёРґРЅС‹ С‡С‘С‚РєРѕ */
+  .wheel.wild-time-wheel-fire::before,
+  .wheel.wild-time-wheel-fire::after,
+  .wild-time-wheel-fire-center{
+    content:"";
+    position:absolute;
+    top:clamp(-46px, -8vw, -30px);
+    width:clamp(70px, 17vw, 112px);
+    aspect-ratio:1;
+    background:url("/images/wheel/WildTimeFlame.webp") center/contain no-repeat;
+    pointer-events:none;
+    z-index:0;
+    opacity:.86;
+    filter:drop-shadow(0 0 16px rgba(255, 36, 36, .86)) drop-shadow(0 0 30px rgba(255, 0, 0, .42));
+    -webkit-mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    animation: wheelBonusFireIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .wheel.wild-time-wheel-fire::before{
+    left:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(-8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .wheel.wild-time-wheel-fire::after{
+    right:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .wild-time-wheel-fire-center{
+    left:50%;
+    --wheel-bonus-fire-transform: translateX(-50%);
+    transform:var(--wheel-bonus-fire-transform);
+    display:none;
+  }
+
+  .wheel.wild-time-wheel-fire .wild-time-wheel-fire-center{
+    display:block;
+  }
+
+  /* 5050 Wheel Flames (like Wild Time) */
+  .wheel.wheel-5050-fire::before,
+  .wheel.wheel-5050-fire::after,
+  .b5050-wheel-fire-center{
+    content:"";
+    position:absolute;
+    top:clamp(-46px, -8vw, -30px);
+    width:clamp(70px, 17vw, 112px);
+    aspect-ratio:1;
+    background:url("/images/wheel/5050Flame.webp") center/contain no-repeat;
+    pointer-events:none;
+    z-index:0;
+    opacity:.86;
+    filter:drop-shadow(0 0 16px rgba(255, 78, 190, .86)) drop-shadow(0 0 30px rgba(255, 34, 170, .42));
+    -webkit-mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    animation: wheelBonusFireIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .wheel.wheel-5050-fire::before{
+    left:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(-8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .wheel.wheel-5050-fire::after{
+    right:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .b5050-wheel-fire-center{
+    left:50%;
+    --wheel-bonus-fire-transform: translateX(-50%);
+    transform:var(--wheel-bonus-fire-transform);
+    display:none;
+  }
+
+  .wheel.wheel-5050-fire .b5050-wheel-fire-center{
+    display:block;
+  }
+
+  /* Loot Rush Wheel Flames (like Wild Time) */
+  .wheel.wheel-lootrush-fire::before,
+  .wheel.wheel-lootrush-fire::after,
+  .lootrush-wheel-fire-center{
+    content:"";
+    position:absolute;
+    top:clamp(-46px, -8vw, -30px);
+    width:clamp(70px, 17vw, 112px);
+    aspect-ratio:1;
+    background:url("/images/wheel/LootRushFlame.webp") center/contain no-repeat;
+    pointer-events:none;
+    z-index:0;
+    opacity:.86;
+    filter:drop-shadow(0 0 16px rgba(24, 235, 220, .86)) drop-shadow(0 0 30px rgba(0, 210, 190, .42));
+    -webkit-mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    mask-image:radial-gradient(ellipse 46% 50% at 50% 52%, #000 58%, rgba(0,0,0,.72) 70%, transparent 88%);
+    animation: wheelBonusFireIn 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .wheel.wheel-lootrush-fire::before{
+    left:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(-8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .wheel.wheel-lootrush-fire::after{
+    right:calc(50% - clamp(76px, 18vw, 126px));
+    --wheel-bonus-fire-transform: rotate(8deg);
+    transform:var(--wheel-bonus-fire-transform);
+  }
+
+  .lootrush-wheel-fire-center{
+    left:50%;
+    --wheel-bonus-fire-transform: translateX(-50%);
+    transform:var(--wheel-bonus-fire-transform);
+    display:none;
+  }
+
+  .wheel.wheel-lootrush-fire .lootrush-wheel-fire-center{
+    display:block;
+  }
+
+  .wheel.wheel-bonus-fire-leave.wild-time-wheel-fire::before,
+  .wheel.wheel-bonus-fire-leave.wild-time-wheel-fire::after,
+  .wheel.wheel-bonus-fire-leave.wild-time-wheel-fire .wild-time-wheel-fire-center,
+  .wheel.wheel-bonus-fire-leave.wheel-5050-fire::before,
+  .wheel.wheel-bonus-fire-leave.wheel-5050-fire::after,
+  .wheel.wheel-bonus-fire-leave.wheel-5050-fire .b5050-wheel-fire-center,
+  .wheel.wheel-bonus-fire-leave.wheel-lootrush-fire::before,
+  .wheel.wheel-bonus-fire-leave.wheel-lootrush-fire::after,
+  .wheel.wheel-bonus-fire-leave.wheel-lootrush-fire .lootrush-wheel-fire-center{
+    animation: wheelBonusFireOut 300ms ease both;
+  }
+
+  @keyframes wheelBonusFireIn{
+    0%{
+      opacity:0;
+      transform:var(--wheel-bonus-fire-transform, none) translateY(12px) scale(.72);
+    }
+    58%{
+      opacity:.92;
+      transform:var(--wheel-bonus-fire-transform, none) translateY(-2px) scale(1.05);
+    }
+    100%{
+      opacity:.86;
+      transform:var(--wheel-bonus-fire-transform, none) translateY(0) scale(1);
+    }
+  }
+
+  @keyframes wheelBonusFireOut{
+    0%{
+      opacity:.86;
+      transform:var(--wheel-bonus-fire-transform, none) translateY(0) scale(1);
+    }
+    100%{
+      opacity:0;
+      transform:var(--wheel-bonus-fire-transform, none) translateY(8px) scale(.86);
+    }
+  }
+
+  /* 5050 Bonus Flames (for overlay) */
+  #bonus5050Overlay.b5050-fire::before,
+  #bonus5050Overlay.b5050-fire::after,
+  .b5050-fire-center{
+    content:"";
+    position:absolute;
+    top:clamp(-46px, -8vw, -30px);
+    width:clamp(70px, 17vw, 112px);
+    aspect-ratio:1;
+    background:url("/images/wheel/5050Flame.webp") center/contain no-repeat;
+    pointer-events:none;
+    z-index:0;
+    opacity:.86;
+    filter:drop-shadow(0 0 16px rgba(255, 78, 190, .86)) drop-shadow(0 0 30px rgba(255, 34, 170, .42));
+  }
+
+  #bonus5050Overlay.b5050-fire::before{
+    left:calc(50% - clamp(76px, 18vw, 126px));
+    transform:rotate(-8deg);
+  }
+
+  #bonus5050Overlay.b5050-fire::after{
+    right:calc(50% - clamp(76px, 18vw, 126px));
+    transform:rotate(8deg);
+  }
+
+  .b5050-fire-center{
+    left:50%;
+    transform:translateX(-50%);
+    display:none;
+  }
+
+  #bonus5050Overlay.b5050-fire .b5050-fire-center{
+    display:block;
+  }
+  /* Loot Rush Bonus Flames */
+  #bonus5050Overlay.lootrush-fire::before,
+  #bonus5050Overlay.lootrush-fire::after,
+  .lootrush-fire-center{
+    content:"";
+    position:absolute;
+    top:clamp(-46px, -8vw, -30px);
+    width:clamp(70px, 17vw, 112px);
+    aspect-ratio:1;
+    background:url("/images/wheel/LootRushFlame.webp") center/contain no-repeat;
+    pointer-events:none;
+    z-index:0;
+    opacity:.86;
+    filter:drop-shadow(0 0 16px rgba(24, 235, 220, .86)) drop-shadow(0 0 30px rgba(0, 210, 190, .42));
+  }
+
+  #bonus5050Overlay.lootrush-fire::before{
+    left:calc(50% - clamp(76px, 18vw, 126px));
+    transform:rotate(-8deg);
+  }
+
+  #bonus5050Overlay.lootrush-fire::after{
+    right:calc(50% - clamp(76px, 18vw, 126px));
+    transform:rotate(8deg);
+  }
+
+  .lootrush-fire-center{
+    left:50%;
+    transform:translateX(-50%);
+    display:none;
+  }
+
+  #bonus5050Overlay.lootrush-fire .lootrush-fire-center{
+    display:block;
+  }
+
+  #bonus5050Overlay.b5050-fire::before,
+  #bonus5050Overlay.b5050-fire::after,
+  #bonus5050Overlay.lootrush-fire::before,
+  #bonus5050Overlay.lootrush-fire::after,
+  #bonus5050Overlay .b5050-fire-center,
+  #bonus5050Overlay .lootrush-fire-center{
+    content:none !important;
+    display:none !important;
+    background:none !important;
+  }
+
+
     #wheelCanvas{
+      position:relative;
+      z-index:2;
       display:block;
       width:min(calc(92 * var(--wt-vw, 1vw)), 420px, 44vh); 
       height:auto;

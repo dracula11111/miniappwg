@@ -18,9 +18,16 @@
   const HEART_IMAGE = "/images/match/heart.webp";
   const WILDCOIN_IMAGE = "/images/match/wildcoin.webp";
   const TICKET_IMAGE = "/images/match/ticket.webp";
+  const TICK_IMAGE = "/icons/ui/tick.svg";
   const PARTICIPANTS_IMAGE = "/images/match/participants.svg";
   const PILLOW_IMAGE = "/images/match/pillow.webp";
   const BOMB_ITEM = Object.freeze({ id: "bomb", src: "/images/match/bomb.webp" });
+  const DYNAMITE_ITEM = Object.freeze({ id: "dynamite", src: "/images/match/dymamite.webp" });
+  const WOOD_BLOCKER_ITEM = Object.freeze({
+    id: "wood-blocker",
+    src: "/images/match/wooditemblocker.webp",
+    damagedSrc: "/images/match/wooditemblocker2.webp"
+  });
   const ITEM_DEFS = Object.freeze([
     { id: "bear", src: "/images/match/items/bear.webp" },
     { id: "bottle", src: "/images/match/items/bottle.webp" },
@@ -31,7 +38,7 @@
     { id: "gift", src: "/images/match/items/gift.webp" }
   ]);
   const ITEM_BY_ID = Object.freeze(
-    [BOMB_ITEM, ...ITEM_DEFS].reduce((acc, item) => {
+    [BOMB_ITEM, DYNAMITE_ITEM, WOOD_BLOCKER_ITEM, ...ITEM_DEFS].reduce((acc, item) => {
       acc[item.id] = item;
       return acc;
     }, {})
@@ -41,6 +48,7 @@
   const MATCH_MIN = 3;
   const BOMB_BLAST_RADIUS = 2;
   const RANDOM_BOMB_DROP_CHANCE = 0.2;
+  const DYNAMITE_STEP_MS = 58;
   const SWAP_ANIMATION_MS = 220;
   const CLEAR_ANIMATION_MS = 240;
   const DROP_ANIMATION_MS = 280;
@@ -48,12 +56,64 @@
   const SWAP_REVERT_DELAY_MS = 30;
   const SWAP_EASING = "cubic-bezier(0.2, 0.92, 0.18, 1)";
   const HINT_IDLE_MS = 4200;
-  const LEVEL_MOVES = 15;
+  const TILE_INTRO_ANIMATION_MS = 560;
+  const TILE_INTRO_COLUMN_DELAY_MS = 55;
+  const BOARD_INTRO_TUTORIAL_DELAY_MS = TILE_INTRO_ANIMATION_MS + (BOARD_COLS - 1) * TILE_INTRO_COLUMN_DELAY_MS + 140;
+  const LEVEL_TWO_WOOD_TUTORIAL_CELLS = Object.freeze([
+    { row: 0, col: 3 },
+    { row: 1, col: 1 },
+    { row: 1, col: 2 },
+    { row: 1, col: 3 },
+    { row: 2, col: 2 },
+    { row: 2, col: 3 }
+  ]);
+  const LEVEL_TWO_WOOD_TUTORIAL_SWAP = Object.freeze({
+    a: { row: 0, col: 3 },
+    b: { row: 1, col: 3 }
+  });
+  const LEVEL_TWO_DYNAMITE_TUTORIAL_CELLS = Object.freeze([
+    { row: 6, col: 1 },
+    { row: 6, col: 2 },
+    { row: 6, col: 3 },
+    { row: 6, col: 4 },
+    { row: 6, col: 5 },
+    { row: 7, col: 3 }
+  ]);
+  const LEVEL_TWO_DYNAMITE_TUTORIAL_SWAP = Object.freeze({
+    a: { row: 6, col: 3 },
+    b: { row: 7, col: 3 }
+  });
+  const LEVEL_ONE_TUTORIAL_CELLS = Object.freeze([
+    { row: 5, col: 2 },
+    { row: 5, col: 3 },
+    { row: 5, col: 4 },
+    { row: 6, col: 4 }
+  ]);
+  const LEVEL_ONE_TUTORIAL_SWAP = Object.freeze({
+    a: { row: 5, col: 4 },
+    b: { row: 6, col: 4 }
+  });
   const LEVEL_REWARD = 10;
   const MAX_LIVES = 5;
   const LIFE_RESTORE_MS = 30 * 60 * 1000;
-  const LEVEL_TARGETS = Object.freeze([
-    { kind: "bear", count: 15 }
+  const LEVEL_CONFIGS = Object.freeze([
+    {
+      level: 1,
+      moves: 15,
+      targets: [{ kind: "bear", count: 15 }],
+      blockers: []
+    },
+    {
+      level: 2,
+      moves: 20,
+      targets: [{ kind: WOOD_BLOCKER_ITEM.id, count: 10 }],
+      blockers: [
+        { row: 2, col: 2 }, { row: 2, col: 3 }, { row: 2, col: 4 }, { row: 2, col: 5 },
+        { row: 3, col: 2 }, { row: 3, col: 5 },
+        { row: 4, col: 2 }, { row: 4, col: 5 },
+        { row: 5, col: 3 }, { row: 5, col: 4 }
+      ]
+    }
   ]);
   const SHELF_GIFT_ROTATE_MS = 3000;
   const LOL_POP_PNG_BASE = "https://cdn.changes.tg/gifts/models/Lol%20Pop/png/";
@@ -186,7 +246,9 @@
     boardEl: null,
     particlesEl: null,
     board: [],
-    movesLeft: LEVEL_MOVES,
+    blockers: [],
+    currentLevelIndex: 0,
+    movesLeft: 0,
     targets: [],
     selected: null,
     busy: false,
@@ -199,6 +261,13 @@
     livesTimer: 0,
     hintTimer: 0,
     hintPair: null,
+    tutorial: null,
+    tutorialSeenGoal: false,
+    tutorialSeenBomb: false,
+    tutorialSeenWood: false,
+    tutorialSeenDynamite: false,
+    tutorialSeenDynamiteTap: false,
+    tutorialSuppressed: false,
     defaultLogoSrc: ""
   };
 
@@ -223,7 +292,8 @@
   }
 
   function getLevelText() {
-    return resolveUiLanguage() === "ru" ? "\u0423\u0440\u043e\u0432\u0435\u043d\u044c 1" : "Level 1";
+    const level = getCurrentLevelConfig().level || 1;
+    return resolveUiLanguage() === "ru" ? `\u0423\u0440\u043e\u0432\u0435\u043d\u044c ${level}` : `Level ${level}`;
   }
 
   function getGoalText() {
@@ -329,6 +399,44 @@
 
   function getQuitButtonText() {
     return resolveUiLanguage() === "ru" ? "\u0412\u042b\u0419\u0422\u0418" : "QUIT";
+  }
+
+  function getTutorialGoalText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0421\u043e\u0435\u0434\u0438\u043d\u0438 \u043c\u0438\u0448\u0435\u043a: \u043f\u043e\u043c\u0435\u043d\u044f\u0439 \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u044b \u043c\u0435\u0441\u0442\u0430\u043c\u0438, \u0447\u0442\u043e\u0431\u044b \u0441\u043e\u0431\u0440\u0430\u0442\u044c 3 \u0432 \u0440\u044f\u0434."
+      : "Connect the bears: swap the items to make 3 in a row.";
+  }
+
+  function getTutorialBombText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0412\u0437\u043e\u0440\u0432\u0438 \u0431\u043e\u043c\u0431\u0443: \u043d\u0430\u0436\u043c\u0438 \u043d\u0430 \u043d\u0435\u0435, \u0447\u0442\u043e\u0431\u044b \u043e\u0447\u0438\u0441\u0442\u0438\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c \u0432\u043e\u043a\u0440\u0443\u0433."
+      : "Detonate the bomb: tap it to clear the area around it.";
+  }
+
+  function getTutorialWoodText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u041b\u043e\u043c\u0430\u0439 \u0434\u043e\u0441\u043a\u0438: \u0441\u043e\u0431\u0435\u0440\u0438 3 \u0432 \u0440\u044f\u0434 \u0440\u044f\u0434\u043e\u043c \u0441 \u0434\u0435\u0440\u0435\u0432\u043e\u043c, \u0438 \u043e\u043d\u043e \u043f\u043e\u043b\u0443\u0447\u0438\u0442 \u0443\u0434\u0430\u0440."
+      : "Break wood: make a match next to the boards to hit them.";
+  }
+
+  function getTutorialDynamiteText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0421\u043e\u0431\u0435\u0440\u0438 5 \u0432 \u0440\u044f\u0434: \u044d\u0442\u043e \u0441\u043e\u0437\u0434\u0430\u0441\u0442 \u0434\u0438\u043d\u0430\u043c\u0438\u0442."
+      : "Make 5 in a row to create dynamite.";
+  }
+
+  function getTutorialDynamiteTapText() {
+    return resolveUiLanguage() === "ru"
+      ? "\u0414\u0438\u043d\u0430\u043c\u0438\u0442 \u0432\u0437\u0440\u044b\u0432\u0430\u0435\u0442 \u0432\u0435\u0441\u044c \u0440\u044f\u0434 \u0438 \u0432\u0435\u0441\u044c \u0441\u0442\u043e\u043b\u0431\u0435\u0446. \u041d\u0430\u0436\u043c\u0438 \u043d\u0430 \u043d\u0435\u0433\u043e!"
+      : "Dynamite blasts the whole row and column. Tap it!";
+  }
+
+  function getTutorialText(type) {
+    if (type === "bomb") return getTutorialBombText();
+    if (type === "wood") return getTutorialWoodText();
+    if (type === "dynamite") return getTutorialDynamiteText();
+    if (type === "dynamiteTap") return getTutorialDynamiteTapText();
+    return getTutorialGoalText();
   }
 
   function parseWildCoin(raw) {
@@ -734,11 +842,12 @@
               </div>
             </section>
             <section class="match-level-panel match-win-panel" data-match-win-panel hidden aria-label="Level complete">
+              <div class="match-win-confetti" data-match-win-confetti aria-hidden="true"></div>
               <div class="match-win-card">
                 <h2 class="match-win-card__title" data-match-win-title>${getWellDoneText()}</h2>
                 <div class="match-win-card__reward" aria-hidden="true">
                   <div class="match-win-card__rays">
-                    ${Array.from({ length: 10 }, (_, i) => `<span style="--i:${i}"></span>`).join("")}
+                    ${Array.from({ length: 14 }, (_, i) => `<span style="--i:${i}"></span>`).join("")}
                   </div>
                   <img class="match-win-card__pillow" src="${PILLOW_IMAGE}" alt="" draggable="false" />
                   <div class="match-win-card__coin-wrap">
@@ -790,6 +899,9 @@
       PARTICIPANTS_IMAGE,
       PILLOW_IMAGE,
       BOMB_ITEM.src,
+      DYNAMITE_ITEM.src,
+      WOOD_BLOCKER_ITEM.src,
+      WOOD_BLOCKER_ITEM.damagedSrc,
       ...ITEM_DEFS.map((item) => item.src)
     ];
     srcList.forEach((src) => {
@@ -812,6 +924,32 @@
     return { row: Number(parts[0]), col: Number(parts[1]) };
   }
 
+  function createEmptyBlockers() {
+    return Array.from({ length: BOARD_ROWS }, () => Array.from({ length: BOARD_COLS }, () => null));
+  }
+
+  function createLevelBlockers() {
+    const blockers = createEmptyBlockers();
+    (getCurrentLevelConfig().blockers || []).forEach((cell) => {
+      if (!inBounds(cell?.row, cell?.col)) return;
+      blockers[cell.row][cell.col] = { kind: WOOD_BLOCKER_ITEM.id, hp: 2, maxHp: 2 };
+    });
+    if (isSecondLevel()) {
+      [{ row: 2, col: 2 }, { row: 2, col: 3 }].forEach((cell) => {
+        if (blockers[cell.row]?.[cell.col]) blockers[cell.row][cell.col].hp = 1;
+      });
+    }
+    return blockers;
+  }
+
+  function getBlocker(row, col) {
+    return state.blockers?.[row]?.[col] || null;
+  }
+
+  function hasBlocker(row, col) {
+    return !!getBlocker(row, col);
+  }
+
   function randomItemId() {
     const index = Math.floor(Math.random() * ITEM_DEFS.length);
     return ITEM_DEFS[index]?.id || ITEM_DEFS[0].id;
@@ -821,15 +959,43 @@
     return { kind };
   }
 
+  function getCurrentLevelConfig() {
+    return LEVEL_CONFIGS[state.currentLevelIndex] || LEVEL_CONFIGS[0];
+  }
+
+  function isDynamiteUnlocked() {
+    return (getCurrentLevelConfig().level || 1) >= 2;
+  }
+
+  function isFirstLevel() {
+    return (getCurrentLevelConfig().level || 1) === 1;
+  }
+
+  function isSecondLevel() {
+    return (getCurrentLevelConfig().level || 1) === 2;
+  }
+
   function createLevelTargets() {
-    return LEVEL_TARGETS.map((target) => ({
-      kind: target.kind,
-      remaining: Math.max(0, Math.round(Number(target.count) || 0))
-    }));
+    return (getCurrentLevelConfig().targets || []).map((target) => {
+      const count = Math.max(0, Math.round(Number(target.count) || 0));
+      return {
+        kind: target.kind,
+        remaining: count,
+        displayRemaining: count
+      };
+    });
   }
 
   function isBombKind(kind) {
     return String(kind || "") === BOMB_ITEM.id;
+  }
+
+  function isDynamiteKind(kind) {
+    return String(kind || "") === DYNAMITE_ITEM.id;
+  }
+
+  function isSpecialKind(kind) {
+    return isBombKind(kind) || isDynamiteKind(kind);
   }
 
   function createInitialBoard() {
@@ -837,6 +1003,10 @@
 
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
+        if (hasBlocker(row, col)) {
+          board[row][col] = null;
+          continue;
+        }
         let kind = randomItemId();
         while (
           (col >= 2 &&
@@ -864,12 +1034,78 @@
       return createInitialBoard();
     }
 
+    if (isFirstLevel()) forceLevelOneTutorialMove(board);
+    if (isSecondLevel()) forceLevelTwoWoodTutorialMove(board);
+
     return board;
+  }
+
+  function forceLevelOneTutorialMove(board) {
+    const setKind = (row, col, kind) => {
+      if (!inBounds(row, col) || hasBlocker(row, col)) return;
+      board[row][col] = createCell(kind);
+    };
+
+    setKind(5, 1, "diamond");
+    setKind(5, 2, "bear");
+    setKind(5, 3, "bear");
+    setKind(5, 4, "cake");
+    setKind(5, 5, "cup");
+    setKind(6, 3, "flowers");
+    setKind(6, 4, "bear");
+    setKind(7, 4, "gift");
+    setKind(4, 4, "bottle");
+  }
+
+  function forceLevelTwoWoodTutorialMove(board) {
+    const setKind = (row, col, kind) => {
+      if (!inBounds(row, col) || hasBlocker(row, col)) return;
+      board[row][col] = createCell(kind);
+    };
+
+    setKind(0, 2, "diamond");
+    setKind(0, 3, "bear");
+    setKind(0, 4, "cup");
+    setKind(1, 0, "flowers");
+    setKind(1, 1, "bear");
+    setKind(1, 2, "bear");
+    setKind(1, 3, "cake");
+    setKind(1, 4, "gift");
+    setKind(1, 5, "bottle");
+    setKind(2, 1, "diamond");
+    setKind(2, 6, "flowers");
+  }
+
+  function forceLevelTwoDynamiteTutorialMove() {
+    const setKind = (row, col, kind) => {
+      if (!inBounds(row, col) || hasBlocker(row, col)) return;
+      state.board[row][col] = createCell(kind);
+    };
+
+    const anchors = [
+      { row: 5, col: 1, kind: "cake" },
+      { row: 5, col: 2, kind: "diamond" },
+      { row: 5, col: 3, kind: "flowers" },
+      { row: 5, col: 4, kind: "bottle" },
+      { row: 5, col: 5, kind: "cup" },
+      { row: 6, col: 0, kind: "diamond" },
+      { row: 6, col: 1, kind: "gift" },
+      { row: 6, col: 2, kind: "gift" },
+      { row: 6, col: 3, kind: "cake" },
+      { row: 6, col: 4, kind: "gift" },
+      { row: 6, col: 5, kind: "gift" },
+      { row: 6, col: 6, kind: "flowers" },
+      { row: 7, col: 3, kind: "gift" },
+      { row: 7, col: 4, kind: "gift" },
+      { row: 7, col: 5, kind: "diamond" }
+    ];
+    anchors.forEach((cell) => setKind(cell.row, cell.col, cell.kind));
   }
 
   function boardHasPossibleMove(board) {
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
+        if (hasBlocker(row, col)) continue;
         const here = board[row][col];
         if (!here) continue;
 
@@ -880,10 +1116,11 @@
 
         for (const next of neighbors) {
           if (!inBounds(next.row, next.col)) continue;
+          if (hasBlocker(next.row, next.col)) continue;
           const there = board[next.row][next.col];
           if (!there) continue;
 
-          if (isBombKind(here.kind) || isBombKind(there.kind)) return true;
+          if (isSpecialKind(here.kind) || isSpecialKind(there.kind)) return true;
           swapCells(board, { row, col }, next);
           const hasMatch = findMatchClusters(board).length > 0;
           swapCells(board, { row, col }, next);
@@ -920,6 +1157,7 @@
 
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
+        if (hasBlocker(row, col)) continue;
         const here = board[row][col];
         if (!here) continue;
 
@@ -930,10 +1168,11 @@
 
         for (const next of neighbors) {
           if (!inBounds(next.row, next.col)) continue;
+          if (hasBlocker(next.row, next.col)) continue;
           const there = board[next.row][next.col];
           if (!there) continue;
 
-          if (isBombKind(here.kind) || isBombKind(there.kind)) {
+          if (isSpecialKind(here.kind) || isSpecialKind(there.kind)) {
             hints.push({ a: { row, col }, b: { row: next.row, col: next.col } });
             continue;
           }
@@ -1071,6 +1310,10 @@
     return state.boardEl?.querySelector?.(`[data-row="${row}"][data-col="${col}"]`) || null;
   }
 
+  function getBlockerEl(row, col) {
+    return state.boardEl?.querySelector?.(`[data-blocker-row="${row}"][data-blocker-col="${col}"]`) || null;
+  }
+
   function clearBoardUiState({ hint = false, selected = false } = {}) {
     if (!state.boardEl) return;
     const selectors = [];
@@ -1113,15 +1356,69 @@
     return animation?.finished?.catch?.(() => null) || wait(SWAP_ANIMATION_MS);
   }
 
+  function isTutorialVisualCell(cell) {
+    if (!state.tutorial) return true;
+    return Array.isArray(state.tutorial.cells) && state.tutorial.cells.some((focus) => sameCell(focus, cell));
+  }
+
+  function filterTutorialVisualCells(cells) {
+    const list = Array.isArray(cells) ? cells.filter(Boolean) : [];
+    if (!state.tutorial) return list;
+    return list.filter((cell) => isTutorialVisualCell(cell));
+  }
+
+  function clampNumber(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function getTutorialCardPlacement(tutorial) {
+    const tutorialCells = (Array.isArray(tutorial?.cells) ? tutorial.cells : []).filter((cell) => inBounds(cell?.row, cell?.col));
+    const singleCellTypes = new Set(["bomb", "dynamiteTap"]);
+    const anchorCells = singleCellTypes.has(tutorial?.type) ? tutorialCells.slice(0, 1) : tutorialCells;
+
+    if (!anchorCells.length) {
+      return {
+        className: `match-game__tutorial-card--${tutorial?.type || "goal"}`,
+        style: "grid-row:1 / -1;grid-column:1 / -1;"
+      };
+    }
+
+    const minRow = Math.min(...anchorCells.map((cell) => cell.row));
+    const maxRow = Math.max(...anchorCells.map((cell) => cell.row));
+    const minCol = Math.min(...anchorCells.map((cell) => cell.col));
+    const maxCol = Math.max(...anchorCells.map((cell) => cell.col));
+    const centerCol = Math.round((minCol + maxCol) / 2);
+    const centerRow = Math.round((minRow + maxRow) / 2);
+    const colSpan = 5;
+    const colStart = clampNumber(centerCol - Math.floor(colSpan / 2), 0, BOARD_COLS - colSpan) + 1;
+    const colEnd = colStart + colSpan;
+    const placeAbove = centerRow >= Math.floor(BOARD_ROWS / 2);
+    const rowSpan = 2;
+    const rowStart = placeAbove
+      ? clampNumber(minRow + 1 - rowSpan, 1, BOARD_ROWS - rowSpan + 1)
+      : clampNumber(maxRow + 2, 1, BOARD_ROWS - rowSpan + 1);
+    const rowEnd = rowStart + rowSpan;
+    const type = ["bomb", "wood", "dynamite", "dynamiteTap"].includes(tutorial?.type) ? tutorial.type : "goal";
+
+    return {
+      className: `match-game__tutorial-card--${type} match-game__tutorial-card--${type}-${placeAbove ? "above" : "below"}`,
+      style: `grid-row:${rowStart} / ${rowEnd};grid-column:${colStart} / ${colEnd};`
+    };
+  }
+
   function renderBoard(options = {}) {
     if (!state.boardEl) return;
 
     const dropMap = options?.dropMap || null;
+    const introMode = !!options?.intro;
     const selectedKey = state.selected ? cellKey(state.selected.row, state.selected.col) : "";
     const hintAKey = state.hintPair ? cellKey(state.hintPair.a.row, state.hintPair.a.col) : "";
     const hintBKey = state.hintPair ? cellKey(state.hintPair.b.row, state.hintPair.b.col) : "";
     const canShowHint = !selectedKey && !state.busy && !!state.hintPair;
+    const tutorial = state.tutorial || null;
+    const tutorialFocus = new Set(Array.isArray(tutorial?.cells) ? tutorial.cells.map((cell) => cellKey(cell.row, cell.col)) : []);
     const out = [];
+    state.particlesEl?.classList?.toggle("is-tutorial-active", !!tutorial);
 
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
@@ -1129,17 +1426,27 @@
         if (!cell) continue;
         const item = ITEM_BY_ID[cell.kind] || ITEM_DEFS[0];
         const tileKey = cellKey(row, col);
+        const isDropping = !introMode && dropMap && Number(dropMap[tileKey] || 0) > 0;
         const classes = [
           "match-game__tile",
           selectedKey === tileKey ? "is-selected" : "",
           canShowHint && (tileKey === hintAKey || tileKey === hintBKey) ? "is-hint" : "",
-          dropMap && Number(dropMap[tileKey] || 0) > 0 ? "is-dropping" : "",
-          isBombKind(cell.kind) ? "is-bomb" : ""
+          isDropping ? "is-dropping" : "",
+          introMode ? "is-intro-dropping" : "",
+          isBombKind(cell.kind) ? "is-bomb" : "",
+          isDynamiteKind(cell.kind) ? "is-dynamite" : "",
+          tutorialFocus.has(tileKey) ? "is-tutorial-focus" : ""
         ]
           .filter(Boolean)
           .join(" ");
-        const dropDistance = dropMap ? Math.max(0, Number(dropMap[tileKey] || 0)) : 0;
-        const styleAttr = dropDistance > 0 ? ` style="--drop-distance:${dropDistance};"` : "";
+        const dropDistance = !introMode && dropMap ? Math.max(0, Number(dropMap[tileKey] || 0)) : 0;
+        const colDelay = introMode ? col * 55 : 0;
+        const styleParts = [];
+        styleParts.push(`grid-row:${row + 1}`);
+        styleParts.push(`grid-column:${col + 1}`);
+        if (dropDistance > 0) styleParts.push(`--drop-distance:${dropDistance}`);
+        if (colDelay > 0) styleParts.push(`--col-delay:${colDelay}ms`);
+        const styleAttr = ` style="${styleParts.join(";")}"`;
 
         out.push(`
           <button class="${classes}" type="button" data-row="${row}" data-col="${col}" aria-label="${item.id}"${styleAttr}>
@@ -1147,6 +1454,31 @@
           </button>
         `);
       }
+    }
+
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        const blocker = getBlocker(row, col);
+        if (!blocker) continue;
+        const blockerKey = cellKey(row, col);
+        const isDamaged = Number(blocker.hp || 0) <= 1;
+        const src = isDamaged ? WOOD_BLOCKER_ITEM.damagedSrc : WOOD_BLOCKER_ITEM.src;
+        out.push(`
+          <span class="match-game__blocker ${isDamaged ? "is-damaged" : ""} ${tutorialFocus.has(blockerKey) ? "is-tutorial-focus" : ""}" data-blocker-row="${row}" data-blocker-col="${col}" style="grid-row:${row + 1};grid-column:${col + 1};">
+            <img src="${src}" alt="" draggable="false" />
+          </span>
+        `);
+      }
+    }
+
+    if (tutorial) {
+      const tutorialCard = getTutorialCardPlacement(tutorial);
+      out.push(`
+        <div class="match-game__tutorial-scrim" style="grid-row:1 / -1;grid-column:1 / -1;"></div>
+        <div class="match-game__tutorial-card ${tutorialCard.className}" style="${tutorialCard.style}">
+          <p>${tutorial.text || ""}</p>
+        </div>
+      `);
     }
 
     state.boardEl.innerHTML = out.join("");
@@ -1161,11 +1493,11 @@
     state.hudTargets.innerHTML = state.targets
       .map((target) => {
         const item = ITEM_BY_ID[target.kind] || ITEM_DEFS[0];
-        const remaining = Math.max(0, Math.round(Number(target.remaining) || 0));
+        const display = Math.max(0, Math.round(Number(target.displayRemaining ?? target.remaining) || 0));
         return `
           <div class="match-game__target-item" data-match-target-kind="${item.id}">
             <img class="match-game__target-icon" src="${item.src}" alt="" aria-hidden="true" draggable="false" />
-            <span class="match-game__target-count">${remaining}</span>
+            <span class="match-game__target-count">${display}</span>
           </div>
         `;
       })
@@ -1173,7 +1505,7 @@
   }
 
   function getLevelTargetsMarkup() {
-    return LEVEL_TARGETS.map((target) => {
+    return (getCurrentLevelConfig().targets || []).map((target) => {
       const item = ITEM_BY_ID[target.kind] || ITEM_DEFS[0];
       const count = Math.max(0, Math.round(Number(target.count) || 0));
       return `
@@ -1205,7 +1537,7 @@
   }
 
   function resetLevelHud() {
-    state.movesLeft = LEVEL_MOVES;
+    state.movesLeft = Math.max(1, Math.round(Number(getCurrentLevelConfig().moves) || 1));
     state.targets = createLevelTargets();
     renderHud();
   }
@@ -1217,14 +1549,27 @@
 
   function applyTargetClears(cells) {
     if (!Array.isArray(cells) || !cells.length || !state.targets.length) return;
-    let changed = false;
     cells.forEach((cell) => {
       const target = state.targets.find((item) => item.kind === cell?.kind && item.remaining > 0);
       if (!target) return;
       target.remaining = Math.max(0, target.remaining - 1);
-      changed = true;
     });
-    if (changed) renderHud();
+    // НЕ перерисовываем — displayRemaining уменьшается по мере прилёта мишек
+  }
+
+  function applyTargetKindClears(kind, count = 1) {
+    const target = state.targets.find((item) => item.kind === kind && item.remaining > 0);
+    if (!target) return;
+    target.remaining = Math.max(0, target.remaining - Math.max(1, Math.round(Number(count) || 1)));
+  }
+
+  function decrementTargetDisplay(kind) {
+    const target = state.targets.find((item) => item.kind === kind);
+    if (!target) return;
+    const next = Math.max(0, Math.round(Number(target.displayRemaining ?? target.remaining) || 0) - 1);
+    target.displayRemaining = next;
+    const countEl = state.hudTargets?.querySelector?.(`[data-match-target-kind="${kind}"] .match-game__target-count`);
+    if (countEl) countEl.textContent = String(next);
   }
 
   function areTargetsComplete() {
@@ -1259,11 +1604,11 @@
 
   function animateTargetCollect(cells, options = {}) {
     if (!state.boardEl || !state.hudTargets) return;
-    const hits = Array.isArray(options.hits) ? options.hits : getTargetHits(cells);
+    const hits = filterTutorialVisualCells(Array.isArray(options.hits) ? options.hits : getTargetHits(cells));
     if (!hits.length) return;
 
     hits.forEach((cell, index) => {
-      const tile = getTileEl(cell.row, cell.col);
+      const tile = getTileEl(cell.row, cell.col) || getBlockerEl(cell.row, cell.col);
       const target = state.hudTargets.querySelector?.(`[data-match-target-kind="${cell.kind}"] .match-game__target-icon`);
       const item = ITEM_BY_ID[cell.kind];
       if (!tile || !target || !item) return;
@@ -1276,11 +1621,10 @@
       const startY = tileRect.top + tileRect.height / 2;
       const endX = targetRect.left + targetRect.width / 2;
       const endY = targetRect.top + targetRect.height / 2;
-      const distance = Math.hypot(endX - startX, endY - startY);
-      const liftY = -Math.max(12, Math.min(26, tileRect.height * 0.34));
-      const midX = startX + (endX - startX) * 0.56 + randomFloat(-14, 14);
-      const midY = Math.min(startY, endY) - Math.max(42, Math.min(94, distance * 0.2));
-      const size = Math.max(24, Math.min(tileRect.width, tileRect.height) * 0.76);
+      const dx = endX - startX;
+      const dy = endY - startY;
+      const distance = Math.hypot(dx, dy);
+      const size = Math.max(28, Math.min(tileRect.width, tileRect.height) * 0.82);
       const flyer = document.createElement("img");
       flyer.className = "match-target-flyer";
       flyer.src = item.src;
@@ -1292,73 +1636,105 @@
       flyer.style.height = `${size}px`;
       document.body.appendChild(flyer);
 
-      const delay = Math.min(220, index * 38);
-      const animation = flyer.animate(
-        [
-          {
-            transform: "translate(-50%, -50%) scale(.82)",
-            opacity: 0,
-            filter: "drop-shadow(0 6px 8px rgba(0,0,0,.16))",
-            offset: 0
-          },
-          {
-            transform: `translate(-50%, -50%) translate(${randomFloat(-4, 4).toFixed(1)}px, ${liftY.toFixed(1)}px) scale(1.08)`,
-            opacity: 1,
-            filter: "drop-shadow(0 9px 12px rgba(255,231,122,.38))",
-            offset: 0.16
-          },
-          {
-            transform: `translate(-50%, -50%) translate(${(midX - startX).toFixed(1)}px, ${(midY - startY).toFixed(1)}px) scale(.94)`,
-            opacity: 1,
-            filter: "drop-shadow(0 10px 14px rgba(255,231,122,.42))",
-            offset: 0.7
-          },
-          {
-            transform: `translate(-50%, -50%) translate(${(endX - startX).toFixed(1)}px, ${(endY - startY).toFixed(1)}px) scale(.42)`,
-            opacity: 0.16,
-            filter: "drop-shadow(0 0 16px rgba(255,241,170,.85))"
-          }
-        ],
-        {
-          duration: Math.max(620, Math.min(840, distance * 1.35)),
-          delay,
-          easing: "cubic-bezier(.22,.78,.16,1)",
-          fill: "forwards"
-        }
-      );
+      // Параметры красивой дуги: подъём над стартом + боковой "взмах"
+      const arcHeight = Math.max(70, Math.min(180, distance * 0.42));
+      const lateralSign = dx >= 0 ? 1 : -1;
+      const lateralSwing = Math.max(18, Math.min(70, distance * 0.18)) * lateralSign;
+      const jitterX = randomFloat(-6, 6);
+      const jitterY = randomFloat(-4, 4);
+
+      // Контрольная точка квадратичной кривой Безье P0 -> C -> P1
+      const ctrlX = startX + dx * 0.5 + lateralSwing + jitterX;
+      const ctrlY = Math.min(startY, endY) - arcHeight + jitterY;
+
+      // Сэмплируем кривую — получаем плавный полёт по дуге
+      const STEPS = 22;
+      const keyframes = [];
+      for (let i = 0; i <= STEPS; i++) {
+        const t = i / STEPS;
+        const it = 1 - t;
+        const x = it * it * startX + 2 * it * t * ctrlX + t * t * endX;
+        const y = it * it * startY + 2 * it * t * ctrlY + t * t * endY;
+        const tx = x - startX;
+        const ty = y - startY;
+
+        // касательная — лёгкий наклон по траектории
+        const tanX = 2 * it * (ctrlX - startX) + 2 * t * (endX - ctrlX);
+        const tanY = 2 * it * (ctrlY - startY) + 2 * t * (endY - ctrlY);
+        const angle = Math.atan2(tanY, tanX) * (180 / Math.PI);
+        const tilt = Math.max(-14, Math.min(14, angle * 0.18));
+
+        // масштаб: появление -> небольшой "пуф" -> уверенный полёт -> сжатие у цели
+        let scale;
+        if (t < 0.12) scale = 0.7 + (t / 0.12) * 0.5;
+        else if (t < 0.28) scale = 1.20 - ((t - 0.12) / 0.16) * 0.16;
+        else if (t < 0.82) scale = 1.04 - ((t - 0.28) / 0.54) * 0.06;
+        else scale = 0.98 - ((t - 0.82) / 0.18) * 0.46;
+
+        // прозрачность: быстрый fade-in, держим, мягко гаснем у самой цели
+        let opacity;
+        if (t < 0.1) opacity = t / 0.1;
+        else if (t < 0.9) opacity = 1;
+        else opacity = 1 - ((t - 0.9) / 0.1) * 0.55;
+
+        const glow = 0.25 + t * 0.65;
+        const shadowY = 6 + t * 6;
+        const filter = `drop-shadow(0 ${shadowY.toFixed(1)}px ${(10 + t * 8).toFixed(1)}px rgba(40,6,22,${(0.22 - t * 0.14).toFixed(2)})) drop-shadow(0 0 ${(8 + t * 18).toFixed(1)}px rgba(255,232,118,${glow.toFixed(2)}))`;
+
+        keyframes.push({
+          offset: t,
+          transform: `translate(-50%, -50%) translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`,
+          opacity: opacity.toFixed(3),
+          filter
+        });
+      }
+
+      const delay = Math.min(360, index * 70);
+      const duration = Math.max(950, Math.min(1450, 700 + distance * 1.05));
+      const animation = flyer.animate(keyframes, {
+        duration,
+        delay,
+        easing: "cubic-bezier(.45,.05,.25,1)",
+        fill: "forwards"
+      });
       animation.onfinish = () => {
         flyer.remove();
+        decrementTargetDisplay(cell.kind);
         pulseTarget(cell.kind);
       };
     });
   }
 
-  function explodeBombArea(seed, clearSet, processedBombs) {
+  function explodeSpecialAreas(seed, clearSet, processedSpecials) {
     const detonations = [];
     const queue = Array.isArray(seed) ? seed.slice() : [seed];
     while (queue.length) {
       const node = queue.pop();
       if (!node || !inBounds(node.row, node.col)) continue;
-      const bombKey = cellKey(node.row, node.col);
-      if (processedBombs.has(bombKey)) continue;
+      const specialKey = cellKey(node.row, node.col);
+      if (processedSpecials.has(specialKey)) continue;
 
-      const bombCell = state.board[node.row]?.[node.col];
-      if (!isBombKind(bombCell?.kind)) continue;
-      processedBombs.add(bombKey);
-      playBoomOverlay(getBombBlastCells(node.row, node.col));
+      const specialCell = state.board[node.row]?.[node.col];
+      if (!isSpecialKind(specialCell?.kind)) continue;
+      processedSpecials.add(specialKey);
 
-      const blastCells = getBombBlastCells(node.row, node.col);
-      detonations.push({ row: node.row, col: node.col, cells: blastCells });
+      const blastCells = getBlastCellsForKind(specialCell.kind, node.row, node.col);
+      if (isBombKind(specialCell.kind)) playBoomOverlay(blastCells);
+      detonations.push({ row: node.row, col: node.col, kind: specialCell.kind, cells: blastCells });
       for (const point of blastCells) {
         const row = point.row;
         const col = point.col;
         const key = cellKey(row, col);
-          clearSet.add(key);
-          const candidate = state.board[row]?.[col];
-          if (isBombKind(candidate?.kind) && !processedBombs.has(key)) queue.push({ row, col });
+        clearSet.add(key);
+        const candidate = state.board[row]?.[col];
+        if (isSpecialKind(candidate?.kind) && !processedSpecials.has(key)) queue.push({ row, col });
       }
     }
     return detonations;
+  }
+
+  function getBlastCellsForKind(kind, row, col) {
+    return isDynamiteKind(kind) ? getDynamiteBlastCells(row, col) : getBombBlastCells(row, col);
   }
 
   function getBombBlastCells(row, col) {
@@ -1368,6 +1744,23 @@
         if (!inBounds(r, c)) continue;
         out.push({ row: r, col: c });
       }
+    }
+    return out;
+  }
+
+  function getDynamiteBlastCells(row, col) {
+    const out = [{ row, col }];
+    const maxDistance = Math.max(BOARD_ROWS, BOARD_COLS);
+    for (let distance = 1; distance < maxDistance; distance += 1) {
+      const points = [
+        { row: row - distance, col },
+        { row: row + distance, col },
+        { row, col: col - distance },
+        { row, col: col + distance }
+      ];
+      points.forEach((point) => {
+        if (inBounds(point.row, point.col)) out.push(point);
+      });
     }
     return out;
   }
@@ -1389,7 +1782,7 @@
     candidates.forEach((cell) => {
       if (!inBounds(cell?.row, cell?.col)) return;
       const tile = state.board[cell.row]?.[cell.col];
-      if (!tile || isBombKind(tile.kind)) return;
+      if (!tile || isSpecialKind(tile.kind)) return;
       const prev = byCol.get(cell.col);
       if (!prev || cell.row < prev.row) {
         byCol.set(cell.col, { row: cell.row, col: cell.col });
@@ -1398,8 +1791,8 @@
     return Array.from(byCol.values()).sort((a, b) => a.col - b.col);
   }
 
-  function spawnBombsFromTop(candidates = [], preferredCols = []) {
-    if (!candidates.length || !preferredCols.length) return 0;
+  function spawnSpecialsFromTop(candidates = [], preferredItems = []) {
+    if (!candidates.length || !preferredItems.length) return 0;
     const topCells = collectTopSpawnCells(candidates);
     if (!topCells.length) return 0;
 
@@ -1414,12 +1807,14 @@
       return topCells.find((cell) => !usedCols.has(cell.col)) || null;
     };
 
-    preferredCols.forEach((col) => {
+    preferredItems.forEach((item) => {
+      const col = Number(item?.col);
+      const kind = isDynamiteKind(item?.kind) ? DYNAMITE_ITEM.id : BOMB_ITEM.id;
       if (!Number.isInteger(col) || col < 0 || col >= BOARD_COLS) return;
       const pick = takeCell(col);
       if (!pick) return;
       usedCols.add(pick.col);
-      state.board[pick.row][pick.col].kind = BOMB_ITEM.id;
+      state.board[pick.row][pick.col].kind = kind;
       spawned += 1;
     });
 
@@ -1440,9 +1835,11 @@
     const created = [];
     const dropMap = Object.create(null);
 
-    for (let col = 0; col < BOARD_COLS; col += 1) {
-      let writeRow = BOARD_ROWS - 1;
-      for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+    const collapseSegment = (col, topRow, bottomRow) => {
+      if (bottomRow < topRow) return;
+      let writeRow = bottomRow;
+
+      for (let row = bottomRow; row >= topRow; row -= 1) {
         const cell = state.board[row][col];
         if (!cell) continue;
         if (writeRow !== row) {
@@ -1456,12 +1853,24 @@
         writeRow -= 1;
       }
 
-      while (writeRow >= 0) {
+      while (writeRow >= topRow) {
         state.board[writeRow][col] = createCell();
         created.push({ row: writeRow, col });
-        dropMap[cellKey(writeRow, col)] = writeRow + 2;
+        dropMap[cellKey(writeRow, col)] = writeRow - topRow + 2;
         writeRow -= 1;
       }
+    };
+
+    for (let col = 0; col < BOARD_COLS; col += 1) {
+      let segmentBottom = BOARD_ROWS - 1;
+      for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+        if (hasBlocker(row, col)) {
+          state.board[row][col] = null;
+          collapseSegment(col, row + 1, segmentBottom);
+          segmentBottom = row - 1;
+        }
+      }
+      collapseSegment(col, 0, segmentBottom);
     }
 
     return { created, dropMap };
@@ -1546,7 +1955,7 @@
 
   function playBoomOverlay(cells) {
     if (!state.particlesEl || !state.boardEl) return;
-    const list = Array.isArray(cells) ? cells.filter(Boolean) : [];
+    const list = filterTutorialVisualCells(Array.isArray(cells) ? cells.filter(Boolean) : []);
     if (!list.length) return;
 
     const boardRect = state.boardEl.getBoundingClientRect();
@@ -1582,6 +1991,120 @@
     );
   }
 
+  async function playBombComboAnimation(a, b) {
+    if (!state.particlesEl || !state.boardEl) return;
+    const aEl = getTileEl(a.row, a.col);
+    const bEl = getTileEl(b.row, b.col);
+    if (!aEl || !bEl) return;
+
+    const boardRect = state.boardEl.getBoundingClientRect();
+    const aRect = aEl.getBoundingClientRect();
+    const bRect = bEl.getBoundingClientRect();
+    if (!boardRect.width || !aRect.width || !bRect.width) return;
+
+    const makeGhost = (rect, side) => {
+      const ghost = document.createElement("img");
+      ghost.className = `match-bomb-combo__bomb match-bomb-combo__bomb--${side}`;
+      ghost.src = BOMB_ITEM.src;
+      ghost.alt = "";
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.style.left = `${rect.left - boardRect.left + rect.width / 2}px`;
+      ghost.style.top = `${rect.top - boardRect.top + rect.height / 2}px`;
+      ghost.style.width = `${Math.max(aRect.width, bRect.width) * 1.08}px`;
+      ghost.style.height = `${Math.max(aRect.height, bRect.height) * 1.08}px`;
+      state.particlesEl.appendChild(ghost);
+      return ghost;
+    };
+
+    aEl.style.opacity = "0";
+    bEl.style.opacity = "0";
+    const aGhost = makeGhost(aRect, "a");
+    const bGhost = makeGhost(bRect, "b");
+    const dx = (bRect.left + bRect.width / 2) - (aRect.left + aRect.width / 2);
+    const dy = (bRect.top + bRect.height / 2) - (aRect.top + aRect.height / 2);
+    aGhost.style.setProperty("--combo-x", `${dx * 0.5}px`);
+    aGhost.style.setProperty("--combo-y", `${dy * 0.5}px`);
+    bGhost.style.setProperty("--combo-x", `${dx * -0.5}px`);
+    bGhost.style.setProperty("--combo-y", `${dy * -0.5}px`);
+    await wait(860);
+    aGhost.remove();
+    bGhost.remove();
+    aEl.style.opacity = "";
+    bEl.style.opacity = "";
+  }
+
+  function getAllBoardCells() {
+    const cells = [];
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        const cell = state.board[row]?.[col];
+        if (cell) cells.push({ row, col, kind: cell.kind });
+      }
+    }
+    return cells;
+  }
+
+  function destroyAllBlockers() {
+    const destroyed = [];
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        const blocker = getBlocker(row, col);
+        if (!blocker) continue;
+        const cell = { row, col, kind: WOOD_BLOCKER_ITEM.id, destroyed: true };
+        destroyed.push(cell);
+        const el = getBlockerEl(row, col);
+        if (el) {
+          el.classList.remove("is-hit");
+          void el.offsetWidth;
+          el.classList.add("is-breaking");
+        }
+        state.blockers[row][col] = null;
+        state.board[row][col] = null;
+      }
+    }
+    if (destroyed.length) spawnBlockerFragments(destroyed);
+    return destroyed;
+  }
+
+  async function resolveBombBombCombo(a, b) {
+    const allPositions = [];
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) allPositions.push({ row, col });
+    }
+
+    await playBombComboAnimation(a, b);
+    playBoomOverlay(allPositions);
+    if (state.boardEl) {
+      state.boardEl.classList.remove("is-epic-blast");
+      void state.boardEl.offsetWidth;
+      state.boardEl.classList.add("is-epic-blast");
+      window.setTimeout(() => state.boardEl?.classList?.remove("is-epic-blast"), 620);
+    }
+
+    const cellsToClear = getAllBoardCells();
+    const targetHits = getTargetHits(cellsToClear);
+    const targetHitKeys = new Set(targetHits.map((cell) => cellKey(cell.row, cell.col)));
+    markTilesAsClearing(cellsToClear, targetHitKeys);
+    animateTargetCollect(targetHits, { hits: targetHits });
+    spawnFragments(cellsToClear.filter((cell) => !targetHitKeys.has(cellKey(cell.row, cell.col))));
+    const blockerTargetHits = destroyAllBlockers().filter((cell) =>
+      state.targets.some((target) => target.kind === cell.kind && target.remaining > 0)
+    );
+    animateTargetCollect(blockerTargetHits, { hits: blockerTargetHits });
+    applyTargetClears(cellsToClear);
+    if (blockerTargetHits.length) applyTargetKindClears(WOOD_BLOCKER_ITEM.id, blockerTargetHits.length);
+    if (areTargetsComplete()) state.levelComplete = true;
+    await wait(360);
+
+    cellsToClear.forEach((cell) => {
+      state.board[cell.row][cell.col] = null;
+    });
+    const { dropMap } = collapseAndRefill();
+    renderBoard({ dropMap });
+    await wait(DROP_ANIMATION_MS);
+    return true;
+  }
+
   function spawnBombBurstFragments(detonations) {
     if (!state.particlesEl || !state.boardEl) return;
     const bursts = Array.isArray(detonations)
@@ -1611,7 +2134,7 @@
         const originY = cell.row * cellH + cellH / 2;
         const radialX = originX - centerX;
         const radialY = originY - centerY;
-        const pieces = isBombKind(source?.kind) ? 7 : 4;
+        const pieces = isSpecialKind(source?.kind) ? 7 : 4;
 
         for (let i = 0; i < pieces; i += 1) {
           const fragment = document.createElement("span");
@@ -1650,6 +2173,7 @@
   }
 
   function spawnFragments(cells) {
+    cells = filterTutorialVisualCells(cells);
     if (!state.particlesEl || !state.boardEl || !cells.length) return;
 
     const boardRect = state.boardEl.getBoundingClientRect();
@@ -1706,6 +2230,123 @@
     });
   }
 
+  function spawnBlockerFragments(cells) {
+    cells = filterTutorialVisualCells(cells);
+    if (!state.particlesEl || !state.boardEl || !cells.length) return;
+
+    const boardRect = state.boardEl.getBoundingClientRect();
+    if (!boardRect.width || !boardRect.height) return;
+
+    const cellW = boardRect.width / BOARD_COLS;
+    const cellH = boardRect.height / BOARD_ROWS;
+    const fragSize = Math.max(6, Math.floor(Math.min(cellW, cellH) * 0.26));
+    const pieceCols = 3;
+    const pieceRows = 3;
+
+    cells.forEach((cell) => {
+      const originX = cell.col * cellW + cellW / 2;
+      const originY = cell.row * cellH + cellH / 2;
+      const pieces = cell.destroyed ? 12 : 7;
+
+      for (let i = 0; i < pieces; i += 1) {
+        const fragment = document.createElement("span");
+        fragment.className = "match-fragment match-fragment--wood";
+        fragment.style.left = `${originX + randomFloat(-cellW * 0.18, cellW * 0.18)}px`;
+        fragment.style.top = `${originY + randomFloat(-cellH * 0.18, cellH * 0.18)}px`;
+        fragment.style.width = `${fragSize}px`;
+        fragment.style.height = `${fragSize}px`;
+        fragment.style.backgroundImage = `url("${cell.destroyed ? WOOD_BLOCKER_ITEM.damagedSrc : WOOD_BLOCKER_ITEM.src}")`;
+        fragment.style.backgroundSize = `${fragSize * pieceCols}px ${fragSize * pieceRows}px`;
+        fragment.style.backgroundPosition = `${-Math.floor(Math.random() * pieceCols) * fragSize}px ${-Math.floor(
+          Math.random() * pieceRows
+        ) * fragSize}px`;
+
+        state.particlesEl.appendChild(fragment);
+        animateFragment(fragment, {
+          delayMs: randomFloat(0, 38),
+          durationMs: randomFloat(720, 1060),
+          endX: randomFloat(-cellW * 0.95, cellW * 0.95),
+          endY: randomFloat(cellH * 1.1, cellH * 2.7),
+          initialVy: randomFloat(12, cellH * 0.7),
+          swayAmp: randomFloat(cellW * 0.04, cellW * 0.18),
+          swayCycles: randomFloat(0.7, 1.35),
+          swayPhase: randomFloat(-0.5, 0.5),
+          rotateEnd: randomFloat(-250, 250),
+          scaleStart: randomFloat(0.55, 0.78),
+          scalePeak: randomFloat(0.9, 1.12),
+          scaleEnd: randomFloat(0.44, 0.76)
+        });
+      }
+    });
+  }
+
+  function collectBlockerHitKeys(cellsToClear = [], detonations = []) {
+    const hitKeys = new Set();
+
+    cellsToClear.forEach((cell) => {
+      const neighbors = [
+        { row: cell.row - 1, col: cell.col },
+        { row: cell.row + 1, col: cell.col },
+        { row: cell.row, col: cell.col - 1 },
+        { row: cell.row, col: cell.col + 1 }
+      ];
+      neighbors.forEach((point) => {
+        if (inBounds(point.row, point.col) && hasBlocker(point.row, point.col)) {
+          hitKeys.add(cellKey(point.row, point.col));
+        }
+      });
+    });
+
+    detonations.forEach((detonation) => {
+      (detonation.cells || []).forEach((cell) => {
+        if (inBounds(cell?.row, cell?.col) && hasBlocker(cell.row, cell.col)) {
+          hitKeys.add(cellKey(cell.row, cell.col));
+        }
+      });
+    });
+
+    return hitKeys;
+  }
+
+  function applyBlockerHits(hitKeys) {
+    const destroyed = [];
+    const damaged = [];
+    if (!hitKeys?.size) return { destroyed, damaged };
+
+    hitKeys.forEach((key) => {
+      const pos = parseCellKey(key);
+      if (!inBounds(pos.row, pos.col)) return;
+      const blocker = getBlocker(pos.row, pos.col);
+      if (!blocker) return;
+
+      blocker.hp = Math.max(0, Math.round(Number(blocker.hp) || 0) - 1);
+      const cell = { row: pos.row, col: pos.col, kind: WOOD_BLOCKER_ITEM.id, destroyed: blocker.hp <= 0 };
+      const el = getBlockerEl(pos.row, pos.col);
+      if (el) {
+        el.classList.remove("is-hit");
+        void el.offsetWidth;
+        el.classList.add(cell.destroyed ? "is-breaking" : "is-hit");
+      }
+
+      if (cell.destroyed) {
+        destroyed.push(cell);
+        state.blockers[pos.row][pos.col] = null;
+        state.board[pos.row][pos.col] = null;
+      } else {
+        damaged.push(cell);
+        window.setTimeout(() => {
+          const current = getBlockerEl(pos.row, pos.col);
+          const img = current?.querySelector?.("img");
+          if (img) img.src = WOOD_BLOCKER_ITEM.damagedSrc;
+          current?.classList?.add("is-damaged");
+        }, 120);
+      }
+    });
+
+    spawnBlockerFragments([...damaged, ...destroyed]);
+    return { destroyed, damaged };
+  }
+
   function markTilesAsClearing(cells, targetHitKeys = new Set()) {
     cells.forEach((cell) => {
       const tileEl = getTileEl(cell.row, cell.col);
@@ -1718,6 +2359,39 @@
     });
   }
 
+  async function animateDynamiteClears(detonations, targetHitKeys = new Set()) {
+    const sequence = [];
+    const seen = new Set();
+    const dynamiteBursts = Array.isArray(detonations)
+      ? detonations.filter((item) => isDynamiteKind(item?.kind) && Array.isArray(item.cells))
+      : [];
+
+    dynamiteBursts.forEach((burst) => {
+      filterTutorialVisualCells(burst.cells).forEach((cell) => {
+        if (!inBounds(cell?.row, cell?.col)) return;
+        const key = cellKey(cell.row, cell.col);
+        if (seen.has(key)) return;
+        seen.add(key);
+        sequence.push({ row: cell.row, col: cell.col });
+      });
+    });
+
+    for (const cell of sequence) {
+      const tileEl = getTileEl(cell.row, cell.col);
+      if (tileEl) {
+        tileEl.classList.add(targetHitKeys.has(cellKey(cell.row, cell.col)) ? "is-target-collecting" : "is-clearing");
+      }
+      playBoomOverlay([cell]);
+      if (!targetHitKeys.has(cellKey(cell.row, cell.col))) {
+        const source = state.board[cell.row]?.[cell.col];
+        if (source) spawnFragments([{ row: cell.row, col: cell.col, kind: source.kind }]);
+      }
+      await wait(DYNAMITE_STEP_MS);
+    }
+
+    return seen;
+  }
+
   function shakeTiles(cells) {
     cells.forEach((cell) => {
       const tileEl = getTileEl(cell.row, cell.col);
@@ -1727,6 +2401,155 @@
       tileEl.classList.add("is-invalid");
       setTimeout(() => tileEl.classList.remove("is-invalid"), 260);
     });
+  }
+
+  function sameCell(a, b) {
+    return Number(a?.row) === Number(b?.row) && Number(a?.col) === Number(b?.col);
+  }
+
+  function isTutorialCell(row, col) {
+    const tutorial = state.tutorial;
+    if (!tutorial) return true;
+    return Array.isArray(tutorial.cells) && tutorial.cells.some((cell) => sameCell(cell, { row, col }));
+  }
+
+  function isTutorialSwapAllowed(a, b) {
+    if (!state.tutorial) return true;
+    let required = null;
+    if (state.tutorial.type === "goal") required = LEVEL_ONE_TUTORIAL_SWAP;
+    if (state.tutorial.type === "wood") required = LEVEL_TWO_WOOD_TUTORIAL_SWAP;
+    if (state.tutorial.type === "dynamite") required = LEVEL_TWO_DYNAMITE_TUTORIAL_SWAP;
+    if (!required) return true;
+    return (sameCell(a, required.a) && sameCell(b, required.b)) || (sameCell(a, required.b) && sameCell(b, required.a));
+  }
+
+  function isTutorialSpecialTapAllowed(row, col) {
+    if (!state.tutorial) return true;
+    if (state.tutorial.type === "bomb") return isTutorialCell(row, col) && isBombKind(state.board[row]?.[col]?.kind);
+    if (state.tutorial.type === "dynamiteTap") return isTutorialCell(row, col) && isDynamiteKind(state.board[row]?.[col]?.kind);
+    return true;
+  }
+
+  function completeTutorialAction(type) {
+    if (!state.tutorial || state.tutorial.type !== type) return;
+    hideTutorial();
+  }
+
+  function showTutorial(type, cells) {
+    if (state.tutorialSuppressed || state.levelComplete || state.levelFailed) return;
+    const validCells = (Array.isArray(cells) ? cells : []).filter((cell) => inBounds(cell?.row, cell?.col));
+    if (!validCells.length) return;
+    state.tutorial = {
+      type,
+      cells: validCells,
+      text: getTutorialText(type)
+    };
+    renderBoard();
+  }
+
+  function hideTutorial() {
+    if (!state.tutorial) return;
+    state.tutorial = null;
+    renderBoard();
+    maybeShowBombTutorial();
+  }
+
+  function maybeShowGoalTutorial({ delay = 360, onShow = null } = {}) {
+    if (!isFirstLevel() || state.tutorialSeenGoal || state.tutorialSuppressed) return;
+    state.tutorialSeenGoal = true;
+    window.setTimeout(() => {
+      if (state.game?.hidden || !isFirstLevel()) return;
+      showTutorial("goal", LEVEL_ONE_TUTORIAL_CELLS);
+      if (typeof onShow === "function") onShow();
+    }, delay);
+  }
+
+  function maybeShowWoodTutorial({ delay = 360, onShow = null } = {}) {
+    if (!isSecondLevel() || state.tutorialSeenWood || state.tutorialSuppressed) return;
+    state.tutorialSeenWood = true;
+    window.setTimeout(() => {
+      if (state.game?.hidden || !isSecondLevel()) return;
+      showTutorial("wood", LEVEL_TWO_WOOD_TUTORIAL_CELLS);
+      if (typeof onShow === "function") onShow();
+    }, delay);
+  }
+
+  function findBombCell() {
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        if (isBombKind(state.board[row]?.[col]?.kind)) return { row, col };
+      }
+    }
+    return null;
+  }
+
+  function maybeShowBombTutorial() {
+    if (!isFirstLevel() || state.tutorialSeenBomb || state.tutorialSuppressed || state.tutorial) return;
+    const bombCell = findBombCell();
+    if (!bombCell) return;
+    state.tutorialSeenBomb = true;
+    window.setTimeout(() => {
+      if (state.game?.hidden || !isFirstLevel()) return;
+      showTutorial("bomb", [bombCell]);
+    }, 280);
+  }
+
+  function maybeShowDynamiteTapTutorial() {
+    if (!isSecondLevel() || state.tutorialSeenDynamiteTap || state.tutorialSuppressed || state.tutorial) return;
+    const dynamiteCell = findDynamiteCell();
+    if (!dynamiteCell) return;
+    state.tutorialSeenDynamiteTap = true;
+    window.setTimeout(() => {
+      if (state.game?.hidden || !isSecondLevel()) return;
+      showTutorial("dynamiteTap", [dynamiteCell]);
+    }, 280);
+  }
+
+  function findDynamiteCell() {
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        if (isDynamiteKind(state.board[row]?.[col]?.kind)) return { row, col };
+      }
+    }
+    return null;
+  }
+
+  function startLevelTwoDynamiteTutorial() {
+    if (!isSecondLevel() || state.tutorialSeenDynamite || state.tutorialSuppressed) return;
+    state.tutorialSeenDynamite = true;
+    forceLevelTwoDynamiteTutorialMove();
+    state.selected = null;
+    renderBoard();
+    window.setTimeout(() => {
+      if (state.game?.hidden || !isSecondLevel()) return;
+      showTutorial("dynamite", LEVEL_TWO_DYNAMITE_TUTORIAL_CELLS);
+    }, 220);
+  }
+
+  async function animateBlockedSwap(tileCell, blockerCell) {
+    const tileEl = getTileEl(tileCell.row, tileCell.col);
+    const blockerEl = getBlockerEl(blockerCell.row, blockerCell.col);
+    if (!tileEl) return;
+
+    const dx = blockerCell.col - tileCell.col;
+    const dy = blockerCell.row - tileCell.row;
+    tileEl.style.setProperty("--bump-x", `${dx * 34}%`);
+    tileEl.style.setProperty("--bump-y", `${dy * 34}%`);
+    tileEl.classList.remove("is-blocked-bump");
+    void tileEl.offsetWidth;
+    tileEl.classList.add("is-blocked-bump");
+
+    if (blockerEl) {
+      blockerEl.style.setProperty("--blocker-bump-x", `${dx * 5}%`);
+      blockerEl.style.setProperty("--blocker-bump-y", `${dy * 5}%`);
+      blockerEl.classList.remove("is-blocked-impact");
+      void blockerEl.offsetWidth;
+      blockerEl.classList.add("is-blocked-impact");
+    }
+
+    await wait(230);
+    tileEl.classList.remove("is-blocked-bump");
+    blockerEl?.classList?.remove("is-blocked-impact");
   }
 
   async function animateSwapTiles(a, b) {
@@ -1780,9 +2603,12 @@
     }
   }
 
-  async function resolveBoard({ bombSeeds = [], swapPair = null } = {}) {
+  async function resolveBoard({ specialSeeds = [], bombSeeds = [], swapPair = null } = {}) {
     let resolved = false;
-    let pendingBombSeeds = Array.isArray(bombSeeds) ? bombSeeds.slice() : [];
+    let pendingSpecialSeeds = [
+      ...(Array.isArray(specialSeeds) ? specialSeeds : []),
+      ...(Array.isArray(bombSeeds) ? bombSeeds : [])
+    ];
 
     while (true) {
       const clusters = findMatchClusters(state.board);
@@ -1793,28 +2619,31 @@
         cluster.cells.forEach((cell) => clearSet.add(cellKey(cell.row, cell.col)));
       });
 
-      const matchBombSeeds = [];
+      const matchSpecialSeeds = [];
       clearSet.forEach((key) => {
         const pos = parseCellKey(key);
         const cell = state.board[pos.row]?.[pos.col];
-        if (isBombKind(cell?.kind)) matchBombSeeds.push(pos);
+        if (isSpecialKind(cell?.kind)) matchSpecialSeeds.push(pos);
       });
 
-      if (!hasMatches && !pendingBombSeeds.length && !matchBombSeeds.length) break;
+      if (!hasMatches && !pendingSpecialSeeds.length && !matchSpecialSeeds.length) break;
       resolved = true;
 
-      const explosionSeeds = [...pendingBombSeeds, ...matchBombSeeds];
-      const processedBombs = new Set();
-      const detonations = explosionSeeds.length ? explodeBombArea(explosionSeeds, clearSet, processedBombs) : [];
+      const explosionSeeds = [...pendingSpecialSeeds, ...matchSpecialSeeds];
+      const processedSpecials = new Set();
+      const detonations = explosionSeeds.length ? explodeSpecialAreas(explosionSeeds, clearSet, processedSpecials) : [];
 
       const canCreateBomb = explosionSeeds.length === 0;
-      const bombDropCols = [];
+      const specialDrops = [];
       if (canCreateBomb) {
         clusters.forEach((cluster) => {
           if (cluster.cells.length < 4) return;
           const col = pickBombDropColumn(cluster, swapPair);
           if (Number.isInteger(col) && col >= 0 && col < BOARD_COLS) {
-            bombDropCols.push(col);
+            specialDrops.push({
+              col,
+              kind: cluster.cells.length >= 5 && isDynamiteUnlocked() ? DYNAMITE_ITEM.id : BOMB_ITEM.id
+            });
           }
         });
       }
@@ -1830,27 +2659,38 @@
       const targetHits = getTargetHits(cellsToClear);
       const targetHitKeys = new Set(targetHits.map((cell) => cellKey(cell.row, cell.col)));
       const fragmentCells = cellsToClear.filter((cell) => !targetHitKeys.has(cellKey(cell.row, cell.col)));
+      const blockerHits = applyBlockerHits(collectBlockerHitKeys(cellsToClear, detonations));
+      const blockerTargetHits = blockerHits.destroyed.filter((cell) =>
+        state.targets.some((target) => target.kind === cell.kind && target.remaining > 0)
+      );
 
-      markTilesAsClearing(cellsToClear, targetHitKeys);
+      const dynamiteAnimatedKeys = await animateDynamiteClears(detonations, targetHitKeys);
+      markTilesAsClearing(
+        cellsToClear.filter((cell) => !dynamiteAnimatedKeys.has(cellKey(cell.row, cell.col))),
+        targetHitKeys
+      );
       animateTargetCollect(targetHits, { hits: targetHits });
-      spawnFragments(fragmentCells);
+      animateTargetCollect(blockerTargetHits, { hits: blockerTargetHits });
+      spawnFragments(fragmentCells.filter((cell) => !dynamiteAnimatedKeys.has(cellKey(cell.row, cell.col))));
       if (detonations.length) {
         spawnBombBurstFragments(detonations);
       }
       applyTargetClears(cellsToClear);
+      if (blockerTargetHits.length) applyTargetKindClears(WOOD_BLOCKER_ITEM.id, blockerTargetHits.length);
       if (areTargetsComplete()) state.levelComplete = true;
-      await wait(CLEAR_ANIMATION_MS);
+      await wait(dynamiteAnimatedKeys.size ? Math.max(CLEAR_ANIMATION_MS, 170) : CLEAR_ANIMATION_MS);
 
       cellsToClear.forEach((cell) => {
         state.board[cell.row][cell.col] = null;
       });
 
       const { created: createdCells, dropMap } = collapseAndRefill();
-      const spawnedBombs = spawnBombsFromTop(createdCells, bombDropCols);
-      if (!spawnedBombs) maybeDropRandomBomb(createdCells);
+      const spawnedSpecials = spawnSpecialsFromTop(createdCells, specialDrops);
+      if (!spawnedSpecials) maybeDropRandomBomb(createdCells);
       renderBoard({ dropMap });
+      maybeShowBombTutorial();
 
-      pendingBombSeeds = [];
+      pendingSpecialSeeds = [];
       await wait(DROP_ANIMATION_MS);
       await wait(CASCADE_DELAY_MS);
     }
@@ -1867,22 +2707,75 @@
     if (state.busy) return;
     if (state.movesLeft <= 0 || state.levelComplete) return;
     if (!inBounds(a.row, a.col) || !inBounds(b.row, b.col)) return;
+    if (state.tutorial && !isTutorialSwapAllowed(a, b)) {
+      state.selected = null;
+      renderBoard();
+      shakeTiles([a, b].filter((cell) => inBounds(cell.row, cell.col) && isTutorialCell(cell.row, cell.col)));
+      return;
+    }
+    if (hasBlocker(a.row, a.col) || hasBlocker(b.row, b.col)) {
+      const tileCell = hasBlocker(a.row, a.col) ? b : a;
+      const blockerCell = hasBlocker(a.row, a.col) ? a : b;
+      if (state.board[tileCell.row]?.[tileCell.col]) {
+        registerPlayerInteraction({ rerenderHint: true });
+        state.busy = true;
+        state.selected = null;
+        clearBoardUiState({ selected: true });
+        await animateBlockedSwap(tileCell, blockerCell);
+        state.busy = false;
+        scheduleHint();
+      }
+      return;
+    }
     if (!isAdjacent(a, b)) return;
+
+    if (isBombKind(state.board[a.row]?.[a.col]?.kind) && isBombKind(state.board[b.row]?.[b.col]?.kind)) {
+      registerPlayerInteraction();
+      state.busy = true;
+      state.selected = null;
+      clearBoardUiState({ selected: true });
+      await animateSwapTiles(a, b);
+      await resolveBombBombCombo(a, b);
+      countMove();
+      if (state.levelComplete) {
+        state.busy = false;
+        window.setTimeout(showWinPanel, 360);
+        return;
+      }
+      if (triggerLevelFailed()) {
+        return;
+      }
+      state.busy = false;
+      scheduleHint();
+      return;
+    }
 
     registerPlayerInteraction();
     state.busy = true;
     state.selected = null;
+    const activeTutorialType = state.tutorial?.type || "";
     clearBoardUiState({ selected: true });
     await animateSwapTiles(a, b);
     swapCells(state.board, a, b);
     renderBoard();
 
-    const seedBombs = [];
-    if (isBombKind(state.board[a.row]?.[a.col]?.kind)) seedBombs.push({ row: a.row, col: a.col });
-    if (isBombKind(state.board[b.row]?.[b.col]?.kind)) seedBombs.push({ row: b.row, col: b.col });
+    const seedSpecials = [];
+    if (isSpecialKind(state.board[a.row]?.[a.col]?.kind)) seedSpecials.push({ row: a.row, col: a.col });
+    if (isSpecialKind(state.board[b.row]?.[b.col]?.kind)) seedSpecials.push({ row: b.row, col: b.col });
 
-    const resolved = await resolveBoard({ bombSeeds: seedBombs, swapPair: { a, b } });
+    const resolved = await resolveBoard({ specialSeeds: seedSpecials, swapPair: { a, b } });
     if (resolved) countMove();
+    if (resolved) completeTutorialAction("goal");
+    if (resolved && activeTutorialType === "wood") {
+      completeTutorialAction("wood");
+      startLevelTwoDynamiteTutorial();
+    }
+    if (resolved && activeTutorialType === "dynamite") {
+      completeTutorialAction("dynamite");
+      maybeShowDynamiteTapTutorial();
+    }
+    if (resolved && activeTutorialType === "bomb") completeTutorialAction("bomb");
+    if (resolved && activeTutorialType === "dynamiteTap") completeTutorialAction("dynamiteTap");
     if (!resolved) {
       await wait(SWAP_REVERT_DELAY_MS);
       await animateSwapTiles(a, b);
@@ -1905,17 +2798,20 @@
     scheduleHint();
   }
 
-  async function triggerBombTap(row, col) {
+  async function triggerSpecialTap(row, col) {
     if (state.busy || !inBounds(row, col)) return;
     if (state.movesLeft <= 0 || state.levelComplete) return;
-    if (!isBombKind(state.board[row]?.[col]?.kind)) return;
+    if (!isSpecialKind(state.board[row]?.[col]?.kind)) return;
+    if (!isTutorialSpecialTapAllowed(row, col)) return;
 
     registerPlayerInteraction({ rerenderHint: true });
     state.busy = true;
     state.selected = null;
+    const activeTutorialType = state.tutorial?.type || "";
+    completeTutorialAction(activeTutorialType === "dynamiteTap" ? "dynamiteTap" : "bomb");
     renderBoard();
     await wait(30);
-    await resolveBoard({ bombSeeds: [{ row, col }] });
+    await resolveBoard({ specialSeeds: [{ row, col }] });
     countMove();
     if (state.levelComplete) {
       state.busy = false;
@@ -1931,8 +2827,10 @@
 
   function handleTileTap(row, col) {
     if (state.busy || !inBounds(row, col)) return;
-    if (isBombKind(state.board[row]?.[col]?.kind)) {
-      triggerBombTap(row, col);
+    if (hasBlocker(row, col)) return;
+    if (state.tutorial && !isTutorialCell(row, col)) return;
+    if (isSpecialKind(state.board[row]?.[col]?.kind)) {
+      triggerSpecialTap(row, col);
       return;
     }
     registerPlayerInteraction();
@@ -1965,12 +2863,13 @@
 
   function onBoardPointerDown(event) {
     if (state.busy) return;
-    const tile = event.target?.closest?.(".match-game__tile");
+    const tile = event.target?.closest?.(".match-game__tile, .match-game__blocker");
     if (!tile || !state.boardEl?.contains(tile)) return;
 
-    const row = Number(tile.getAttribute("data-row"));
-    const col = Number(tile.getAttribute("data-col"));
+    const row = Number(tile.getAttribute("data-row") ?? tile.getAttribute("data-blocker-row"));
+    const col = Number(tile.getAttribute("data-col") ?? tile.getAttribute("data-blocker-col"));
     if (!Number.isInteger(row) || !Number.isInteger(col)) return;
+    if (state.tutorial && !isTutorialCell(row, col)) return;
     registerPlayerInteraction({ rerenderHint: true });
 
     state.pointer = {
@@ -2108,6 +3007,51 @@
     closeGame();
   }
 
+  function spawnWinConfetti() {
+    const host = state.winConfetti;
+    if (!host) return;
+    host.innerHTML = "";
+    const COLORS = [
+      "#ff5c8a", "#ff3b6e", "#ffd94a", "#ffb347",
+      "#7ee36b", "#41c4ff", "#a06bff", "#ff8fc7",
+      "#ffffff", "#ffe066"
+    ];
+    const SHAPES = ["rect", "rect", "rect", "ribbon", "circle"];
+    const PIECES = 96;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < PIECES; i++) {
+      const piece = document.createElement("span");
+      const shape = SHAPES[(Math.random() * SHAPES.length) | 0];
+      piece.className = "match-win-confetti__piece";
+      const inner = document.createElement("i");
+      inner.className = `match-win-confetti__piece-inner is-${shape}`;
+      const color = COLORS[(Math.random() * COLORS.length) | 0];
+      const left = Math.random() * 100;
+      const drift = (Math.random() * 240 - 120).toFixed(1);
+      const duration = (2.8 + Math.random() * 2.6).toFixed(2);
+      const delay = (Math.random() * 1.6).toFixed(2);
+      const startRot = ((Math.random() * 360) | 0);
+      const spinA = (240 + Math.random() * 540).toFixed(0);
+      const spinB = (240 + Math.random() * 540).toFixed(0);
+      const flipDur = (0.6 + Math.random() * 0.9).toFixed(2);
+      const w = (5 + Math.random() * 7).toFixed(1);
+      const h = (8 + Math.random() * 10).toFixed(1);
+      const swayDur = (1.4 + Math.random() * 1.6).toFixed(2);
+      const swayAmp = (Math.random() * 30 + 12).toFixed(0);
+      piece.style.cssText =
+        `--left:${left}%;--drift:${drift}px;` +
+        `--dur:${duration}s;--delay:${delay}s;--rot:${startRot}deg;` +
+        `--swayDur:${swayDur}s;--swayAmp:${swayAmp}px;`;
+      inner.style.cssText =
+        `--c:${color};--w:${w}px;--h:${h}px;` +
+        `--spinA:${spinA}deg;--spinB:${spinB}deg;--flipDur:${flipDur}s;` +
+        `--delay:${delay}s;`;
+      piece.appendChild(inner);
+      frag.appendChild(piece);
+    }
+    host.appendChild(frag);
+  }
+
   function showWinPanel() {
     if (!state.winPanel || state.winPanel.hidden === false) return;
     clearHintTimer();
@@ -2120,6 +3064,7 @@
     if (state.winRewardAmount) state.winRewardAmount.textContent = String(LEVEL_REWARD);
     if (state.winContinue) state.winContinue.textContent = getContinueText();
     state.winPanel.hidden = false;
+    spawnWinConfetti();
     document.body?.classList?.add("match-level-open");
   }
 
@@ -2168,40 +3113,76 @@
       flyer.src = WILDCOIN_IMAGE;
       flyer.alt = "";
       flyer.setAttribute("aria-hidden", "true");
-      flyer.style.left = `${startX + randomFloat(-sourceRect.width * 0.08, sourceRect.width * 0.08)}px`;
-      flyer.style.top = `${startY + randomFloat(-sourceRect.height * 0.06, sourceRect.height * 0.06)}px`;
+      const sx = startX + randomFloat(-sourceRect.width * 0.08, sourceRect.width * 0.08);
+      const sy = startY + randomFloat(-sourceRect.height * 0.06, sourceRect.height * 0.06);
+      flyer.style.left = `${sx}px`;
+      flyer.style.top = `${sy}px`;
       document.body.appendChild(flyer);
 
-      const delay = i * 66;
-      const launchX = randomFloat(-14, 14);
-      const launchY = -randomFloat(18, 34);
-      const midX = startX + (endX - startX) * 0.5 + randomFloat(-24, 24);
-      const midY = Math.min(startY, endY) - Math.max(56, Math.min(118, distance * 0.22));
-      const animation = flyer.animate(
-        [
-          { transform: "translate(-50%, -50%) scale(.72)", opacity: 0, offset: 0 },
-          {
-            transform: `translate(-50%, -50%) translate(${launchX.toFixed(1)}px, ${launchY.toFixed(1)}px) scale(1.1)`,
-            opacity: 1,
-            offset: 0.18
-          },
-          {
-            transform: `translate(-50%, -50%) translate(${(midX - startX).toFixed(1)}px, ${(midY - startY).toFixed(1)}px) scale(.96)`,
-            opacity: 1,
-            offset: 0.68
-          },
-          {
-            transform: `translate(-50%, -50%) translate(${(endX - startX).toFixed(1)}px, ${(endY - startY).toFixed(1)}px) scale(.34)`,
-            opacity: 0.1
-          }
-        ],
-        {
-          duration: Math.max(760, Math.min(1040, distance * 1.1)),
-          delay,
-          easing: "cubic-bezier(.2,.78,.16,1)",
-          fill: "forwards"
-        }
-      );
+      const dx = endX - sx;
+      const dy = endY - sy;
+      const dist = Math.hypot(dx, dy);
+      // Параметры дуги: высокий красивый подъём + лёгкий боковой "взмах"
+      const arcHeight = Math.max(80, Math.min(220, dist * 0.45));
+      const lateralSign = dx >= 0 ? 1 : -1;
+      const lateralSwing = Math.max(20, Math.min(80, dist * 0.2)) * lateralSign;
+      const jitterX = randomFloat(-10, 10);
+      const jitterY = randomFloat(-6, 6);
+      const ctrlX = sx + dx * 0.5 + lateralSwing + jitterX;
+      const ctrlY = Math.min(sy, endY) - arcHeight + jitterY;
+
+      const STEPS = 22;
+      const keyframes = [];
+      for (let s = 0; s <= STEPS; s++) {
+        const t = s / STEPS;
+        const it = 1 - t;
+        const x = it * it * sx + 2 * it * t * ctrlX + t * t * endX;
+        const y = it * it * sy + 2 * it * t * ctrlY + t * t * endY;
+        const tx = x - sx;
+        const ty = y - sy;
+
+        // лёгкое вращение монеты по траектории
+        const tanX = 2 * it * (ctrlX - sx) + 2 * t * (endX - ctrlX);
+        const tanY = 2 * it * (ctrlY - sy) + 2 * t * (endY - ctrlY);
+        const angle = Math.atan2(tanY, tanX) * (180 / Math.PI);
+        const tilt = Math.max(-18, Math.min(18, angle * 0.16));
+
+        // масштаб: появление -> "пуф" -> уверенный полёт -> сжатие к балансу
+        let scale;
+        if (t < 0.12) scale = 0.62 + (t / 0.12) * 0.6;
+        else if (t < 0.28) scale = 1.22 - ((t - 0.12) / 0.16) * 0.18;
+        else if (t < 0.82) scale = 1.04 - ((t - 0.28) / 0.54) * 0.06;
+        else scale = 0.98 - ((t - 0.82) / 0.18) * 0.62;
+
+        let opacity;
+        if (t < 0.1) opacity = t / 0.1;
+        else if (t < 0.88) opacity = 1;
+        else opacity = 1 - ((t - 0.88) / 0.12) * 0.7;
+
+        // золотое свечение, нарастающее к балансу
+        const glowNear = (0.55 + t * 0.45).toFixed(2);
+        const glowFar = (0.32 + t * 0.55).toFixed(2);
+        const filter =
+          `drop-shadow(0 ${(6 + t * 4).toFixed(1)}px ${(8 + t * 6).toFixed(1)}px rgba(60,16,4,${(0.28 - t * 0.18).toFixed(2)})) ` +
+          `drop-shadow(0 0 ${(10 + t * 14).toFixed(1)}px rgba(255,221,88,${glowNear})) ` +
+          `drop-shadow(0 0 ${(20 + t * 30).toFixed(1)}px rgba(255,160,40,${glowFar}))`;
+
+        keyframes.push({
+          offset: t,
+          transform: `translate(-50%, -50%) translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`,
+          opacity: opacity.toFixed(3),
+          filter
+        });
+      }
+
+      const delay = i * 95;
+      const duration = Math.max(1050, Math.min(1600, 800 + dist * 1.05));
+      const animation = flyer.animate(keyframes, {
+        duration,
+        delay,
+        easing: "cubic-bezier(.45,.05,.25,1)",
+        fill: "forwards"
+      });
       animation.onfinish = () => {
         flyer.remove();
         completed += 1;
@@ -2215,9 +3196,11 @@
 
   function continueAfterWin() {
     const rewardRect = state.winCoin?.getBoundingClientRect?.();
+    state.currentLevelIndex = Math.min(state.currentLevelIndex + 1, LEVEL_CONFIGS.length - 1);
     if (state.winPanel) state.winPanel.hidden = true;
     document.body?.classList?.remove("match-level-open");
     closeGame();
+    syncLanguage();
     window.setTimeout(() => {
       animateRewardToBalance(rewardRect, LEVEL_REWARD, (chunk = LEVEL_REWARD) => {
         writeWildCoin(readWildCoin() + Math.max(0, Math.round(Number(chunk) || 0)));
@@ -2225,9 +3208,107 @@
     }, 120);
   }
 
-  function startGame() {
+  let _gameStarting = false;
+
+  function playLevelIntro() {
+    return new Promise((resolve) => {
+      const gameEl = state.game;
+      if (!gameEl) { resolve(); return; }
+
+      // Enter intro mode: hides board-wrap, elevates HUD above the overlay
+      gameEl.classList.add('match-game--intro');
+
+      // --- Build overlay (dark background + "Level 1" text only) ---
+      const overlay = document.createElement('div');
+      overlay.className = 'match-game__intro-overlay';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'match-game__intro-title';
+      titleEl.textContent = getLevelText();
+      overlay.appendChild(titleEl);
+
+      // Insert before other children so HUD layers sit on top (z-index: 101)
+      gameEl.insertBefore(overlay, gameEl.firstChild);
+
+      // Force reflow so CSS transitions start from the right state
+      void overlay.offsetHeight;
+
+      // ── Phase 1 (T=0): fade in dark overlay ──────────────────────
+      overlay.classList.add('is-visible');
+
+      // ── Phase 2 (T=190ms): spring-pop "Level 1" text ─────────────
+      setTimeout(() => {
+        titleEl.classList.add('is-visible');
+      }, 190);
+
+      // ── Phase 3a (T=860ms): reveal HUD container + slide in Moves panel ─
+      setTimeout(() => {
+        const hud = gameEl.querySelector('.match-game__hud');
+        if (hud) {
+          void hud.offsetWidth;
+          hud.classList.add('is-intro-entering');
+        }
+        const movesPanel = gameEl.querySelector('.match-game__hud-panel--moves');
+        if (movesPanel) {
+          void movesPanel.offsetWidth;
+          movesPanel.classList.add('is-intro-entering');
+        }
+      }, 860);
+
+      // ── Phase 3b (T=1070ms): slide in Target HUD panel ───────────
+      setTimeout(() => {
+        const targetPanel = gameEl.querySelector('.match-game__hud-panel--target');
+        if (targetPanel) {
+          void targetPanel.offsetWidth;
+          targetPanel.classList.add('is-intro-entering');
+        }
+      }, 1070);
+
+      // ── Phase 3c (T=1370ms): pop in quit/close button ────────────
+      setTimeout(() => {
+        const closeBtn = gameEl.querySelector('.match-game__close');
+        if (closeBtn) {
+          void closeBtn.offsetWidth;
+          closeBtn.classList.add('is-intro-entering');
+        }
+      }, 1370);
+
+      // ── Phase 4 (T=1880ms): fade out overlay → board will reveal ─
+      setTimeout(() => {
+        overlay.classList.remove('is-visible');
+        overlay.classList.add('is-leaving');
+      }, 1880);
+
+      // ── Phase 5 (T=2300ms): remove overlay, resolve ──────────────
+      // startGame() will then: renderBoard({ intro:true }) + remove
+      // match-game--intro → board-wrap visible → tiles rain down
+      setTimeout(() => {
+        overlay.remove();
+        resolve();
+      }, 2300);
+    });
+  }
+
+  async function startGame(options = {}) {
+    if (_gameStarting) return; // Guard: prevent multiple simultaneous calls
+    _gameStarting = true;
+
+    const requestedLevel = Number(options?.level);
+    if (Number.isInteger(requestedLevel) && requestedLevel >= 1) {
+      const levelIndex = LEVEL_CONFIGS.findIndex((item) => item.level === requestedLevel);
+      if (levelIndex >= 0) state.currentLevelIndex = levelIndex;
+    }
+
     refreshLives();
+    if (options?.admin === true && state.lives <= 0) {
+      const next = writeLives({ lives: MAX_LIVES, nextLifeAt: 0 });
+      state.lives = next.lives;
+      state.nextLifeAt = next.nextLifeAt;
+      renderLives();
+    }
+
     if (state.lives <= 0) {
+      _gameStarting = false;
       showLivesPanel("start");
       return;
     }
@@ -2243,6 +3324,14 @@
     document.body?.classList?.remove("match-level-open");
     document.body?.classList?.add("match-game-open");
     syncMatchLogo(PAGE_ID, true);
+    syncLanguage();
+
+    // Pre-initialize HUD data so panels show correct values while animating in
+    resetLevelHud();
+
+    if (!options?.instant) {
+      await playLevelIntro();
+    }
 
     clearHintTimer();
     state.selected = null;
@@ -2251,11 +3340,49 @@
     state.levelFailed = false;
     state.pointer = null;
     state.hintPair = null;
+    state.tutorial = null;
+    state.tutorialSeenGoal = false;
+    state.tutorialSeenBomb = false;
+    state.tutorialSeenWood = false;
+    state.tutorialSeenDynamite = false;
+    state.tutorialSeenDynamiteTap = false;
+    state.tutorialSuppressed = !!(options?.admin || options?.skipTutorial);
+    state.blockers = createLevelBlockers();
     state.board = createInitialBoard();
     state.particlesEl.innerHTML = "";
-    resetLevelHud();
-    renderBoard();
+    const lockUntilGoalTutorial = isFirstLevel() && !state.tutorialSuppressed;
+    const lockUntilWoodTutorial = isSecondLevel() && !state.tutorialSuppressed;
+    if (lockUntilGoalTutorial || lockUntilWoodTutorial) state.busy = true;
+    // Render board with intro-drop animation (tiles rain column-by-column)
+    renderBoard({ intro: true });
+
+    // Remove intro mode: board-wrap becomes visible, tile animations fire
+    if (state.game) {
+      state.game.classList.remove('match-game--intro');
+      state.game.querySelectorAll('.is-intro-entering').forEach((el) => {
+        el.classList.remove('is-intro-entering');
+      });
+      // Ensure HUD container is fully interactive after intro
+      const hud = state.game.querySelector('.match-game__hud');
+      if (hud) hud.classList.remove('is-intro-entering');
+    }
+    maybeShowGoalTutorial({
+      delay: BOARD_INTRO_TUTORIAL_DELAY_MS,
+      onShow: () => {
+        if (lockUntilGoalTutorial) state.busy = false;
+        scheduleHint();
+      }
+    });
+    maybeShowWoodTutorial({
+      delay: BOARD_INTRO_TUTORIAL_DELAY_MS,
+      onShow: () => {
+        if (lockUntilWoodTutorial) state.busy = false;
+        scheduleHint();
+      }
+    });
+
     scheduleHint();
+    _gameStarting = false; // Reset guard after game is set up
   }
 
   function closeGame() {
@@ -2279,6 +3406,9 @@
     state.levelFailed = false;
     state.pointer = null;
     state.hintPair = null;
+    state.tutorial = null;
+    state.tutorialSuppressed = false;
+    state.blockers = [];
   }
 
   function showLevelPanel() {
@@ -2346,7 +3476,10 @@
       button.setAttribute("aria-label", isParticipating ? getParticipatingText() : `${def?.price || 0} WildCoin`);
       if (label) label.textContent = isParticipating ? getParticipatingText() : String(def?.price || 0);
       const icon = button.querySelector("img");
-      if (icon) icon.hidden = isParticipating;
+      if (icon) {
+        icon.src = isParticipating ? TICK_IMAGE : WILDCOIN_IMAGE;
+        icon.hidden = false;
+      }
     });
     state.page?.querySelectorAll?.("[data-match-prize-ticket]")?.forEach((ticket) => {
       const prizeId = ticket.getAttribute("data-match-prize-ticket") || "";
@@ -2808,6 +3941,10 @@
     if (state.winRewardAmount) state.winRewardAmount.textContent = String(LEVEL_REWARD);
     if (state.winContinue) state.winContinue.textContent = getContinueText();
     if (state.failLevelTitle) state.failLevelTitle.textContent = levelText;
+    if (state.tutorial) {
+      state.tutorial.text = getTutorialText(state.tutorial.type);
+      renderBoard();
+    }
     setSmartText(state.failStatus, getLevelFailedText(), { longAt: 12, veryLongAt: 17 });
     setSmartText(state.failRetry, getTryAgainText(), { longAt: 10, veryLongAt: 16 });
     setSmartText(state.outOfMovesToast, getOutOfMovesText(), { longAt: 12, veryLongAt: 18 });
@@ -2881,6 +4018,7 @@
     state.winRewardAmount = state.page.querySelector("[data-match-win-reward]");
     state.winContinue = state.page.querySelector("[data-match-win-continue]");
     state.winCoin = state.page.querySelector("[data-match-win-coin]");
+    state.winConfetti = state.page.querySelector("[data-match-win-confetti]");
     state.failPanel = state.page.querySelector("[data-match-fail-panel]");
     state.failLevelTitle = state.page.querySelector("[data-match-fail-level]");
     state.failStatus = state.page.querySelector("[data-match-fail-status]");
@@ -2985,6 +4123,7 @@
         lives: state.lives,
         nextLifeAt: state.nextLifeAt,
         maxLives: MAX_LIVES,
+        level: getCurrentLevelConfig().level || 1,
         gameOpen: !state.game?.hidden
       }),
       openEconomySheet: () => {
@@ -2993,6 +4132,34 @@
       openLivesSheet: () => {
         showLivesPanel("pill");
       }
+    };
+
+    window.MatchAdmin = {
+      startLevel: (level = 1, options = {}) => {
+        const levelNumber = Math.max(1, Math.round(Number(level) || 1));
+        try {
+          if (typeof window.WT?.navigate === "function") window.WT.navigate(PAGE_ID);
+          else document.querySelector?.(`.bottom-nav .nav-item[data-target="${PAGE_ID}"]`)?.click?.();
+        } catch {}
+        return startGame({
+          level: levelNumber,
+          instant: options?.instant !== false,
+          admin: true
+        });
+      },
+      setLevel: (level = 1) => {
+        const levelNumber = Math.max(1, Math.round(Number(level) || 1));
+        const levelIndex = LEVEL_CONFIGS.findIndex((item) => item.level === levelNumber);
+        if (levelIndex >= 0) state.currentLevelIndex = levelIndex;
+        syncLanguage();
+        return getCurrentLevelConfig().level || 1;
+      },
+      getState: () => ({
+        level: getCurrentLevelConfig().level || 1,
+        gameOpen: !state.game?.hidden,
+        movesLeft: state.movesLeft,
+        targets: state.targets.map((target) => ({ ...target }))
+      })
     };
   }
 

@@ -241,6 +241,22 @@
     return `${y}-${m}-${day}`;
   }
 
+  function todayUtcKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function isExpiredUnopenedDailyCaseItem(item, dateKey = todayLocalKey()) {
+    if (!isDailyCaseItem(item)) return false;
+    if (item?.opened === true) return false;
+    const itemDateKey = String(item?.dailyCaseDate || '').trim();
+    const validKeys = new Set([String(dateKey || todayLocalKey()), todayUtcKey()]);
+    return !!itemDateKey && !validKeys.has(itemDateKey);
+  }
+
+  function withoutExpiredDailyCases(items, dateKey = todayLocalKey()) {
+    return (Array.isArray(items) ? items : []).filter((item) => !isExpiredUnopenedDailyCaseItem(item, dateKey));
+  }
+
   function isLocalhostDailyCaseTestMode() {
     const host = String(window.location?.hostname || '').toLowerCase();
     return host === 'localhost' || host === '127.0.0.1' || host === '::1';
@@ -300,10 +316,40 @@
   function hideDailyCasePanel() {
     const panel = document.getElementById('dailyCasePanel');
     if (!panel) return;
+    updateDailyCaseBadge(true);
     panel.classList.remove('is-open');
     window.setTimeout(() => {
       if (!panel.classList.contains('is-open')) panel.hidden = true;
     }, 260);
+  }
+
+  function dailyCasePanelFloaterHtml() {
+    const gifts = DAILY_CASE_REWARDS.filter((reward) => String(reward?.type || '') === 'gift');
+    const spots = [
+      { x: 14, y: 18, size: 50, delay: -0.6 },
+      { x: 78, y: 13, size: 44, delay: -1.8 },
+      { x: 10, y: 48, size: 40, delay: -2.7 },
+      { x: 88, y: 47, size: 48, delay: -1.1 },
+      { x: 50, y: 11, size: 36, delay: -3.4 }
+    ];
+
+    return spots.map((spot, index) => {
+      const reward = gifts[Math.floor(Math.random() * gifts.length)] || DAILY_CASE_REWARDS[index % DAILY_CASE_REWARDS.length];
+      return `
+        <img class="daily-case-panel__floater daily-case-panel__floater--${index + 1}"
+             src="${escapeHtml(reward?.image || DAILY_CASE_IMAGE)}"
+             alt=""
+             aria-hidden="true"
+             style="--x:${spot.x}%; --y:${spot.y}%; --s:${spot.size}px; --d:${spot.delay}s"
+             onerror="this.onerror=null;this.src='${DAILY_CASE_IMAGE}'">
+      `;
+    }).join('');
+  }
+
+  function renderDailyCasePanelFloaters(panel) {
+    const floaters = panel?.querySelector?.('[data-daily-case-panel-floaters]');
+    if (!floaters) return;
+    floaters.innerHTML = dailyCasePanelFloaterHtml();
   }
 
   function showDailyCasePanel(dateKey) {
@@ -316,29 +362,43 @@
       panel.innerHTML = `
         <div class="daily-case-panel__backdrop" aria-hidden="true"></div>
         <section class="daily-case-panel__box" role="dialog" aria-modal="true" aria-label="Daily Case">
+          <button class="daily-case-panel__close" type="button" aria-label="Close">
+            <img src="/icons/ui/close.svg" alt="" aria-hidden="true">
+          </button>
+          <div class="daily-case-panel__floaters" data-daily-case-panel-floaters aria-hidden="true"></div>
           <div class="daily-case-panel__imagewrap">
             <img class="daily-case-panel__image" src="${DAILY_CASE_IMAGE}" alt="">
           </div>
-          <div class="daily-case-panel__title">Daily Case</div>
-          <div class="daily-case-panel__text">Available in your inventory.</div>
-          <button class="daily-case-panel__open" type="button">Open</button>
+          <div class="daily-case-panel__copy">
+            <div class="daily-case-panel__title">Daily Case</div>
+            <div class="daily-case-panel__text">Daily Case added to your inventory. Go to Profile to open it.</div>
+          </div>
         </section>
       `;
       document.body.appendChild(panel);
       panel.querySelector('.daily-case-panel__backdrop')?.addEventListener('click', hideDailyCasePanel);
-      panel.querySelector('.daily-case-panel__open')?.addEventListener('click', () => {
-        markDailyCaseViewed(panel.dataset.dateKey || todayLocalKey());
-        hideDailyCasePanel();
-        window.WT?.activatePage?.('profilePage');
-        haptic('success');
-      });
+      panel.querySelector('.daily-case-panel__close')?.addEventListener('click', hideDailyCasePanel);
     }
 
     panel.dataset.dateKey = dateKey || todayLocalKey();
+    renderDailyCasePanelFloaters(panel);
     panel.hidden = false;
     requestAnimationFrame(() => panel.classList.add('is-open'));
     haptic('success');
   }
+
+  window.WildGiftDailyCasePanel = {
+    show(dateKey = todayLocalKey()) {
+      showDailyCasePanel(dateKey);
+    },
+    hide() {
+      hideDailyCasePanel();
+    }
+  };
+
+  window.addEventListener('daily-case-panel:test-activate', () => {
+    showDailyCasePanel(todayLocalKey());
+  });
 
   function hasUnopenedDailyCaseForDate(items, dateKey) {
     const key = String(dateKey || todayLocalKey());
@@ -371,7 +431,7 @@
   }
 
   function withLocalhostDailyCase(items) {
-    const arr = Array.isArray(items) ? items.slice() : [];
+    const arr = withoutExpiredDailyCases(items);
     if (!isLocalhostDailyCaseTestMode()) return arr;
 
     const dateKey = todayLocalKey();
@@ -1006,7 +1066,9 @@
     try {
       const raw = localStorage.getItem(LS_PREFIX + userId);
       const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
+      const clean = withoutExpiredDailyCases(arr);
+      if (Array.isArray(arr) && clean.length !== arr.length) writeLocalInventory(userId, clean);
+      return clean;
     } catch {
       return [];
     }
@@ -1014,7 +1076,7 @@
 
   function writeLocalInventory(userId, items) {
     try {
-      localStorage.setItem(LS_PREFIX + userId, JSON.stringify(items || []));
+      localStorage.setItem(LS_PREFIX + userId, JSON.stringify(withoutExpiredDailyCases(items)));
     } catch {}
   }
 
